@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Reads the .csproj graph from disk; deliberately references no engine projects. -->
+</Project>
