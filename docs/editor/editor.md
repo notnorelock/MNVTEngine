@@ -59,6 +59,14 @@ This replaces the nine Editor projects in the original proposal. They would have
 - **When it is cleared:** opening or creating a scene clears the history.
 - **Play Mode:** undo is off while playing, because Play Mode edits are discarded on Stop anyway.
 
+## Project Hub and building
+
+- **Project Hub.** Starting the editor without a project, or **File → Project Hub**, opens the hub: recent projects (right-click to remove one), New Project from a template, and Open. The recent list is kept in `%APPDATA%/MNVTEngine/recent-projects.json`.
+- **Build menu (`BuildController`).** Build Settings (profile, output folder), Build (Ctrl+B), Build and Run (Ctrl+Shift+B), Run Last Build, Validate Project, Open Build Folder.
+  - Work runs on a background task while the editor stays usable. The toolbar shows "Building (N s)", and diagnostics go to the Console.
+  - Builds use the files on disk, so unsaved scene changes are offered for saving first.
+- **Same pipeline.** Everything `mnvt` does is available here; the command line remains for automation and CI.
+
 ## Diagnostics panels
 
 - **Profiler:** frame time and the cost of each engine region; see [profiling](../engine/profiling.md).

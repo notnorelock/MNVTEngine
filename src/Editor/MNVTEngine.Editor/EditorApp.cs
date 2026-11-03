@@ -40,6 +40,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private ConsolePanel _console = null!;
     private ProfilerPanel _profilerPanel = null!;
     private ScriptDebuggerPanel _scriptDebugger = null!;
+    private BuildController _build = null!;
+    private bool _showBuildSettings;
     private readonly Core.Diagnostics.FrameProfiler _profiler = new();
     private ScriptReloadController _scripts = null!;
     private string _iniPath = "";
@@ -96,6 +98,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _console = new ConsolePanel(_context);
         _profilerPanel = new ProfilerPanel(_context, _profiler);
         _scriptDebugger = new ScriptDebuggerPanel(_context);
+        _build = new BuildController(project, loggerFactory);
+        _showBuildSettings = options.FocusWindow == "Build Settings";
         foreach (var breakpoint in options.Breakpoints ?? [])
         {
             var separator = breakpoint.LastIndexOf(':');
@@ -183,6 +187,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _projectPanel.Draw();
         _console.Draw();
         _profilerPanel.Draw();
+        _build.Update();
+        DrawBuildSettings();
         _scriptDebugger.Draw();
         if (options.FocusWindow is { } focus && _frames == 10) // after the dock layout and Play Mode focus settle
         {
@@ -393,6 +399,12 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             }
 
             ImGui.Separator();
+            if (ImGui.MenuItem("Project Hub...", null, false))
+            {
+                OpenProjectHub();
+            }
+
+            ImGui.Separator();
             if (ImGui.MenuItem("Exit"))
             {
                 GuardUnsaved(_context.Window.Close);
@@ -425,6 +437,44 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             if (ImGui.MenuItem("Delete", "Del", false, _context.Selected is not null))
             {
                 _context.Delete(_context.Selected!);
+            }
+
+            ImGui.EndMenu();
+        }
+
+        if (ImGui.BeginMenu("Build"))
+        {
+            var idle = !_build.IsBusy;
+            if (ImGui.MenuItem("Build Settings..."))
+            {
+                _showBuildSettings = true;
+            }
+
+            ImGui.Separator();
+            if (ImGui.MenuItem($"Build ({_build.Profile})", "Ctrl+B", false, idle))
+            {
+                StartBuild(run: false);
+            }
+
+            if (ImGui.MenuItem($"Build and Run ({_build.Profile})", "Ctrl+Shift+B", false, idle))
+            {
+                StartBuild(run: true);
+            }
+
+            if (ImGui.MenuItem("Run Last Build", null, false, idle) && !_build.RunLastBuild())
+            {
+                EditorLog.Warning(_logger, $"Profile '{_build.Profile}' has not been built yet.");
+            }
+
+            if (ImGui.MenuItem("Validate Project", null, false, idle))
+            {
+                GuardUnsaved(_build.StartValidation);
+            }
+
+            ImGui.Separator();
+            if (ImGui.MenuItem("Open Build Folder", null, false, Directory.Exists(_build.OutputDirectory)))
+            {
+                OpenFolder(_build.OutputDirectory);
             }
 
             ImGui.EndMenu();
@@ -494,6 +544,12 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             ScriptState.Compiling => new System.Numerics.Vector4(1f, 0.8f, 0.4f, 1f),
             _ => new System.Numerics.Vector4(0.55f, 0.57f, 0.62f, 1f),
         };
+        if (_build.Status is { } building)
+        {
+            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0.4f, 1f), building);
+            ImGui.SameLine();
+        }
+
         ImGui.TextColored(color, _scripts.StatusText);
         if (_scripts.State != ScriptState.None)
         {
@@ -629,6 +685,10 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         {
             Save();
         }
+        else if (ImGui.IsKeyPressed(ImGuiKey.B, false) && !_build.IsBusy)
+        {
+            StartBuild(run: io.KeyShift);
+        }
         else if (!_context.PlayMode.IsPlaying && (ImGui.IsKeyPressed(ImGuiKey.Y, false) || (io.KeyShift && ImGui.IsKeyPressed(ImGuiKey.Z, false))))
         {
             _context.Session.History.Redo();
@@ -746,14 +806,100 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         ImGui.SaveIniSettingsToDisk(_iniPath);
     }
 
-    private void SaveScreenshot(string path)
+    private void SaveScreenshot(string path) => Screenshot.Save(_context.Device, path);
+
+    /// <summary>Builds what is on disk, so unsaved scene changes are resolved first (Save / Don't Save / Cancel).</summary>
+    private void StartBuild(bool run) => GuardUnsaved(() => _build.StartBuild(run));
+
+    private void DrawBuildSettings()
     {
-        var device = _context.Device;
-        device.SetRenderTarget(null);
-        var pixels = new byte[device.BackBufferWidth * device.BackBufferHeight * 4];
-        device.ReadPixels(pixels);
-        using var stream = File.Create(path);
-        new StbImageWriteSharp.ImageWriter().WritePng(pixels, device.BackBufferWidth, device.BackBufferHeight, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, stream);
+        if (!_showBuildSettings)
+        {
+            return;
+        }
+
+        ImGui.SetNextWindowSize(new System.Numerics.Vector2(560, 0), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowPos(ImGui.GetMainViewport().GetCenter(), ImGuiCond.FirstUseEver, new System.Numerics.Vector2(0.5f, 0.5f));
+        if (ImGui.Begin("Build Settings", ref _showBuildSettings, ImGuiWindowFlags.NoDocking))
+        {
+            var profiles = project.EffectiveBuildProfiles;
+            var names = profiles.Select(p => p.Name).ToArray();
+            var index = Math.Max(0, Array.IndexOf(names, _build.Profile));
+            if (ImGui.Combo("Profile", ref index, names, names.Length))
+            {
+                _build.Profile = names[index];
+            }
+
+            var profile = profiles[index];
+            Gui.Muted($"{profile.Configuration}, {profile.Target}, console window: {(profile.ShowsConsole ? "yes" : "no")}");
+            Gui.Muted($"Output: {_build.OutputDirectory}");
+            Gui.Muted("Profiles are defined in the project file (\"buildProfiles\"); see docs/build-system/building.md.");
+            ImGui.Spacing();
+            ImGui.BeginDisabled(_build.IsBusy);
+            if (ImGui.Button("Build"))
+            {
+                StartBuild(run: false);
+            }
+
+            ImGui.SameLine();
+            if (ImGui.Button("Build and Run"))
+            {
+                StartBuild(run: true);
+            }
+
+            ImGui.SameLine();
+            if (ImGui.Button("Validate"))
+            {
+                GuardUnsaved(_build.StartValidation);
+            }
+
+            ImGui.EndDisabled();
+            ImGui.SameLine();
+            if (ImGui.Button("Open Folder") && Directory.Exists(_build.OutputDirectory))
+            {
+                OpenFolder(_build.OutputDirectory);
+            }
+
+            if (_build.Status is { } status)
+            {
+                ImGui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0.4f, 1f), status + " - progress in the Console");
+            }
+            else if (_build.LastBuild is { } last)
+            {
+                var errors = last.Diagnostics.Count(d => d.Severity == Build.BuildSeverity.Error);
+                var warnings = last.Diagnostics.Count(d => d.Severity == Build.BuildSeverity.Warning);
+                ImGui.TextColored(
+                    last.Succeeded ? new System.Numerics.Vector4(0.5f, 0.9f, 0.5f, 1f) : new System.Numerics.Vector4(1f, 0.45f, 0.45f, 1f),
+                    last.Succeeded ? $"Last build succeeded in {last.Duration.TotalSeconds:0.0} s ({warnings} warnings)" : $"Last build failed: {errors} errors, {warnings} warnings (see the Console)");
+            }
+        }
+
+        ImGui.End();
+    }
+
+    /// <summary>Starts another editor process without a project: the Project Hub (this editor keeps running).</summary>
+    private void OpenProjectHub()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false })?.Dispose();
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            EditorLog.Warning(_logger, "Could not start the Project Hub: " + ex.Message);
+        }
+    }
+
+    private void OpenFolder(string folder)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = false })?.Dispose();
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            EditorLog.Warning(_logger, $"Could not open {folder}: {ex.Message}");
+        }
     }
 
     [LoggerMessage(EventId = 5100, Level = LogLevel.Information, Message = "Opened '{Scene}' ({Count} objects)")]
@@ -773,4 +919,17 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
     [LoggerMessage(EventId = 5105, Level = LogLevel.Error, Message = "{Count} GPU resources leaked")]
     private static partial void LogLeaks(ILogger logger, int count);
+}
+
+/// <summary>Writes the back buffer to a PNG (automation: <c>--screenshot</c>).</summary>
+internal static class Screenshot
+{
+    public static void Save(IGraphicsDevice device, string path)
+    {
+        device.SetRenderTarget(null);
+        var pixels = new byte[device.BackBufferWidth * device.BackBufferHeight * 4];
+        device.ReadPixels(pixels);
+        using var stream = File.Create(path);
+        new StbImageWriteSharp.ImageWriter().WritePng(pixels, device.BackBufferWidth, device.BackBufferHeight, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, stream);
+    }
 }

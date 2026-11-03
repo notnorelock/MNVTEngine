@@ -4,6 +4,8 @@ This walkthrough creates a game, runs it, edits it in the editor, and exports a 
 
 ## 1. Create a project
 
+Start the editor without a project (`scripts\mnvt.cmd editor`, or run `MNVTEngine.Editor.exe`). The **Project Hub** opens. It lists recent projects, creates a new one from a template (name, location, template), or opens an existing folder. The command line does the same:
+
 ```bash
 scripts\mnvt.cmd new MyGame --template basic-2d --path C:\Games
 ```
@@ -62,6 +64,10 @@ public sealed class Spinner : Component
 }
 ```
 
+No registration or ids are needed: a component is saved under its `Namespace.Class` name. After renaming a class, add `[ComponentAlias("Old.Namespace.OldName")]` so existing scenes still load.
+
+`.meta` files hold each asset's GUID. The editor creates them for new assets (so does `mnvt build`, with a reminder to commit them). Never write them by hand; keep them in version control next to their assets. C# files in `Scripts/` have none.
+
 Lifecycle: `Awake`, `OnEnable`, `Start`, `FixedUpdate`, `Update`, `LateUpdate`, `OnDisable`, `OnDestroy`. Physics callbacks come from `ICollisionHandler2D` and `ITriggerHandler2D`. Facades: `Time`, `Input`, `SceneManager`, `Physics2D`, `Prefab`.
 
 **Missions and gameplay scripts** (`.mnvts`, sandboxed, coroutine-based):
@@ -81,6 +87,14 @@ mission "tutorial" {
 Run a script with a `MissionRunner` component (`Script`, `StartMission`).
 
 ## 5. Export
+
+In the editor, use the **Build** menu:
+
+- **Build Settings** chooses the profile (debug or release) and shows the output folder.
+- **Build** (Ctrl+B) and **Build and Run** (Ctrl+Shift+B) export the game. **Validate Project** checks it without exporting.
+- Builds run in the background; progress and problems appear in the Console. Unsaved scene changes are offered for saving first, because builds use the files on disk.
+
+Or from the command line:
 
 ```bash
 scripts\mnvt.cmd build C:\Games\MyGame --configuration release --run

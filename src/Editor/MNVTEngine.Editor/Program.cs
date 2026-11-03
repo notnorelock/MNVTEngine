@@ -8,23 +8,35 @@ using MNVTEngine.Runtime;
 using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
 
-// Usage: MNVTEngine.Editor <project dir or .mnvtproj> [--play] [--debug-gl]
+// Usage: MNVTEngine.Editor [project dir or .mnvtproj] [--play] [--debug-gl]   (no project: the Project Hub opens)
 // Automation (tests, docs): [--select ObjectName] [--frames N] [--screenshot out.png]
 using var logs = new InMemoryLoggerProvider(capacity: 5000, minimumLevel: LogLevel.Information);
 using var loggerFactory = LoggerFactory.Create(b => b.AddProvider(logs).AddSimpleConsole(o => o.SingleLine = true));
 var logger = loggerFactory.CreateLogger("Editor");
 
 var projectArg = args.Where((a, i) => !a.StartsWith("--", StringComparison.Ordinal) && (i == 0 || args[i - 1] is not ("--frames" or "--screenshot" or "--select" or "--focus" or "--break"))).FirstOrDefault();
+var recent = new MNVTEngine.Editor.Services.RecentProjects(MNVTEngine.Editor.Services.RecentProjects.DefaultFile);
 if (projectArg is null)
 {
-    Console.Error.WriteLine("Usage: MNVTEngine.Editor <project> [--play]");
-    return 2;
+    var hub = new ProjectHub(loggerFactory, recent, Value("--frames") is { } hubFrames ? int.Parse(hubFrames, CultureInfo.InvariantCulture) : null, Value("--screenshot"));
+    using (var hubWindow = new GameWindow(new GameWindowOptions { Title = "MNVTEngine - Projects", Width = 960, Height = 600 }))
+    {
+        hubWindow.Run(hub);
+    }
+
+    if (hub.SelectedProject is null)
+    {
+        return 0; // closed without choosing
+    }
+
+    projectArg = hub.SelectedProject;
 }
 
 GameProject project;
 try
 {
     project = GameProject.Load(projectArg);
+    recent.Add(project.ProjectFile);
 }
 catch (Exception ex) when (ex is SerializationException or FileNotFoundException)
 {

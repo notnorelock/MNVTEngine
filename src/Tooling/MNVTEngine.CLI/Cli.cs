@@ -22,8 +22,8 @@ public static class Cli
 
           new <Name> [--template empty-2d] [--path <parent folder>]
                                 Create a project from a template (see `mnvt new --list`)
-          editor <project> [--frames N]
-                                Open the project in the editor (--frames: close after N frames)
+          editor [project] [--frames N]
+                                Open the project in the editor; without one, the Project Hub (--frames: close after N frames)
           run <project> [--frames N] [--screenshot file.png] [--profile report.txt]
                                 Play the project from its sources
           build <project> [--profile name] [--configuration debug|release] [--target win-x64]
@@ -120,15 +120,16 @@ public static class Cli
     /// <summary>Starts the editor from the engine sources (the CLI never references the editor) and waits for it to close.</summary>
     private static async Task<int> EditorAsync(CommandLine command, TextWriter output, CancellationToken cancellationToken)
     {
-        var project = GameProject.Load(command.Single("project")).RootDirectory;
+        // Without a project the editor opens its Project Hub (recent, new, open).
+        string[] project = command.Positional.Count == 0 ? [] : [GameProject.Load(command.Single("project")).RootDirectory];
         var editor = EngineLocation.EditorProject(EngineLocation.FindRoot());
         var start = new ProcessStartInfo("dotnet") { UseShellExecute = false };
-        foreach (var argument in new[] { "run", "--project", editor, "-c", "Debug", "--", project }.Concat(command.Passthrough("--frames")))
+        foreach (var argument in new[] { "run", "--project", editor, "-c", "Debug", "--" }.Concat(project).Concat(command.Passthrough("--frames")))
         {
             start.ArgumentList.Add(argument);
         }
 
-        output.WriteLine($"Starting the editor for {project}...");
+        output.WriteLine(project.Length == 0 ? "Starting the editor (Project Hub)..." : $"Starting the editor for {project[0]}...");
         using var process = Process.Start(start) ?? throw new IOException("Could not start the editor.");
         await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
         return process.ExitCode == 0 ? Ok : Failed;
