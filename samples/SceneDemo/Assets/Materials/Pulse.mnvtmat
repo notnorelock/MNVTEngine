@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "shader": "asset:0f5e0000-0000-4000-8000-000000000070",
+  "blend": "Alpha",
+  "uniforms": {
+    "uGlow": [0.9, 0.5, 0.1, 1.0],
+    "uSpeed": 4.0
+  }
+}

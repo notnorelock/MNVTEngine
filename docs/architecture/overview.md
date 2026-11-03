@@ -49,7 +49,7 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.Core** | M0 | Game clock, fixed timestep, logging sinks, low-level utilities | nothing |
 | **MNVTEngine.Mathematics** | M0 | Vectors, quaternion, matrix, color, shapes | nothing |
 | **MNVTEngine.Serialization** | M0 | JSON settings, math converters, later: type registry, schema versions, migrations | Mathematics |
-| **MNVTEngine.Graphics** | M1 | Renderer2D, SpriteBatch, Camera2D, materials, resources, image decoding (no GL types) | Core, Mathematics, StbImageSharp |
+| **MNVTEngine.Graphics** | M1 | Renderer2D, SpriteBatch (per-sprite materials), Camera2D, materials, resources, image decoding (no GL types). Material assets and 2D lighting: see [materials and lighting](../graphics/materials-and-lighting.md) | Core, Mathematics, StbImageSharp |
 | **MNVTEngine.Graphics.OpenGL** | M1 | GL 4.5 implementation of Graphics | Graphics, Silk.NET.OpenGL |
 | **MNVTEngine.Platform** | M1 | Window, GL context, input state, frame loop (Silk.NET GLFW) | Core, Mathematics |
 | **MNVTEngine.ECS** | M2 | Entity storage, component pools, queries, systems | Core |

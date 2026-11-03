@@ -216,4 +216,19 @@ public sealed class SpriteBatchTests : IDisposable
         _renderer.Dispose();
         Assert.Equal(0, _device.Resources.LiveCount);
     }
+
+    [Fact]
+    public void PerSpriteMaterials_SplitDrawsOnlyWhereTheyChange()
+    {
+        var glow = new Material(_renderer.DefaultMaterial.Shader, BlendMode.Additive, "Glow");
+        Batch.Begin(Matrix4x4.Identity);
+        Batch.Draw(_a, Vector2.Zero, Vector2.One, Color.White);
+        Batch.Draw(_a, Vector2.Zero, Vector2.One, Color.White, material: glow);
+        Batch.Draw(_a, Vector2.Zero, Vector2.One, Color.White, material: glow);
+        Batch.Draw(_a, Vector2.Zero, Vector2.One, Color.White);
+        Batch.End();
+
+        Assert.Equal([_renderer.DefaultMaterial, glow, _renderer.DefaultMaterial], _device.Draws.Select(d => d.Material));
+        Assert.Equal([6, 12, 6], _device.Draws.Select(d => d.IndexCount));
+    }
 }

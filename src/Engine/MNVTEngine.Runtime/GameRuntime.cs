@@ -121,6 +121,7 @@ public sealed partial class GameRuntime(
     public void Unload()
     {
         CurrentScene?.Unload();
+        _sceneRenderer.Dispose();
         _resources.Dispose();
         _renderer.Dispose();
         if (_device.Resources.LiveCount > 0)

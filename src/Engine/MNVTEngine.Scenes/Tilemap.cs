@@ -43,6 +43,10 @@ public sealed class Tilemap : Component
     [SerializeField]
     public Color Color { get; set; } = Color.White;
 
+    [SerializeField]
+    [AssetType(AssetTypes.Material)]
+    public AssetRef Material { get; set; }
+
     /// <summary>Higher values draw on top (same scale as <see cref="SpriteRenderer.SortingOrder"/>).</summary>
     [SerializeField]
     public int SortingOrder { get; set; }

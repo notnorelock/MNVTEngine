@@ -76,7 +76,7 @@ public sealed class SpriteAnimationClip
             root = JObject.Parse(json);
             new JsonMigrationPipeline(CurrentSchemaVersion).Migrate(root, diagnostics);
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is JsonException or InvalidDataException)
         {
             throw new SerializationException(sourceName, ex.Message, diagnostics, ex);
         }

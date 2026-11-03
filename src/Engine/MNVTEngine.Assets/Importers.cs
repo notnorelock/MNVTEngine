@@ -55,6 +55,7 @@ public static class AssetImporters
         new SceneImporter(AssetTypes.Prefab, ".mnvtprefab"),
         new JsonImporter(),
         new AnimationImporter(),
+        new MaterialImporter(),
         new TextImporter("Shader", AssetTypes.Shader, ".glsl", ".vert", ".frag"),
         new ScriptImporter(),
         new TextImporter("Text", AssetTypes.Text, ".txt", ".md"),
@@ -235,6 +236,34 @@ public sealed class AnimationImporter() : SimpleImporter("Animation", AssetTypes
             context.Dependencies.Add(clip.Texture);
             context.Properties["frames"] = clip.Frames.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
             context.Properties["duration"] = clip.Duration.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + " s";
+        }
+        catch (SerializationException ex)
+        {
+            context.Errors.AddRange(ex.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => $"{d.Path}: {d.Message}").DefaultIfEmpty(ex.Message));
+        }
+        catch (DecoderFallbackException ex)
+        {
+            context.Errors.Add($"Not valid UTF-8 text: {ex.Message}");
+        }
+    }
+}
+
+/// <summary>Sprite materials: validated with the runtime's parser; a custom shader is a dependency. GLSL compiles on first use (it needs a GPU).</summary>
+public sealed class MaterialImporter() : SimpleImporter("Material", AssetTypes.Material, MaterialDefinition.Extension)
+{
+    public override void Import(AssetImportContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        try
+        {
+            var material = MaterialDefinition.Parse(new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(context.Data), context.RelativePath);
+            if (material.Shader is { } shader)
+            {
+                context.Dependencies.Add(shader);
+            }
+
+            context.Properties["blend"] = material.Blend;
+            context.Properties["shader"] = material.Shader is null ? "built-in sprite" : "custom";
         }
         catch (SerializationException ex)
         {

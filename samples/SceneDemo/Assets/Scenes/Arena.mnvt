@@ -721,7 +721,8 @@
             },
             "flipX": false,
             "flipY": false,
-            "sortingOrder": 2
+            "sortingOrder": 2,
+            "material": "asset:0f5e0000-0000-4000-8000-000000000071"
           }
         },
         {
@@ -739,6 +740,107 @@
           "enabled": true,
           "data": {
             "bodyType": "Dynamic"
+          }
+        }
+      ]
+    },
+    {
+      "id": "c0000000-0000-0000-0000-000000000300",
+      "name": "Ambient",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0,
+          "y": 0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.GlobalLight2D",
+          "id": "d0000000-0000-0000-0000-000000000300",
+          "enabled": true,
+          "data": {
+            "color": {
+              "r": 0.55,
+              "g": 0.6,
+              "b": 0.9,
+              "a": 1.0
+            },
+            "intensity": 0.3
+          }
+        }
+      ]
+    },
+    {
+      "id": "c0000000-0000-0000-0000-000000000301",
+      "name": "Player Light",
+      "active": true,
+      "parent": "c0000000-0000-0000-0000-000000000002",
+      "transform": {
+        "localPosition": {
+          "x": 0,
+          "y": 0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.Light2D",
+          "id": "d0000000-0000-0000-0000-000000000301",
+          "enabled": true,
+          "data": {
+            "color": {
+              "r": 1.0,
+              "g": 0.85,
+              "b": 0.6,
+              "a": 1.0
+            },
+            "intensity": 1.2,
+            "radius": 5.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "c0000000-0000-0000-0000-000000000302",
+      "name": "Platform Light",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 5,
+          "y": 1
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.Light2D",
+          "id": "d0000000-0000-0000-0000-000000000302",
+          "enabled": true,
+          "data": {
+            "color": {
+              "r": 0.3,
+              "g": 0.6,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "intensity": 1.0,
+            "radius": 4.0
           }
         }
       ]

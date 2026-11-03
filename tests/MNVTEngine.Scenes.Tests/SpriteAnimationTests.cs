@@ -123,4 +123,22 @@ public class SpriteAnimationTests
             scene.Update(new FrameTime(dt, dt, _frame * dt, _frame * dt, _frame));
         }
     }
+
+    [Fact]
+    public void MaterialDefinitions_ParseUniformsAndRejectMistakes()
+    {
+        var shader = Guid.NewGuid();
+        var material = MaterialDefinition.Parse($$"""{ "schemaVersion": 1, "shader": "asset:{{shader}}", "blend": "Additive", "uniforms": { "uTint": [1, 0.5, 0, 1], "uSpeed": 2, "uOffset": [1, 2] } }""", "glow.mnvtmat");
+        Assert.Equal((shader, "Additive"), (material.Shader!.Value, material.Blend));
+        Assert.Equal([1f, 0.5f, 0f, 1f], material.Uniforms["uTint"]);
+        Assert.Equal([2f], material.Uniforms["uSpeed"]);
+        Assert.Null(MaterialDefinition.Parse("""{ "schemaVersion": 1 }""", "default.mnvtmat").Shader);
+        Assert.Throws<SerializationException>(() => MaterialDefinition.Parse("{}", "unversioned.mnvtmat"));
+        Assert.Throws<SerializationException>(() => SpriteAnimationClip.Parse("{}", "unversioned.mnvtanim"));
+        Assert.Throws<SerializationException>(() => SpriteAnimationClip.Parse("[1, 2]", "array.mnvtanim"));
+
+        var ex = Assert.Throws<SerializationException>(() => MaterialDefinition.Parse(
+            """{ "schemaVersion": 1, "shader": "glow.frag", "blend": "Screen", "uniforms": { "uTime": 1, "bad name": 1, "uThree": [1, 2, 3] } }""", "bad.mnvtmat"));
+        Assert.Equal(["shader", "blend", "uniforms.uTime", "uniforms.bad name", "uniforms.uThree"], ex.Diagnostics.Select(d => d.Path));
+    }
 }

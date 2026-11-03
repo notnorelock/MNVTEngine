@@ -199,6 +199,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _sceneView.Dispose();
         _gameView.Dispose();
         _context.ImGui.Dispose();
+        _context.SceneRenderer.Dispose();
         _context.Resources.Dispose();
         _context.Renderer.Dispose();
         if (_context.Device.Resources.LiveCount > 0)

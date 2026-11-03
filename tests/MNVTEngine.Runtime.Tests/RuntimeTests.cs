@@ -133,7 +133,74 @@ public sealed class RuntimeTests : IDisposable
         Assert.False(Directory.Exists(Path.Combine(_root, "Library")), "Read-only runtime must not write a Library folder.");
     }
 
-    private static GameRuntime RunHidden(GameProject project, ComponentRegistry registry, ILoggerFactory factory, int frames)
+    [Fact]
+    public void Lighting_AndMaterials_RenderAndReleaseTheirResources()
+    {
+        string Meta(Guid guid) => $$"""{ "schemaVersion": 1, "guid": "{{guid}}", "settings": { "filter": "point" } }""";
+        var white = Guid.NewGuid();
+        var red = Guid.NewGuid();
+        var broken = Guid.NewGuid();
+        var redShader = Guid.NewGuid();
+        var brokenShader = Guid.NewGuid();
+        using (var png = File.Create(Path.Combine(_root, "Assets", "white.png")))
+        {
+            new StbImageWriteSharp.ImageWriter().WritePng(Enumerable.Repeat((byte)255, 4 * 4 * 4).ToArray(), 4, 4, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, png);
+        }
+
+        File.WriteAllText(Path.Combine(_root, "Assets", "white.png.meta"), Meta(white));
+        File.WriteAllText(Path.Combine(_root, "Assets", "red.frag"), """
+            #version 450 core
+            in vec2 vTexCoord;
+            in vec4 vColor;
+            layout(binding = 0) uniform sampler2D uTexture;
+            uniform vec4 uColor;
+            uniform float uTime;
+            out vec4 fragColor;
+            void main() { fragColor = uColor * texture(uTexture, vTexCoord).a + vec4(0.0 * uTime); }
+            """);
+        File.WriteAllText(Path.Combine(_root, "Assets", "red.frag.meta"), Meta(redShader));
+        File.WriteAllText(Path.Combine(_root, "Assets", "broken.frag"), "#version 450 core\nvoid main() { this is not glsl }");
+        File.WriteAllText(Path.Combine(_root, "Assets", "broken.frag.meta"), Meta(brokenShader));
+        File.WriteAllText(Path.Combine(_root, "Assets", "Red.mnvtmat"), $$"""{ "schemaVersion": 1, "shader": "asset:{{redShader}}", "uniforms": { "uColor": [1, 0, 0, 1] } }""");
+        File.WriteAllText(Path.Combine(_root, "Assets", "Red.mnvtmat.meta"), Meta(red));
+        File.WriteAllText(Path.Combine(_root, "Assets", "Broken.mnvtmat"), $$"""{ "schemaVersion": 1, "shader": "asset:{{brokenShader}}" }""");
+        File.WriteAllText(Path.Combine(_root, "Assets", "Broken.mnvtmat.meta"), Meta(broken));
+
+        string Sprite(float x, float y, float w, float h, Guid? material = null) =>
+            $$"""{ "type": "MNVTEngine.SpriteRenderer", "data": { "texture": "asset:{{white}}", "size": { "x": {{w}}, "y": {{h}} }{{(material is { } m ? $", \"material\": \"asset:{m}\"" : "")}} } }""";
+        string Object(string name, float x, float y, string component) =>
+            $$"""{ "id": "{{Guid.NewGuid()}}", "name": "{{name}}", "transform": { "localPosition": { "x": {{x}}, "y": {{y}} } }, "components": [ {{component}} ] }""";
+        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt"), $$"""
+            { "schemaVersion": 2, "name": "Lit", "gameObjects": [
+              {{Object("Camera", 0, 0, """{ "type": "MNVTEngine.Camera", "data": { "orthographicSize": 5.0 } }""")}},
+              {{Object("Floor", 0, 0, Sprite(0, 0, 20, 20))}},
+              {{Object("Red", 0, 4, Sprite(0, 4, 2, 1, red).Replace("\"size\"", "\"sortingOrder\": 5, \"size\""))}},
+              {{Object("Broken", 0, -4, Sprite(0, -4, 2, 1, broken).Replace("\"size\"", "\"sortingOrder\": 5, \"size\""))}},
+              {{Object("Ambient", 0, 0, """{ "type": "MNVTEngine.GlobalLight2D", "data": { "intensity": 0.2 } }""")}},
+              {{Object("Lamp", -3, 0, """{ "type": "MNVTEngine.Light2D", "data": { "radius": 3.0 } }""")}} ] }
+            """);
+        var screenshot = Path.Combine(_root, "lit.png");
+
+        var project = GameProject.Load(WriteProject());
+        using var logs = new InMemoryLoggerProvider(minimumLevel: LogLevel.Debug);
+        using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
+        var runtime = RunHidden(project, EngineComponents.CreateRegistry(), factory, frames: 3, screenshot);
+
+        Assert.Equal(0, runtime.ExitCode); // no GPU resources leaked
+        Assert.Single(logs.Snapshot(), e => e.Level >= LogLevel.Error && e.Message.Contains("Broken.mnvtmat", StringComparison.Ordinal));
+        var image = Graphics.Image.Load(screenshot);
+        var unit = image.Height / 10f; // orthographic size 5: the view is 10 units tall (the window may be wider than requested)
+        (int X, int Y) At(float x, float y) => ((int)((image.Width / 2f) + (x * unit)), (int)((image.Height / 2f) - (y * unit)));
+        byte Channel((int X, int Y) p, int c) => image.Pixels[(((p.Y * image.Width) + p.X) * 4) + c];
+
+        Assert.InRange(Channel(At(-3, 0), 0), 230, 255);   // under the lamp
+        Assert.InRange(Channel(At(4.5f, 0), 0), 40, 62);   // ambient 0.2
+        Assert.InRange(Channel(At(0, 4), 1), 0, 3);        // red material: no green...
+        Assert.InRange(Channel(At(0, 4), 0), 40, 62);      // ...lit by ambient only
+        Assert.InRange(Channel(At(0, -4), 1), 40, 62);     // broken material falls back to the white default
+    }
+
+    private static GameRuntime RunHidden(GameProject project, ComponentRegistry registry, ILoggerFactory factory, int frames, string? screenshot = null)
     {
         GameWindow window;
         try
@@ -148,7 +215,7 @@ public sealed class RuntimeTests : IDisposable
 
         var runtime = new GameRuntime(project, registry,
             (w, l) => GLGraphicsDevice.Create(w.GraphicsContext, w.FramebufferWidth, w.FramebufferHeight, l),
-            factory, new GameRuntimeOptions { ExitAfterFrames = frames });
+            factory, new GameRuntimeOptions { ExitAfterFrames = frames, ScreenshotPath = screenshot });
         using (window)
         {
             window.Run(runtime);

@@ -4,7 +4,7 @@ namespace MNVTEngine.Graphics;
 
 /// <summary>
 /// Collects textured quads between <see cref="Begin"/> and <see cref="End"/>, sorts them, and submits
-/// as few draw calls as the sort mode allows. Consecutive sprites sharing a texture become one draw.
+/// as few draw calls as the sort mode allows. Consecutive sprites sharing a texture and material become one draw.
 /// Vertex data is uploaded once per chunk of <see cref="MaxSpritesPerChunk"/> sprites.
 /// </summary>
 public sealed class SpriteBatch : IDisposable
@@ -74,6 +74,7 @@ public sealed class SpriteBatch : IDisposable
     /// <param name="pivot">Normalized pivot, (0, 0) = bottom-left, (0.5, 0.5) = center (default).</param>
     /// <param name="source">Source rectangle in texels, origin top-left of the image. Null = whole texture.</param>
     /// <param name="depth">Sort key for <see cref="SpriteSortMode.BackToFront"/>/<see cref="SpriteSortMode.FrontToBack"/>; higher is farther.</param>
+    /// <param name="material">Material for this sprite; null uses the batch's material.</param>
     public void Draw(
         Texture2D texture,
         Vector2 position,
@@ -83,7 +84,8 @@ public sealed class SpriteBatch : IDisposable
         Vector2? pivot = null,
         Rect? source = null,
         SpriteFlip flip = SpriteFlip.None,
-        float depth = 0f)
+        float depth = 0f,
+        Material? material = null)
     {
         ArgumentNullException.ThrowIfNull(texture);
         ObjectDisposedException.ThrowIf(texture.IsDisposed, texture);
@@ -122,6 +124,7 @@ public sealed class SpriteBatch : IDisposable
         EnsureCapacity(_count + 1);
         _items[_count] = new SpriteItem(
             texture,
+            material ?? _material,
             depth,
             new SpriteVertex(Corner(x0, y0), new Vector2(u0, vBottom), packed),
             new SpriteVertex(Corner(x1, y0), new Vector2(u1, vBottom), packed),
@@ -220,13 +223,13 @@ public sealed class SpriteBatch : IDisposable
         var runStart = 0;
         for (var i = 1; i <= count; i++)
         {
-            var runTexture = _items[_order[start + runStart]].Texture;
-            if (i < count && ReferenceEquals(_items[_order[start + i]].Texture, runTexture))
+            ref readonly var first = ref _items[_order[start + runStart]];
+            if (i < count && ReferenceEquals(_items[_order[start + i]].Texture, first.Texture) && ReferenceEquals(_items[_order[start + i]].Material, first.Material))
             {
                 continue;
             }
 
-            var command = new DrawCommand(_material, runTexture, _vertexBuffer, _indexBuffer, runStart * 6, (i - runStart) * 6, _viewProjection);
+            var command = new DrawCommand(first.Material, first.Texture, _vertexBuffer, _indexBuffer, runStart * 6, (i - runStart) * 6, _viewProjection);
             _device.Draw(in command);
             DrawCallCount++;
             runStart = i;
@@ -263,5 +266,5 @@ public sealed class SpriteBatch : IDisposable
         return indices;
     }
 
-    private readonly record struct SpriteItem(Texture2D Texture, float Depth, SpriteVertex V0, SpriteVertex V1, SpriteVertex V2, SpriteVertex V3);
+    private readonly record struct SpriteItem(Texture2D Texture, Material Material, float Depth, SpriteVertex V0, SpriteVertex V1, SpriteVertex V2, SpriteVertex V3);
 }
