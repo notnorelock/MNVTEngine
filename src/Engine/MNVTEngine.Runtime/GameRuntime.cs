@@ -19,6 +19,9 @@ public sealed record GameRuntimeOptions
     /// <summary>PNG written from the last frame before an automatic exit.</summary>
     public string? ScreenshotPath { get; init; }
 
+    /// <summary>Frame profiler bracketed by the runtime (the host makes it <see cref="Core.Diagnostics.Profiler.Current"/>); null when not profiling.</summary>
+    public Core.Diagnostics.FrameProfiler? Profiler { get; init; }
+
     /// <summary>Audio output for every scene; null plays nothing. Owned by the host.</summary>
     public Audio.IAudioDevice? Audio { get; init; }
 
@@ -73,14 +76,21 @@ public sealed partial class GameRuntime(
         _sceneRenderer = new SceneRenderer(_renderer, _resources, _logger);
         LogStarting(_logger, project.Name, project.StartupScene);
 
+        _options.Profiler?.BeginFrame();
+
         // A broken startup scene is fatal; later scene switches fall back to the current scene.
         SwitchTo(LoadScene(project.StartupScene));
     }
 
-    public void FixedUpdate(float fixedDeltaTime) => CurrentScene?.FixedUpdate(fixedDeltaTime);
+    public void FixedUpdate(float fixedDeltaTime)
+    {
+        using var sample = Core.Diagnostics.Profiler.Sample("FixedUpdate");
+        CurrentScene?.FixedUpdate(fixedDeltaTime);
+    }
 
     public void Update(FrameTime time)
     {
+        using var sample = Core.Diagnostics.Profiler.Sample("Update");
         CurrentScene?.Update(time);
         if (_pendingScene is { } path)
         {
@@ -100,8 +110,13 @@ public sealed partial class GameRuntime(
     {
         if (CurrentScene is not null)
         {
+            using var sample = Core.Diagnostics.Profiler.Sample("Render");
             _sceneRenderer.Render(CurrentScene, _window.FramebufferWidth, _window.FramebufferHeight);
         }
+
+        // Frames run FixedUpdate* → Update → Render: a frame ends after rendering.
+        _options.Profiler?.EndFrame();
+        _options.Profiler?.BeginFrame();
 
         _frames++;
         if (_options.ExitAfterFrames is { } limit && _frames >= limit)

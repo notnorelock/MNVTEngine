@@ -105,6 +105,7 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
             return;
         }
 
+        using var sample = Core.Diagnostics.Profiler.Sample("PlayMode");
         FrameTime time;
         int steps;
         if (_stepRequested)

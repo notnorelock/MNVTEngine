@@ -74,7 +74,11 @@ public sealed partial class MissionRunner : Component
         }
     }
 
-    public override void Update() => Vm?.Tick(Time.DeltaTime);
+    public override void Update()
+    {
+        using var sample = Core.Diagnostics.Profiler.Sample("Scripts.Missions");
+        Vm?.Tick(Time.DeltaTime);
+    }
 
     /// <summary>Exported games run the bytecode compiled at build time; in development the source is compiled here.</summary>
     private CompiledScript? LoadScript(ITextAssetReader reader, ILogger logger)

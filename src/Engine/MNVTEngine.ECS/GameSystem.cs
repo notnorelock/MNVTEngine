@@ -13,6 +13,11 @@ public abstract class GameSystem
 
     public bool Enabled { get; set; } = true;
 
+    /// <summary>Name of this system's profiler sample.</summary>
+    public virtual string ProfileName => _profileName ??= GetType().Name;
+
+    private string? _profileName;
+
     public virtual void FixedUpdate(World world, float fixedDeltaTime)
     {
     }
@@ -57,6 +62,7 @@ public sealed class SystemScheduler
         {
             if (system.Enabled)
             {
+                using var sample = MNVTEngine.Core.Diagnostics.Profiler.Sample(system.ProfileName);
                 system.FixedUpdate(world, fixedDeltaTime);
             }
         }
@@ -68,6 +74,7 @@ public sealed class SystemScheduler
         {
             if (system.Enabled)
             {
+                using var sample = MNVTEngine.Core.Diagnostics.Profiler.Sample(system.ProfileName);
                 system.Update(world, time);
             }
         }

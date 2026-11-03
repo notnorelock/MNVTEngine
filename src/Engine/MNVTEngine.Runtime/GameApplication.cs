@@ -11,7 +11,7 @@ namespace MNVTEngine.Runtime;
 public static partial class GameApplication
 {
     /// <summary>
-    /// Runs a project. Arguments: <c>[project path] [--frames N] [--screenshot file.png] [--debug-gl]</c>.
+    /// Runs a project. Arguments: <c>[project path] [--frames N] [--screenshot file.png] [--debug-gl] [--profile report.txt]</c>.
     /// Without a path, the single .mnvtproj next to the executable is used.
     /// </summary>
     /// <param name="prepareComponents">Registers game components (e.g. loads compiled scripts); returning false aborts startup.</param>
@@ -56,12 +56,16 @@ public static partial class GameApplication
         });
 
         using var audio = AudioDevices.CreateOrSilent(createAudio, loggerFactory.CreateLogger("Audio"));
+        var profileReport = Option(args, "--profile");
+        var profiler = profileReport is null ? null : new Core.Diagnostics.FrameProfiler(history: 100_000);
+        Core.Diagnostics.Profiler.Current = profiler;
         var runtime = new GameRuntime(project, registry, createDevice, loggerFactory, new GameRuntimeOptions
         {
             ExitAfterFrames = Option(args, "--frames") is { } frames ? int.Parse(frames, CultureInfo.InvariantCulture) : null,
             ScreenshotPath = Option(args, "--screenshot"),
             Archive = archive,
             Audio = audio,
+            Profiler = profiler,
         });
 
         try
@@ -72,6 +76,15 @@ public static partial class GameApplication
         {
             LogLoadFailed(logger, ex);
             return 2;
+        }
+
+        if (profiler is not null)
+        {
+            Core.Diagnostics.Profiler.Current = null;
+            var report = profiler.FormatReport();
+            File.WriteAllText(profileReport!, report);
+            var summary = profiler.Summarize();
+            LogProfile(logger, profileReport!, summary.Frames, summary.AverageFrameMilliseconds, summary.P95FrameMilliseconds);
         }
 
         return runtime.ExitCode;
@@ -86,8 +99,11 @@ public static partial class GameApplication
     private static bool IsOptionValue(string[] args, string value)
     {
         var i = Array.IndexOf(args, value);
-        return i > 0 && args[i - 1] is "--frames" or "--screenshot";
+        return i > 0 && args[i - 1] is "--frames" or "--screenshot" or "--profile";
     }
+
+    [LoggerMessage(EventId = 3201, Level = LogLevel.Information, Message = "Profile written to {Path}: {Frames} frames, avg {Average:0.00} ms, p95 {P95:0.00} ms")]
+    private static partial void LogProfile(ILogger logger, string path, int frames, double average, double p95);
 
     [LoggerMessage(EventId = 3200, Level = LogLevel.Critical, Message = "Game could not start")]
     private static partial void LogLoadFailed(ILogger logger, Exception exception);

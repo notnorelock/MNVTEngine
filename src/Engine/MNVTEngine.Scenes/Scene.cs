@@ -178,7 +178,11 @@ public sealed partial class Scene
             FixedDeltaTime = fixedDeltaTime;
             RunPendingStarts();
             InFixedUpdate = true;
-            Run(_fixedUpdateList, static c => c.FixedUpdate(), nameof(Component.FixedUpdate));
+            using (Core.Diagnostics.Profiler.Sample("Scripts.FixedUpdate"))
+            {
+                Run(_fixedUpdateList, static c => c.FixedUpdate(), nameof(Component.FixedUpdate));
+            }
+
             Systems.FixedUpdate(World, fixedDeltaTime);
         }
         finally
@@ -196,12 +200,29 @@ public sealed partial class Scene
         try
         {
             FrameTime = time;
-            RunPendingStarts();
-            Run(_updateList, static c => c.Update(), nameof(Component.Update));
+            using (Core.Diagnostics.Profiler.Sample("Scripts.Start"))
+            {
+                RunPendingStarts();
+            }
+
+            using (Core.Diagnostics.Profiler.Sample("Scripts.Update"))
+            {
+                Run(_updateList, static c => c.Update(), nameof(Component.Update));
+            }
+
             Systems.Update(World, time);
-            Run(_lateUpdateList, static c => c.LateUpdate(), nameof(Component.LateUpdate));
+            using (Core.Diagnostics.Profiler.Sample("Scripts.LateUpdate"))
+            {
+                Run(_lateUpdateList, static c => c.LateUpdate(), nameof(Component.LateUpdate));
+            }
+
             Systems.LateUpdate(World, time);
-            FlushDestroyQueue();
+            using (Core.Diagnostics.Profiler.Sample("Destroy"))
+            {
+                FlushDestroyQueue();
+            }
+
+            Core.Diagnostics.Profiler.Count("Game objects", _gameObjects.Count);
         }
         finally
         {

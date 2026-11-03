@@ -17,7 +17,8 @@ using SysVector2 = System.Numerics.Vector2;
 
 namespace MNVTEngine.Editor;
 
-internal sealed record EditorOptions(int? ExitAfterFrames, string? ScreenshotPath, bool PlayOnStart, string? SelectOnStart = null);
+/// <param name="FocusWindow">Panel brought to the front on start (e.g. "Profiler"), for automated screenshots.</param>
+internal sealed record EditorOptions(int? ExitAfterFrames, string? ScreenshotPath, bool PlayOnStart, string? SelectOnStart = null, string? FocusWindow = null);
 
 /// <summary>
 /// The editor application: dockable workspace (menu, toolbar, panels), scene file commands with unsaved-change
@@ -36,6 +37,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private GameViewPanel _gameView = null!;
     private ProjectPanel _projectPanel = null!;
     private ConsolePanel _console = null!;
+    private ProfilerPanel _profilerPanel = null!;
+    private readonly Core.Diagnostics.FrameProfiler _profiler = new();
     private ScriptReloadController _scripts = null!;
     private string _iniPath = "";
     private bool _resetLayout;
@@ -89,6 +92,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _gameView = new GameViewPanel(_context);
         _projectPanel = new ProjectPanel(_context);
         _console = new ConsolePanel(_context);
+        _profilerPanel = new ProfilerPanel(_context, _profiler);
+        Core.Diagnostics.Profiler.Current = _profiler;
 
         LogAssetDiagnostics();
         _scripts = new ScriptReloadController(session, _context.PlayMode, loggerFactory.CreateLogger("Scripts"));
@@ -112,6 +117,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
     public void Update(FrameTime time)
     {
+        _profiler.EndFrame();
+        _profiler.BeginFrame();
         RefreshAssetsPeriodically(time);
         _scripts.Update(DateTime.UtcNow);
         if (_startupScene is { } startup && !_scripts.IsBusy)
@@ -145,6 +152,11 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _gameView.Draw();
         _projectPanel.Draw();
         _console.Draw();
+        _profilerPanel.Draw();
+        if (options.FocusWindow is { } focus && _frames == 10) // after the dock layout and Play Mode focus settle
+        {
+            ImGui.SetWindowFocus(focus);
+        }
         _gameView.ApplyPendingFocus();
         DrawDialogs();
         HandleShortcuts();
@@ -176,8 +188,15 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
     public void Render(FrameTime time, float interpolation)
     {
-        _sceneView.Render();
-        _gameView.Render();
+        using (Core.Diagnostics.Profiler.Sample("Editor.SceneView"))
+        {
+            _sceneView.Render();
+        }
+
+        using (Core.Diagnostics.Profiler.Sample("Editor.GameView"))
+        {
+            _gameView.Render();
+        }
 
         _context.Device.SetRenderTarget(null);
         _context.Device.Clear(new Color(0.08f, 0.08f, 0.09f));
@@ -305,6 +324,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         DockBuilder.DockWindow("Inspector", right);
         DockBuilder.DockWindow("Project", bottom);
         DockBuilder.DockWindow("Console", bottom);
+        DockBuilder.DockWindow("Profiler", bottom);
         DockBuilder.DockWindow("Game", center);
         DockBuilder.DockWindow("Scene", center);
         DockBuilder.Finish(dockId);

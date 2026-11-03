@@ -184,6 +184,7 @@ public sealed partial class AudioSystem : GameSystem
     public override void Update(World world, FrameTime time)
     {
         Device.Update(time.UnscaledDeltaTime);
+        Core.Diagnostics.Profiler.Count("Audio voices", _voices.Count);
         var listener = _scene.FindObjectsOfType<AudioListener>().FirstOrDefault(l => l.IsActiveAndEnabled)?.Transform
             ?? _scene.MainCamera?.Transform;
         Device.ListenerPosition = listener?.Position ?? Vector2.Zero;

@@ -354,6 +354,8 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
         var visible = view.VisibleWorldBounds;
 
         resources.SetTime((float)_clock.Elapsed.TotalSeconds);
+        var drawCalls = renderer.Batch.DrawCallCount;
+        var sprites = Core.Diagnostics.Profiler.Sample("Render.Sprites");
         var batch = renderer.Begin(view, SpriteSortMode.BackToFront, target: target);
         renderer.Device.Clear(background);
         foreach (var sprite in scene.World.Pool<SpriteRenderer>().Components)
@@ -402,7 +404,16 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
         }
 
         renderer.End();
-        ApplyLighting(scene, view, target);
+        sprites.Dispose();
+        using (Core.Diagnostics.Profiler.Sample("Render.Lighting"))
+        {
+            ApplyLighting(scene, view, target);
+        }
+
+        Core.Diagnostics.Profiler.Count("Sprites drawn", SpritesDrawn);
+        Core.Diagnostics.Profiler.Count("Sprites culled", SpritesCulled);
+        Core.Diagnostics.Profiler.Count("Lights", LightsDrawn);
+        Core.Diagnostics.Profiler.Count("Draw calls", renderer.Batch.DrawCallCount - drawCalls);
     }
 
     public int LightsDrawn { get; private set; }

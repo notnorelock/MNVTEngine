@@ -24,7 +24,7 @@ public static class Cli
                                 Create a project from a template (see `mnvt new --list`)
           editor <project> [--frames N]
                                 Open the project in the editor (--frames: close after N frames)
-          run <project> [--frames N] [--screenshot file.png]
+          run <project> [--frames N] [--screenshot file.png] [--profile report.txt]
                                 Play the project from its sources
           build <project> [--profile name] [--configuration debug|release] [--target win-x64]
                           [--output folder] [--run [frames]]
@@ -58,7 +58,7 @@ public static class Cli
             {
                 "new" => CommandLine.Parse(args, ["--template", "--path"], ["--list"]),
                 "editor" => CommandLine.Parse(args, ["--frames"], []),
-                "run" => CommandLine.Parse(args, ["--frames", "--screenshot"], ["--debug-gl"]),
+                "run" => CommandLine.Parse(args, ["--frames", "--screenshot", "--profile"], ["--debug-gl"]),
                 "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output"], [], optionalValues: ["--run"]),
                 "validate" => CommandLine.Parse(args, [], [], optionalValues: ["--run"]),
                 _ => throw new FormatException($"Unknown command '{args[0]}'."),
@@ -138,7 +138,7 @@ public static class Cli
     {
         var project = command.Single("project");
         return DevelopmentRun.Run(
-            [project, .. command.Passthrough("--frames", "--screenshot", "--debug-gl")],
+            [project, .. command.Passthrough("--frames", "--screenshot", "--profile", "--debug-gl")],
             loggerFactory,
             (window, log) => GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, log),
             Audio.OpenAL.OpenALAudioDevice.Create) == 0 ? Ok : Failed;

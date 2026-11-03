@@ -107,6 +107,7 @@ public sealed class PhysicsWorld2D : GameSystem
         }
 
         SyncToPhysics();
+        Core.Diagnostics.Profiler.Count("Physics bodies", _bindings.Count);
         b2World_Step(_world, fixedDeltaTime, SubSteps);
         SyncFromPhysics();
         DispatchEvents();

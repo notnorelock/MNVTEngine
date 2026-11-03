@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Assets;
 using MNVTEngine.Core.Logging;
@@ -200,7 +201,29 @@ public sealed class RuntimeTests : IDisposable
         Assert.InRange(Channel(At(0, -4), 1), 40, 62);     // broken material falls back to the white default
     }
 
-    private static GameRuntime RunHidden(GameProject project, ComponentRegistry registry, ILoggerFactory factory, int frames, string? screenshot = null)
+    [Fact]
+    public void Profiler_RecordsRealFrames_WithRendererCounters()
+    {
+        WriteScene("First", """{ "type": "MNVTEngine.SpriteRenderer", "data": {} }""");
+        var profiler = new Core.Diagnostics.FrameProfiler();
+        Core.Diagnostics.Profiler.Current = profiler;
+        try
+        {
+            RunHidden(GameProject.Load(WriteProject()), EngineComponents.CreateRegistry(), NullLoggerFactory.Instance, frames: 5, profiler: profiler);
+        }
+        finally
+        {
+            Core.Diagnostics.Profiler.Current = null;
+        }
+
+        Assert.InRange(profiler.Frames.Count, 4, 6);
+        var paths = profiler.Summarize().Samples.Select(s => s.Path).ToList();
+        Assert.Contains("Render/Render.Sprites", paths);
+        Assert.Contains("Update/Scripts.Update", paths);
+        Assert.Contains("Draw calls", profiler.LastFrame!.Counters.Keys);
+    }
+
+    private static GameRuntime RunHidden(GameProject project, ComponentRegistry registry, ILoggerFactory factory, int frames, string? screenshot = null, Core.Diagnostics.FrameProfiler? profiler = null)
     {
         GameWindow window;
         try
@@ -215,7 +238,7 @@ public sealed class RuntimeTests : IDisposable
 
         var runtime = new GameRuntime(project, registry,
             (w, l) => GLGraphicsDevice.Create(w.GraphicsContext, w.FramebufferWidth, w.FramebufferHeight, l),
-            factory, new GameRuntimeOptions { ExitAfterFrames = frames, ScreenshotPath = screenshot });
+            factory, new GameRuntimeOptions { ExitAfterFrames = frames, ScreenshotPath = screenshot, Profiler = profiler });
         using (window)
         {
             window.Run(runtime);

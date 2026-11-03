@@ -140,7 +140,7 @@ Size is about 89 MB, mostly the .NET runtime. Trimming is not enabled because co
 
 - `MyGame.exe` runs the content in `MyGame_Data/`. It never compiles anything, and it needs neither the .NET SDK, an installed .NET runtime, nor the editor. The build tests run the game with no `dotnet` on `PATH`.
 - `.mnvts` scripts run from the build-time bytecode. Invalid bytecode disables that mission runner with an error ("rebuild the game"). It never falls back to the source.
-- Optional arguments: `--frames N`, `--screenshot file.png`, `--debug-gl`.
+- Optional arguments: `--frames N`, `--screenshot file.png`, `--debug-gl`, `--profile report.txt` (see [profiling](../engine/profiling.md)).
 - Exit codes:
 
   | Code | Meaning |

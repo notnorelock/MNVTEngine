@@ -46,7 +46,7 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 
 | Project | Milestone | Owns | May depend on |
 |---|---|---|---|
-| **MNVTEngine.Core** | M0 | Game clock, fixed timestep, logging sinks, low-level utilities | nothing |
+| **MNVTEngine.Core** | M0 | Game clock, fixed timestep, logging sinks, frame profiler (M8, see [profiling](../engine/profiling.md)), low-level utilities | nothing |
 | **MNVTEngine.Mathematics** | M0 | Vectors, quaternion, matrix, color, shapes | nothing |
 | **MNVTEngine.Serialization** | M0 | JSON settings, math converters, later: type registry, schema versions, migrations | Mathematics |
 | **MNVTEngine.Graphics** | M1 | Renderer2D, SpriteBatch (per-sprite materials), Camera2D, materials, resources, image decoding (no GL types). Material assets and 2D lighting: see [materials and lighting](../graphics/materials-and-lighting.md) | Core, Mathematics, StbImageSharp |

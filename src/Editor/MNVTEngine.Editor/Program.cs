@@ -14,7 +14,7 @@ using var logs = new InMemoryLoggerProvider(capacity: 5000, minimumLevel: LogLev
 using var loggerFactory = LoggerFactory.Create(b => b.AddProvider(logs).AddSimpleConsole(o => o.SingleLine = true));
 var logger = loggerFactory.CreateLogger("Editor");
 
-var projectArg = args.Where((a, i) => !a.StartsWith("--", StringComparison.Ordinal) && (i == 0 || args[i - 1] is not ("--frames" or "--screenshot" or "--select"))).FirstOrDefault();
+var projectArg = args.Where((a, i) => !a.StartsWith("--", StringComparison.Ordinal) && (i == 0 || args[i - 1] is not ("--frames" or "--screenshot" or "--select" or "--focus"))).FirstOrDefault();
 if (projectArg is null)
 {
     Console.Error.WriteLine("Usage: MNVTEngine.Editor <project> [--play]");
@@ -39,7 +39,8 @@ var options = new EditorOptions(
     Value("--frames") is { } frames ? int.Parse(frames, CultureInfo.InvariantCulture) : null,
     Value("--screenshot"),
     args.Contains("--play"),
-    Value("--select"));
+    Value("--select"),
+    Value("--focus"));
 
 using var window = new GameWindow(new GameWindowOptions
 {
