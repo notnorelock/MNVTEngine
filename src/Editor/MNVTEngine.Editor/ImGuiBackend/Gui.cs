@@ -12,6 +12,21 @@ namespace MNVTEngine.Editor.ImGuiBackend;
 internal static class Gui
 {
     public const string GameObjectPayload = "MNVT_GAMEOBJECT";
+
+    /// <summary>
+    /// Pushes a style color for the lifetime of the returned scope (<c>using (Gui.StyleColor(...)) { ... }</c>).
+    /// Whether it pushed is decided once, so the pop matches even when code inside the scope changes the state the
+    /// condition was computed from (e.g. a button that toggles Play Mode).
+    /// </summary>
+    public static StyleColorScope StyleColor(ImGuiCol color, SysVector4 value, bool when = true)
+    {
+        if (when)
+        {
+            ImGui.PushStyleColor(color, value);
+        }
+
+        return new StyleColorScope(when);
+    }
     public const string AssetPayload = "MNVT_ASSET";
 
     public static SysVector2 ToSys(this Vector2 v) => new(v.X, v.Y);
@@ -108,5 +123,17 @@ internal static class Gui
         Set(ImGuiCol.CheckMark, 0.45f, 0.68f, 1f);
         Set(ImGuiCol.SliderGrab, 0.45f, 0.68f, 1f);
         Set(ImGuiCol.SeparatorHovered, 0.26f, 0.42f, 0.64f);
+    }
+}
+
+/// <summary>Pops the style color pushed by <see cref="Gui.StyleColor"/>, if it pushed one.</summary>
+internal readonly struct StyleColorScope(bool pushed) : IDisposable
+{
+    public void Dispose()
+    {
+        if (pushed)
+        {
+            ImGui.PopStyleColor();
+        }
     }
 }

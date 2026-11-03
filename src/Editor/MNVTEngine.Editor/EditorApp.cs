@@ -499,19 +499,13 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         var width = ImGui.GetContentRegionAvail().X;
         ImGui.SetCursorPosX((width * 0.5f) - 110f);
 
-        if (play.IsPlaying)
+        // The button toggles Play Mode, so IsPlaying may differ after it: the scope remembers whether it pushed.
+        using (Gui.StyleColor(ImGuiCol.Button, new System.Numerics.Vector4(0.26f, 0.42f, 0.64f, 1f), play.IsPlaying))
         {
-            ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(0.26f, 0.42f, 0.64f, 1f));
-        }
-
-        if (ImGui.Button(play.IsPlaying ? "Stop" : "Play", new SysVector2(70f, 0f)))
-        {
-            TogglePlay();
-        }
-
-        if (play.IsPlaying)
-        {
-            ImGui.PopStyleColor();
+            if (ImGui.Button(play.IsPlaying ? "Stop" : "Play", new SysVector2(70f, 0f)))
+            {
+                TogglePlay();
+            }
         }
 
         ImGui.SameLine();

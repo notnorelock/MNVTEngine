@@ -144,24 +144,21 @@ internal sealed class ProjectPanel(EditorContext context)
 
             ImGui.SameLine();
             var failed = record?.Status == AssetImportStatus.Failed;
-            if (failed)
-            {
-                ImGui.PushStyleColor(ImGuiCol.Text, new SysVector4(1f, 0.45f, 0.45f, 1f));
-            }
-
             var selected = record is not null && context.Session.Selection.Asset == guid;
-            if (ImGui.Selectable(file, selected, ImGuiSelectableFlags.AllowDoubleClick) && record is not null)
+            using (Gui.StyleColor(ImGuiCol.Text, new SysVector4(1f, 0.45f, 0.45f, 1f), failed))
             {
-                context.Session.Selection.SelectAsset(guid);
-                if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && record.Type == AssetTypes.Scene)
+                if (ImGui.Selectable(file, selected, ImGuiSelectableFlags.AllowDoubleClick) && record is not null)
                 {
-                    context.OpenSceneRequest = relative;
+                    context.Session.Selection.SelectAsset(guid);
+                    if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && record.Type == AssetTypes.Scene)
+                    {
+                        context.OpenSceneRequest = relative;
+                    }
                 }
             }
 
             if (failed)
             {
-                ImGui.PopStyleColor();
                 if (ImGui.IsItemHovered())
                 {
                     ImGui.SetTooltip(string.Join('\n', record!.Messages));

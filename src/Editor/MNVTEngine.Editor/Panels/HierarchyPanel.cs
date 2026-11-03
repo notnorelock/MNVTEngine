@@ -89,16 +89,10 @@ internal sealed class HierarchyPanel(EditorContext context)
             flags |= ImGuiTreeNodeFlags.Selected;
         }
 
-        if (!gameObject.ActiveInHierarchy)
+        bool open;
+        using (Gui.StyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled], !gameObject.ActiveInHierarchy))
         {
-            ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]);
-        }
-
-        var open = ImGui.TreeNodeEx(gameObject.Id.ToString(), flags, gameObject.Name);
-
-        if (!gameObject.ActiveInHierarchy)
-        {
-            ImGui.PopStyleColor();
+            open = ImGui.TreeNodeEx(gameObject.Id.ToString(), flags, gameObject.Name);
         }
 
         if (ImGui.IsItemClicked() && !ImGui.IsItemToggledOpen())

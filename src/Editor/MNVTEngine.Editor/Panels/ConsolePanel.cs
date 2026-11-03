@@ -1,6 +1,7 @@
 using System.Globalization;
 using ImGuiNET;
 using Microsoft.Extensions.Logging;
+using MNVTEngine.Editor.ImGuiBackend;
 using SysVector4 = System.Numerics.Vector4;
 
 namespace MNVTEngine.Editor.Panels;
@@ -53,9 +54,10 @@ internal sealed class ConsolePanel(EditorContext context)
                     LogLevel.Warning => new SysVector4(1f, 0.78f, 0.35f, 1f),
                     _ => new SysVector4(1f, 0.42f, 0.42f, 1f),
                 };
-                ImGui.PushStyleColor(ImGuiCol.Text, color);
-                ImGui.TextUnformatted(string.Create(CultureInfo.InvariantCulture, $"[{entry.Timestamp.ToLocalTime():HH:mm:ss}] {entry.Category}: {entry.Message}"));
-                ImGui.PopStyleColor();
+                using (Gui.StyleColor(ImGuiCol.Text, color))
+                {
+                    ImGui.TextUnformatted(string.Create(CultureInfo.InvariantCulture, $"[{entry.Timestamp.ToLocalTime():HH:mm:ss}] {entry.Category}: {entry.Message}"));
+                }
                 if (entry.Exception is { } exception && ImGui.IsItemHovered())
                 {
                     ImGui.SetTooltip(exception.ToString());

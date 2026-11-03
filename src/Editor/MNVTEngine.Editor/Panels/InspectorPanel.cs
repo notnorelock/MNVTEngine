@@ -188,23 +188,15 @@ internal sealed partial class InspectorPanel(EditorContext context)
                 ImGui.SameLine();
             }
 
-            var selected = brush.Tile == tile;
-            if (selected)
-            {
-                ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(1f, 0.6f, 0.1f, 1f));
-            }
-
             var uv0 = new SysVector2(rect.X / texture.Width, rect.Y / texture.Height);
             var uv1 = new SysVector2((rect.X + rect.Width) / texture.Width, (rect.Y + rect.Height) / texture.Height);
-            if (ImGui.ImageButton($"tile{tile}", id, new SysVector2(32f, 32f), uv0, uv1))
+            using (Gui.StyleColor(ImGuiCol.Button, new System.Numerics.Vector4(1f, 0.6f, 0.1f, 1f), brush.Tile == tile))
             {
-                brush.Tile = tile;
-                brush.Active = true;
-            }
-
-            if (selected)
-            {
-                ImGui.PopStyleColor();
+                if (ImGui.ImageButton($"tile{tile}", id, new SysVector2(32f, 32f), uv0, uv1))
+                {
+                    brush.Tile = tile; // changes the push condition: the scope still pops what it pushed
+                    brush.Active = true;
+                }
             }
 
             if (ImGui.IsItemHovered())
@@ -366,15 +358,9 @@ internal sealed partial class InspectorPanel(EditorContext context)
         var assets = context.Session.Assets;
         var record = value.IsNone ? null : assets.Get(value.Guid);
         var text = value.IsNone ? $"None ({member.AssetType ?? "Asset"})" : record?.Name ?? $"Missing ({value.Guid})";
-        if (record is null && !value.IsNone)
+        using (Gui.StyleColor(ImGuiCol.Text, new System.Numerics.Vector4(1f, 0.45f, 0.45f, 1f), record is null && !value.IsNone))
         {
-            ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(1f, 0.45f, 0.45f, 1f));
-        }
-
-        ImGui.Button($"{text}##asset", new SysVector2(ImGui.CalcItemWidth(), 0f));
-        if (record is null && !value.IsNone)
-        {
-            ImGui.PopStyleColor();
+            ImGui.Button($"{text}##asset", new SysVector2(ImGui.CalcItemWidth(), 0f));
         }
 
         if (record is not null && ImGui.IsItemHovered())
