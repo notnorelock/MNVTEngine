@@ -7,5 +7,6 @@
     <ProjectReference Include="..\MNVTEngine.Graphics\MNVTEngine.Graphics.csproj" />
     <ProjectReference Include="..\MNVTEngine.Platform\MNVTEngine.Platform.csproj" />
     <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Scripting.Bindings\MNVTEngine.Scripting.Bindings.csproj" />
   </ItemGroup>
 </Project>

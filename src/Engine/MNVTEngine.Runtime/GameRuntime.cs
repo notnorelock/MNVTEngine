@@ -174,6 +174,7 @@ public sealed partial class GameRuntime(
         next.Input = _window.Input;
         next.Loader = this;
         next.Prefabs = _prefabs;
+        next.TextAssets = _prefabs;
         CurrentScene = next;
         next.Start();
         LogSceneStarted(_logger, next.Name, next.GameObjects.Count);

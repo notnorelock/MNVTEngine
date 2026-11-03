@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Mission framework on top of the scripting VM: lifecycle, objectives, events, persistence. No scene or graphics dependency. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Scripting\MNVTEngine.Scripting.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Serialization\MNVTEngine.Serialization.csproj" />
+  </ItemGroup>
+</Project>

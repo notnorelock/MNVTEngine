@@ -1,0 +1,54 @@
+// Sample mission for SceneDemo. Fly the player (WASD) to the Sun, stay near it, and visit the Moon.
+// Runs through the "Mission" object's MissionRunner component.
+
+const NEAR = 2.5
+var visits = 0
+
+mission "first_contact" {
+    name = "First Contact"
+    description = "Investigate the star system."
+    category = "tutorial"
+
+    var time_near_sun = 0
+
+    on start {
+        log("Mission started: fly to the Sun")
+        objective.activate("approach_sun")
+    }
+
+    objective "approach_sun" {
+        description = "Fly to the Sun"
+        wait until player.distance_to("Sun") < NEAR
+        visits += 1
+        log("Reached the Sun")
+        objective.complete()
+    }
+
+    // These two run in parallel once the Sun has been reached.
+    objective "study_sun" {
+        description = "Stay near the Sun for 3 seconds"
+        requires "approach_sun"
+        while time_near_sun < 3 {
+            wait 0.1
+            if player.distance_to("Sun") < NEAR { time_near_sun += 0.1 }
+        }
+        log("Sun studied")
+        objective.complete()
+    }
+
+    objective "visit_moon" {
+        description = "Visit the Moon"
+        requires "approach_sun"
+        wait until player.distance_to("Moon") < NEAR
+        visits += 1
+        log("Moon visited")
+        objective.complete()
+    }
+
+    objective "report" {
+        requires "study_sun", "visit_moon"
+        mission.complete()
+    }
+
+    on complete { log("Mission complete after " + visits + " visits") }
+}

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The .mnvts gameplay language: lexer, parser, compiler, bytecode, VM. No engine, graphics or editor dependencies. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.Scripting.Tests" />
+  </ItemGroup>
+</Project>

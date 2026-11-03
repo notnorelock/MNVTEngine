@@ -1,6 +1,6 @@
 # MNVTEngine Architecture Overview
 
-Status: **Milestone 5 (C# Game Scripting)** complete. This document is the source of truth for module boundaries.
+Status: **Milestone 6 (.mnvts language and missions)** complete. This document is the source of truth for module boundaries.
 `tests/MNVTEngine.Architecture.Tests` enforces the rules below by reading the `.csproj` graph.
 
 ## Toolchain
@@ -55,10 +55,11 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.ECS** | M2 | Entity storage, component pools, queries, systems | Core |
 | **MNVTEngine.Input** | M2 | Backend-free input state, keys, axes | Mathematics |
 | **MNVTEngine.Scenes** | M2 | GameObject/Component API, Transform hierarchy, lifecycle, Time/Input facades, scene serialization | ECS, Input, Serialization |
-| **MNVTEngine.Runtime** | M2 | Project file, GUID-based resource cache, prefab provider, scene renderer, standalone game loop; backend injected by the host | Assets, Graphics, Platform, Scenes |
-| **MNVTEngine.Assets** | M4 | GUID database, sidecar metas, importers, import cache, dependencies, safe asset paths | Serialization, Graphics (image decoding) |
-| MNVTEngine.Scripting | M6 | Language (lexer, parser, AST), compiler, bytecode, VM | Core only |
-| MNVTEngine.Scripting.Missions | M6 | Mission framework, persistence | Scripting, Serialization |
+| **MNVTEngine.Runtime** | M2 | Project file, GUID-based resource cache, prefab/text asset provider, scene renderer, standalone game loop; backend injected by the host | Assets, Graphics, Platform, Scenes, Scripting.Bindings |
+| **MNVTEngine.Assets** | M4 | GUID database, sidecar metas, importers (scripts are compiled on import for diagnostics), import cache, dependencies, safe asset paths | Serialization, Graphics (image decoding), Scripting.Missions (API declarations) |
+| **MNVTEngine.Scripting** | M6 | `.mnvts` lexer, parser, AST, semantic checks, compiler, bytecode format and verifier, coroutine VM, debugger hooks | nothing (enforced) |
+| **MNVTEngine.Scripting.Missions** | M6 | Standard API declarations, mission/objective lifecycle, save data with schema version | Scripting, Serialization; never Scenes/Graphics (enforced) |
+| **MNVTEngine.Scripting.Bindings** | M6 | `MissionRunner` component, scene API implementation (player, entity, marker, scene, dialogue, input) | Scenes, Scripting.Missions |
 | **MNVTEngine.GameAssemblies** | M5 | Collectible load contexts for game code, component discovery and registration, unload support (reflection cache release) | Scenes |
 | **MNVTEngine.Build** (Tooling) | M5 | Script compilation via `dotnet build`, diagnostics parsing, source stamps; later: packaging (M7) | GameAssemblies, Runtime |
 | **MNVTEngine.Player** (Tooling) | M5 | Development runner: compile scripts if stale, load, run any project | Build, Graphics.OpenGL |

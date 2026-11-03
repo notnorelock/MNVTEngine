@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.Extensions.Logging;
+using MNVTEngine;
 using MNVTEngine.Core.Logging;
 using MNVTEngine.Editor;
 using MNVTEngine.Platform;
@@ -32,7 +33,7 @@ catch (Exception ex) when (ex is SerializationException or FileNotFoundException
 }
 
 // Game components are compiled and loaded from the project's scripts project by ScriptReloadController.
-var registry = ComponentRegistry.CreateDefault();
+var registry = ScriptingComponents.Register(ComponentRegistry.CreateDefault());
 
 var options = new EditorOptions(
     Value("--frames") is { } frames ? int.Parse(frames, CultureInfo.InvariantCulture) : null,

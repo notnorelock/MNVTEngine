@@ -3,9 +3,10 @@
 A modular 2D game engine in C# / .NET 11: OpenGL 4.5 renderer (Silk.NET), ImGui.NET editor, hybrid ECS,
 asset pipeline, the `.mnvts` gameplay scripting language with its own bytecode VM, and standalone game export.
 
-**Status: Milestone 5 (C# Game Scripting).** Game components live in a C# class library that the editor
-compiles in the background and hot-reloads (collectible load contexts, data preserved, unload verified).
-The `.mnvts` gameplay language and VM come next.
+**Status: Milestone 6 (.mnvts language and missions).** Gameplay and missions can be written in `.mnvts`, compiled
+to verified bytecode and run by a coroutine VM that never blocks the frame. Missions have objectives (sequential,
+parallel, dependent), events, timers and save/load. `samples/SceneDemo` runs the `first_contact` mission.
+Game components can also be written in C# and are hot-reloaded by the editor (Milestone 5).
 
 ## Requirements
 
@@ -62,6 +63,8 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/SceneD
 - [Editor: panels, Play Mode, ImGui integration](docs/editor/editor.md)
 - [Assets: metas, GUIDs, importers, prefabs](docs/engine/assets.md)
 - [C# scripting: game assemblies, hot reload, unloading](docs/engine/csharp-scripting.md)
+- [.mnvts language reference: grammar, semantics, VM limits, errors](docs/scripting/language.md)
+- [Missions: lifecycle, script API, persistence](docs/scripting/missions.md)
 
 ## Roadmap
 
@@ -73,6 +76,6 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/SceneD
 | 3 | ImGui editor, Play Mode | done |
 | 4 | Asset pipeline with stable GUIDs | done |
 | 5 | C# game scripting via AssemblyLoadContext | done |
-| 6 | `.mnvts` language, compiler, VM, mission framework | next |
-| 7 | Build and Windows x64 packaging | |
+| 6 | `.mnvts` language, compiler, VM, mission framework | done |
+| 7 | Build and Windows x64 packaging | next |
 | 8 | Physics2D, audio, animation, tilemaps, 2D beta | |

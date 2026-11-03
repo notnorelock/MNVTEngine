@@ -32,6 +32,21 @@ public class DependencyRuleTests
     }
 
     [Fact]
+    public void ScriptingLanguage_IsSelfContained()
+    {
+        // The compiler and VM give scripts no file, process, network or engine access by construction: they reference nothing.
+        Assert.Empty(Graph["MNVTEngine.Scripting"].ProjectReferences);
+        Assert.Empty(Graph["MNVTEngine.Scripting"].Packages);
+    }
+
+    [Fact]
+    public void Missions_DoNotDependOnScenesOrRendering()
+    {
+        string[] forbidden = ["MNVTEngine.Scenes", "MNVTEngine.Graphics", "MNVTEngine.Platform", "MNVTEngine.Runtime"];
+        Assert.DoesNotContain(Graph.TransitiveReferences("MNVTEngine.Scripting.Missions"), forbidden.Contains);
+    }
+
+    [Fact]
     public void Input_DependsOnlyOnMathematics() => Assert.Equal(["MNVTEngine.Mathematics"], Graph["MNVTEngine.Input"].ProjectReferences);
 
     [Theory]

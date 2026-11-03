@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Scripting.Missions\MNVTEngine.Scripting.Missions.csproj" />
+  </ItemGroup>
+</Project>

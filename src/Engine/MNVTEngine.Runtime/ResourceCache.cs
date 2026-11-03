@@ -105,8 +105,8 @@ public sealed partial class ResourceCache : IDisposable
     private static partial void LogTextureFailed(ILogger logger, Exception exception, string asset);
 }
 
-/// <summary>Creates prefab instances from prefab assets; caches prefab text until the asset changes.</summary>
-public sealed partial class PrefabProvider : IPrefabProvider
+/// <summary>Creates prefab instances from prefab assets and reads text assets; caches prefab text until the asset changes.</summary>
+public sealed partial class PrefabProvider : IPrefabProvider, ITextAssetReader
 {
     private readonly SceneSerializer _serializer;
     private readonly AssetDatabase _assets;
@@ -155,6 +155,23 @@ public sealed partial class PrefabProvider : IPrefabProvider
         catch (Exception ex) when (ex is IOException or SerializationException)
         {
             throw new InvalidOperationException($"Prefab '{path}' could not be instantiated: {ex.Message}", ex);
+        }
+    }
+
+    public string ReadText(AssetRef asset, string assetType)
+    {
+        if (asset.IsNone || _assets.GetAssetType(asset.Guid) != assetType)
+        {
+            throw new InvalidOperationException($"{asset} is not a {assetType} asset in this project.");
+        }
+
+        try
+        {
+            return File.ReadAllText(_assets.FullPath(asset.Guid));
+        }
+        catch (IOException ex)
+        {
+            throw new InvalidOperationException($"'{_assets.Get(asset.Guid)!.Path}' could not be read: {ex.Message}", ex);
         }
     }
 

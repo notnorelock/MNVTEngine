@@ -15,6 +15,7 @@ internal sealed class AssetInspector(EditorContext context)
     private static readonly string[] Filters = Enum.GetNames<TextureFilter>();
     private static readonly string[] Wraps = Enum.GetNames<TextureWrap>();
 
+    private readonly ScriptView _script = new();
     private Guid _editing;
     private TextureImportSettings _settings = new();
     private bool _settingsDirty;
@@ -55,6 +56,10 @@ internal sealed class AssetInspector(EditorContext context)
         else if (record.Type == AssetTypes.Scene && ImGui.Button("Open scene"))
         {
             context.OpenSceneRequest = record.Path;
+        }
+        else if (record.Type == AssetTypes.Script)
+        {
+            _script.Draw(assets.FullPath(guid));
         }
 
         DrawReferences("References", record.Dependencies.Select(assets.Get));

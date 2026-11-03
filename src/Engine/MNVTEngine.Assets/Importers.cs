@@ -55,7 +55,7 @@ public static class AssetImporters
         new SceneImporter(AssetTypes.Prefab, ".mnvtprefab"),
         new JsonImporter(),
         new TextImporter("Shader", AssetTypes.Shader, ".glsl", ".vert", ".frag"),
-        new TextImporter("Script", AssetTypes.Script, ".mnvts"),
+        new ScriptImporter(),
         new TextImporter("Text", AssetTypes.Text, ".txt", ".md"),
         new MagicImporter("Audio", AssetTypes.Audio, new Dictionary<string, Func<byte[], string?>>
         {
@@ -252,6 +252,46 @@ public sealed class TextImporter(string name, string assetType, params string[] 
         catch (DecoderFallbackException ex)
         {
             context.Errors.Add($"Not valid UTF-8 text: {ex.Message}");
+        }
+    }
+}
+
+/// <summary>
+/// Compiles <c>.mnvts</c> scripts on import, so errors show when a script is saved rather than when the game runs.
+/// Functions outside <see cref="Scripting.Missions.StandardApi.All"/> are allowed with a warning (game code may add modules).
+/// </summary>
+public sealed class ScriptImporter() : SimpleImporter("Script", AssetTypes.Script, ".mnvts")
+{
+    public override int Version => 2;
+
+    public override void Import(AssetImportContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        string text;
+        try
+        {
+            text = new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(context.Data);
+        }
+        catch (DecoderFallbackException ex)
+        {
+            context.Errors.Add($"Not valid UTF-8 text: {ex.Message}");
+            return;
+        }
+
+        var result = Scripting.Compiler.ScriptCompiler.Compile(text, context.RelativePath, new Scripting.Compiler.CompileOptions
+        {
+            Api = Scripting.Missions.StandardApi.All,
+            AllowUnknownFunctions = true,
+        });
+        foreach (var diagnostic in result.Diagnostics)
+        {
+            (diagnostic.Severity == Scripting.Syntax.DiagnosticSeverity.Error ? context.Errors : context.Warnings).Add(diagnostic.ToString());
+        }
+
+        if (result.Script is { } script)
+        {
+            context.Properties["missions"] = string.Join(", ", script.Missions.Select(m => m.Id));
+            context.Properties["lines"] = (text.Count(c => c == '\n') + (text.Length > 0 ? 1 : 0)).ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
     }
 }

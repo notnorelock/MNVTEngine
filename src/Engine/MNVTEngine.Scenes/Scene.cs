@@ -47,6 +47,9 @@ public sealed partial class Scene
     /// <summary>Host service for <see cref="Instantiate"/> and <see cref="Prefab.Instantiate"/>.</summary>
     public IPrefabProvider? Prefabs { get; set; }
 
+    /// <summary>Host service for components that read text assets, such as mission scripts.</summary>
+    public ITextAssetReader? TextAssets { get; set; }
+
     /// <summary>Exceptions from component callbacks are logged and the frame continues; set true to rethrow (tests, debugging).</summary>
     public bool RethrowScriptExceptions { get; set; }
 

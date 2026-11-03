@@ -62,6 +62,13 @@ public interface IPrefabProvider
     GameObject Instantiate(Scene scene, AssetRef prefab, Transform? parent);
 }
 
+/// <summary>Implemented by the host (runtime, editor) to give components read access to text assets (e.g. scripts).</summary>
+public interface ITextAssetReader
+{
+    /// <exception cref="InvalidOperationException">The asset is missing, unreadable, or not of <paramref name="assetType"/>.</exception>
+    string ReadText(AssetRef asset, string assetType);
+}
+
 /// <summary>Prefab instantiation for gameplay code.</summary>
 public static class Prefab
 {

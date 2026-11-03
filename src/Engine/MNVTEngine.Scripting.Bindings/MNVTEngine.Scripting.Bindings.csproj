@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs .mnvts mission scripts inside scenes and implements the scene part of the script API. -->
+  <PropertyGroup>
+    <RootNamespace>MNVTEngine</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Scripting.Missions\MNVTEngine.Scripting.Missions.csproj" />
+  </ItemGroup>
+</Project>

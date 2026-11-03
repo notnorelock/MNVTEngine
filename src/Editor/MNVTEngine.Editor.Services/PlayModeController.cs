@@ -165,6 +165,7 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         scene.Input = Input;
         scene.Loader = this;
         scene.Prefabs = session.Prefabs;
+        scene.TextAssets = session.Prefabs;
         PlayScene = scene;
         scene.Start();
     }

@@ -99,6 +99,7 @@ public sealed class EditorSession
     {
         ArgumentNullException.ThrowIfNull(scene);
         scene.Prefabs = Prefabs;
+        scene.TextAssets = Prefabs;
         Scene = scene;
         SceneReplaced?.Invoke();
     }
@@ -113,6 +114,7 @@ public sealed class EditorSession
     private void Replace(Scene scene, string? path)
     {
         scene.Prefabs = Prefabs;
+        scene.TextAssets = Prefabs;
         Scene = scene;
         ScenePath = path;
         IsDirty = false;
@@ -125,6 +127,7 @@ public sealed class EditorSession
         var scene = new Scene(name);
         scene.CreateGameObject("Main Camera").AddComponent<Camera>();
         scene.Prefabs = Prefabs;
+        scene.TextAssets = Prefabs;
         return scene;
     }
 }
