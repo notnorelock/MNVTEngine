@@ -91,6 +91,8 @@ public sealed partial class GameBuilder(ILogger logger)
         Directory.CreateDirectory(stage);
         LogBuilding(logger, project.Name, profile.Name, profile.Configuration, profile.Target);
 
+        diagnostics.AddRange(ContentCompiler.CreateMissingMetas(project));
+
         // 1. Game code, compiled with the profile's configuration, also used to load scenes for validation.
         var registry = EngineComponents.CreateRegistry();
         GameCode? code = null;
@@ -202,6 +204,7 @@ public sealed partial class GameBuilder(ILogger logger)
             return diagnostics;
         }
 
+        diagnostics.AddRange(ContentCompiler.CreateMissingMetas(project));
         var registry = EngineComponents.CreateRegistry();
         var code = await DevelopmentScripts.LoadAsync(project, registry, file => LogCompilingScripts(logger, file, "Debug"), cancellationToken).ConfigureAwait(false);
         diagnostics.AddRange(code.Diagnostics);

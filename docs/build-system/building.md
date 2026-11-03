@@ -75,7 +75,7 @@ The steps run in this order. Every step reports diagnostics as `file(line,col): 
    The build refuses output folders that overlap the project, `Assets` or `Library`. It also refuses non-empty folders that do not contain a previous build, so a typo in `--output` cannot delete your files.
    It also loads the content key from `Settings/content.key` (see [Content encryption](#content-encryption)).
 2. **C# scripts.** `dotnet build -c <configuration>` into `Library/Build/<profile>/Scripts`. The compiled components are loaded so that scenes can be checked against them, then unloaded.
-3. **Content** (`ContentCompiler`). Assets are opened **read-only**, so a build never writes metas or caches into the project. Then:
+3. **Content** (`ContentCompiler`). Asset files that have no `.meta` yet (for example, added with the file explorer) get one, as they would in the editor, with warning `MNVB209`: commit it. Then assets are opened **read-only**:
    - Every importer runs: images are decoded, JSON is parsed, and so on.
    - Every `.mnvts` script is compiled strictly against the full runtime API. In the editor an unknown API function is only a warning; in a build it is an error (`MNV3014`), because the game would fail to link.
    - Every scene and prefab is loaded with the game's components.
@@ -185,7 +185,7 @@ Size is about 89 MB, mostly the .NET runtime. Trimming is not enabled because co
 | Range | Stage |
 |---|---|
 | MNVB1xx | Project, profile, output folder and key (`100` load, `101` unknown profile, `102` configuration, `103` target, `104` output folder, `105` name clash, `106` engine not found, `107` key created, `108` invalid key file) |
-| MNVB2xx | Content (`201` asset index, `202` unreadable, `203` import settings, `204`/`205` import errors and warnings, `206` missing referenced asset, `207`/`208` scene and prefab loading) |
+| MNVB2xx | Content (`209` created a missing `.meta`, `201` asset index, `202` unreadable, `203` import settings, `204`/`205` import errors and warnings, `206` missing referenced asset, `207`/`208` scene and prefab loading) |
 | MNVB3xx, CSxxxx | C# scripts (`301` scripts project missing; compiler errors keep their `CS` codes and source positions) |
 | MNV1xxx–3xxx | `.mnvts` errors from the compiler; see the [language reference](../scripting/language.md) |
 | MNVB4xx | Packaging (`401` host project missing, `402` dotnet not found, `403` publish failed, `404` native dependencies of game code not packaged, `409` previous build in use) |

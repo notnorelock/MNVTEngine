@@ -5,7 +5,6 @@ using MNVTEngine.Serialization;
 namespace SceneDemo;
 
 /// <summary>Moves with WASD/arrows.</summary>
-[ComponentId("SceneDemo.PlayerController")]
 public sealed class PlayerController : Component
 {
     public float Speed = 5f;
@@ -22,7 +21,6 @@ public sealed class PlayerController : Component
 }
 
 /// <summary>Rotates continuously; children orbit through the transform hierarchy.</summary>
-[ComponentId("SceneDemo.Spinner")]
 public sealed class Spinner : Component
 {
     public float DegreesPerSecond = 45f;
@@ -31,7 +29,6 @@ public sealed class Spinner : Component
 }
 
 /// <summary>Smoothly follows a target GameObject, assigned by reference in the scene file.</summary>
-[ComponentId("SceneDemo.CameraFollow")]
 public sealed class CameraFollow : Component
 {
     public GameObject? Target;
@@ -49,7 +46,6 @@ public sealed class CameraFollow : Component
 }
 
 /// <summary>Follows the mouse cursor in world space.</summary>
-[ComponentId("SceneDemo.MouseMarker")]
 public sealed class MouseMarker : Component
 {
     public override void Update()
@@ -62,7 +58,6 @@ public sealed class MouseMarker : Component
 }
 
 /// <summary>Space spawns a copy of a prefab (a short-lived orb) at the player.</summary>
-[ComponentId("SceneDemo.Spawner")]
 public sealed class Spawner : Component
 {
     [AssetType(AssetTypes.Prefab)]
@@ -77,7 +72,6 @@ public sealed class Spawner : Component
     }
 }
 
-[ComponentId("SceneDemo.Lifetime")]
 public sealed class Lifetime : Component
 {
     public float Seconds = 1f;
@@ -101,7 +95,6 @@ public sealed class Lifetime : Component
 }
 
 /// <summary>Tab switches to another scene.</summary>
-[ComponentId("SceneDemo.SceneSwitcher")]
 public sealed class SceneSwitcher : Component
 {
     [AssetType(AssetTypes.Scene)]

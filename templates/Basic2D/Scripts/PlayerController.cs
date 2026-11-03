@@ -4,7 +4,6 @@ using MNVTEngine.Mathematics;
 namespace {{Identifier}};
 
 /// <summary>Moves with WASD or the arrow keys.</summary>
-[ComponentId("{{Identifier}}.PlayerController")]
 public sealed class PlayerController : Component
 {
     public float Speed = 5f;

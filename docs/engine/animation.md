@@ -32,7 +32,6 @@ Frame-by-frame animation from sprite sheets.
   - Runtime state: `IsPlaying`, `CurrentClip`, `Frame`, `PlaybackTime`, and the `Finished` event, raised once when a non-looping clip ends.
 
 ```csharp
-[ComponentId("Game.HeroAnimation")]
 public sealed class HeroAnimation : Component
 {
     [AssetType(AssetTypes.Animation)] public AssetRef Idle, Run, Jump;

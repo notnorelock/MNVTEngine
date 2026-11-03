@@ -14,7 +14,7 @@ namespace MNVTEngine.Build;
 public sealed record ContentResult(IReadOnlyList<BuildDiagnostic> Diagnostics, int AssetCount, int ScriptCount);
 
 /// <summary>
-/// Asset compilation for exported games. Opens the project's assets read-only (the project is never modified), runs
+/// Asset compilation for exported games. Opens the project's assets read-only (call <see cref="CreateMissingMetas"/> first), runs
 /// every importer, compiles <c>.mnvts</c> scripts to verified bytecode against the full runtime API, loads every scene
 /// and prefab with the game's components, and checks asset references. With an archive it writes the game content:
 /// the asset index (GUIDs, paths, types, import settings, so references stay valid), every asset, bytecode per script
@@ -22,6 +22,35 @@ public sealed record ContentResult(IReadOnlyList<BuildDiagnostic> Diagnostics, i
 /// </summary>
 public static class ContentCompiler
 {
+    /// <summary>
+    /// Gives every asset file without a <c>.meta</c> one, exactly as the editor does when it sees a new file (assets
+    /// added with the file explorer, a script written in a text editor). Returns a warning per created meta: it holds
+    /// the asset's GUID and must be committed with it.
+    /// </summary>
+    public static IReadOnlyList<BuildDiagnostic> CreateMissingMetas(GameProject project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        if (!Directory.Exists(project.AssetsDirectory))
+        {
+            return [];
+        }
+
+        var missing = Directory.EnumerateFiles(project.AssetsDirectory, "*", SearchOption.AllDirectories)
+            .Where(f => !f.EndsWith(AssetDatabase.MetaExtension, StringComparison.OrdinalIgnoreCase)
+                && !f.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)
+                && !Path.GetFileName(f).StartsWith('.')
+                && !File.Exists(f + AssetDatabase.MetaExtension))
+            .ToList();
+        if (missing.Count == 0)
+        {
+            return [];
+        }
+
+        AssetDatabase.OpenForEditing(project.AssetsDirectory, Path.Combine(project.RootDirectory, "Library"));
+        return [.. missing.Where(f => File.Exists(f + AssetDatabase.MetaExtension)).Select(f => BuildDiagnostic.Warning(
+            "MNVB209", "Created its .meta file (the asset's GUID); commit it together with the asset.", AssetPaths.ToRelative(project.AssetsDirectory, f)))];
+    }
+
     /// <param name="registry">Built-in and game components, used to load scenes and prefabs.</param>
     /// <param name="archive">Content archive to write; null to validate only.</param>
     public static ContentResult Compile(GameProject project, ComponentRegistry registry, ContentArchive.Writer? archive)

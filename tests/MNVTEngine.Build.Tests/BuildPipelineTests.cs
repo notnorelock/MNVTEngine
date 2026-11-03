@@ -143,6 +143,22 @@ public sealed class BuildPipelineTests : IDisposable
     }
 
     [Fact]
+    public void MissingMetas_AreCreatedOnce_WithAWarningToCommitThem()
+    {
+        var project = NewProject();
+        var notes = Path.Combine(project.AssetsDirectory, "Docs", "notes.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(notes)!);
+        File.WriteAllText(notes, "added with the file explorer");
+
+        var created = Assert.Single(ContentCompiler.CreateMissingMetas(project));
+        Assert.Equal(("MNVB209", "Docs/notes.txt"), (created.Code, created.File));
+        var meta = File.ReadAllText(notes + ".meta");
+        Assert.Empty(ContentCompiler.CreateMissingMetas(project));
+        Assert.Equal(meta, File.ReadAllText(notes + ".meta")); // the GUID stays
+        Assert.DoesNotContain(ContentCompiler.Compile(project, Registry, archive: null).Diagnostics, d => d.File == "Docs/notes.txt");
+    }
+
+    [Fact]
     public void GamePackage_RefusesScriptsOutsideThePackage_AndNewerSchemas()
     {
         Directory.CreateDirectory(Path.Combine(_root, "C"));

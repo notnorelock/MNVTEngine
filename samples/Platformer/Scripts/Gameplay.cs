@@ -8,7 +8,6 @@ namespace Platformer;
 /// Physics-driven player: A/D or arrows run, Space/W/Up jumps when standing on something. Picks idle, run, jump and
 /// fall animations from its velocity, and respawns at the start after falling out of the level.
 /// </summary>
-[ComponentId("Platformer.Player")]
 public sealed class Player : Component
 {
     public float Speed = 6f;
@@ -93,7 +92,6 @@ public sealed class Player : Component
 }
 
 /// <summary>Collected when the player touches it: tells the mission and plays a sound.</summary>
-[ComponentId("Platformer.Coin")]
 public sealed class Coin : Component, ITriggerHandler2D
 {
     [AssetType(AssetTypes.Audio)]
@@ -113,7 +111,6 @@ public sealed class Coin : Component, ITriggerHandler2D
 }
 
 /// <summary>The flag (shown by the mission once every coin is collected).</summary>
-[ComponentId("Platformer.Goal")]
 public sealed class Goal : Component, ITriggerHandler2D
 {
     public void OnTriggerEnter2D(Collider2D other)
@@ -126,7 +123,6 @@ public sealed class Goal : Component, ITriggerHandler2D
 }
 
 /// <summary>Smoothly follows a target, clamped to the level.</summary>
-[ComponentId("Platformer.CameraFollow")]
 public sealed class CameraFollow : Component
 {
     public GameObject? Target;

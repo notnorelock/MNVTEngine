@@ -10,6 +10,7 @@ public sealed class ComponentRegistry
 {
     private readonly Dictionary<string, Type> _byId = new(StringComparer.Ordinal);
     private readonly Dictionary<Type, string> _byType = [];
+    private readonly Dictionary<string, Type> _aliases = new(StringComparer.Ordinal);
 
     public IReadOnlyDictionary<string, Type> Types => _byId;
 
@@ -27,6 +28,7 @@ public sealed class ComponentRegistry
         return registry;
     }
 
+    /// <summary>The id written to files: <see cref="ComponentIdAttribute"/> if present, otherwise the full type name.</summary>
     public static string IdOf(Type type) => type.GetCustomAttribute<ComponentIdAttribute>()?.Id ?? type.FullName ?? type.Name;
 
     public ComponentRegistry Register<T>()
@@ -52,6 +54,16 @@ public sealed class ComponentRegistry
 
         _byId.Add(id, type);
         _byType.Add(type, id);
+        foreach (var alias in type.GetCustomAttributes<ComponentAliasAttribute>())
+        {
+            if (_byId.ContainsKey(alias.FormerId) || (_aliases.TryGetValue(alias.FormerId, out var other) && other != type))
+            {
+                throw new InvalidOperationException($"Component alias '{alias.FormerId}' of {type.FullName} is already used by another component.");
+            }
+
+            _aliases[alias.FormerId] = type;
+        }
+
         return this;
     }
 
@@ -80,12 +92,17 @@ public sealed class ComponentRegistry
         {
             _byId.Remove(_byType[type]);
             _byType.Remove(type);
+            foreach (var alias in _aliases.Where(a => a.Value == type).Select(a => a.Key).ToList())
+            {
+                _aliases.Remove(alias);
+            }
         }
 
         return removed.Count;
     }
 
-    public bool TryGetType(string id, out Type type) => _byId.TryGetValue(id, out type!);
+    /// <summary>Resolves a saved id, including former ids declared with <see cref="ComponentAliasAttribute"/>.</summary>
+    public bool TryGetType(string id, out Type type) => _byId.TryGetValue(id, out type!) || _aliases.TryGetValue(id, out type!);
 
     /// <exception cref="InvalidOperationException">The type is not registered.</exception>
     public string GetId(Type type) =>

@@ -59,7 +59,7 @@ Callbacks run only while the scene is running (`scene.Start()`). In edit mode th
 
 - **Identity:** every GameObject and component has a stable GUID. A Transform shares its GameObject's id.
 - **Ordering:** objects are written parents-first in sibling order. On load, sibling order follows file order.
-- **Types:** `type` is a stable id from the explicit `ComponentRegistry`. It comes from `[ComponentId("...")]`, or else the full type name. Set it explicitly so classes can be renamed. Data can never name a CLR type to instantiate.
+- **Types:** `type` is a stable id from the explicit `ComponentRegistry`. It is the full type name, or the value of `[ComponentId("...")]` when one is set. `[ComponentAlias("Old.Name")]` keeps old files loading after a rename. Data can never name a CLR type to instantiate.
 - **Data:** public fields, plus fields or properties marked `[SerializeField]`, minus `[DontSerialize]`. Names are camelCase with a leading `_` removed. Members typed `GameObject` or `Component`, or collections of them, are stored as id strings and resolved after every object exists.
 - **Robustness:** problems inside the file become diagnostics and the rest of the scene still loads:
 

@@ -109,11 +109,22 @@ public sealed class AssetPathAttribute(params string[] extensions) : Attribute
 public sealed class DontSerializeAttribute : Attribute;
 
 /// <summary>
-/// Stable type identifier written to scene files. Set it explicitly so a component can be renamed or moved
-/// to another namespace without breaking saved scenes. Defaults to the full type name.
+/// Optional: the type id written to scene files. Without it the id is the full type name (<c>Namespace.Class</c>),
+/// which is what game code normally wants. After renaming or moving a component, add
+/// <see cref="ComponentAliasAttribute"/> with the old name instead, so existing scenes keep loading.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public sealed class ComponentIdAttribute(string id) : Attribute
 {
     public string Id { get; } = id;
+}
+
+/// <summary>
+/// An id this component was saved under before a rename or namespace move. Scenes written with the old id still load;
+/// they are saved with the current id from then on. Repeat for several old names.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
+public sealed class ComponentAliasAttribute(string formerId) : Attribute
+{
+    public string FormerId { get; } = formerId;
 }

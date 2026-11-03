@@ -54,7 +54,6 @@ scripts\mnvt.cmd editor C:\Games\MyGame
 using MNVTEngine;
 using MNVTEngine.Mathematics;
 
-[ComponentId("MyGame.Spinner")]
 public sealed class Spinner : Component
 {
     public float DegreesPerSecond = 90f;   // public fields and [SerializeField] properties are saved and shown in the Inspector

@@ -21,7 +21,7 @@ Game components are written in C# in a class library that belongs to the project
 - **What game code references:** only the gameplay API (`MNVTEngine.Scenes` and what it exposes). The editor, ImGui and graphics backends are not available to game code.
 - **Path rules:** the scripts project path must stay inside the project folder.
 - **Build output:** `Library/ScriptAssemblies/` (gitignored). A source stamp there records which sources were built.
-- Every public, non-abstract `Component` subclass with a public parameterless constructor is registered automatically. Give components a `[ComponentId("...")]` so classes can be renamed without breaking saved scenes.
+- Every public, non-abstract `Component` subclass with a public parameterless constructor is registered automatically. No attribute is needed: a component is saved under its full type name (`Namespace.Class`). After renaming or moving a class, add `[ComponentAlias("Old.Namespace.OldName")]` and scenes saved under the old name still load, and they are saved under the new name from then on. `[ComponentId("...")]` fixes the id explicitly; you rarely need it.
 
 > **Security:** compiling runs `dotnet build`, which executes the project's MSBuild logic. Opening an untrusted project runs its code, as it would in Visual Studio or Unity.
 
