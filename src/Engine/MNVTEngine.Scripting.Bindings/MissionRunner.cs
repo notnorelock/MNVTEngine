@@ -30,6 +30,22 @@ public sealed partial class MissionRunner : Component
 
     public ScriptVM? Vm { get; private set; }
 
+    /// <summary>Debugger for the script VM (the editor's script debugger); applied as soon as the VM exists. Not saved.</summary>
+    public IScriptDebugger? Debugger
+    {
+        get => _debugger;
+        set
+        {
+            _debugger = value;
+            if (Vm is { } vm)
+            {
+                vm.Debugger = value;
+            }
+        }
+    }
+
+    private IScriptDebugger? _debugger;
+
     public MissionManager? Missions { get; private set; }
 
     /// <summary>Raised for every <c>events.emit</c> made by the script.</summary>
@@ -64,6 +80,7 @@ public sealed partial class MissionRunner : Component
             .. SceneNatives.Create(GameObject.Scene, () => PlayerObject),
         ]);
         vm.FiberFaulted += fiber => LogFault(logger, fiber.Name, fiber.Error!.ToString());
+        vm.Debugger = _debugger; // before the first statement runs, so breakpoints in 'on start' hit
         missions.Attach(vm);
         Vm = vm;
         Missions = missions;

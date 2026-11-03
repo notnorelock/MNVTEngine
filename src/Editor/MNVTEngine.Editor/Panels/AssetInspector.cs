@@ -59,7 +59,7 @@ internal sealed class AssetInspector(EditorContext context)
         }
         else if (record.Type == AssetTypes.Script)
         {
-            _script.Draw(assets.FullPath(guid));
+            _script.Draw(assets.FullPath(guid), guid, context.ScriptDebugger);
         }
 
         DrawReferences("References", record.Dependencies.Select(assets.Get));

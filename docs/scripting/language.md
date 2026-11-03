@@ -104,10 +104,19 @@ primary     := NUMBER | STRING | true | false | null | NAME | "(" expr ")"
 
 ## Debugging
 
-Set `ScriptVM.Debugger` to an `IScriptDebugger`. `BreakpointDebugger` pauses fibers at source lines, can record an
-execution trace, and exposes `ScriptFiber.GetStackTrace()` / `GetLocals()`. `ScriptVM.Resume(fiber)` continues a
-paused fiber. The editor shows script source with error lines highlighted and a mission outline, but has no
-breakpoint UI yet.
+**In the editor** (Play Mode):
+
+1. Select a `.mnvts` asset and click a line number in its source view to toggle a breakpoint, shown as a red dot. Breakpoints can also be set at startup: `MNVTEngine.Editor <project> --break Missions/Intro.mnvts:12`.
+2. When a coroutine reaches the line, the game freezes and the **Script Debugger** panel comes forward. It shows the location (also highlighted in the source view), the call stack, the locals, and for every `MissionRunner`: globals, mission and objective states, and live coroutines with their state and line.
+3. **Continue (F5)** resumes. **Step (F10)** stops again at the next statement of the same coroutine.
+
+Breakpoints work in `on start` code too: the editor hooks each runner's VM before its first statement runs. Only the coroutine that hit the breakpoint is paused; the editor stops ticking the whole scene while a stop is shown.
+
+**From code:** set `MissionRunner.Debugger` (or `ScriptVM.Debugger`) to an `IScriptDebugger`.
+
+- `BreakpointDebugger` pauses at source lines and can record an execution trace.
+- `ScriptFiber.GetStackTrace()` and `GetLocals()` inspect a paused coroutine, and `ScriptVM.Resume(fiber)` continues it.
+- The editor's implementation is `ScriptDebugSession` in `MNVTEngine.Editor.Services`.
 
 ## Diagnostics
 

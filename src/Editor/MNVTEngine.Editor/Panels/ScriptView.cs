@@ -1,5 +1,6 @@
 using ImGuiNET;
 using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.Editor.Services;
 using MNVTEngine.Scripting.Compiler;
 using MNVTEngine.Scripting.Missions;
 using MNVTEngine.Scripting.Syntax;
@@ -8,11 +9,16 @@ using SysVector4 = System.Numerics.Vector4;
 
 namespace MNVTEngine.Editor.Panels;
 
-/// <summary>Read-only view of a <c>.mnvts</c> asset: mission outline and source with diagnostics marked on their lines.</summary>
+/// <summary>
+/// Read-only view of a <c>.mnvts</c> asset: mission outline and source with diagnostics marked on their lines.
+/// Clicking a line number toggles a breakpoint; the line where the script debugger stopped is highlighted.
+/// </summary>
 internal sealed class ScriptView
 {
     private static readonly SysVector4 ErrorColor = new(1f, 0.45f, 0.45f, 1f);
     private static readonly SysVector4 WarningColor = new(1f, 0.8f, 0.35f, 1f);
+    private static readonly SysVector4 BreakpointColor = new(0.95f, 0.25f, 0.25f, 1f);
+    private static readonly SysVector4 StopColor = new(1f, 0.85f, 0.2f, 1f);
 
     private string? _path;
     private DateTime _writeTime;
@@ -20,8 +26,9 @@ internal sealed class ScriptView
     private Dictionary<int, List<Diagnostic>> _diagnostics = [];
     private List<(string Mission, List<string> Objectives)> _outline = [];
 
-    public void Draw(string fullPath)
+    public void Draw(string fullPath, Guid asset, ScriptDebugSession debugger)
     {
+        ArgumentNullException.ThrowIfNull(debugger);
         Reload(fullPath);
         if (_outline.Count > 0)
         {
@@ -43,11 +50,40 @@ internal sealed class ScriptView
         ImGui.SeparatorText("Source");
         if (ImGui.BeginChild("##script-source", new SysVector2(0, 320), ImGuiChildFlags.Borders, ImGuiWindowFlags.HorizontalScrollbar))
         {
+            var stoppedHere = debugger.Break is { } stop && stop.Script == asset ? stop.Line : 0;
             for (var i = 0; i < _lines.Length; i++)
             {
                 var line = i + 1;
+                var hasBreakpoint = debugger.HasBreakpoint(asset, line);
+                ImGui.PushID(line);
+                if (ImGui.Selectable("##gutter", false, ImGuiSelectableFlags.None, new SysVector2(14, 0)))
+                {
+                    debugger.ToggleBreakpoint(asset, line);
+                }
+
+                if (hasBreakpoint)
+                {
+                    var center = (ImGui.GetItemRectMin() + ImGui.GetItemRectMax()) * 0.5f;
+                    ImGui.GetWindowDrawList().AddCircleFilled(center, 4.5f, ImGui.ColorConvertFloat4ToU32(BreakpointColor));
+                }
+
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.SetTooltip(hasBreakpoint ? "Remove breakpoint" : "Set breakpoint");
+                }
+
+                ImGui.PopID();
+                ImGui.SameLine();
                 var text = $"{line,4}  {_lines[i]}";
-                if (_diagnostics.TryGetValue(line, out var problems))
+                if (line == stoppedHere)
+                {
+                    ImGui.TextColored(StopColor, "> " + text.TrimStart());
+                }
+                else if (hasBreakpoint)
+                {
+                    ImGui.TextColored(BreakpointColor, text);
+                }
+                else if (_diagnostics.TryGetValue(line, out var problems))
                 {
                     var color = problems.Any(p => p.Severity == DiagnosticSeverity.Error) ? ErrorColor : WarningColor;
                     ImGui.TextColored(color, text);

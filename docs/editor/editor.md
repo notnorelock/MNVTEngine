@@ -59,6 +59,12 @@ This replaces the nine Editor projects in the original proposal. They would have
 - **When it is cleared:** opening or creating a scene clears the history.
 - **Play Mode:** undo is off while playing, because Play Mode edits are discarded on Stop anyway.
 
+## Diagnostics panels
+
+- **Profiler:** frame time and the cost of each engine region; see [profiling](../engine/profiling.md).
+- **Script Debugger:** breakpoints and stepping for `.mnvts` scripts in Play Mode; see the [language reference](../scripting/language.md#debugging).
+- Automation flags: `--focus <panel>` brings a panel forward, and `--break <script>:<line>` sets a breakpoint at startup. Combine them with `--play --frames N --screenshot file.png`.
+
 ## Play Mode
 
 1. **Play** saves the edit scene to JSON in memory and loads it back into a new scene. The copy is exactly what a build would load, shares no objects with the edit scene, and keeps object ids, so the selection follows into the copy.

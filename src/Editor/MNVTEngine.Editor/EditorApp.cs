@@ -18,7 +18,8 @@ using SysVector2 = System.Numerics.Vector2;
 namespace MNVTEngine.Editor;
 
 /// <param name="FocusWindow">Panel brought to the front on start (e.g. "Profiler"), for automated screenshots.</param>
-internal sealed record EditorOptions(int? ExitAfterFrames, string? ScreenshotPath, bool PlayOnStart, string? SelectOnStart = null, string? FocusWindow = null);
+/// <param name="Breakpoints">Script breakpoints set on start, as "path/relative/to/Assets.mnvts:line".</param>
+internal sealed record EditorOptions(int? ExitAfterFrames, string? ScreenshotPath, bool PlayOnStart, string? SelectOnStart = null, string? FocusWindow = null, IReadOnlyList<string>? Breakpoints = null);
 
 /// <summary>
 /// The editor application: dockable workspace (menu, toolbar, panels), scene file commands with unsaved-change
@@ -38,6 +39,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private ProjectPanel _projectPanel = null!;
     private ConsolePanel _console = null!;
     private ProfilerPanel _profilerPanel = null!;
+    private ScriptDebuggerPanel _scriptDebugger = null!;
     private readonly Core.Diagnostics.FrameProfiler _profiler = new();
     private ScriptReloadController _scripts = null!;
     private string _iniPath = "";
@@ -93,6 +95,20 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _projectPanel = new ProjectPanel(_context);
         _console = new ConsolePanel(_context);
         _profilerPanel = new ProfilerPanel(_context, _profiler);
+        _scriptDebugger = new ScriptDebuggerPanel(_context);
+        foreach (var breakpoint in options.Breakpoints ?? [])
+        {
+            var separator = breakpoint.LastIndexOf(':');
+            if (separator > 0 && int.TryParse(breakpoint[(separator + 1)..], System.Globalization.CultureInfo.InvariantCulture, out var line)
+                && _context.Session.Assets.TryGetGuid(breakpoint[..separator], out var script))
+            {
+                _context.ScriptDebugger.ToggleBreakpoint(script, line);
+            }
+            else
+            {
+                EditorLog.Warning(_logger, $"Ignoring --break '{breakpoint}': expected an existing script asset and a line, e.g. Missions/Intro.mnvts:12.");
+            }
+        }
         Core.Diagnostics.Profiler.Current = _profiler;
 
         LogAssetDiagnostics();
@@ -142,7 +158,21 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         ImGui.NewFrame();
 
         _gameView.FeedInput();
-        _context.PlayMode.Tick(time.UnscaledTotalTime - _lastTick);
+        // The script debugger hooks new mission runners before they run, and freezes the game while it shows a stop.
+        if (_context.PlayMode.PlayScene is { } playing)
+        {
+            _context.ScriptDebugger.Attach(playing);
+        }
+        else
+        {
+            _context.ScriptDebugger.Reset();
+        }
+
+        if (_context.ScriptDebugger.Break is null)
+        {
+            _context.PlayMode.Tick(time.UnscaledTotalTime - _lastTick);
+        }
+
         _lastTick = time.UnscaledTotalTime;
 
         DrawWorkspace();
@@ -153,11 +183,13 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _projectPanel.Draw();
         _console.Draw();
         _profilerPanel.Draw();
+        _scriptDebugger.Draw();
         if (options.FocusWindow is { } focus && _frames == 10) // after the dock layout and Play Mode focus settle
         {
             ImGui.SetWindowFocus(focus);
         }
         _gameView.ApplyPendingFocus();
+        _scriptDebugger.ApplyFocus();
         DrawDialogs();
         HandleShortcuts();
 
@@ -325,6 +357,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         DockBuilder.DockWindow("Project", bottom);
         DockBuilder.DockWindow("Console", bottom);
         DockBuilder.DockWindow("Profiler", bottom);
+        DockBuilder.DockWindow("Script Debugger", bottom);
         DockBuilder.DockWindow("Game", center);
         DockBuilder.DockWindow("Scene", center);
         DockBuilder.Finish(dockId);
@@ -575,6 +608,18 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private void HandleShortcuts()
     {
         var io = ImGui.GetIO();
+        if (_context.ScriptDebugger.Break is not null && !io.WantTextInput)
+        {
+            if (ImGui.IsKeyPressed(ImGuiKey.F5, false))
+            {
+                _context.ScriptDebugger.Continue();
+            }
+            else if (ImGui.IsKeyPressed(ImGuiKey.F10, false))
+            {
+                _context.ScriptDebugger.Step();
+            }
+        }
+
         if (!io.KeyCtrl || io.WantTextInput)
         {
             return;

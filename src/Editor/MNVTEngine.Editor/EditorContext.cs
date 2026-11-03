@@ -36,6 +36,9 @@ internal sealed class EditorContext
 
     public GameObject? Selected => Session.Selection.Resolve(ActiveScene);
 
+    /// <summary>Breakpoints and stops of <c>.mnvts</c> scripts in Play Mode.</summary>
+    public ScriptDebugSession ScriptDebugger { get; } = new();
+
     /// <summary>Tile brush shared by the inspector palette and the Scene view.</summary>
     public TilePainter Tiles { get; } = new();
 
