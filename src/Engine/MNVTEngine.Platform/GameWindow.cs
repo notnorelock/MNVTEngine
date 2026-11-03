@@ -57,6 +57,7 @@ public sealed class GameWindow : IDisposable
     private readonly GameWindowOptions _options;
     private SilkInputBridge? _input;
     private bool _running;
+    private bool _closeFromCode;
 
     public GameWindow(GameWindowOptions options)
     {
@@ -98,6 +99,17 @@ public sealed class GameWindow : IDisposable
 
     public int FramebufferHeight => _window.FramebufferSize.Y;
 
+    /// <summary>Client size in screen coordinates (mouse space). Differs from the framebuffer on high-DPI displays.</summary>
+    public int WindowWidth => _window.Size.X;
+
+    public int WindowHeight => _window.Size.Y;
+
+    /// <summary>
+    /// Asked when the user closes the window. Return false to keep it open (e.g. to confirm unsaved changes);
+    /// <see cref="Close"/> called from code is not intercepted.
+    /// </summary>
+    public Func<bool>? CloseRequested { get; set; }
+
     public string Title
     {
         get => _window.Title;
@@ -105,7 +117,11 @@ public sealed class GameWindow : IDisposable
     }
 
     /// <summary>Requests the loop to exit after the current frame.</summary>
-    public void Close() => _window.Close();
+    public void Close()
+    {
+        _closeFromCode = true;
+        _window.Close();
+    }
 
     public void Run(IGameLoop game)
     {
@@ -142,6 +158,11 @@ public sealed class GameWindow : IDisposable
             {
                 Input.BeginFrame();
                 _window.DoEvents();
+                if (_window.IsClosing && !_closeFromCode && CloseRequested is { } ask && !ask())
+                {
+                    _window.IsClosing = false;
+                }
+
                 if (_window.IsClosing)
                 {
                     break;

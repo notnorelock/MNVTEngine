@@ -1,6 +1,6 @@
 # MNVTEngine Architecture Overview
 
-Status: **Milestone 2 (Runtime and Scenes)** complete. This document is the source of truth for module boundaries.
+Status: **Milestone 3 (Editor)** complete. This document is the source of truth for module boundaries.
 `tests/MNVTEngine.Architecture.Tests` enforces the rules below by reading the `.csproj` graph.
 
 ## Toolchain
@@ -59,7 +59,8 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | MNVTEngine.Assets | M4 | GUID database, importers, metadata | Serialization |
 | MNVTEngine.Scripting | M6 | Language (lexer, parser, AST), compiler, bytecode, VM | Core only |
 | MNVTEngine.Scripting.Missions | M6 | Mission framework, persistence | Scripting, Serialization |
-| MNVTEngine.Editor | M3 | ImGui workspace, panels, gizmos | anything |
+| **MNVTEngine.Editor.Services** | M3 | Session, selection, Play Mode, inspection, picking, gizmo math (no ImGui) | Runtime |
+| **MNVTEngine.Editor** | M3 | ImGui backend, docked workspace, panels, dialogs (exe) | Editor.Services, Graphics.OpenGL, ImGui.NET |
 | MNVTEngine.Build / CLI | M7 | Project build, packaging, `mnvt` command | engine + Assets, never Editor |
 
 Deviations from the original proposal, and why:
@@ -67,6 +68,7 @@ Deviations from the original proposal, and why:
 - **Windowing lives in `Platform`; device-level input state is its own small `Input` project.** The GLFW bridge stays in Platform, while `InputState`/`Key` are backend-free so the gameplay `Input` facade in Scenes needs no window dependency (moved in M2).
 - **`Scene` project is named `MNVTEngine.Scenes`.** A project named `MNVTEngine.Scene` makes tooling generate the namespace `MNVTEngine.Scene`, which collides with the `MNVTEngine.Scene` type for every consumer.
 - **Scripting.Language/Compiler/VM start as one project** with folders. The editor reuses the compiler through its public API; the VM's isolation from graphics is enforced by the architecture tests, not by assembly count. Split later if build times or ownership require it.
+- **Editor is two projects, not nine.** `Editor.Services` (UI-free, tested) and the `Editor` exe with panels as folders; the proposed per-panel projects would all share one ImGui context and the same services.
 - **No separate `Resources` or `Diagnostics` projects yet.** Resource lifetime belongs with Graphics/Assets; diagnostics types live in Core until there is more than a handful.
 - The architecture tests already contain rules for the original names (`Windowing`, `Input`, `Scripting.VM`, ...) so the boundary is protected whichever split is chosen.
 
@@ -100,13 +102,15 @@ Deviations from the original proposal, and why:
 | Hybrid ECS | GameObjects are entities; object components live in world pools by concrete type; one component per type per object | Systems query scripts and data alike; see [scenes](../engine/scenes-and-runtime.md) |
 | Gameplay facades | `Time`/`Input`/`SceneManager` statics backed by a thread-static current scene | Unity-like ergonomics without cross-scene global state |
 | Script exceptions | Logged with context, frame continues | One broken script does not take down the game |
+| Editor rendering | ImGui drawn through `IGraphicsDevice` (sprite shader + scissor + dynamic indices) | Editor works on any future backend; no second GL code path |
+| Play Mode | Copy made by serialize/deserialize; edit scene never runs | Identical to what a build loads; Stop needs no restore logic. See [editor](../editor/editor.md) |
 
 ## Technical risks
 
 | Risk | Impact | Mitigation |
 |---|---|---|
 | .NET 11 is a release candidate | API or tooling changes before GA | `global.json` rolls forward to GA; CI should pin once GA ships |
-| ImGui.NET (1.91.6.1) is updated infrequently | Docking API or native binary gaps | Evaluate at M3; Hexa.NET.ImGui is the fallback. The editor isolates ImGui behind its own UI layer |
+| ImGui.NET (1.91.6.1) is updated infrequently | Docking API or native binary gaps | Verified at M3: docking works; DockBuilder (not wrapped) is bound via P/Invoke to cimgui. Hexa.NET.ImGui remains the fallback; all ImGui use is in the Editor exe |
 | Silk.NET 2.x vs 3.0 transition | API churn | Pinned 2.23.0; Silk types do not appear in Graphics or gameplay-facing input APIs |
 | Newtonsoft.Json caches contracts per `Type` | Blocks unloading collectible game-script `AssemblyLoadContext`s (M5) | Use a per-load-context `JsonSerializer`/contract resolver and drop it on reload; verify unload with a `WeakReference` test |
 | Native deps in self-contained publish | GLFW/OpenAL natives not always copied | Explicit packaging step and a build test that launches the exported game (M7) |

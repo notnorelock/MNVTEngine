@@ -53,6 +53,11 @@ When the window is minimized, rendering is skipped and the loop sleeps. Exceptio
 - Shaders are GLSL 4.50 core for now (`ShaderSource`). Two names are reserved: `uViewProjection` and `uTexture` (binding 0).
 - Compile and link failures throw `ShaderCompilationException`, which carries the stage and the driver log.
 
+## Scissor and dynamic indices
+
+- `DrawCommand.Scissor` clips a draw to a pixel rectangle of the current target, origin bottom-left. `Clear` ignores it and always clears the whole target.
+- `CreateDynamicIndexBuffer` + `IndexBuffer.SetData` support geometry rebuilt every frame (used by the editor UI). Immutable index buffers reject `SetData`.
+
 ## Diagnostics
 
 `GameWindowOptions.DebugContext = true` creates a debug GL context. Driver messages are routed to `ILogger` (event 1002): high severity is logged as Error and medium as Warning.

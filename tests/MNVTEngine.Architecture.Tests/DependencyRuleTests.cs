@@ -119,6 +119,10 @@ public class DependencyRuleTests
     }
 
     [Fact]
+    public void EditorServices_StayFreeOfImGui() =>
+        Assert.DoesNotContain(Graph.TransitivePackages("MNVTEngine.Editor.Services"), p => EditorUiPackages.Any(ui => p.StartsWith(ui, StringComparison.OrdinalIgnoreCase)));
+
+    [Fact]
     public void ScriptingProjects_DoNotUseBackendPackages()
     {
         var violations = Graph.Projects

@@ -108,6 +108,17 @@ public class InputStateTests
     }
 
     [Fact]
+    public void TextInput_AccumulatesPerFrame()
+    {
+        var input = new InputState();
+        input.AddText('h');
+        input.AddText('i');
+        Assert.Equal("hi", input.TextInput);
+        input.BeginFrame();
+        Assert.Equal("", input.TextInput);
+    }
+
+    [Fact]
     public void UnknownKey_IsIgnored()
     {
         var input = new InputState();

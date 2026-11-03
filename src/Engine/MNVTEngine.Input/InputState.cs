@@ -23,6 +23,7 @@ public sealed class InputState
         ["Vertical"] = new InputAxis([Key.S, Key.Down], [Key.W, Key.Up]),
     };
 
+    private readonly System.Text.StringBuilder _text = new();
     private Vector2 _previousMousePosition;
 
     /// <summary>Cursor position in window pixels, origin top-left.</summary>
@@ -33,6 +34,9 @@ public sealed class InputState
 
     /// <summary>Wheel movement this frame; positive Y is away from the user.</summary>
     public Vector2 ScrollDelta { get; private set; }
+
+    /// <summary>Characters typed this frame (layout- and IME-aware), for text fields.</summary>
+    public string TextInput => _text.ToString();
 
     public bool IsKeyDown(Key key) => _keyDown[(int)key];
 
@@ -84,6 +88,7 @@ public sealed class InputState
         Array.Clear(_buttonPressed);
         Array.Clear(_buttonReleased);
         ScrollDelta = Vector2.Zero;
+        _text.Clear();
         MouseDelta = MousePosition - _previousMousePosition;
         _previousMousePosition = MousePosition;
     }
@@ -104,6 +109,8 @@ public sealed class InputState
     public void SetMousePosition(Vector2 position) => MousePosition = position;
 
     public void AddScroll(Vector2 delta) => ScrollDelta += delta;
+
+    public void AddText(char character) => _text.Append(character);
 
     /// <summary>Releases everything held, e.g. when the window loses focus and key-up events will never arrive.</summary>
     public void ReleaseAll()

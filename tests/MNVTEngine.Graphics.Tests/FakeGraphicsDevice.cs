@@ -37,6 +37,9 @@ internal sealed class FakeGraphicsDevice : IGraphicsDevice
     public IndexBuffer CreateIndexBuffer(ReadOnlySpan<ushort> indices, string debugName = "IndexBuffer") =>
         new FakeIndexBuffer(Resources, debugName, indices.Length);
 
+    public IndexBuffer CreateDynamicIndexBuffer(int capacity, string debugName = "DynamicIndexBuffer") =>
+        new FakeIndexBuffer(Resources, debugName, capacity);
+
     public void SetRenderTarget(RenderTarget2D? target) => CurrentTarget = target;
 
     public void SetViewport(int x, int y, int width, int height)

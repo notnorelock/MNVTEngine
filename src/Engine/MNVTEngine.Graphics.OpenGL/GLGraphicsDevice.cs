@@ -15,6 +15,7 @@ public sealed partial class GLGraphicsDevice : IGraphicsDevice
     private RenderTarget2D? _currentTarget;
     private uint _currentProgram;
     private BlendMode? _currentBlend;
+    private bool _scissorEnabled;
     private bool _disposed;
 
     private GLGraphicsDevice(GL gl, ILogger logger, int width, int height)
@@ -96,6 +97,9 @@ public sealed partial class GLGraphicsDevice : IGraphicsDevice
     public IndexBuffer CreateIndexBuffer(ReadOnlySpan<ushort> indices, string debugName = "IndexBuffer") =>
         new GLIndexBuffer(_gl, Resources, debugName, indices);
 
+    public IndexBuffer CreateDynamicIndexBuffer(int capacity, string debugName = "DynamicIndexBuffer") =>
+        new GLIndexBuffer(_gl, Resources, debugName, capacity);
+
     public void SetRenderTarget(RenderTarget2D? target)
     {
         if (target is not null)
@@ -117,6 +121,8 @@ public sealed partial class GLGraphicsDevice : IGraphicsDevice
 
     public void Clear(Color color)
     {
+        // Clears respect the scissor box; a clear always covers the whole target.
+        ApplyScissor(null);
         _gl.ClearColor(color.R, color.G, color.B, color.A);
         _gl.Clear(ClearBufferMask.ColorBufferBit);
     }
@@ -159,6 +165,7 @@ public sealed partial class GLGraphicsDevice : IGraphicsDevice
         }
 
         ApplyBlend(command.Material.BlendMode);
+        ApplyScissor(command.Scissor);
         _gl.BindTextureUnit(0, texture.Handle);
         _gl.BindVertexArray(vertices.VertexArray);
         if (vertices.AttachedIndexBuffer != indices.Buffer)
@@ -208,6 +215,25 @@ public sealed partial class GLGraphicsDevice : IGraphicsDevice
         }
 
         _gl.Dispose();
+    }
+
+    private void ApplyScissor(Rect? scissor)
+    {
+        if (scissor is { } r)
+        {
+            if (!_scissorEnabled)
+            {
+                _gl.Enable(EnableCap.ScissorTest);
+                _scissorEnabled = true;
+            }
+
+            _gl.Scissor((int)MathF.Floor(r.X), (int)MathF.Floor(r.Y), (uint)Math.Max(0f, MathF.Ceiling(r.Width)), (uint)Math.Max(0f, MathF.Ceiling(r.Height)));
+        }
+        else if (_scissorEnabled)
+        {
+            _gl.Disable(EnableCap.ScissorTest);
+            _scissorEnabled = false;
+        }
     }
 
     private void ApplyBlend(BlendMode mode)

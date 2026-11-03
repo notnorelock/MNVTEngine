@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Editor logic without UI: unit-testable, and reusable by future tooling. Must not reference ImGui. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" />
+  </ItemGroup>
+</Project>

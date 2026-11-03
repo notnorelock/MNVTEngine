@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Editor\MNVTEngine.Editor\MNVTEngine.Editor.csproj" />
+    <ProjectReference Include="..\..\src\Editor\MNVTEngine.Editor.Services\MNVTEngine.Editor.Services.csproj" />
+  </ItemGroup>
+</Project>

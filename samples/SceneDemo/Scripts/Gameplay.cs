@@ -64,6 +64,7 @@ public sealed class MouseMarker : Component
 [ComponentId("SceneDemo.Spawner")]
 public sealed class Spawner : Component
 {
+    [AssetPath(".png")]
     public string OrbTexture = "Textures/orb.png";
     public float Lifetime = 2f;
     private int _spawned;
@@ -113,6 +114,7 @@ public sealed class Lifetime : Component
 [ComponentId("SceneDemo.SceneSwitcher")]
 public sealed class SceneSwitcher : Component
 {
+    [AssetPath(".mnvt")]
     public string NextScene = "";
 
     public override void Update()

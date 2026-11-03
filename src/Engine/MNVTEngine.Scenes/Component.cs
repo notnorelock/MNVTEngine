@@ -96,6 +96,14 @@ public abstract class Component
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
 public sealed class SerializeFieldAttribute : Attribute;
 
+/// <summary>Marks a string member as a path relative to the project's Assets folder, so tools can offer matching assets.</summary>
+[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
+public sealed class AssetPathAttribute(params string[] extensions) : Attribute
+{
+    /// <summary>Accepted extensions including the dot, e.g. ".png". Empty accepts any file.</summary>
+    public IReadOnlyList<string> Extensions { get; } = extensions;
+}
+
 /// <summary>Excludes a public field from persistence.</summary>
 [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
 public sealed class DontSerializeAttribute : Attribute;

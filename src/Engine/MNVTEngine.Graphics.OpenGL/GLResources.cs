@@ -141,6 +141,15 @@ internal sealed class GLIndexBuffer : IndexBuffer
 {
     private readonly GL _gl;
 
+    public unsafe GLIndexBuffer(GL gl, GraphicsResourceTracker tracker, string name, int capacity)
+        : base(tracker, name, capacity, isDynamic: true)
+    {
+        _gl = gl;
+        Buffer = gl.CreateBuffer();
+        gl.NamedBufferData(Buffer, (nuint)(capacity * sizeof(ushort)), null, BufferUsageARB.DynamicDraw);
+        GLUtil.Label(gl, ObjectIdentifier.Buffer, Buffer, name);
+    }
+
     public unsafe GLIndexBuffer(GL gl, GraphicsResourceTracker tracker, string name, ReadOnlySpan<ushort> indices)
         : base(tracker, name, indices.Length)
     {
@@ -155,6 +164,16 @@ internal sealed class GLIndexBuffer : IndexBuffer
     }
 
     public uint Buffer { get; }
+
+    protected override unsafe void SetDataCore(ReadOnlySpan<ushort> indices)
+    {
+        // Orphan, as for vertex buffers, to avoid stalling on in-flight draws.
+        _gl.NamedBufferData(Buffer, (nuint)(Count * sizeof(ushort)), null, BufferUsageARB.DynamicDraw);
+        fixed (ushort* p = indices)
+        {
+            _gl.NamedBufferSubData(Buffer, 0, (nuint)(indices.Length * sizeof(ushort)), p);
+        }
+    }
 
     protected override void ReleaseCore() => _gl.DeleteBuffer(Buffer);
 }

@@ -23,6 +23,7 @@ internal sealed class SilkInputBridge : IDisposable
         {
             keyboard.KeyDown += OnKeyDown;
             keyboard.KeyUp += OnKeyUp;
+            keyboard.KeyChar += OnKeyChar;
         }
 
         foreach (var mouse in context.Mice)
@@ -57,6 +58,8 @@ internal sealed class SilkInputBridge : IDisposable
     private void OnKeyDown(IKeyboard keyboard, SilkKey key, int scancode) => _state.SetKey(KeyMap.GetValueOrDefault(key), true);
 
     private void OnKeyUp(IKeyboard keyboard, SilkKey key, int scancode) => _state.SetKey(KeyMap.GetValueOrDefault(key), false);
+
+    private void OnKeyChar(IKeyboard keyboard, char character) => _state.AddText(character);
 
     private void OnMouseDown(IMouse mouse, SilkMouseButton button)
     {

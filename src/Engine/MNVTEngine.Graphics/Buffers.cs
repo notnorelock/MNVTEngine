@@ -52,15 +52,35 @@ public abstract class VertexBuffer : GraphicsResource
     protected abstract void SetDataCore(ReadOnlySpan<byte> data);
 }
 
-/// <summary>Immutable 16-bit index buffer.</summary>
+/// <summary>16-bit index buffer: immutable, or dynamic (re-uploaded by the CPU, e.g. for UI geometry).</summary>
 public abstract class IndexBuffer : GraphicsResource
 {
-    protected IndexBuffer(GraphicsResourceTracker? tracker, string debugName, int count)
+    protected IndexBuffer(GraphicsResourceTracker? tracker, string debugName, int count, bool isDynamic = false)
         : base(tracker, debugName)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
         Count = count;
+        IsDynamic = isDynamic;
     }
 
+    /// <summary>Number of indices (the capacity, for dynamic buffers).</summary>
     public int Count { get; }
+
+    public bool IsDynamic { get; }
+
+    /// <summary>Replaces the contents from offset 0. Only valid for dynamic buffers.</summary>
+    public void SetData(ReadOnlySpan<ushort> indices)
+    {
+        ThrowIfDisposed();
+        if (!IsDynamic)
+        {
+            throw new InvalidOperationException($"Index buffer '{DebugName}' is immutable.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(indices.Length, Count, nameof(indices));
+        SetDataCore(indices);
+    }
+
+    protected virtual void SetDataCore(ReadOnlySpan<ushort> indices) =>
+        throw new NotSupportedException("This backend does not implement dynamic index buffers.");
 }

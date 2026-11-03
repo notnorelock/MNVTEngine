@@ -123,6 +123,43 @@ public class GLRenderingTests
     }
 
     [Fact]
+    public void Scissor_ClipsAndDynamicIndicesUpload()
+    {
+        Run(device =>
+        {
+            using var renderer = new Renderer2D(device);
+            using var vertices = device.CreateVertexBuffer(SpriteVertex.Layout, 4);
+            using var indices = device.CreateDynamicIndexBuffer(6);
+            using var target = device.CreateRenderTarget(Size, Size, SamplerState.PointClamp);
+            var white = Color.White.ToRgba32();
+            vertices.SetData<SpriteVertex>(
+            [
+                new(new Vector2(0f, 0f), Vector2.Zero, white),
+                new(new Vector2(Size, 0f), Vector2.Zero, white),
+                new(new Vector2(Size, Size), Vector2.Zero, white),
+                new(new Vector2(0f, Size), Vector2.Zero, white),
+            ]);
+            indices.SetData([0, 1, 2, 2, 3, 0]);
+
+            device.SetRenderTarget(target);
+            device.Clear(Color.Black);
+            var command = new DrawCommand(renderer.DefaultMaterial, renderer.Batch.WhitePixel, vertices, indices, 0, 6,
+                PixelCamera().ViewProjection, Scissor: new Rect(0f, 0f, Size / 2f, Size / 2f));
+            device.Draw(in command);
+
+            var pixels = new byte[Size * Size * 4];
+            device.ReadPixels(pixels);
+            device.SetRenderTarget(null);
+            AssertColor(Color.White, Pixel(pixels, Size, 5, Size - 5)); // bottom-left quarter
+            AssertColor(Color.Black, Pixel(pixels, Size, Size - 5, 5)); // top-right
+            AssertColor(Color.Black, Pixel(pixels, Size, 5, 5));        // top-left
+
+            using var immutable = device.CreateIndexBuffer([0, 1, 2]);
+            Assert.Throws<InvalidOperationException>(() => immutable.SetData([0]));
+        });
+    }
+
+    [Fact]
     public void ShaderErrors_ReportStageAndLog()
     {
         Run(device =>

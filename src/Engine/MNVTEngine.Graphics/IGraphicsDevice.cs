@@ -9,6 +9,7 @@ public enum PrimitiveTopology
 }
 
 /// <summary>One indexed draw. The device binds <see cref="Texture"/> to unit 0 and sets <c>uViewProjection</c>.</summary>
+/// <param name="Scissor">Clip rectangle in pixels of the current target, origin bottom-left; null draws unclipped.</param>
 public readonly record struct DrawCommand(
     Material Material,
     Texture2D Texture,
@@ -17,7 +18,8 @@ public readonly record struct DrawCommand(
     int IndexOffset,
     int IndexCount,
     Matrix4x4 ViewProjection,
-    PrimitiveTopology Topology = PrimitiveTopology.Triangles);
+    PrimitiveTopology Topology = PrimitiveTopology.Triangles,
+    Rect? Scissor = null);
 
 /// <summary>
 /// Backend-independent rendering device. All members must be called on the graphics thread.
@@ -48,6 +50,9 @@ public interface IGraphicsDevice : IDisposable
     VertexBuffer CreateVertexBuffer(VertexLayout layout, int capacity, string debugName = "VertexBuffer");
 
     IndexBuffer CreateIndexBuffer(ReadOnlySpan<ushort> indices, string debugName = "IndexBuffer");
+
+    /// <summary>Index buffer updated with <see cref="IndexBuffer.SetData"/>.</summary>
+    IndexBuffer CreateDynamicIndexBuffer(int capacity, string debugName = "DynamicIndexBuffer");
 
     /// <summary>Redirects drawing to <paramref name="target"/>, or to the back buffer when null. Resets the viewport to the target size.</summary>
     void SetRenderTarget(RenderTarget2D? target);

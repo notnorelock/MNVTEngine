@@ -66,16 +66,16 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
 
     public int SpritesCulled { get; private set; }
 
-    public void Render(Scene scene, int width, int height)
+    /// <summary>Renders through the scene's main camera into <paramref name="target"/> (or the back buffer).</summary>
+    public void Render(Scene scene, int width, int height, RenderTarget2D? target = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
-        var device = renderer.Device;
         SpritesDrawn = SpritesCulled = 0;
 
         if (scene.MainCamera is not { } camera)
         {
-            device.SetRenderTarget(null);
-            device.Clear(Color.Black);
+            renderer.Device.SetRenderTarget(target);
+            renderer.Device.Clear(Color.Black);
             if (!_warnedNoCamera)
             {
                 LogNoCamera(logger, scene.Name);
@@ -86,16 +86,30 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
         }
 
         camera.ViewportSize = new Vector2(width, height);
-        var view = new Camera2D(width, height)
+        RenderView(scene, CreateView(camera, width, height), camera.BackgroundColor, target);
+    }
+
+    public static Camera2D CreateView(Camera camera, int width, int height)
+    {
+        ArgumentNullException.ThrowIfNull(camera);
+        return new Camera2D(width, height)
         {
             Position = camera.Transform.Position,
             Rotation = camera.Transform.Rotation,
             OrthographicSize = camera.OrthographicSize,
         };
+    }
+
+    /// <summary>Renders the scene's sprites through an arbitrary view (e.g. the editor's scene camera).</summary>
+    public void RenderView(Scene scene, Camera2D view, Color background, RenderTarget2D? target = null)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(view);
+        SpritesDrawn = SpritesCulled = 0;
         var visible = view.VisibleWorldBounds;
 
-        var batch = renderer.Begin(view, SpriteSortMode.BackToFront);
-        device.Clear(camera.BackgroundColor);
+        var batch = renderer.Begin(view, SpriteSortMode.BackToFront, target: target);
+        renderer.Device.Clear(background);
         foreach (var sprite in scene.World.Pool<SpriteRenderer>().Components)
         {
             if (sprite.Texture is null || !sprite.IsActiveAndEnabled)

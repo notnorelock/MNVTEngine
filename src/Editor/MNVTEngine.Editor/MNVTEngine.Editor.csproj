@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>MNVTEngine.Editor</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ImGui.NET" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.Editor.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Graphics.OpenGL\MNVTEngine.Graphics.OpenGL.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Editor.Services\MNVTEngine.Editor.Services.csproj" />
+  </ItemGroup>
+</Project>

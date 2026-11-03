@@ -8,6 +8,7 @@ public sealed class SpriteRenderer : Component
 {
     /// <summary>Texture path relative to the project's Assets folder, e.g. "Textures/player.png".</summary>
     [SerializeField]
+    [AssetPath(".png", ".jpg", ".jpeg", ".bmp", ".tga")]
     public string? Texture { get; set; }
 
     [SerializeField]
