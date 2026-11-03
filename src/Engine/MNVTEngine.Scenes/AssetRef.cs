@@ -67,6 +67,10 @@ public interface ITextAssetReader
 {
     /// <exception cref="InvalidOperationException">The asset is missing, unreadable, or not of <paramref name="assetType"/>.</exception>
     string ReadText(AssetRef asset, string assetType);
+
+    /// <summary>The asset's build-time compiled form (e.g. script bytecode) in exported games; null when the host has none and the source must be used.</summary>
+    /// <exception cref="InvalidOperationException">The host requires compiled assets and this one is missing or unreadable.</exception>
+    byte[]? ReadCompiled(AssetRef asset, string assetType) => null;
 }
 
 /// <summary>Prefab instantiation for gameplay code.</summary>

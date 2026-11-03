@@ -34,7 +34,7 @@ var readOnly = AssetDatabase.OpenReadOnly(assetsDir);               // standalon
 - **Refresh** rescans the folder. A file is reimported only when its size or modification time changed *and* its SHA-256, normalized settings or importer version differs. A file that was touched but is identical only updates the cache.
 - **Import cache:** `Library/AssetDatabase.json` stores each asset's type, status, messages, facts (e.g. texture width and height) and dependencies. It is derived data: if it is corrupt it is rebuilt.
 - **Editing operations:** `Move`, `Delete`, `WriteText` (atomic), `UpdateSettings` (rewrites the meta, then reimports) and `Reimport`. `AssetsChanged` fires after any change; the texture cache and prefab provider use it to evict stale entries.
-- **Dependencies:** importers collect every `"asset:<guid>"` string. `GetDependents` lists the assets that reference a given asset (the editor warns about them before a delete). `CollectDependencies` returns the transitive closure of a set of roots, which is what a build must include (Milestone 7).
+- **Dependencies:** importers collect every `"asset:<guid>"` string. `GetDependents` lists the assets that reference a given asset (the editor warns about them before a delete). `CollectDependencies` returns the transitive closure of a set of roots. `mnvt build` currently packages every asset (scripts can load scenes by path, so reachability is not provable) and fails on references to assets that do not exist.
 - **Diagnostics:** missing, orphaned or corrupt metas, duplicate GUIDs, failed imports, and references to missing assets.
 - **Asset paths** are a trust boundary: `AssetPaths.Resolve` rejects absolute paths and anything that leaves `Assets/`.
 

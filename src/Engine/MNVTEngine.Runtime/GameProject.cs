@@ -25,6 +25,41 @@ public sealed class WindowSettings
     public bool Resizable { get; set; } = true;
 }
 
+/// <summary>A named export configuration (<c>"buildProfiles"</c> in the .mnvtproj), used by <c>mnvt build</c>.</summary>
+public sealed class BuildProfile
+{
+    public static readonly IReadOnlyList<string> SupportedTargets = ["win-x64"];
+    public static readonly IReadOnlyList<string> Configurations = ["Debug", "Release"];
+
+    public string Name { get; set; } = "release";
+
+    /// <summary>"Debug" or "Release".</summary>
+    public string Configuration { get; set; } = "Release";
+
+    /// <summary>.NET runtime identifier; see <see cref="SupportedTargets"/>.</summary>
+    public string Target { get; set; } = "win-x64";
+
+    /// <summary>Relative to the project root; defaults to <c>Builds/&lt;name&gt;</c>.</summary>
+    public string? OutputDirectory { get; set; }
+
+    /// <summary>File name of the game executable without extension; defaults to the project name without spaces.</summary>
+    public string? ExecutableName { get; set; }
+
+    /// <summary>Show a console window with the log; defaults to true for Debug and false for Release.</summary>
+    public bool? Console { get; set; }
+
+    [JsonIgnore]
+    public bool ShowsConsole => Console ?? Configuration == "Debug";
+
+    public static IReadOnlyList<BuildProfile> Defaults =>
+    [
+        new() { Name = "debug", Configuration = "Debug" },
+        new() { Name = "release", Configuration = "Release" },
+    ];
+
+    public BuildProfile Clone() => (BuildProfile)MemberwiseClone();
+}
+
 /// <summary>
 /// The <c>.mnvtproj</c> file at the root of a game project. Asset paths everywhere are relative to the
 /// project's <c>Assets</c> folder and may not escape it.
@@ -47,6 +82,15 @@ public sealed class GameProject
 
     /// <summary>Optional C# game code; null when the game uses only built-in components.</summary>
     public ScriptSettings? Scripts { get; set; }
+
+    /// <summary>Export profiles; <see cref="BuildProfile.Defaults"/> (debug, release) when the file defines none.</summary>
+    public List<BuildProfile> BuildProfiles { get; set; } = [];
+
+    [JsonIgnore]
+    public IReadOnlyList<BuildProfile> EffectiveBuildProfiles => BuildProfiles.Count > 0 ? BuildProfiles : BuildProfile.Defaults;
+
+    [JsonIgnore]
+    public string ProjectFile { get; private set; } = "";
 
     [JsonIgnore]
     public string RootDirectory { get; private set; } = "";
@@ -73,7 +117,8 @@ public sealed class GameProject
             throw new SerializationException(file, ex.Message, diagnostics, ex);
         }
 
-        project.RootDirectory = Path.GetDirectoryName(Path.GetFullPath(file))!;
+        project.ProjectFile = Path.GetFullPath(file);
+        project.RootDirectory = Path.GetDirectoryName(project.ProjectFile)!;
         project.Validate(diagnostics);
         if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
         {
@@ -148,6 +193,8 @@ public sealed class GameProject
             }
         }
 
+        ValidateBuildProfiles(Error);
+
         try
         {
             if (!File.Exists(ResolveAsset(StartupScene)))
@@ -158,6 +205,47 @@ public sealed class GameProject
         catch (ArgumentException ex)
         {
             Error("startupScene", ex.Message);
+        }
+    }
+
+    private void ValidateBuildProfiles(Action<string, string> error)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < BuildProfiles.Count; i++)
+        {
+            var profile = BuildProfiles[i];
+            var path = $"buildProfiles[{i}]";
+            if (!GamePackage.IsValidExecutableName(profile.Name) || !names.Add(profile.Name))
+            {
+                error(path + ".name", $"Build profile names must be unique and use letters, digits, '_', '-', '.' ('{profile.Name}').");
+            }
+
+            if (!BuildProfile.Configurations.Contains(profile.Configuration))
+            {
+                error(path + ".configuration", $"Configuration must be one of {string.Join(", ", BuildProfile.Configurations)}, got '{profile.Configuration}'.");
+            }
+
+            if (!BuildProfile.SupportedTargets.Contains(profile.Target))
+            {
+                error(path + ".target", $"Target '{profile.Target}' is not supported; supported: {string.Join(", ", BuildProfile.SupportedTargets)}.");
+            }
+
+            if (profile.ExecutableName is { } exe && !GamePackage.IsValidExecutableName(exe))
+            {
+                error(path + ".executableName", $"'{exe}' is not a valid executable name (letters, digits, '_', '-', '.'; must start with a letter).");
+            }
+
+            if (profile.OutputDirectory is { } output)
+            {
+                try
+                {
+                    ResolveProjectFile(output);
+                }
+                catch (ArgumentException ex)
+                {
+                    error(path + ".outputDirectory", ex.Message);
+                }
+            }
         }
     }
 }

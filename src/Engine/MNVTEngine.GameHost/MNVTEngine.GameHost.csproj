@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Executable of exported games. `mnvt build` publishes it self-contained for the profile's target and renames it to
+    the game (MnvtGameName). It only runs packaged content: no compiler, no SDK, no editor.
+  -->
+  <PropertyGroup>
+    <OutputType Condition="'$(MnvtConsole)' == 'false'">WinExe</OutputType>
+    <OutputType Condition="'$(MnvtConsole)' != 'false'">Exe</OutputType>
+    <AssemblyName Condition="'$(MnvtGameName)' != ''">$(MnvtGameName)</AssemblyName>
+    <RootNamespace>MNVTEngine.GameHost</RootNamespace>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The game name and console switch only concern this executable; engine libraries build the same for every game. -->
+    <ProjectReference Include="..\MNVTEngine.GameAssemblies\MNVTEngine.GameAssemblies.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole" />
+    <ProjectReference Include="..\MNVTEngine.Graphics.OpenGL\MNVTEngine.Graphics.OpenGL.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole" />
+    <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole" />
+  </ItemGroup>
+</Project>

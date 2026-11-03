@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Scenes;
+using MNVTEngine.Scripting.Bytecode;
 using MNVTEngine.Scripting.Compiler;
 using MNVTEngine.Scripting.Missions;
 using MNVTEngine.Scripting.VM;
@@ -49,23 +50,15 @@ public sealed partial class MissionRunner : Component
         }
 
         var reader = GameObject.Scene.TextAssets ?? throw new InvalidOperationException("The scene has no text asset reader; the host must set Scene.TextAssets.");
-        var source = reader.ReadText(Script, AssetTypes.Script);
-        var compiled = ScriptCompiler.Compile(source, Script.ToString(), new CompileOptions { Api = StandardApi.All });
-        foreach (var diagnostic in compiled.Diagnostics)
+        if (LoadScript(reader, logger) is not { } script)
         {
-            LogDiagnostic(logger, diagnostic.ToString());
-        }
-
-        if (!compiled.Succeeded)
-        {
-            LogCompileFailed(logger, GameObject.Name);
             Enabled = false;
             return;
         }
 
-        var missions = new MissionManager(compiled.Script!);
+        var missions = new MissionManager(script);
         ScriptVM? vm = null;
-        vm = new ScriptVM(compiled.Script!, [
+        vm = new ScriptVM(script, [
             .. CoreNatives.Create(() => vm!, message => LogScript(logger, message), (name, payload) => EventEmitted?.Invoke(name, payload.ToObject())),
             .. missions.CreateNatives(),
             .. SceneNatives.Create(GameObject.Scene, () => PlayerObject),
@@ -83,6 +76,38 @@ public sealed partial class MissionRunner : Component
 
     public override void Update() => Vm?.Tick(Time.DeltaTime);
 
+    /// <summary>Exported games run the bytecode compiled at build time; in development the source is compiled here.</summary>
+    private CompiledScript? LoadScript(ITextAssetReader reader, ILogger logger)
+    {
+        if (reader.ReadCompiled(Script, AssetTypes.Script) is { } bytecode)
+        {
+            try
+            {
+                return BytecodeSerializer.Read(bytecode);
+            }
+            catch (InvalidDataException ex)
+            {
+                LogBadBytecode(logger, ex, GameObject.Name);
+                return null;
+            }
+        }
+
+        var source = reader.ReadText(Script, AssetTypes.Script);
+        var compiled = ScriptCompiler.Compile(source, Script.ToString(), new CompileOptions { Api = StandardApi.All });
+        foreach (var diagnostic in compiled.Diagnostics)
+        {
+            LogDiagnostic(logger, diagnostic.ToString());
+        }
+
+        if (!compiled.Succeeded)
+        {
+            LogCompileFailed(logger, GameObject.Name);
+            return null;
+        }
+
+        return compiled.Script;
+    }
+
     [LoggerMessage(EventId = 6000, Level = LogLevel.Warning, Message = "MissionRunner on '{Owner}' has no script assigned; disabled")]
     private static partial void LogNoScript(ILogger logger, string owner);
 
@@ -97,6 +122,9 @@ public sealed partial class MissionRunner : Component
 
     [LoggerMessage(EventId = 6004, Level = LogLevel.Error, Message = "Script coroutine '{Fiber}' failed: {Error}")]
     private static partial void LogFault(ILogger logger, string fiber, string error);
+
+    [LoggerMessage(EventId = 6005, Level = LogLevel.Error, Message = "Mission bytecode on '{Owner}' is invalid; disabled (rebuild the game)")]
+    private static partial void LogBadBytecode(ILogger logger, Exception exception, string owner);
 }
 
 public static class ScriptingComponents

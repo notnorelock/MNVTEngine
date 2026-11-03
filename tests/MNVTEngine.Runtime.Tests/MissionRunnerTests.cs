@@ -12,6 +12,14 @@ public class MissionRunnerTests
         public string ReadText(AssetRef asset, string assetType) => assetType == AssetTypes.Script ? text : throw new InvalidOperationException("wrong type");
     }
 
+    /// <summary>An exported game: only bytecode is available, reading the source fails.</summary>
+    private sealed class FakePackagedAssets(byte[] bytecode) : ITextAssetReader
+    {
+        public string ReadText(AssetRef asset, string assetType) => throw new InvalidOperationException("sources are not read in exported games");
+
+        public byte[]? ReadCompiled(AssetRef asset, string assetType) => assetType == AssetTypes.Script ? bytecode : null;
+    }
+
     private const string Reach = """
         mission "reach" {
             on start { objective.activate("go") }
@@ -49,6 +57,35 @@ public class MissionRunnerTests
         Assert.False(marker.ActiveSelf);
         Assert.Equal(MissionState.Completed, runner.Missions.Missions["reach"].State);
         Assert.Equal([("door_reached", (object?)42.0)], emitted);
+    }
+
+    [Fact]
+    public void ExportedGames_RunTheBuildTimeBytecode()
+    {
+        var compiled = Scripting.Compiler.ScriptCompiler.Compile(Reach, "Reach.mnvts", new Scripting.Compiler.CompileOptions { Api = StandardApi.All });
+        var scene = new Scene { TextAssets = new FakePackagedAssets(Scripting.Bytecode.BytecodeSerializer.Write(compiled.Script!)), RethrowScriptExceptions = true };
+        scene.CreateGameObject("Player");
+        scene.CreateGameObject("Door");
+        scene.CreateGameObject("Marker");
+        var runner = scene.CreateGameObject("Logic").AddComponent<MissionRunner>();
+        runner.Script = new AssetRef(Guid.NewGuid());
+        runner.StartMission = "reach";
+
+        scene.Start();
+        Frame(scene, 2);
+        Assert.Equal(MissionState.Completed, runner.Missions!.Missions["reach"].State);
+    }
+
+    [Fact]
+    public void InvalidBytecode_DisablesTheRunner()
+    {
+        var scene = new Scene { TextAssets = new FakePackagedAssets([1, 2, 3]) };
+        var runner = scene.CreateGameObject("Logic").AddComponent<MissionRunner>();
+        runner.Script = new AssetRef(Guid.NewGuid());
+        scene.Start();
+        Frame(scene, 1);
+        Assert.False(runner.Enabled);
+        Assert.Null(runner.Vm);
     }
 
     [Fact]

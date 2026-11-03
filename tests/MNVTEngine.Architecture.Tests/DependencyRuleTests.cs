@@ -155,4 +155,14 @@ public class DependencyRuleTests
             .ToList();
         Assert.Empty(violations);
     }
+
+    [Fact]
+    public void ExportedGameHost_ShipsNoDevelopmentTooling()
+    {
+        Assert.True(Graph.Contains("MNVTEngine.GameHost"));
+        Assert.DoesNotContain(Graph.TransitiveReferences("MNVTEngine.GameHost"), r => Graph.Contains(r) && Graph[r].Area is "Editor" or "Tooling");
+        Assert.DoesNotContain(Graph.TransitivePackages("MNVTEngine.GameHost"), p =>
+            p.StartsWith("Microsoft.Build", StringComparison.OrdinalIgnoreCase) || p.StartsWith("Microsoft.CodeAnalysis", StringComparison.OrdinalIgnoreCase)
+            || EditorUiPackages.Any(ui => p.StartsWith(ui, StringComparison.OrdinalIgnoreCase)));
+    }
 }

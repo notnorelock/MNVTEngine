@@ -3,10 +3,9 @@
 A modular 2D game engine in C# / .NET 11: OpenGL 4.5 renderer (Silk.NET), ImGui.NET editor, hybrid ECS,
 asset pipeline, the `.mnvts` gameplay scripting language with its own bytecode VM, and standalone game export.
 
-**Status: Milestone 6 (.mnvts language and missions).** Gameplay and missions can be written in `.mnvts`, compiled
-to verified bytecode and run by a coroutine VM that never blocks the frame. Missions have objectives (sequential,
-parallel, dependent), events, timers and save/load. `samples/SceneDemo` runs the `first_contact` mission.
-Game components can also be written in C# and are hot-reloaded by the editor (Milestone 5).
+**Status: Milestone 7 (build and Windows x64 packaging).** The `mnvt` command creates, validates, runs and exports
+projects. `mnvt build` produces a self-contained Windows x64 game folder that needs no .NET SDK, no installed runtime
+and no editor. Gameplay and missions can be written in `.mnvts` (Milestone 6) and C# components (Milestone 5).
 
 ## Requirements
 
@@ -19,6 +18,17 @@ Game components can also be written in C# and are hot-reloaded by the editor (Mi
 dotnet build MNVTEngine.sln
 dotnet test --solution MNVTEngine.sln
 ```
+
+## The mnvt command
+
+```bash
+scripts\mnvt.cmd new MyGame --template basic-2d   # empty-2d, basic-2d
+scripts\mnvt.cmd run MyGame
+scripts\mnvt.cmd build MyGame --configuration release --run
+MyGame\Builds\release\MyGame.exe
+```
+
+`scripts\mnvt.cmd` runs `src/Tooling/MNVTEngine.CLI` from source. See [building and exporting games](docs/build-system/building.md).
 
 ## Run the samples
 
@@ -46,9 +56,11 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/SceneD
 
 | Path | Contents |
 |---|---|
-| `src/Engine` | Runtime engine modules (`Core`, `Mathematics`, `Serialization`, ...) |
+| `src/Engine` | Runtime engine modules (`Core`, `Mathematics`, `Serialization`, ...) and `GameHost`, the executable of exported games |
 | `src/Editor` | Editor: UI-free services and the ImGui application |
-| `src/Tooling` | Script compilation (`Build`), development runner (`Player`); CLI and packaging in Milestone 7 |
+| `src/Tooling` | `mnvt` CLI, build pipeline and packaging (`Build`), development runner (`Player`) |
+| `templates` | Project templates for `mnvt new` |
+| `scripts` | `mnvt.cmd` wrapper |
 | `samples` | Runnable sample games |
 | `tests` | xUnit v3 tests, including architecture dependency rules and GPU integration tests |
 | `docs` | Architecture and subsystem documentation |
@@ -65,6 +77,7 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/SceneD
 - [C# scripting: game assemblies, hot reload, unloading](docs/engine/csharp-scripting.md)
 - [.mnvts language reference: grammar, semantics, VM limits, errors](docs/scripting/language.md)
 - [Missions: lifecycle, script API, persistence](docs/scripting/missions.md)
+- [Building and exporting games: CLI, profiles, packaging, validation](docs/build-system/building.md)
 
 ## Roadmap
 
@@ -77,5 +90,5 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/SceneD
 | 4 | Asset pipeline with stable GUIDs | done |
 | 5 | C# game scripting via AssemblyLoadContext | done |
 | 6 | `.mnvts` language, compiler, VM, mission framework | done |
-| 7 | Build and Windows x64 packaging | next |
-| 8 | Physics2D, audio, animation, tilemaps, 2D beta | |
+| 7 | Build and Windows x64 packaging, `mnvt` CLI | done |
+| 8 | Physics2D, audio, animation, tilemaps, 2D beta | next |

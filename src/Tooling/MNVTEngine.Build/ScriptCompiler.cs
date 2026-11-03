@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -93,72 +92,43 @@ public static partial class ScriptCompiler
 {
     public static TimeSpan Timeout { get; set; } = TimeSpan.FromMinutes(5);
 
-    public static async Task<ScriptBuildResult> BuildAsync(ScriptProject project, CancellationToken cancellationToken = default)
+    /// <summary>Development build (Debug) into <see cref="ScriptProject.OutputDirectory"/>; records the source stamp on success.</summary>
+    public static Task<ScriptBuildResult> BuildAsync(ScriptProject project, CancellationToken cancellationToken = default) =>
+        BuildAsync(project, "Debug", project?.OutputDirectory!, cancellationToken);
+
+    /// <summary>Builds the scripts with <paramref name="configuration"/> into <paramref name="outputDirectory"/>.</summary>
+    public static async Task<ScriptBuildResult> BuildAsync(ScriptProject project, string configuration, string outputDirectory, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(project);
-        var stamp = project.ComputeSourceStamp(); // taken before building: edits made during the build trigger another one
-        Directory.CreateDirectory(project.OutputDirectory);
+        ArgumentException.ThrowIfNullOrEmpty(outputDirectory);
+        var development = Path.GetFullPath(outputDirectory) == Path.GetFullPath(project.OutputDirectory);
+        var stamp = development ? project.ComputeSourceStamp() : null; // taken before building: edits made during the build trigger another one
+        Directory.CreateDirectory(outputDirectory);
 
-        var start = new ProcessStartInfo("dotnet")
+        var result = await DotnetCli.RunAsync(
+            ["build", project.ProjectFile, "-c", configuration, "-o", outputDirectory, "-nologo", "-v:q", "-clp:NoSummary;ForceNoAlign", "-p:GenerateFullPaths=true"],
+            project.SourceDirectory,
+            Timeout,
+            cancellationToken).ConfigureAwait(false);
+        if (result.StartError is { } startError)
         {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WorkingDirectory = project.SourceDirectory,
-        };
-        foreach (var argument in new[] { "build", project.ProjectFile, "-c", "Debug", "-o", project.OutputDirectory, "-nologo", "-v:q", "-clp:NoSummary;ForceNoAlign", "-p:GenerateFullPaths=true" })
-        {
-            start.ArgumentList.Add(argument);
+            return Failed(startError, result.Duration);
         }
 
-        start.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
-        start.Environment["DOTNET_NOLOGO"] = "1";
-
-        var watch = Stopwatch.StartNew();
-        using var process = new Process { StartInfo = start };
-        try
-        {
-            process.Start();
-        }
-        catch (System.ComponentModel.Win32Exception ex)
-        {
-            return Failed($"Could not start 'dotnet' (is the .NET SDK installed and on PATH?): {ex.Message}", watch.Elapsed);
-        }
-
-        var stdout = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderr = process.StandardError.ReadToEndAsync(cancellationToken);
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(Timeout);
-        try
-        {
-            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            process.Kill(entireProcessTree: true);
-            if (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-
-            return Failed($"Script build timed out after {Timeout.TotalSeconds:0} s.", watch.Elapsed);
-        }
-
-        var output = await stdout.ConfigureAwait(false) + await stderr.ConfigureAwait(false);
-        var diagnostics = ParseDiagnostics(output);
-        var succeeded = process.ExitCode == 0 && File.Exists(project.AssemblyPath);
+        var assemblyPath = Path.Combine(outputDirectory, project.AssemblyName + ".dll");
+        var diagnostics = ParseDiagnostics(result.Output);
+        var succeeded = result.ExitCode == 0 && File.Exists(assemblyPath);
         if (!succeeded && !diagnostics.Any(d => d.Severity == ScriptDiagnosticSeverity.Error))
         {
-            diagnostics = [.. diagnostics, new ScriptDiagnostic(ScriptDiagnosticSeverity.Error, "BUILD", $"dotnet build exited with code {process.ExitCode}.\n{output.Trim()}")];
+            diagnostics = [.. diagnostics, new ScriptDiagnostic(ScriptDiagnosticSeverity.Error, "BUILD", $"dotnet build exited with code {result.ExitCode}.\n{result.Output.Trim()}")];
         }
 
-        if (succeeded)
+        if (succeeded && stamp is not null)
         {
             project.WriteStamp(stamp);
         }
 
-        return new ScriptBuildResult(succeeded, succeeded ? project.AssemblyPath : null, diagnostics, output, watch.Elapsed);
+        return new ScriptBuildResult(succeeded, succeeded ? assemblyPath : null, diagnostics, result.Output, result.Duration);
     }
 
     /// <summary>Parses MSBuild/compiler lines like <c>C:\x\A.cs(12,5): error CS1002: ; expected [C:\x\A.csproj]</c>.</summary>

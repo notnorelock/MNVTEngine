@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 2,
+  "name": "Main",
+  "gameObjects": [
+    {
+      "id": "a0000000-0000-0000-0000-000000000001",
+      "name": "Main Camera",
+      "active": true,
+      "parent": null,
+      "transform": { "localPosition": { "x": 0.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "components": [
+        { "type": "MNVTEngine.Camera", "id": "b0000000-0000-0000-0000-000000000001", "enabled": true,
+          "data": { "orthographicSize": 5.0, "backgroundColor": { "r": 0.1, "g": 0.12, "b": 0.16, "a": 1.0 } } }
+      ]
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000002",
+      "name": "Player",
+      "active": true,
+      "parent": null,
+      "transform": { "localPosition": { "x": -4.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "components": [
+        { "type": "MNVTEngine.SpriteRenderer", "id": "b0000000-0000-0000-0000-000000000002", "enabled": true,
+          "data": { "texture": "asset:7e000000-0000-4000-8000-000000000010", "color": { "r": 1.0, "g": 1.0, "b": 1.0, "a": 1.0 }, "size": { "x": 1.0, "y": 1.0 },
+                    "pivot": { "x": 0.5, "y": 0.5 }, "flipX": false, "flipY": false, "sortingOrder": 10 } },
+        { "type": "{{Identifier}}.PlayerController", "id": "b0000000-0000-0000-0000-000000000003", "enabled": true, "data": { "speed": 5.0 } }
+      ]
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000003",
+      "name": "Goal",
+      "active": true,
+      "parent": null,
+      "transform": { "localPosition": { "x": 4.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "components": [
+        { "type": "MNVTEngine.SpriteRenderer", "id": "b0000000-0000-0000-0000-000000000004", "enabled": true,
+          "data": { "texture": "asset:7e000000-0000-4000-8000-000000000011", "color": { "r": 1.0, "g": 0.85, "b": 0.3, "a": 1.0 }, "size": { "x": 0.8, "y": 0.8 },
+                    "pivot": { "x": 0.5, "y": 0.5 }, "flipX": false, "flipY": false, "sortingOrder": 0 } }
+      ]
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000004",
+      "name": "Mission",
+      "active": true,
+      "parent": null,
+      "transform": { "localPosition": { "x": 0.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "components": [
+        { "type": "MNVTEngine.MissionRunner", "id": "b0000000-0000-0000-0000-000000000005", "enabled": true,
+          "data": { "script": "asset:7e000000-0000-4000-8000-000000000020", "startMission": "reach_goal", "playerObject": "Player" } }
+      ]
+    }
+  ]
+}

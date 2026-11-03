@@ -18,6 +18,9 @@ public sealed record GameRuntimeOptions
 
     /// <summary>PNG written from the last frame before an automatic exit.</summary>
     public string? ScreenshotPath { get; init; }
+
+    /// <summary>Content folder of an exported game: compiled assets are read from it instead of compiling sources.</summary>
+    public string? PackageContent { get; init; }
 }
 
 /// <summary>
@@ -62,7 +65,7 @@ public sealed partial class GameRuntime(
         }
 
         _serializer = new SceneSerializer(registry, _assets);
-        _prefabs = new PrefabProvider(_serializer, _assets, loggerFactory.CreateLogger("Prefabs"));
+        _prefabs = new PrefabProvider(_serializer, _assets, loggerFactory.CreateLogger("Prefabs"), _options.PackageContent);
         _resources = new ResourceCache(_device, _assets, loggerFactory.CreateLogger("Resources"));
         _sceneRenderer = new SceneRenderer(_renderer, _resources, _logger);
         LogStarting(_logger, project.Name, project.StartupScene);

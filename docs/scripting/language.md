@@ -91,7 +91,8 @@ primary     := NUMBER | STRING | true | false | null | NAME | "(" expr ")"
 ## Execution model and limits
 
 - Compile when a script is imported or changed. The `.mnvts` importer reports diagnostics in the editor.
-  `MissionRunner` compiles once when its scene starts, never per frame.
+  In development, `MissionRunner` compiles once when its scene starts, never per frame. Exported games run the
+  bytecode compiled by `mnvt build` (strict: unknown API functions are errors) and never compile.
 - `ScriptVM.Tick(dt)` runs every due fiber on the caller's thread. A fiber runs until it waits, ends, or uses its
   slice budget (`ScriptLimits.InstructionsPerSlice`, default 100 000). Exceeding the budget faults that fiber
   ("infinite loop?") without stalling the game or the other fibers.

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "{{Name}}",
+  "startupScene": "Scenes/Main.mnvt",
+  "window": { "title": "{{Name}}", "width": 1280, "height": 720, "vSync": true, "resizable": true },
+  "fixedTimestep": 0.016666668,
+  "buildProfiles": [
+    { "name": "debug", "configuration": "Debug", "target": "win-x64" },
+    { "name": "release", "configuration": "Release", "target": "win-x64" }
+  ]
+}

@@ -54,6 +54,7 @@ public static partial class GameApplication
         {
             ExitAfterFrames = Option(args, "--frames") is { } frames ? int.Parse(frames, CultureInfo.InvariantCulture) : null,
             ScreenshotPath = Option(args, "--screenshot"),
+            PackageContent = GamePackage.IsPackage(project.RootDirectory) ? project.RootDirectory : null,
         });
 
         try

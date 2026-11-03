@@ -105,19 +105,24 @@ public sealed partial class ResourceCache : IDisposable
     private static partial void LogTextureFailed(ILogger logger, Exception exception, string asset);
 }
 
-/// <summary>Creates prefab instances from prefab assets and reads text assets; caches prefab text until the asset changes.</summary>
+/// <summary>
+/// Creates prefab instances from prefab assets and reads text assets; caches prefab text until the asset changes.
+/// In exported games (<c>packageContent</c> set) compiled assets come from the package's Bytecode folder.
+/// </summary>
 public sealed partial class PrefabProvider : IPrefabProvider, ITextAssetReader
 {
     private readonly SceneSerializer _serializer;
     private readonly AssetDatabase _assets;
     private readonly ILogger _logger;
+    private readonly string? _packageContent;
     private readonly Dictionary<Guid, string> _json = [];
 
-    public PrefabProvider(SceneSerializer serializer, AssetDatabase assets, ILogger logger)
+    public PrefabProvider(SceneSerializer serializer, AssetDatabase assets, ILogger logger, string? packageContent = null)
     {
         _serializer = serializer;
         _assets = assets;
         _logger = logger;
+        _packageContent = packageContent;
         assets.AssetsChanged += changed =>
         {
             foreach (var guid in changed)
@@ -172,6 +177,29 @@ public sealed partial class PrefabProvider : IPrefabProvider, ITextAssetReader
         catch (IOException ex)
         {
             throw new InvalidOperationException($"'{_assets.Get(asset.Guid)!.Path}' could not be read: {ex.Message}", ex);
+        }
+    }
+
+    public byte[]? ReadCompiled(AssetRef asset, string assetType)
+    {
+        if (_packageContent is null)
+        {
+            return null;
+        }
+
+        if (asset.IsNone || _assets.GetAssetType(asset.Guid) != assetType)
+        {
+            throw new InvalidOperationException($"{asset} is not a {assetType} asset in this game.");
+        }
+
+        var path = GamePackage.BytecodePath(_packageContent, asset.Guid);
+        try
+        {
+            return File.ReadAllBytes(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new InvalidOperationException($"Compiled form of '{_assets.Get(asset.Guid)!.Path}' could not be read ({ex.Message}); rebuild the game.", ex);
         }
     }
 
