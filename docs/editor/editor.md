@@ -45,6 +45,20 @@ This replaces the nine Editor projects in the original proposal. They would have
 - **Saving:** Ctrl+S saves; a scene that was never saved prompts for a path relative to Assets. Writes go to `*.tmp` and are then swapped in, so a crash cannot truncate the scene.
 - **Unsaved changes:** New, Open and Exit (including closing the window) ask Save / Don't Save / Cancel while the scene has unsaved changes.
 
+## Undo and redo
+
+- **Keys and menu:** Ctrl+Z undoes, and Ctrl+Y or Ctrl+Shift+Z redoes. The **Edit** menu names the step, for example "Undo Move" or "Redo Paint Tiles". In a text field, Ctrl+Z belongs to the field.
+- **How it works (`UndoHistory`, Editor.Services):** each step is a snapshot of the edit scene, serialized exactly as it is saved, so every kind of edit is undoable.
+  - Covered: transforms, gizmos, component properties, adding and removing components, create, delete, rename, reparent, prefab instances and tile painting.
+  - New features need no per-command undo code.
+- **Grouping:**
+  - Edits are grouped until no mouse button is held and no widget is active. A whole gizmo drag, a dragged or typed number, or a tile stroke is therefore **one** step.
+  - Setting a value to what it already was makes no step.
+- **What is kept:** restoring keeps the scene file and the selection (by object id), and the history holds the last 100 steps.
+- **Unsaved state:** undoing back to the saved state clears the unsaved `*` mark.
+- **When it is cleared:** opening or creating a scene clears the history.
+- **Play Mode:** undo is off while playing, because Play Mode edits are discarded on Stop anyway.
+
 ## Play Mode
 
 1. **Play** saves the edit scene to JSON in memory and loads it back into a new scene. The copy is exactly what a build would load, shares no objects with the edit scene, and keeps object ids, so the selection follows into the copy.
@@ -53,7 +67,7 @@ This replaces the nine Editor projects in the original proposal. They would have
 
 ## Limitations
 
-- **No undo/redo** until Milestone 8.
+- **Undo/redo covers the edit scene only.** Asset changes (import settings, renames, deleted files) are not undone.
 - **One selected object** at a time.
 - **Scene and Game views are sized in window coordinates.** On high-DPI displays they render at logical resolution, so they are slightly soft.
 - **File dialogs are in-app,** listing the project's Assets; there are no native file dialogs.

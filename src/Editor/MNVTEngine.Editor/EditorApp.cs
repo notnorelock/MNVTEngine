@@ -149,6 +149,12 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         DrawDialogs();
         HandleShortcuts();
 
+        // A drag, a typed value or a paint stroke becomes one undo step once the interaction is over.
+        if (!_context.PlayMode.IsPlaying && !ImGui.IsAnyItemActive() && !ImGui.IsAnyMouseDown())
+        {
+            _context.Session.History.Commit();
+        }
+
         if (_context.OpenSceneRequest is { } request)
         {
             _context.OpenSceneRequest = null;
@@ -337,6 +343,23 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             if (ImGui.MenuItem("Exit"))
             {
                 GuardUnsaved(_context.Window.Close);
+            }
+
+            ImGui.EndMenu();
+        }
+
+        if (ImGui.BeginMenu("Edit"))
+        {
+            var history = _context.Session.History;
+            var editing = !_context.PlayMode.IsPlaying;
+            if (ImGui.MenuItem(history.UndoLabel is { } undo ? $"Undo {undo}" : "Undo", "Ctrl+Z", false, editing && history.CanUndo))
+            {
+                history.Undo();
+            }
+
+            if (ImGui.MenuItem(history.RedoLabel is { } redo ? $"Redo {redo}" : "Redo", "Ctrl+Y", false, editing && history.CanRedo))
+            {
+                history.Redo();
             }
 
             ImGui.EndMenu();
@@ -540,6 +563,14 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         if (ImGui.IsKeyPressed(ImGuiKey.S, false) && !_context.PlayMode.IsPlaying)
         {
             Save();
+        }
+        else if (!_context.PlayMode.IsPlaying && (ImGui.IsKeyPressed(ImGuiKey.Y, false) || (io.KeyShift && ImGui.IsKeyPressed(ImGuiKey.Z, false))))
+        {
+            _context.Session.History.Redo();
+        }
+        else if (!_context.PlayMode.IsPlaying && ImGui.IsKeyPressed(ImGuiKey.Z, false))
+        {
+            _context.Session.History.Undo();
         }
         else if (ImGui.IsKeyPressed(ImGuiKey.N, false))
         {

@@ -47,7 +47,7 @@ internal sealed partial class InspectorPanel(EditorContext context)
         {
             _pendingRemove = null;
             removed.Destroy();
-            context.Changed();
+            context.Changed("Remove Component");
         }
     }
 
@@ -60,7 +60,7 @@ internal sealed partial class InspectorPanel(EditorContext context)
         if (ImGui.Checkbox("##active", ref active))
         {
             gameObject.SetActive(active);
-            context.Changed();
+            context.Changed("Toggle Active");
         }
 
         ImGui.SameLine();
@@ -69,7 +69,7 @@ internal sealed partial class InspectorPanel(EditorContext context)
         if (ImGui.InputText("##name", ref name, 128) && name.Length > 0)
         {
             gameObject.Name = name;
-            context.Changed();
+            context.Changed("Rename");
         }
 
         Gui.Muted($"id {gameObject.Id}");
@@ -86,21 +86,21 @@ internal sealed partial class InspectorPanel(EditorContext context)
         if (ImGui.DragFloat2("Position", ref position, 0.05f))
         {
             transform.LocalPosition = position.ToEngine();
-            context.Changed();
+            context.Changed("Move");
         }
 
         var rotation = transform.LocalRotation;
         if (ImGui.DragFloat("Rotation", ref rotation, 0.5f))
         {
             transform.LocalRotation = rotation;
-            context.Changed();
+            context.Changed("Rotate");
         }
 
         var scale = transform.LocalScale.ToSys();
         if (ImGui.DragFloat2("Scale", ref scale, 0.01f))
         {
             transform.LocalScale = scale.ToEngine();
-            context.Changed();
+            context.Changed("Scale");
         }
     }
 
@@ -125,7 +125,7 @@ internal sealed partial class InspectorPanel(EditorContext context)
         if (ImGui.Checkbox("##enabled", ref enabled))
         {
             component.Enabled = enabled;
-            context.Changed();
+            context.Changed("Toggle Component");
         }
 
         ImGui.SameLine();
@@ -309,7 +309,7 @@ internal sealed partial class InspectorPanel(EditorContext context)
         {
             if (member.TrySetValue(component, updated, out var error))
             {
-                context.Changed();
+                context.Changed("Edit Property");
             }
             else
             {
@@ -444,7 +444,7 @@ internal sealed partial class InspectorPanel(EditorContext context)
                 if (ImGui.MenuItem(id, null, false, !present))
                 {
                     gameObject.AddComponent(type);
-                    context.Changed();
+                    context.Changed("Add Component");
                 }
             }
 

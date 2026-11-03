@@ -88,6 +88,6 @@ public static class SceneEditing
         }
 
         gameObject.Destroy();
-        session.MarkDirty();
+        session.Edited("Delete");
     }
 }

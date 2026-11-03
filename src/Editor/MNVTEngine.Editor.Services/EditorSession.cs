@@ -23,6 +23,8 @@ public sealed class EditorSession
         Serializer = new SceneSerializer(registry, Assets);
         Prefabs = new PrefabProvider(Serializer, Assets, logger ?? NullLogger.Instance);
         Scene = CreateDefaultScene("Untitled");
+        History = new UndoHistory(() => Serializer.Serialize(Scene), Restore);
+        History.Reset();
     }
 
     /// <summary>The project's assets in editing mode (creates metas, imports, caches in Library/).</summary>
@@ -43,7 +45,12 @@ public sealed class EditorSession
 
     public bool IsDirty { get; private set; }
 
+    private string? _savedSnapshot;
+
     public Selection Selection { get; } = new();
+
+    /// <summary>Undo/redo of edits to <see cref="Scene"/>; reset when a scene is created or opened.</summary>
+    public UndoHistory History { get; }
 
     /// <summary>Diagnostics from the most recent <see cref="OpenScene"/>.</summary>
     public IReadOnlyList<SerializationDiagnostic> LastLoadDiagnostics { get; private set; } = [];
@@ -54,6 +61,13 @@ public sealed class EditorSession
     public string DisplayName => (ScenePath is null ? Scene.Name : Path.GetFileName(ScenePath)) + (IsDirty ? "*" : "");
 
     public void MarkDirty() => IsDirty = true;
+
+    /// <summary>Records an edit for undo and marks the scene unsaved.</summary>
+    public void Edited(string label)
+    {
+        IsDirty = true;
+        History.MarkChanged(label);
+    }
 
     /// <summary>New scene with a camera, like a fresh project template.</summary>
     public void NewScene(string name = "Untitled")
@@ -88,10 +102,13 @@ public sealed class EditorSession
         relativePath ??= ScenePath ?? throw new InvalidOperationException("The scene has no file yet; choose a path.");
 
         // Written atomically (temp file + swap) and indexed, so the scene gets a GUID like any other asset.
-        Assets.WriteText(relativePath, Serializer.Serialize(Scene));
+        History.Commit();
+        var json = Serializer.Serialize(Scene);
+        Assets.WriteText(relativePath, json);
 
         ScenePath = relativePath;
         IsDirty = false;
+        _savedSnapshot = json;
     }
 
     /// <summary>Swaps in the scene rebuilt after a script reload; file, unsaved-changes state and selection are kept.</summary>
@@ -119,6 +136,24 @@ public sealed class EditorSession
         ScenePath = path;
         IsDirty = false;
         Selection.Clear();
+        History.Reset();
+        _savedSnapshot = path is null ? null : Serializer.Serialize(scene);
+        SceneReplaced?.Invoke();
+    }
+
+    /// <summary>Undo/redo: rebuilds the scene from a snapshot; file and selection (by id) are kept.</summary>
+    private void Restore(string snapshot)
+    {
+        var restored = Serializer.Deserialize(snapshot, ScenePath ?? Scene.Name).Scene;
+        restored.Prefabs = Prefabs;
+        restored.TextAssets = Prefabs;
+        Scene = restored;
+        IsDirty = snapshot != _savedSnapshot;
+        if (Selection.Id is { } id && restored.FindById(id) is null)
+        {
+            Selection.Clear();
+        }
+
         SceneReplaced?.Invoke();
     }
 

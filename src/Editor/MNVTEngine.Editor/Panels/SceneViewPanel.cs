@@ -195,7 +195,7 @@ internal sealed class SceneViewPanel : IDisposable
             {
                 if (_gizmo.Drag(selected.Transform, mouseWorld))
                 {
-                    _context.Changed();
+                    _context.Changed("Transform");
                 }
             }
             else
@@ -217,7 +217,7 @@ internal sealed class SceneViewPanel : IDisposable
         {
             if (TilePainter.Stroke(tilemap, from, mouseWorld, erase ? -1 : _context.Tiles.Tile) > 0)
             {
-                _context.Changed();
+                _context.Changed("Paint Tiles");
             }
 
             _lastPaint = mouseWorld;

@@ -39,12 +39,12 @@ internal sealed class EditorContext
     /// <summary>Tile brush shared by the inspector palette and the Scene view.</summary>
     public TilePainter Tiles { get; } = new();
 
-    /// <summary>Records an edit. Edits made during Play Mode change only the copy and are discarded on Stop.</summary>
-    public void Changed()
+    /// <summary>Records an edit for undo. Edits made during Play Mode change only the copy and are discarded on Stop.</summary>
+    public void Changed(string label = "Edit")
     {
         if (!PlayMode.IsPlaying)
         {
-            Session.MarkDirty();
+            Session.Edited(label);
         }
     }
 
@@ -55,7 +55,7 @@ internal sealed class EditorContext
     {
         var gameObject = ActiveScene.CreateGameObject(name, parent);
         Session.Selection.Select(gameObject);
-        Changed();
+        Changed("Create");
         return gameObject;
     }
 
@@ -71,7 +71,7 @@ internal sealed class EditorContext
             }
 
             Session.Selection.Select(instance);
-            Changed();
+            Changed("Instantiate Prefab");
             return instance;
         }
         catch (InvalidOperationException ex)

@@ -34,7 +34,7 @@ internal sealed class HierarchyPanel(EditorContext context)
                 if (Gui.AcceptGuidPayload() is { } id && scene.FindById(id) is { } dropped)
                 {
                     dropped.Transform.SetParent(null);
-                    context.Changed();
+                    context.Changed("Reparent");
                 }
 
                 AcceptPrefabDrop(null);
@@ -118,7 +118,7 @@ internal sealed class HierarchyPanel(EditorContext context)
             if (Gui.AcceptGuidPayload() is { } id && context.ActiveScene.FindById(id) is { } dropped && !IsSelfOrAncestor(dropped.Transform, gameObject.Transform))
             {
                 dropped.Transform.SetParent(gameObject.Transform);
-                context.Changed();
+                context.Changed("Reparent");
             }
 
             AcceptPrefabDrop(gameObject.Transform);
