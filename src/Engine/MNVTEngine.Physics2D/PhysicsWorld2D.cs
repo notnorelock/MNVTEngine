@@ -211,9 +211,11 @@ public sealed class PhysicsWorld2D : GameSystem
         var binding = new Binding(owner, body, rigidbody, colliders, transform.Position, transform.Rotation, transform.LossyScale);
         foreach (var collider in colliders)
         {
-            var shape = collider.CreateDefinition();
-            binding.Shapes.Add(collider.CreateShape(body, ref shape, scale));
-            _shapes[Key(binding.Shapes[^1])] = collider;
+            foreach (var shape in collider.CreateShapes(body, collider.CreateDefinition(), scale))
+            {
+                binding.Shapes.Add(shape);
+                _shapes[Key(shape)] = collider;
+            }
         }
 
         if (rigidbody is not null)

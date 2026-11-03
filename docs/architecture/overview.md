@@ -54,13 +54,13 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.Platform** | M1 | Window, GL context, input state, frame loop (Silk.NET GLFW) | Core, Mathematics |
 | **MNVTEngine.ECS** | M2 | Entity storage, component pools, queries, systems | Core |
 | **MNVTEngine.Input** | M2 | Backend-free input state, keys, axes | Mathematics |
-| **MNVTEngine.Scenes** | M2 | GameObject/Component API, Transform hierarchy, lifecycle, Time/Input facades, scene serialization, sprite animation (M8, see [animation](../engine/animation.md)) | ECS, Input, Serialization |
+| **MNVTEngine.Scenes** | M2 | GameObject/Component API, Transform hierarchy, lifecycle, Time/Input facades, scene serialization, sprite animation and tilemaps (M8, see [animation](../engine/animation.md), [tilemaps](../engine/tilemaps.md)) | ECS, Input, Serialization |
 | **MNVTEngine.Runtime** | M2 | Project file, `EngineComponents` registry, GUID-based resource cache, prefab/text asset provider, scene renderer, standalone game loop; backend injected by the host | Assets, Graphics, Platform, Scenes, Scripting.Bindings |
 | **MNVTEngine.Assets** | M4 | GUID database, sidecar metas, importers (scripts are compiled on import for diagnostics), import cache, dependencies, safe asset paths, encrypted content archive (M7) | Serialization, Graphics (image decoding), Scripting.Missions (API declarations) |
 | **MNVTEngine.Scripting** | M6 | `.mnvts` lexer, parser, AST, semantic checks, compiler, bytecode format and verifier, coroutine VM, debugger hooks | nothing (enforced) |
 | **MNVTEngine.Scripting.Missions** | M6 | Standard API declarations, mission/objective lifecycle, save data with schema version | Scripting, Serialization; never Scenes/Graphics (enforced) |
 | **MNVTEngine.Scripting.Bindings** | M6 | `MissionRunner` component, scene API implementation (player, entity, marker, scene, dialogue, input) | Scenes, Scripting.Missions |
-| **MNVTEngine.Physics2D** | M8 | Rigidbody2D, Box/Circle colliders, collision and trigger callbacks, ray casts, per-scene Box2D world (Box2D.NET, MIT). See [physics](../engine/physics2d.md) | Scenes, Box2D.NET; never Graphics, Platform or Assets (enforced) |
+| **MNVTEngine.Physics2D** | M8 | Rigidbody2D, Box/Circle/Tilemap colliders, collision and trigger callbacks, ray casts, per-scene Box2D world (Box2D.NET, MIT). See [physics](../engine/physics2d.md) | Scenes, Box2D.NET; never Graphics, Platform or Assets (enforced) |
 | **MNVTEngine.GameAssemblies** | M5 | Collectible load contexts for game code, component discovery and registration, unload support (reflection cache release) | Scenes |
 | **MNVTEngine.GameHost** | M7 | Executable of exported games: resolves `Dependencies/`, opens the encrypted content archive, loads game code from it; never compiles | Runtime, GameAssemblies, Graphics.OpenGL |
 | **MNVTEngine.Build** (Tooling) | M5/M7 | C# script compilation, build profiles, content compilation, host publishing, package validation, templates. See [building](../build-system/building.md) | GameAssemblies, Runtime |

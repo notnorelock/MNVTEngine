@@ -192,7 +192,7 @@ public abstract class Collider2D : Component
 
     public override void OnDestroy() => PhysicsWorld2D.Refresh(this);
 
-    internal abstract B2ShapeId CreateShape(B2BodyId body, ref B2ShapeDef definition, Vector2 scale);
+    internal abstract IEnumerable<B2ShapeId> CreateShapes(B2BodyId body, B2ShapeDef definition, Vector2 scale);
 
     internal B2ShapeDef CreateDefinition()
     {
@@ -222,10 +222,10 @@ public sealed class BoxCollider2D : Collider2D
     [SerializeField]
     public Vector2 Size { get => _size; set => Set(ref _size, new Vector2(Math.Max(0.001f, value.X), Math.Max(0.001f, value.Y))); }
 
-    internal override B2ShapeId CreateShape(B2BodyId body, ref B2ShapeDef definition, Vector2 scale)
+    internal override IEnumerable<B2ShapeId> CreateShapes(B2BodyId body, B2ShapeDef definition, Vector2 scale)
     {
         var box = b2MakeOffsetBox(_size.X * scale.X * 0.5f, _size.Y * scale.Y * 0.5f, new B2Vec2(Offset.X * scale.X, Offset.Y * scale.Y), B2MathFunction.b2MakeRot(0f));
-        return b2CreatePolygonShape(body, in definition, in box);
+        return [b2CreatePolygonShape(body, in definition, in box)];
     }
 }
 
@@ -238,11 +238,96 @@ public sealed class CircleCollider2D : Collider2D
     [SerializeField]
     public float Radius { get => _radius; set => Set(ref _radius, Math.Max(0.001f, value)); }
 
-    internal override B2ShapeId CreateShape(B2BodyId body, ref B2ShapeDef definition, Vector2 scale)
+    internal override IEnumerable<B2ShapeId> CreateShapes(B2BodyId body, B2ShapeDef definition, Vector2 scale)
     {
         var circle = new B2Circle { center = new B2Vec2(Offset.X * scale.X, Offset.Y * scale.Y), radius = _radius * Math.Max(scale.X, scale.Y) };
-        return b2CreateCircleShape(body, in definition, in circle);
+        return [b2CreateCircleShape(body, in definition, in circle)];
     }
+}
+
+/// <summary>
+/// Collides with the painted cells of the <see cref="Tilemap"/> on the same GameObject. Each row's contiguous run of
+/// solid cells becomes one box, so characters slide along floors without catching on tile seams. Rebuilt whenever the
+/// tilemap changes.
+/// </summary>
+[ComponentId("MNVTEngine.TilemapCollider2D")]
+public sealed class TilemapCollider2D : Collider2D
+{
+    private Tilemap? _tilemap;
+    private IReadOnlyList<int> _ignoredTiles = [];
+
+    /// <summary>Sheet indices that do not collide (decoration, background).</summary>
+    [SerializeField]
+    [Newtonsoft.Json.JsonProperty(ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace)]
+    public IReadOnlyList<int> IgnoredTiles { get => _ignoredTiles; set => Set(ref _ignoredTiles, value ?? []); }
+
+    public override void OnEnable()
+    {
+        _tilemap = GameObject.GetComponent<Tilemap>();
+        if (_tilemap is not null)
+        {
+            _tilemap.Changed += OnTilesChanged;
+        }
+
+        base.OnEnable();
+    }
+
+    public override void OnDisable()
+    {
+        if (_tilemap is not null)
+        {
+            _tilemap.Changed -= OnTilesChanged;
+        }
+
+        base.OnDisable();
+    }
+
+    /// <summary>Boxes in cells: (x, y, width) per run of solid tiles in a row.</summary>
+    public IReadOnlyList<(int X, int Y, int Width)> SolidRuns()
+    {
+        var tilemap = GameObject.GetComponent<Tilemap>();
+        if (tilemap is null)
+        {
+            return [];
+        }
+
+        var ignored = _ignoredTiles.ToHashSet();
+        var runs = new List<(int X, int Y, int Width)>();
+        foreach (var row in tilemap.EnumerateTiles().Where(c => !ignored.Contains(c.Tile)).GroupBy(c => c.Y).OrderBy(g => g.Key))
+        {
+            var xs = row.Select(c => c.X).Order().ToList();
+            var start = xs[0];
+            for (var i = 1; i <= xs.Count; i++)
+            {
+                if (i == xs.Count || xs[i] != xs[i - 1] + 1)
+                {
+                    runs.Add((start, row.Key, xs[i - 1] - start + 1));
+                    if (i < xs.Count)
+                    {
+                        start = xs[i];
+                    }
+                }
+            }
+        }
+
+        return runs;
+    }
+
+    internal override IEnumerable<B2ShapeId> CreateShapes(B2BodyId body, B2ShapeDef definition, Vector2 scale)
+    {
+        var cell = GameObject.GetComponent<Tilemap>()?.CellSize ?? Vector2.One;
+        var shapes = new List<B2ShapeId>();
+        foreach (var (x, y, width) in SolidRuns())
+        {
+            var center = new B2Vec2(((x + (width * 0.5f)) * cell.X + Offset.X) * scale.X, ((y + 0.5f) * cell.Y + Offset.Y) * scale.Y);
+            var box = b2MakeOffsetBox(width * cell.X * scale.X * 0.5f, cell.Y * scale.Y * 0.5f, center, B2MathFunction.b2MakeRot(0f));
+            shapes.Add(b2CreatePolygonShape(body, in definition, in box));
+        }
+
+        return shapes;
+    }
+
+    private void OnTilesChanged(Tilemap tilemap) => PhysicsWorld2D.Refresh(this);
 }
 
 /// <summary>Contact between two non-trigger colliders, as seen from one side.</summary>
@@ -304,6 +389,6 @@ public static class Physics2DComponents
     public static Scenes.ComponentRegistry Register(Scenes.ComponentRegistry registry)
     {
         ArgumentNullException.ThrowIfNull(registry);
-        return registry.Register<Rigidbody2D>().Register<BoxCollider2D>().Register<CircleCollider2D>();
+        return registry.Register<Rigidbody2D>().Register<BoxCollider2D>().Register<CircleCollider2D>().Register<TilemapCollider2D>();
     }
 }

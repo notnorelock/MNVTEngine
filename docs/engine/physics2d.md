@@ -20,6 +20,7 @@ Box2D types never appear in the public API: game code sees engine components, `V
 | `Rigidbody2D` | `BodyType` (`Dynamic`, `Kinematic`, `Static`), `GravityScale`, `LinearDamping`, `AngularDamping`, `FixedRotation`, `Continuous` (bullet CCD) |
 | `BoxCollider2D` | `Size`, plus the common collider settings |
 | `CircleCollider2D` | `Radius` (scaled by the larger axis of the transform's scale), plus the common collider settings |
+| `TilemapCollider2D` | `IgnoredTiles`; one box per row run of solid tiles (see [tilemaps](tilemaps.md)) |
 
 Common collider settings: `IsTrigger`, `Offset`, `Density` (mass = density × area), `Friction` (0.6), `Bounciness` (0–1).
 

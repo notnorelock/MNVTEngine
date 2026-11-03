@@ -9,7 +9,8 @@ namespace MNVTEngine.Editor.Panels;
 /// <summary>
 /// Free editor camera over the active scene. Left click selects or drags gizmo handles; right/middle drag pans;
 /// wheel zooms at the cursor; W/E/R pick the tool, F frames the selection, Delete removes it. Dropping a texture
-/// from the Project panel creates a sprite at the drop point.
+/// from the Project panel creates a sprite at the drop point. With a Tilemap selected and painting on (B), left drag
+/// paints the palette tile and Ctrl + left drag erases.
 /// </summary>
 internal sealed class SceneViewPanel : IDisposable
 {
@@ -20,6 +21,8 @@ internal sealed class SceneViewPanel : IDisposable
     private readonly Camera2D _camera = new(1, 1) { OrthographicSize = 6f };
     private readonly TransformGizmo _gizmo = new();
     private GizmoHandle _hovered;
+    private Vector2? _lastPaint;
+    private Vector2 _mouseWorld;
 
     public SceneViewPanel(EditorContext context)
     {
@@ -69,7 +72,12 @@ internal sealed class SceneViewPanel : IDisposable
                 .Select(p => camera.Transform.Position + Vector2.Rotate(p, camera.Transform.Rotation))], new Color(1f, 1f, 1f, 0.35f), upp);
         }
 
-        if (_context.Selected is { } selected)
+        if (PaintTarget() is { } tilemap)
+        {
+            var (x, y) = tilemap.WorldToCell(_mouseWorld);
+            DrawQuad(batch, [tilemap.CellToWorld(x, y), tilemap.CellToWorld(x + 1, y), tilemap.CellToWorld(x + 1, y + 1), tilemap.CellToWorld(x, y + 1)], new Color(0.3f, 0.9f, 1f), upp);
+        }
+        else if (_context.Selected is { } selected)
         {
             if (selected.GetComponent<SpriteRenderer>() is { } sprite)
             {
@@ -101,10 +109,14 @@ internal sealed class SceneViewPanel : IDisposable
         ImGui.Spacing();
     }
 
+    /// <summary>The selected tilemap while tile painting is on.</summary>
+    private Tilemap? PaintTarget() => _context.Tiles.Active ? _context.Selected?.GetComponent<Tilemap>() : null;
+
     private void HandleInput(Vector2 origin, bool hovered, bool focused)
     {
         var io = ImGui.GetIO();
         var mouseWorld = _camera.ScreenToWorld(io.MousePos.ToEngine() - origin);
+        _mouseWorld = mouseWorld;
         var upp = _camera.UnitsPerPixel;
         var scene = _context.ActiveScene;
         var selected = _context.Selected;
@@ -124,6 +136,11 @@ internal sealed class SceneViewPanel : IDisposable
             if (ImGui.IsKeyPressed(ImGuiKey.R, false))
             {
                 _gizmo.Tool = GizmoTool.Scale;
+            }
+
+            if (ImGui.IsKeyPressed(ImGuiKey.B, false))
+            {
+                _context.Tiles.Active = !_context.Tiles.Active;
             }
 
             if (ImGui.IsKeyPressed(ImGuiKey.F, false) && selected is not null)
@@ -150,6 +167,12 @@ internal sealed class SceneViewPanel : IDisposable
         {
             var delta = io.MouseDelta;
             _camera.Position -= Vector2.Rotate(new Vector2(delta.X, -delta.Y) * upp, _camera.Rotation);
+        }
+
+        if (PaintTarget() is { } tilemap)
+        {
+            Paint(tilemap, mouseWorld, hovered, io.KeyCtrl);
+            return;
         }
 
         _hovered = selected is not null && hovered && !_gizmo.IsDragging ? _gizmo.HitTest(selected.Transform, mouseWorld, upp) : GizmoHandle.None;
@@ -179,6 +202,29 @@ internal sealed class SceneViewPanel : IDisposable
             {
                 _gizmo.EndDrag();
             }
+        }
+    }
+
+    private void Paint(Tilemap tilemap, Vector2 mouseWorld, bool hovered, bool erase)
+    {
+        _hovered = GizmoHandle.None;
+        if (hovered && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+        {
+            _lastPaint = mouseWorld;
+        }
+
+        if (_lastPaint is { } from && ImGui.IsMouseDown(ImGuiMouseButton.Left))
+        {
+            if (TilePainter.Stroke(tilemap, from, mouseWorld, erase ? -1 : _context.Tiles.Tile) > 0)
+            {
+                _context.Changed();
+            }
+
+            _lastPaint = mouseWorld;
+        }
+        else
+        {
+            _lastPaint = null;
         }
     }
 

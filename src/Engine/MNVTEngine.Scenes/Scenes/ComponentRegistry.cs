@@ -21,6 +21,7 @@ public sealed class ComponentRegistry
         registry.Register<SpriteRenderer>();
         registry.Register<Camera>();
         registry.Register<SpriteAnimator>();
+        registry.Register<Tilemap>();
         return registry;
     }
 

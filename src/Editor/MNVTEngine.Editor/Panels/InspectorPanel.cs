@@ -137,9 +137,81 @@ internal sealed partial class InspectorPanel(EditorContext context)
             {
                 DrawMember(component, member);
             }
+
+            if (component is Tilemap tilemap)
+            {
+                DrawTilePalette(tilemap);
+            }
         }
 
         ImGui.PopID();
+    }
+
+    /// <summary>Paint toggle, eraser and the sheet's tiles as buttons; the Scene view paints with the chosen tile.</summary>
+    private void DrawTilePalette(Tilemap tilemap)
+    {
+        var brush = context.Tiles;
+        var active = brush.Active;
+        if (ImGui.Checkbox("Paint in Scene view (B)", ref active))
+        {
+            brush.Active = active;
+        }
+
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Eraser", brush.Tile < 0))
+        {
+            brush.Tile = -1;
+        }
+
+        Gui.Muted($"{tilemap.Count} tiles. Left drag paints, Ctrl + left drag erases.");
+        if (tilemap.Texture.IsNone)
+        {
+            Gui.Muted("Assign a sheet texture to show the palette.");
+            return;
+        }
+
+        var texture = context.Resources.GetTexture(tilemap.Texture);
+        var id = context.ImGui.Register(texture);
+        var rows = Math.Max(1, texture.Height / tilemap.TileHeight);
+        var count = Math.Min(rows * tilemap.Columns, 1024);
+        var perLine = Math.Max(1, (int)(ImGui.GetContentRegionAvail().X / 40f));
+        for (var tile = 0; tile < count; tile++)
+        {
+            var rect = tilemap.SourceRect(tile);
+            if (rect.X + rect.Width > texture.Width || rect.Y + rect.Height > texture.Height)
+            {
+                break;
+            }
+
+            if (tile % perLine != 0)
+            {
+                ImGui.SameLine();
+            }
+
+            var selected = brush.Tile == tile;
+            if (selected)
+            {
+                ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(1f, 0.6f, 0.1f, 1f));
+            }
+
+            var uv0 = new SysVector2(rect.X / texture.Width, rect.Y / texture.Height);
+            var uv1 = new SysVector2((rect.X + rect.Width) / texture.Width, (rect.Y + rect.Height) / texture.Height);
+            if (ImGui.ImageButton($"tile{tile}", id, new SysVector2(32f, 32f), uv0, uv1))
+            {
+                brush.Tile = tile;
+                brush.Active = true;
+            }
+
+            if (selected)
+            {
+                ImGui.PopStyleColor();
+            }
+
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip($"Tile {tile}");
+            }
+        }
     }
 
     private void DrawComponentContextMenu(Component component)
@@ -227,7 +299,9 @@ internal sealed partial class InspectorPanel(EditorContext context)
                 (changed, updated) = DrawReference(member, value);
                 break;
             default:
-                ImGui.TextDisabled($"{label}: {member.Type.Name} (not editable)");
+                ImGui.TextDisabled(value is System.Collections.ICollection items
+                    ? $"{label}: {items.Count} items"
+                    : $"{label}: {value?.ToString() ?? "none"} (not editable)");
                 break;
         }
 

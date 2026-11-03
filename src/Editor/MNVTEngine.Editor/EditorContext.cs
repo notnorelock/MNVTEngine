@@ -36,6 +36,9 @@ internal sealed class EditorContext
 
     public GameObject? Selected => Session.Selection.Resolve(ActiveScene);
 
+    /// <summary>Tile brush shared by the inspector palette and the Scene view.</summary>
+    public TilePainter Tiles { get; } = new();
+
     /// <summary>Records an edit. Edits made during Play Mode change only the copy and are discarded on Stop.</summary>
     public void Changed()
     {

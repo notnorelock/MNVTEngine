@@ -294,7 +294,38 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
             SpritesDrawn++;
         }
 
+        foreach (var tilemap in scene.World.Pool<Tilemap>().Components)
+        {
+            if (!tilemap.Texture.IsNone && tilemap.IsActiveAndEnabled && tilemap.Count > 0)
+            {
+                DrawTilemap(batch, tilemap, visible);
+            }
+        }
+
         renderer.End();
+    }
+
+    /// <summary>Draws the painted cells that overlap the view; each cell is culled by a bounding circle like sprites.</summary>
+    private void DrawTilemap(SpriteBatch batch, Tilemap tilemap, Rect visible)
+    {
+        var texture = resources.GetTexture(tilemap.Texture);
+        var transform = tilemap.Transform;
+        var scale = transform.LossyScale;
+        var size = Vector2.Scale(tilemap.CellSize, Vector2.Abs(scale));
+        var radius = size.Magnitude;
+        var flip = (scale.X < 0f ? SpriteFlip.Horizontal : SpriteFlip.None) | (scale.Y < 0f ? SpriteFlip.Vertical : SpriteFlip.None);
+        foreach (var cell in tilemap.EnumerateTiles())
+        {
+            var corner = tilemap.CellToWorld(cell.X, cell.Y);
+            if (corner.X + radius < visible.Min.X || corner.X - radius > visible.Max.X || corner.Y + radius < visible.Min.Y || corner.Y - radius > visible.Max.Y)
+            {
+                SpritesCulled++;
+                continue;
+            }
+
+            batch.Draw(texture, corner, size, tilemap.Color, transform.Rotation, Vector2.Zero, tilemap.SourceRect(cell.Tile), flip, -tilemap.SortingOrder);
+            SpritesDrawn++;
+        }
     }
 
     [LoggerMessage(EventId = 3001, Level = LogLevel.Warning, Message = "Scene '{Scene}' has no active Camera; nothing is rendered")]

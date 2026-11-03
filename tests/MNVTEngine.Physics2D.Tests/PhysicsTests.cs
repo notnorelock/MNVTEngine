@@ -243,3 +243,63 @@ public class PhysicsTests
         }
     }
 }
+
+public class TilemapColliderTests
+{
+    [Fact]
+    public void RowsOfTiles_BecomeOneBoxPerRun_IgnoringListedTiles()
+    {
+        var go = new Scene().CreateGameObject("Map");
+        var map = go.AddComponent<Tilemap>();
+        foreach (var x in new[] { 0, 1, 2, 4, 5 })
+        {
+            map.SetTile(x, 0, 1);
+        }
+
+        map.SetTile(1, 1, 9); // decoration
+        map.SetTile(3, 2, 1);
+        var collider = go.AddComponent<TilemapCollider2D>();
+        collider.IgnoredTiles = [9];
+
+        Assert.Equal([(0, 0, 3), (4, 0, 2), (3, 2, 1)], collider.SolidRuns());
+
+        var serializer = new SceneSerializer(Physics2DComponents.Register(ComponentRegistry.CreateDefault()));
+        var copy = serializer.Deserialize(serializer.Serialize(go.Scene)).Scene.Find("Map")!;
+        Assert.Equal([9], copy.GetComponent<TilemapCollider2D>()!.IgnoredTiles);
+        Assert.Equal(collider.SolidRuns(), copy.GetComponent<TilemapCollider2D>()!.SolidRuns());
+    }
+
+    [Fact]
+    public void BodiesLandOnTiles_AndPaintingAtRuntimeRebuildsTheCollider()
+    {
+        var scene = new Scene { RethrowScriptExceptions = true };
+        var level = scene.CreateGameObject("Level");
+        var map = level.AddComponent<Tilemap>();
+        for (var x = -5; x < 5; x++)
+        {
+            map.SetTile(x, -1, 0); // floor top at y = 0
+        }
+
+        level.AddComponent<TilemapCollider2D>();
+        var box = scene.CreateGameObject("Box");
+        box.Transform.Position = new Vector2(0.5f, 3);
+        box.AddComponent<BoxCollider2D>();
+        box.AddComponent<Rigidbody2D>();
+        scene.Start();
+
+        for (var i = 0; i < 120; i++)
+        {
+            scene.FixedUpdate(1f / 60f);
+        }
+
+        Assert.Equal(0.5f, box.Transform.Position.Y, 1);
+
+        map.SetTile(0, -1, -1); // dig a hole under the box
+        for (var i = 0; i < 60; i++)
+        {
+            scene.FixedUpdate(1f / 60f);
+        }
+
+        Assert.True(box.Transform.Position.Y < -0.5f, $"the box fell through the hole, y = {box.Transform.Position.Y}");
+    }
+}
