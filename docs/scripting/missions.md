@@ -65,7 +65,7 @@ Declared in `StandardApi` (the editor and importer check calls against it). It i
 | entity | `exists(name)`, `position(name)`, `distance(a, b)`, `set_active(name, bool)`, `destroy(name)` |
 | marker | `show(name)`, `hide(name)` |
 | scene | `load(path)` |
-| audio | `play(name)`, `stop(name)`: the AudioSource on the named object |
+| audio | `play(name)`, `stop(name)`: the AudioSource on the named object; `set_volume(group, volume)`, `mute(group, bool)`: the scene's AudioMixer |
 | dialogue | `start(id, data?)`: raises `dialogue_started` with `{id, data}` for the game's dialogue system |
 | input | `key_down(key)`, `key_pressed(key)` |
 

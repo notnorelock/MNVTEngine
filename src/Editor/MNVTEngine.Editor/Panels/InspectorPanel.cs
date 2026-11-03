@@ -142,9 +142,94 @@ internal sealed partial class InspectorPanel(EditorContext context)
             {
                 DrawTilePalette(tilemap);
             }
+
+            if (component is AudioMixer mixer)
+            {
+                DrawMixer(mixer);
+            }
         }
 
         ImGui.PopID();
+    }
+
+    /// <summary>One row per group: name, parent, volume, mute; Master's settings are the members above.</summary>
+    private void DrawMixer(AudioMixer mixer)
+    {
+        ImGui.SeparatorText("Groups");
+        AudioMixerGroup? remove = null;
+        foreach (var group in mixer.Groups)
+        {
+            ImGui.PushID(group.GetHashCode());
+            var name = group.Name;
+            var width = ImGui.GetContentRegionAvail().X;
+            ImGui.SetNextItemWidth((width * 0.5f) - 30f);
+            if (ImGui.InputText("##name", ref name, 48, ImGuiInputTextFlags.EnterReturnsTrue) && name.Trim().Length > 0 && mixer.Find(name.Trim()) is null && name.Trim() != AudioMixer.MasterGroup)
+            {
+                group.Name = name.Trim();
+                context.Changed("Rename Mixer Group");
+            }
+
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth((width * 0.5f) - 30f);
+            if (ImGui.BeginCombo("##parent", group.Parent.Length == 0 ? AudioMixer.MasterGroup : group.Parent))
+            {
+                foreach (var parent in mixer.Groups.Where(g => g != group).Select(g => g.Name).Prepend(""))
+                {
+                    if (ImGui.Selectable(parent.Length == 0 ? AudioMixer.MasterGroup : parent, parent == group.Parent))
+                    {
+                        group.Parent = parent;
+                        context.Changed("Edit Mixer");
+                    }
+                }
+
+                ImGui.EndCombo();
+            }
+
+            ImGui.SameLine();
+            if (ImGui.SmallButton("X"))
+            {
+                remove = group;
+            }
+
+            ImGui.SetNextItemWidth(width - 80f);
+            var volume = group.Volume;
+            if (ImGui.SliderFloat("##volume", ref volume, 0f, 1f, "%.2f"))
+            {
+                group.Volume = volume;
+                context.Changed("Edit Mixer");
+            }
+
+            ImGui.SameLine();
+            var muted = group.Muted;
+            if (ImGui.Checkbox("Mute", ref muted))
+            {
+                group.Muted = muted;
+                context.Changed("Edit Mixer");
+            }
+
+            ImGui.Spacing();
+            ImGui.PopID();
+        }
+
+        if (remove is not null)
+        {
+            mixer.Groups.Remove(remove);
+            context.Changed("Remove Mixer Group");
+        }
+
+        if (ImGui.Button("+ Group"))
+        {
+            var index = 1;
+            while (mixer.Find($"Group {index}") is not null)
+            {
+                index++;
+            }
+
+            mixer.Groups.Add(new AudioMixerGroup { Name = $"Group {index}" });
+            context.Changed("Add Mixer Group");
+        }
+
+        Gui.Muted("AudioSource.Group picks the group; a group's volume multiplies its parents' up to Master.");
     }
 
     /// <summary>Paint toggle, eraser and the sheet's tiles as buttons; the Scene view paints with the chosen tile.</summary>

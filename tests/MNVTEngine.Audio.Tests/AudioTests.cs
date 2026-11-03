@@ -207,3 +207,84 @@ public class AudioTests
         }
     }
 }
+
+public class AudioMixerTests
+{
+    private static readonly AssetRef Beep = new(Guid.Parse("cccccccc-0000-4000-8000-000000000003"));
+
+    private static AudioMixer Mixer(Scene scene)
+    {
+        var mixer = scene.CreateGameObject("Mixer").AddComponent<AudioMixer>();
+        mixer.Groups = [new() { Name = "Music", Volume = 0.5f }, new() { Name = "Effects", Volume = 0.8f }, new() { Name = "Footsteps", Parent = "Effects", Volume = 0.5f }];
+        return mixer;
+    }
+
+    [Fact]
+    public void EffectiveVolume_MultipliesUpToMaster_AndMuteSilences()
+    {
+        var mixer = Mixer(new Scene());
+        mixer.MasterVolume = 0.5f;
+        Assert.Equal(0.25f, mixer.EffectiveVolume("Music"), 5);
+        Assert.Equal(0.2f, mixer.EffectiveVolume("footsteps"), 5); // 0.5 × 0.8 × 0.5, names are case-insensitive
+        Assert.Equal(0.5f, mixer.EffectiveVolume("Unknown"), 5);   // plays through Master
+        Assert.Equal(0.5f, mixer.EffectiveVolume(""), 5);
+
+        mixer.SetMuted("Effects", true);
+        Assert.Equal(0f, mixer.EffectiveVolume("Footsteps"));
+        mixer.SetMuted("Master", true);
+        Assert.Equal(0f, mixer.EffectiveVolume("Music"));
+        Assert.Throws<KeyNotFoundException>(() => mixer.SetVolume("Nope", 1f));
+
+        mixer.Groups[1].Parent = "Footsteps"; // cycle Effects ⇄ Footsteps
+        mixer.SetMuted("Master", false);
+        mixer.SetMuted("Effects", false);
+        Assert.Equal(0.2f, mixer.EffectiveVolume("Footsteps"), 5); // each group counted once
+    }
+
+    [Fact]
+    public void PlayingSourcesAndOneShots_FollowMixerChanges()
+    {
+        var scene = new Scene { RethrowScriptExceptions = true };
+        var device = new NullAudioDevice();
+        AudioSystem.Attach(scene, device, _ => AudioTests.Sine(5f));
+        var mixer = Mixer(scene);
+        var music = scene.CreateGameObject("Music").AddComponent<AudioSource>();
+        (music.Clip, music.Group, music.Volume, music.Loop) = (Beep, "Music", 0.8f, true);
+        var sfx = scene.CreateGameObject("Sfx").AddComponent<AudioSource>();
+        sfx.Group = "Footsteps";
+        scene.Start();
+
+        music.Play();
+        sfx.PlayOneShot(Beep);
+        Frame(scene);
+        Assert.Equal(0.4f, device.Voices[0].Volume, 5);  // 0.8 × Music 0.5
+        Assert.Equal(0.4f, device.Voices[1].Volume, 5);  // 1 × Footsteps 0.5 × Effects 0.8
+
+        mixer.SetVolume("Music", 1f);
+        mixer.SetMuted("Effects", true);
+        Frame(scene);
+        Assert.Equal(0.8f, device.Voices[0].Volume, 5);
+        Assert.Equal(0f, device.Voices[1].Volume);
+    }
+
+    [Fact]
+    public void Groups_SurviveSerialization()
+    {
+        var scene = new Scene();
+        Mixer(scene).MasterVolume = 0.7f;
+        var serializer = new SceneSerializer(AudioComponents.Register(ComponentRegistry.CreateDefault()));
+        var copy = serializer.Deserialize(serializer.Serialize(scene)).Scene.Find("Mixer")!.GetComponent<AudioMixer>()!;
+        Assert.Equal(0.7f, copy.MasterVolume);
+        Assert.Equal(["Music", "Effects", "Footsteps"], copy.Groups.Select(g => g.Name));
+        Assert.Equal("Effects", copy.Groups[2].Parent);
+        Assert.Equal(0.28f, copy.EffectiveVolume("Footsteps"), 5);
+    }
+
+    private static long _frame;
+
+    private static void Frame(Scene scene)
+    {
+        _frame++;
+        scene.Update(new FrameTime(0.016f, 0.016f, _frame * 0.016, _frame * 0.016, _frame));
+    }
+}

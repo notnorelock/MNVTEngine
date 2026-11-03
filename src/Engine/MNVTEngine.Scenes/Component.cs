@@ -128,3 +128,7 @@ public sealed class ComponentAliasAttribute(string formerId) : Attribute
 {
     public string FormerId { get; } = formerId;
 }
+
+/// <summary>Saved, but not listed in the editor's Inspector (the member has a dedicated editor UI).</summary>
+[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
+public sealed class HideInInspectorAttribute : Attribute;

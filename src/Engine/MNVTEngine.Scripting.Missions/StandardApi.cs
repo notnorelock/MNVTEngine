@@ -40,6 +40,8 @@ public static class StandardApi
         .Add("scene.load", 1, 1, "Loads a scene by path relative to Assets.")
         .Add("audio.play", 1, 1, "Plays the AudioSource on the named object.")
         .Add("audio.stop", 1, 1, "Stops the AudioSource on the named object.")
+        .Add("audio.set_volume", 2, 2, "Sets a mixer group's volume (0 to 1), e.g. audio.set_volume(\"Music\", 0.5).")
+        .Add("audio.mute", 2, 2, "Mutes or unmutes a mixer group: audio.mute(\"Music\", true).")
         .Add("dialogue.start", 1, 2, "Raises 'dialogue_started' with {id, data} for the game's dialogue system.")
         .Add("input.key_down", 1, 1, "True while the named key (e.g. \"E\", \"Space\") is held.")
         .Add("input.key_pressed", 1, 1, "True on the frame the named key was pressed.");

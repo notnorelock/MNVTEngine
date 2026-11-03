@@ -44,6 +44,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private BuildController _build = null!;
     private ScriptEditorPanel _scriptEditor = null!;
     private bool _showBuildSettings;
+    private int _focusSceneFrames;
     private readonly Core.Diagnostics.FrameProfiler _profiler = new();
     private ScriptReloadController _scripts = null!;
     private string _iniPath = "";
@@ -208,6 +209,12 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         {
             ImGui.SetWindowFocus(focus);
         }
+        if (_focusSceneFrames > 0)
+        {
+            _focusSceneFrames--;
+            ImGui.SetWindowFocus("Scene");
+        }
+
         _gameView.ApplyPendingFocus();
         _scriptDebugger.ApplyFocus();
         DrawDialogs();
@@ -358,6 +365,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         {
             _resetLayout = false;
             BuildDefaultLayout(dockId, size);
+            _focusSceneFrames = 2; // the last panel drawn would otherwise be the selected tab
         }
 
         ImGui.DockSpace(dockId, size);

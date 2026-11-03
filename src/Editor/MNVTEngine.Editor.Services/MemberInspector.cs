@@ -131,7 +131,9 @@ public sealed class InspectableMember
 public static class MemberInspector
 {
     public static IReadOnlyList<InspectableMember> GetMembers(Type componentType) =>
-        [.. ComponentTypeInfo.Get(componentType).SerializableMembers.Select(m => new InspectableMember(m))];
+        [.. ComponentTypeInfo.Get(componentType).SerializableMembers
+            .Where(m => !m.IsDefined(typeof(HideInInspectorAttribute), inherit: true))
+            .Select(m => new InspectableMember(m))];
 
     /// <summary>
     /// Resolves a dragged GameObject into a value for a reference member: the object itself, or its component of the

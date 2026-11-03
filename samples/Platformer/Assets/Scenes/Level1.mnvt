@@ -1373,7 +1373,8 @@
             "playOnStart": false,
             "spatial": false,
             "referenceDistance": 2.0,
-            "maxDistance": 30.0
+            "maxDistance": 30.0,
+            "group": "Effects"
           },
           "id": "c1000000-0000-0000-0001-000000000004",
           "enabled": true
@@ -1957,7 +1958,8 @@
             "playOnStart": false,
             "spatial": false,
             "referenceDistance": 2.0,
-            "maxDistance": 30.0
+            "maxDistance": 30.0,
+            "group": "Effects"
           },
           "id": "c1000000-0000-0000-000a-000000000000",
           "enabled": true
@@ -2164,6 +2166,48 @@
           },
           "id": "c1000000-0000-0000-0011-000000000000",
           "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "b1000000-0000-0000-0000-0000000000f0",
+      "name": "Audio Mixer",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.AudioMixer",
+          "id": "c1000000-0000-0000-00f0-000000000000",
+          "enabled": true,
+          "data": {
+            "masterVolume": 1.0,
+            "masterMuted": false,
+            "groups": [
+              {
+                "name": "Music",
+                "parent": "",
+                "volume": 0.7,
+                "muted": false
+              },
+              {
+                "name": "Effects",
+                "parent": "",
+                "volume": 0.8,
+                "muted": false
+              }
+            ]
+          }
         }
       ]
     }

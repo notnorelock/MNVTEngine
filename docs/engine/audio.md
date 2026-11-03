@@ -44,6 +44,20 @@ public sealed class Jumper : Component
 
 In `.mnvts`: `audio.play("ObjectName")` and `audio.stop("ObjectName")` control the `AudioSource` on a named object.
 
+## Mixer
+
+Add one `AudioMixer` component to a scene (or to a prefab used in every scene).
+
+- **Groups:**
+  - **Master** always exists; its settings are `MasterVolume` and `MasterMuted`.
+  - Every other group has a volume, a mute flag and a parent group. The default is Master; missing or cyclic parents count as Master.
+  - The inspector edits groups directly: name, parent, volume slider, mute, add and remove. Edits are undoable.
+- **Routing:** `AudioSource.Group` names the group a source plays through; empty means Master. Its effective volume is the source volume times each group's volume up the chain to Master, and 0 if any of them is muted.
+- **Changes apply on the next frame,** also to sounds that are already playing, one-shots included.
+- **From code:** `mixer.SetVolume("Music", 0.5f)`, `mixer.SetMuted("Effects", true)`, and `mixer.EffectiveVolume("Footsteps")`. From `.mnvts`: `audio.set_volume("Music", 0.5)` and `audio.mute("Effects", true)`.
+
+A settings menu typically calls `SetVolume` on Music and Effects from sliders. The Platformer sample routes its jump and coin sounds through `Effects`.
+
 ## Spatial audio
 
 - **Positioning.** Spatial sources follow their GameObject, and the listener follows the `AudioListener` (or the camera). Both are updated every frame in the XY plane.
@@ -73,5 +87,5 @@ In `.mnvts`: `audio.play("ObjectName")` and `audio.stop("ObjectName")` control t
 ## Limitations
 
 - Clips are fully decoded into memory; there is no streaming for long music.
-- There are no mixer groups, effects (reverb, filters), Doppler effect, or 3D listener orientation.
+- There are no effects (reverb, filters, ducking), no Doppler effect, and no 3D listener orientation. The mixer is per scene, not a shared asset.
 - `PlayOneShot` voices cannot be stopped individually.

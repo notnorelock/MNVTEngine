@@ -53,6 +53,7 @@ public sealed class Tilemap : Component
 
     /// <summary>Painted cells, sorted by row then column (stable files and diffs).</summary>
     [SerializeField]
+    [HideInInspector] // painted in the Scene view
     [Newtonsoft.Json.JsonProperty(ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace)] // the getter returns a copy: always call the setter
     public IReadOnlyList<TileCell> Cells
     {

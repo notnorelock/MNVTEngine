@@ -38,6 +38,10 @@ public sealed class AudioSource : Component
     [SerializeField]
     public bool PlayOnStart { get; set; }
 
+    /// <summary>Mixer group this source plays through (see <see cref="AudioMixer"/>); empty means Master.</summary>
+    [SerializeField]
+    public string Group { get; set; } = "";
+
     /// <summary>Attenuate by distance to the listener. OpenAL only spatialises mono clips; stereo plays unattenuated.</summary>
     [SerializeField]
     public bool Spatial { get; set; }
@@ -75,7 +79,7 @@ public sealed class AudioSource : Component
 
     /// <summary>Fire-and-forget sound (footsteps, hits) that may overlap this source's own playback.</summary>
     public void PlayOneShot(AssetRef clip, float volumeScale = 1f) =>
-        System?.PlayOneShot(clip, _volume * volumeScale, _pitch, Spatial ? Transform.Position : null, ReferenceDistance, MaxDistance);
+        System?.PlayOneShot(clip, _volume * volumeScale, Group, _pitch, Spatial ? Transform.Position : null, ReferenceDistance, MaxDistance);
 
     public override void Start()
     {
@@ -96,10 +100,16 @@ public sealed class AudioSource : Component
         }
     }
 
-    /// <summary>Keeps spatial voices at the GameObject's position.</summary>
-    internal void Follow()
+    /// <summary>Keeps spatial voices at the GameObject's position and applies the mixer (called each frame).</summary>
+    internal void Follow(AudioSystem system)
     {
-        if (_voice is not null && Spatial)
+        if (_voice is null)
+        {
+            return;
+        }
+
+        _voice.Volume = _volume * system.Mix(Group);
+        if (Spatial)
         {
             _voice.Position = Transform.Position;
         }
@@ -114,7 +124,7 @@ public sealed class AudioSource : Component
             return;
         }
 
-        _voice.Volume = _volume;
+        _voice.Volume = _volume * (System?.Mix(Group) ?? 1f);
         _voice.Pitch = _pitch;
         _voice.Loop = _loop;
         _voice.Spatial = Spatial;
@@ -132,7 +142,7 @@ public static class AudioComponents
     public static Scenes.ComponentRegistry Register(Scenes.ComponentRegistry registry)
     {
         ArgumentNullException.ThrowIfNull(registry);
-        return registry.Register<AudioSource>().Register<AudioListener>();
+        return registry.Register<AudioSource>().Register<AudioListener>().Register<AudioMixer>();
     }
 }
 
@@ -147,7 +157,8 @@ public sealed partial class AudioSystem : GameSystem
     private readonly Func<AssetRef, byte[]> _readClip;
     private readonly Dictionary<Guid, IAudioBuffer?> _buffers = [];
     private readonly List<IAudioVoice> _voices = [];
-    private readonly List<IAudioVoice> _oneShots = [];
+    private readonly List<(IAudioVoice Voice, float Volume, string Group)> _oneShots = [];
+    private AudioMixer? _mixer;
 
     private AudioSystem(Scene scene, IAudioDevice device, Func<AssetRef, byte[]> readClip)
     {
@@ -188,20 +199,32 @@ public sealed partial class AudioSystem : GameSystem
         var listener = _scene.FindObjectsOfType<AudioListener>().FirstOrDefault(l => l.IsActiveAndEnabled)?.Transform
             ?? _scene.MainCamera?.Transform;
         Device.ListenerPosition = listener?.Position ?? Vector2.Zero;
+        _mixer = _scene.FindObjectsOfType<AudioMixer>().FirstOrDefault(m => m.IsActiveAndEnabled);
         foreach (var source in world.Pool<AudioSource>().Components)
         {
-            source.Follow();
+            source.Follow(this);
         }
 
         for (var i = _oneShots.Count - 1; i >= 0; i--)
         {
-            if (_oneShots[i].State == VoiceState.Stopped)
+            var (voice, volume, group) = _oneShots[i];
+            if (voice.State == VoiceState.Stopped)
             {
-                Release(_oneShots[i]);
+                Release(voice);
                 _oneShots.RemoveAt(i);
+            }
+            else
+            {
+                voice.Volume = volume * Mix(group);
             }
         }
     }
+
+    /// <summary>The scene mixer used this frame, if any.</summary>
+    public AudioMixer? Mixer => _mixer ??= _scene.FindObjectsOfType<AudioMixer>().FirstOrDefault(m => m.IsActiveAndEnabled);
+
+    /// <summary>Volume factor of a mixer group (1 without a mixer).</summary>
+    internal float Mix(string group) => Mixer?.EffectiveVolume(group) ?? 1f;
 
     internal IAudioVoice CreateVoice()
     {
@@ -246,7 +269,7 @@ public sealed partial class AudioSystem : GameSystem
         return buffer;
     }
 
-    internal void PlayOneShot(AssetRef clip, float volume, float pitch, Vector2? position, float referenceDistance, float maxDistance)
+    internal void PlayOneShot(AssetRef clip, float volume, string group, float pitch, Vector2? position, float referenceDistance, float maxDistance)
     {
         if (GetBuffer(clip) is not { } buffer)
         {
@@ -254,11 +277,11 @@ public sealed partial class AudioSystem : GameSystem
         }
 
         var voice = CreateVoice();
-        (voice.Volume, voice.Pitch, voice.Loop, voice.Spatial) = (volume, pitch, false, position is not null);
+        (voice.Volume, voice.Pitch, voice.Loop, voice.Spatial) = (volume * Mix(group), pitch, false, position is not null);
         (voice.ReferenceDistance, voice.MaxDistance) = (referenceDistance, maxDistance);
         voice.Position = position ?? Vector2.Zero;
         voice.Play(buffer);
-        _oneShots.Add(voice);
+        _oneShots.Add((voice, volume, group));
     }
 
     private void OnUnloaded(Scene scene)

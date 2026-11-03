@@ -89,6 +89,28 @@ public class MissionRunnerTests
     }
 
     [Fact]
+    public void Scripts_ControlTheAudioMixer()
+    {
+        var scene = new Scene
+        {
+            TextAssets = new FakeTextAssets("""
+                on start {
+                    audio.set_volume("Music", 0.25)
+                    audio.mute("Effects", true)
+                }
+                """),
+            RethrowScriptExceptions = true,
+        };
+        var mixer = scene.CreateGameObject("Mixer").AddComponent<AudioMixer>();
+        scene.CreateGameObject("Logic").AddComponent<MissionRunner>().Script = new AssetRef(Guid.NewGuid());
+        scene.Start();
+        Frame(scene, 2);
+
+        Assert.Equal(0.25f, mixer.Find("Music")!.Volume);
+        Assert.True(mixer.Find("Effects")!.Muted);
+    }
+
+    [Fact]
     public void ScriptWithErrors_DisablesTheRunner()
     {
         var scene = new Scene { TextAssets = new FakeTextAssets("on start { undefined_thing() }") };

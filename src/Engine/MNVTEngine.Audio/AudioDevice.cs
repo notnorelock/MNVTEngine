@@ -250,6 +250,9 @@ public sealed class NullAudioDevice : IAudioDevice
 
     public int LiveVoices => _voices.Count;
 
+    /// <summary>Live voices, for inspecting what would be heard (volume, position).</summary>
+    public IReadOnlyList<IAudioVoice> Voices => _voices;
+
     public IAudioBuffer CreateBuffer(AudioClipData clip)
     {
         ArgumentNullException.ThrowIfNull(clip);

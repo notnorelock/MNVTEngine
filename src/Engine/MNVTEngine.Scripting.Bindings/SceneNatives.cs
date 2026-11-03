@@ -37,6 +37,8 @@ public static class SceneNatives
             new("marker.hide", c => SetActive(Find(c, 0), false)),
             new("audio.play", c => Sound(Find(c, 0)).Play()),
             new("audio.stop", c => Sound(Find(c, 0)).Stop()),
+            new("audio.set_volume", c => Mixer(scene, c.String(0), volume: (float)c.Number(1), muted: null)),
+            new("audio.mute", c => Mixer(scene, c.String(0), volume: null, muted: c[1].IsTruthy)),
             new("scene.load", c =>
             {
                 (scene.Loader ?? throw new ScriptRuntimeException("This scene cannot load other scenes.")).RequestLoad(c.String(0));
@@ -61,6 +63,30 @@ public static class SceneNatives
         ["x"] = ScriptValue.FromNumber(position.X),
         ["y"] = ScriptValue.FromNumber(position.Y),
     });
+
+    private static ScriptValue Mixer(Scene scene, string group, float? volume, bool? muted)
+    {
+        var mixer = scene.FindObjectsOfType<AudioMixer>().FirstOrDefault(m => m.IsActiveAndEnabled)
+            ?? throw new ScriptRuntimeException("The scene has no AudioMixer.");
+        try
+        {
+            if (volume is { } v)
+            {
+                mixer.SetVolume(group, v);
+            }
+
+            if (muted is { } m)
+            {
+                mixer.SetMuted(group, m);
+            }
+        }
+        catch (KeyNotFoundException ex)
+        {
+            throw new ScriptRuntimeException(ex.Message);
+        }
+
+        return ScriptValue.Null;
+    }
 
     private static AudioCall Sound(GameObject target) =>
         new(target.GetComponent<AudioSource>() ?? throw new ScriptRuntimeException($"'{target.Name}' has no AudioSource."));
