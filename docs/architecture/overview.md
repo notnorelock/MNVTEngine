@@ -1,6 +1,6 @@
 # MNVTEngine Architecture Overview
 
-Status: **Milestone 0 (Foundation)**. This document is the source of truth for module boundaries.
+Status: **Milestone 1 (Graphics Foundation)** complete. This document is the source of truth for module boundaries.
 `tests/MNVTEngine.Architecture.Tests` enforces the rules below by reading the `.csproj` graph.
 
 ## Toolchain
@@ -49,9 +49,9 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.Core** | M0 | Game clock, fixed timestep, logging sinks, low-level utilities | nothing |
 | **MNVTEngine.Mathematics** | M0 | Vectors, quaternion, matrix, color, shapes | nothing |
 | **MNVTEngine.Serialization** | M0 | JSON settings, math converters, later: type registry, schema versions, migrations | Mathematics |
-| MNVTEngine.Graphics | M1 | Renderer2D, SpriteBatch, Camera2D, resource handles (no GL types) | Core, Mathematics |
-| MNVTEngine.Graphics.OpenGL | M1 | GL 4.5 implementation of Graphics | Graphics, Silk.NET.OpenGL |
-| MNVTEngine.Platform | M1 | Window, GL context, input devices (Silk.NET.Windowing/Input) | Core, Mathematics |
+| **MNVTEngine.Graphics** | M1 | Renderer2D, SpriteBatch, Camera2D, materials, resources, image decoding (no GL types) | Core, Mathematics, StbImageSharp |
+| **MNVTEngine.Graphics.OpenGL** | M1 | GL 4.5 implementation of Graphics | Graphics, Silk.NET.OpenGL |
+| **MNVTEngine.Platform** | M1 | Window, GL context, input state, frame loop (Silk.NET GLFW) | Core, Mathematics |
 | MNVTEngine.ECS | M2 | Entity storage, component pools, queries, systems | Core |
 | MNVTEngine.Scene | M2 | GameObject/Component API, Transform hierarchy, scene lifecycle and serialization | ECS, Serialization |
 | MNVTEngine.Runtime | M2 | Game host loop wiring platform + graphics + scene | everything engine-side except Editor/Tooling |
@@ -77,6 +77,7 @@ Deviations from the original proposal, and why:
 5. Only Editor projects reference ImGui packages (transitively).
 6. Only platform backends reference Silk.NET packages directly.
 7. Graphics never references Graphics.OpenGL; Runtime never references Graphics.OpenGL directly (backend chosen at the host).
+   Graphics and Platform never reference each other, and Graphics.OpenGL never references Platform; the host wires them.
 8. Scripting projects and Physics2D never reference Graphics, OpenGL or ImGui.
 
 ## Key decisions
@@ -90,6 +91,9 @@ Deviations from the original proposal, and why:
 | JSON polymorphism | Never `TypeNameHandling`; explicit registries | Project files are untrusted input |
 | Logging | MEL abstractions + engine `InMemoryLoggerProvider` | Standard structured logging; ring buffer feeds the editor console |
 | Time | `GameClock` takes measured elapsed time; `FixedTimestep` with backlog cap | Deterministic and testable; no hidden system-timer reads |
+| GPU API | OpenGL 4.5 DSA only, single graphics thread | No bind-to-edit state bugs; simple ownership. See [rendering](../graphics/rendering.md) |
+| Resource lifetime | Explicit `Dispose`, tracker per device, no finalizers | GL objects cannot be freed off-thread; leaks are reported, not hidden |
+| Input | Engine-owned `Key` enum mapped by name from Silk.NET | Gameplay code never sees backend types |
 
 ## Technical risks
 
@@ -97,7 +101,7 @@ Deviations from the original proposal, and why:
 |---|---|---|
 | .NET 11 is a release candidate | API or tooling changes before GA | `global.json` rolls forward to GA; CI should pin once GA ships |
 | ImGui.NET (1.91.6.1) is updated infrequently | Docking API or native binary gaps | Evaluate at M3; Hexa.NET.ImGui is the fallback. The editor isolates ImGui behind its own UI layer |
-| Silk.NET 2.x vs 3.0 transition | API churn | Pin 2.23.x for M1; backend is isolated in Graphics.OpenGL/Platform |
+| Silk.NET 2.x vs 3.0 transition | API churn | Pinned 2.23.0; Silk types do not appear in Graphics or gameplay-facing input APIs |
 | Newtonsoft.Json caches contracts per `Type` | Blocks unloading collectible game-script `AssemblyLoadContext`s (M5) | Use a per-load-context `JsonSerializer`/contract resolver and drop it on reload; verify unload with a `WeakReference` test |
 | Native deps in self-contained publish | GLFW/OpenAL natives not always copied | Explicit packaging step and a build test that launches the exported game (M7) |
 | Physics scope | Custom solver is a large effort | Decide at M8: simple custom impulse solver for AABB/circle vs. integrating a permissively licensed Box2D port |

@@ -89,6 +89,9 @@ public class DependencyRuleTests
 
     [Theory]
     [InlineData("MNVTEngine.Graphics", "MNVTEngine.Graphics.OpenGL")]
+    [InlineData("MNVTEngine.Graphics", "MNVTEngine.Platform")]
+    [InlineData("MNVTEngine.Graphics.OpenGL", "MNVTEngine.Platform")]
+    [InlineData("MNVTEngine.Platform", "MNVTEngine.Graphics")]
     [InlineData("MNVTEngine.Mathematics", "MNVTEngine.Graphics")]
     [InlineData("MNVTEngine.Runtime", "MNVTEngine.Graphics.OpenGL")]
     [InlineData("MNVTEngine.Scripting", "MNVTEngine.Graphics")]

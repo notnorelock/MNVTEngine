@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="StbImageSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Core\MNVTEngine.Core.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Mathematics\MNVTEngine.Mathematics.csproj" />
+  </ItemGroup>
+</Project>

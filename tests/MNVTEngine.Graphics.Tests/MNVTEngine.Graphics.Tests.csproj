@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="StbImageWriteSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics\MNVTEngine.Graphics.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Silk.NET.Input.Glfw" />
+    <PackageReference Include="Silk.NET.Windowing.Glfw" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.Platform.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Core\MNVTEngine.Core.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Mathematics\MNVTEngine.Mathematics.csproj" />
+  </ItemGroup>
+</Project>
