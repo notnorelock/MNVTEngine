@@ -189,12 +189,17 @@ internal sealed class SceneViewPanel : IDisposable
             return;
         }
 
-        if (Gui.AcceptStringPayload(Gui.AssetPayload) is { } path && IsTexture(path))
+        if (Gui.AcceptStringPayload(Gui.AssetPayload) is { } path && _context.ResolveAsset(path) is { } asset)
         {
             var world = _camera.ScreenToWorld(ImGui.GetIO().MousePos.ToEngine() - origin);
-            var gameObject = _context.CreateGameObject(Path.GetFileNameWithoutExtension(path));
-            gameObject.Transform.Position = world;
-            gameObject.AddComponent<SpriteRenderer>().Texture = path;
+            if (asset.Type == Serialization.AssetTypes.Prefab)
+            {
+                _context.InstantiatePrefab(asset.Guid, null, world);
+            }
+            else if (asset.Type == Serialization.AssetTypes.Texture)
+            {
+                CreateSprite(path, asset.Guid, world);
+            }
         }
 
         ImGui.EndDragDropTarget();
@@ -229,6 +234,20 @@ internal sealed class SceneViewPanel : IDisposable
         }
     }
 
-    private static bool IsTexture(string path) =>
-        Path.GetExtension(path).ToUpperInvariant() is ".PNG" or ".JPG" or ".JPEG" or ".BMP" or ".TGA";
+    /// <summary>Sprite sized from the texture's pixel size and its pixels-per-unit import setting.</summary>
+    private void CreateSprite(string path, Guid texture, Vector2 world)
+    {
+        var assets = _context.Session.Assets;
+        var record = assets.Get(texture)!;
+        var ppu = assets.GetTextureSettings(texture).PixelsPerUnit;
+        var size = record.Properties.TryGetValue("width", out var w) && record.Properties.TryGetValue("height", out var h)
+            ? new Vector2(float.Parse(w, System.Globalization.CultureInfo.InvariantCulture), float.Parse(h, System.Globalization.CultureInfo.InvariantCulture)) / ppu
+            : Vector2.One;
+
+        var gameObject = _context.CreateGameObject(Path.GetFileNameWithoutExtension(path));
+        gameObject.Transform.Position = world;
+        var sprite = gameObject.AddComponent<SpriteRenderer>();
+        sprite.Texture = new AssetRef(texture);
+        sprite.Size = size;
+    }
 }

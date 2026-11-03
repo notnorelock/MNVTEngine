@@ -13,6 +13,7 @@ public enum MemberKind
     Bool,
     String,
     AssetPath,
+    AssetReference,
     Vector2,
     Color,
     Enum,
@@ -31,6 +32,7 @@ public sealed class InspectableMember
         Type = member is FieldInfo f ? f.FieldType : ((PropertyInfo)member).PropertyType;
         DisplayName = Nicify(member.Name);
         AssetExtensions = member.GetCustomAttribute<AssetPathAttribute>()?.Extensions;
+        AssetType = member.GetCustomAttribute<AssetTypeAttribute>()?.Type;
         Kind = Classify(Type, AssetExtensions is not null);
     }
 
@@ -42,6 +44,12 @@ public sealed class InspectableMember
 
     /// <summary>Accepted extensions for <see cref="MemberKind.AssetPath"/>; empty means any file.</summary>
     public IReadOnlyList<string>? AssetExtensions { get; }
+
+    /// <summary>Required asset type for <see cref="MemberKind.AssetReference"/>; null accepts any asset.</summary>
+    public string? AssetType { get; }
+
+    public bool AcceptsAssetType(string? assetType) =>
+        Kind == MemberKind.AssetReference && assetType is not null && (AssetType is null || AssetType == assetType);
 
     public object? GetValue(Component component) =>
         _member is FieldInfo f ? f.GetValue(component) : ((PropertyInfo)_member).GetValue(component);
@@ -110,6 +118,7 @@ public sealed class InspectableMember
         _ when type == typeof(int) => MemberKind.Int,
         _ when type == typeof(bool) => MemberKind.Bool,
         _ when type == typeof(string) => isAssetPath ? MemberKind.AssetPath : MemberKind.String,
+        _ when type == typeof(AssetRef) => MemberKind.AssetReference,
         _ when type == typeof(Vector2) => MemberKind.Vector2,
         _ when type == typeof(Color) => MemberKind.Color,
         _ when type.IsEnum => MemberKind.Enum,

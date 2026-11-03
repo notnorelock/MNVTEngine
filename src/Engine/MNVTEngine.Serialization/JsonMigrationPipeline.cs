@@ -8,7 +8,7 @@ namespace MNVTEngine.Serialization;
 /// </summary>
 public sealed class JsonMigrationPipeline
 {
-    private readonly Dictionary<int, Action<JObject>> _steps = [];
+    private readonly Dictionary<int, Action<JObject, ICollection<SerializationDiagnostic>>> _steps = [];
 
     public JsonMigrationPipeline(int currentVersion, string versionProperty = "schemaVersion")
     {
@@ -23,6 +23,13 @@ public sealed class JsonMigrationPipeline
 
     /// <summary>Registers the step that upgrades documents from <paramref name="fromVersion"/> to <paramref name="fromVersion"/> + 1.</summary>
     public JsonMigrationPipeline Add(int fromVersion, Action<JObject> migrate)
+    {
+        ArgumentNullException.ThrowIfNull(migrate);
+        return Add(fromVersion, (document, _) => migrate(document));
+    }
+
+    /// <summary>Registers a step that may report diagnostics (e.g. values it could not convert).</summary>
+    public JsonMigrationPipeline Add(int fromVersion, Action<JObject, ICollection<SerializationDiagnostic>> migrate)
     {
         ArgumentNullException.ThrowIfNull(migrate);
         if (fromVersion < 0 || fromVersion >= CurrentVersion)
@@ -69,7 +76,7 @@ public sealed class JsonMigrationPipeline
                 throw new InvalidDataException($"No migration from schema version {version} to {version + 1}.");
             }
 
-            step(document);
+            step(document, diagnostics);
             document[VersionProperty] = version + 1;
         }
 

@@ -41,8 +41,11 @@ public sealed partial class Scene
     /// <summary>Input source for the <see cref="MNVTEngine.Input"/> facade. Null reads as no input.</summary>
     public InputState? Input { get; set; }
 
-    /// <summary>Host service for <see cref="SceneManager.LoadScene"/>.</summary>
+    /// <summary>Host service for <see cref="SceneManager.LoadScene(string)"/>.</summary>
     public ISceneLoader? Loader { get; set; }
+
+    /// <summary>Host service for <see cref="Instantiate"/> and <see cref="Prefab.Instantiate"/>.</summary>
+    public IPrefabProvider? Prefabs { get; set; }
 
     /// <summary>Exceptions from component callbacks are logged and the frame continues; set true to rethrow (tests, debugging).</summary>
     public bool RethrowScriptExceptions { get; set; }
@@ -71,6 +74,14 @@ public sealed partial class Scene
         }
 
         return gameObject;
+    }
+
+    /// <summary>Creates a copy of a prefab asset in this scene, optionally under <paramref name="parent"/>.</summary>
+    /// <exception cref="InvalidOperationException">No prefab provider, or the prefab cannot be loaded.</exception>
+    public GameObject Instantiate(AssetRef prefab, Transform? parent = null)
+    {
+        var provider = Prefabs ?? throw new InvalidOperationException("This scene has no prefab provider; it must be hosted by the runtime or editor.");
+        return provider.Instantiate(this, prefab, parent);
     }
 
     public GameObject? Find(string name) => _gameObjects.FirstOrDefault(g => g.Name == name);

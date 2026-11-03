@@ -1,24 +1,41 @@
 using Microsoft.Extensions.Logging;
+using MNVTEngine.Assets;
 using MNVTEngine.Graphics;
 using MNVTEngine.Mathematics;
+using MNVTEngine.Scenes;
+using MNVTEngine.Serialization;
 
 namespace MNVTEngine.Runtime;
 
 /// <summary>
-/// Loads textures by asset path on first use and keeps them until disposed. A missing or broken file
-/// logs one error and renders as a magenta checkerboard instead of crashing the game.
+/// Loads textures by asset GUID on first use, with the sampler from each texture's import settings, and keeps them
+/// until the asset changes or the cache is disposed. A missing or broken texture logs one error and renders as a
+/// magenta checkerboard instead of crashing the game.
 /// </summary>
-public sealed partial class ResourceCache(IGraphicsDevice device, string assetsDirectory, ILogger logger) : IDisposable
+public sealed partial class ResourceCache : IDisposable
 {
-    private readonly Dictionary<string, Texture2D> _textures = new(StringComparer.Ordinal);
+    private readonly IGraphicsDevice _device;
+    private readonly AssetDatabase _assets;
+    private readonly ILogger _logger;
+    private readonly Dictionary<Guid, Texture2D> _textures = [];
     private Texture2D? _missing;
+
+    public ResourceCache(IGraphicsDevice device, AssetDatabase assets, ILogger logger)
+    {
+        _device = device;
+        _assets = assets;
+        _logger = logger;
+        _assets.AssetsChanged += Evict;
+    }
 
     public int LoadedTextureCount => _textures.Values.Count(t => t != _missing);
 
-    // shortcut: every texture uses point filtering; per-asset import settings arrive with the asset pipeline (Milestone 4).
-    public Texture2D GetTexture(string relativePath)
+    /// <summary>Raised after cached textures were released because their assets changed (e.g. new import settings).</summary>
+    public event Action<IReadOnlyCollection<Guid>>? TexturesEvicted;
+
+    public Texture2D GetTexture(AssetRef asset)
     {
-        if (_textures.TryGetValue(relativePath, out var cached))
+        if (_textures.TryGetValue(asset.Guid, out var cached))
         {
             return cached;
         }
@@ -26,24 +43,33 @@ public sealed partial class ResourceCache(IGraphicsDevice device, string assetsD
         Texture2D texture;
         try
         {
-            var full = AssetPaths.Resolve(assetsDirectory, relativePath);
-            texture = device.CreateTexture(Image.Load(full), SamplerState.PointClamp, relativePath);
+            if (_assets.GetAssetType(asset.Guid) != AssetTypes.Texture)
+            {
+                throw new InvalidDataException($"{asset} is not a texture asset in this project.");
+            }
+
+            texture = _device.CreateTexture(Image.Load(_assets.FullPath(asset.Guid)), _assets.GetTextureSettings(asset.Guid).ToSampler(), _assets.Get(asset.Guid)!.Path);
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or KeyNotFoundException)
         {
-            LogTextureFailed(logger, ex, relativePath);
+            LogTextureFailed(_logger, ex, asset.ToString());
             texture = MissingTexture;
         }
 
-        _textures.Add(relativePath, texture);
+        _textures.Add(asset.Guid, texture);
         return texture;
     }
 
-    public Texture2D MissingTexture => _missing ??= device.CreateTexture(
+    /// <summary>Texture by path relative to Assets (editor thumbnails); the placeholder if the path is not an indexed asset.</summary>
+    public Texture2D GetTexture(string relativePath) =>
+        _assets.TryGetGuid(relativePath, out var guid) ? GetTexture(new AssetRef(guid)) : MissingTexture;
+
+    public Texture2D MissingTexture => _missing ??= _device.CreateTexture(
         2, 2, [255, 0, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 0, 255, 255], SamplerState.PointRepeat, "Missing");
 
     public void Dispose()
     {
+        _assets.AssetsChanged -= Evict;
         foreach (var texture in _textures.Values.Distinct())
         {
             texture.Dispose();
@@ -53,8 +79,87 @@ public sealed partial class ResourceCache(IGraphicsDevice device, string assetsD
         _textures.Clear();
     }
 
-    [LoggerMessage(EventId = 3000, Level = LogLevel.Error, Message = "Texture '{Path}' could not be loaded; using the missing-texture placeholder")]
-    private static partial void LogTextureFailed(ILogger logger, Exception exception, string path);
+    private void Evict(IReadOnlyCollection<Guid> changed)
+    {
+        var evicted = new List<Guid>();
+        foreach (var guid in changed)
+        {
+            if (_textures.Remove(guid, out var texture))
+            {
+                if (texture != _missing)
+                {
+                    texture.Dispose();
+                }
+
+                evicted.Add(guid);
+            }
+        }
+
+        if (evicted.Count > 0)
+        {
+            TexturesEvicted?.Invoke(evicted);
+        }
+    }
+
+    [LoggerMessage(EventId = 3000, Level = LogLevel.Error, Message = "Texture '{Asset}' could not be loaded; using the missing-texture placeholder")]
+    private static partial void LogTextureFailed(ILogger logger, Exception exception, string asset);
+}
+
+/// <summary>Creates prefab instances from prefab assets; caches prefab text until the asset changes.</summary>
+public sealed partial class PrefabProvider : IPrefabProvider
+{
+    private readonly SceneSerializer _serializer;
+    private readonly AssetDatabase _assets;
+    private readonly ILogger _logger;
+    private readonly Dictionary<Guid, string> _json = [];
+
+    public PrefabProvider(SceneSerializer serializer, AssetDatabase assets, ILogger logger)
+    {
+        _serializer = serializer;
+        _assets = assets;
+        _logger = logger;
+        assets.AssetsChanged += changed =>
+        {
+            foreach (var guid in changed)
+            {
+                _json.Remove(guid);
+            }
+        };
+    }
+
+    public GameObject Instantiate(Scene scene, AssetRef prefab, Transform? parent)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        if (_assets.GetAssetType(prefab.Guid) != AssetTypes.Prefab)
+        {
+            throw new InvalidOperationException($"{prefab} is not a prefab asset in this project.");
+        }
+
+        var path = _assets.Get(prefab.Guid)!.Path;
+        try
+        {
+            if (!_json.TryGetValue(prefab.Guid, out var json))
+            {
+                json = File.ReadAllText(_assets.FullPath(prefab.Guid));
+                _json[prefab.Guid] = json;
+            }
+
+            var instance = _serializer.InstantiatePrefab(json, scene, parent, path);
+            foreach (var diagnostic in instance.Diagnostics)
+            {
+                LogDiagnostic(_logger, path, diagnostic.Path, diagnostic.Message);
+            }
+
+            return instance.Root;
+        }
+        catch (Exception ex) when (ex is IOException or SerializationException)
+        {
+            throw new InvalidOperationException($"Prefab '{path}' could not be instantiated: {ex.Message}", ex);
+        }
+    }
+
+    [LoggerMessage(EventId = 3002, Level = LogLevel.Warning, Message = "Prefab {Prefab}: {Path}: {Message}")]
+    private static partial void LogDiagnostic(ILogger logger, string prefab, string path, string message);
 }
 
 /// <summary>Draws a scene's sprites through its main camera.</summary>
@@ -112,7 +217,7 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
         renderer.Device.Clear(background);
         foreach (var sprite in scene.World.Pool<SpriteRenderer>().Components)
         {
-            if (sprite.Texture is null || !sprite.IsActiveAndEnabled)
+            if (sprite.Texture.IsNone || !sprite.IsActiveAndEnabled)
             {
                 continue;
             }

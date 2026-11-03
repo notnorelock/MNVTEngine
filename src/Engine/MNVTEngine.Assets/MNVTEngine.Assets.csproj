@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Graphics\MNVTEngine.Graphics.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Serialization\MNVTEngine.Serialization.csproj" />
+  </ItemGroup>
+</Project>

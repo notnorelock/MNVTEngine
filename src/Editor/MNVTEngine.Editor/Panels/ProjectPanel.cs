@@ -1,19 +1,32 @@
 using ImGuiNET;
+using MNVTEngine.Assets;
 using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.Serialization;
 using SysVector2 = System.Numerics.Vector2;
+using SysVector4 = System.Numerics.Vector4;
 
 namespace MNVTEngine.Editor.Panels;
 
-/// <summary>Browses the project's Assets folder. Assets drag onto inspector fields and the Scene view; double-click opens scenes.</summary>
+/// <summary>
+/// Browses the Assets folder through the asset database. Select an asset to inspect it; drag assets onto fields,
+/// the Scene view or folders (move); drag a GameObject from the Hierarchy here to create a prefab. Right-click
+/// an asset to rename, reimport or delete it. Moves and renames keep the asset's GUID, so references stay valid.
+/// </summary>
 internal sealed class ProjectPanel(EditorContext context)
 {
-    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan RescanInterval = TimeSpan.FromSeconds(2);
 
     private string _directory = "";
-    private string? _selected;
     private string[] _folders = [];
     private string[] _files = [];
     private DateTime _lastScan = DateTime.MinValue;
+    private Guid? _renameTarget;
+    private string _renameText = "";
+    private Guid? _deleteTarget;
+    private bool _openRename;
+    private bool _openDelete;
+
+    private AssetDatabase Assets => context.Session.Assets;
 
     public void Draw()
     {
@@ -28,15 +41,18 @@ internal sealed class ProjectPanel(EditorContext context)
                 ImGui.TableSetupColumn("Folders", ImGuiTableColumnFlags.WidthFixed, 180f);
                 ImGui.TableNextColumn();
                 ImGui.BeginChild("##folders");
-                DrawFolderTree(context.Session.Project.AssetsDirectory, "");
+                DrawFolderTree(Assets.AssetsDirectory, "");
                 ImGui.EndChild();
 
                 ImGui.TableNextColumn();
                 ImGui.BeginChild("##files");
                 DrawEntries();
+                DrawBackgroundDropZone();
                 ImGui.EndChild();
                 ImGui.EndTable();
             }
+
+            DrawPopups();
         }
 
         ImGui.End();
@@ -61,26 +77,14 @@ internal sealed class ProjectPanel(EditorContext context)
             }
         }
 
-        ImGui.SameLine(ImGui.GetContentRegionAvail().X + ImGui.GetCursorPosX() - 60f);
-        if (ImGui.SmallButton("Refresh"))
-        {
-            Rescan(force: true);
-        }
+        ImGui.SameLine();
+        Gui.Muted($"   {Assets.Assets.Count} assets, {Assets.Diagnostics.Count} problems");
     }
 
     private void DrawFolderTree(string fullPath, string relative)
     {
         var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanAvailWidth | ImGuiTreeNodeFlags.DefaultOpen;
-        string[] children;
-        try
-        {
-            children = Directory.GetDirectories(fullPath);
-        }
-        catch (IOException)
-        {
-            children = [];
-        }
-
+        var children = Directory.Exists(fullPath) ? Directory.GetDirectories(fullPath) : [];
         if (children.Length == 0)
         {
             flags |= ImGuiTreeNodeFlags.Leaf;
@@ -96,6 +100,8 @@ internal sealed class ProjectPanel(EditorContext context)
         {
             Navigate(relative);
         }
+
+        FolderDropTarget(relative);
 
         if (open)
         {
@@ -116,30 +122,49 @@ internal sealed class ProjectPanel(EditorContext context)
             {
                 Navigate(Combine(folder));
             }
+
+            FolderDropTarget(Combine(folder));
         }
 
         foreach (var file in _files)
         {
             var relative = Combine(file);
-            var extension = Path.GetExtension(file).ToUpperInvariant();
-            if (extension is ".PNG" or ".JPG" or ".JPEG" or ".BMP" or ".TGA")
+            var record = Assets.TryGetGuid(relative, out var guid) ? Assets.Get(guid) : null;
+            ImGui.PushID(relative);
+
+            if (record?.Type == AssetTypes.Texture && record.Status == AssetImportStatus.Imported)
             {
-                var texture = context.Resources.GetTexture(relative);
+                var texture = context.Resources.GetTexture(new AssetRef(guid));
                 Gui.Image(context.ImGui.Register(texture), texture, new SysVector2(18f, 18f));
-                ImGui.SameLine();
             }
             else
             {
-                Gui.Muted(extension == ".MNVT" ? "[scene]" : "[file] ");
-                ImGui.SameLine();
+                Gui.Muted($"[{(record?.Type ?? "?").ToLowerInvariant(),-7}]");
             }
 
-            if (ImGui.Selectable(file, _selected == relative, ImGuiSelectableFlags.AllowDoubleClick))
+            ImGui.SameLine();
+            var failed = record?.Status == AssetImportStatus.Failed;
+            if (failed)
             {
-                _selected = relative;
-                if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && extension == ".MNVT")
+                ImGui.PushStyleColor(ImGuiCol.Text, new SysVector4(1f, 0.45f, 0.45f, 1f));
+            }
+
+            var selected = record is not null && context.Session.Selection.Asset == guid;
+            if (ImGui.Selectable(file, selected, ImGuiSelectableFlags.AllowDoubleClick) && record is not null)
+            {
+                context.Session.Selection.SelectAsset(guid);
+                if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && record.Type == AssetTypes.Scene)
                 {
                     context.OpenSceneRequest = relative;
+                }
+            }
+
+            if (failed)
+            {
+                ImGui.PopStyleColor();
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.SetTooltip(string.Join('\n', record!.Messages));
                 }
             }
 
@@ -149,11 +174,189 @@ internal sealed class ProjectPanel(EditorContext context)
                 ImGui.TextUnformatted(relative);
                 ImGui.EndDragDropSource();
             }
+
+            if (record is not null && ImGui.BeginPopupContextItem())
+            {
+                if (ImGui.MenuItem("Rename..."))
+                {
+                    _renameTarget = guid;
+                    _renameText = Path.GetFileName(record.Path);
+                    _openRename = true;
+                }
+
+                if (ImGui.MenuItem("Reimport"))
+                {
+                    Assets.Reimport(guid);
+                }
+
+                if (ImGui.MenuItem("Delete..."))
+                {
+                    _deleteTarget = guid;
+                    _openDelete = true;
+                }
+
+                ImGui.EndPopup();
+            }
+
+            ImGui.PopID();
         }
 
         if (_folders.Length == 0 && _files.Length == 0)
         {
-            Gui.Muted("Empty folder");
+            Gui.Muted("Empty folder. Drag a GameObject here to create a prefab.");
+        }
+    }
+
+    /// <summary>The rest of the file list: drop a GameObject to save it as a prefab, or an asset to move it here.</summary>
+    private void DrawBackgroundDropZone()
+    {
+        var avail = ImGui.GetContentRegionAvail();
+        ImGui.InvisibleButton("##project_drop", new SysVector2(Math.Max(avail.X, 1f), Math.Max(avail.Y, 30f)));
+        if (!ImGui.BeginDragDropTarget())
+        {
+            return;
+        }
+
+        if (Gui.AcceptGuidPayload() is { } id && context.ActiveScene.FindById(id) is { } gameObject)
+        {
+            CreatePrefab(gameObject);
+        }
+
+        if (Gui.AcceptStringPayload(Gui.AssetPayload) is { } path)
+        {
+            MoveInto(path, _directory);
+        }
+
+        ImGui.EndDragDropTarget();
+    }
+
+    private void FolderDropTarget(string folder)
+    {
+        if (!ImGui.BeginDragDropTarget())
+        {
+            return;
+        }
+
+        if (Gui.AcceptStringPayload(Gui.AssetPayload) is { } path)
+        {
+            MoveInto(path, folder);
+        }
+
+        ImGui.EndDragDropTarget();
+    }
+
+    private void DrawPopups()
+    {
+        if (_openRename)
+        {
+            ImGui.OpenPopup("Rename asset");
+            _openRename = false;
+        }
+
+        if (_openDelete)
+        {
+            ImGui.OpenPopup("Delete asset");
+            _openDelete = false;
+        }
+
+        var open = true;
+        if (ImGui.BeginPopupModal("Rename asset", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.SetNextItemWidth(300f);
+            ImGui.InputText("##name", ref _renameText, 128);
+            if (ImGui.Button("Rename", new SysVector2(100f, 0f)) && _renameTarget is { } guid && Assets.Get(guid) is { } record)
+            {
+                var folder = Path.GetDirectoryName(record.Path)?.Replace('\\', '/') ?? "";
+                var target = folder.Length == 0 ? _renameText : $"{folder}/{_renameText}";
+                Try($"Rename {record.Path}", () => Assets.Move(guid, target));
+                ImGui.CloseCurrentPopup();
+            }
+
+            ImGui.SameLine();
+            if (ImGui.Button("Cancel", new SysVector2(100f, 0f)))
+            {
+                ImGui.CloseCurrentPopup();
+            }
+
+            ImGui.EndPopup();
+        }
+
+        open = true;
+        if (ImGui.BeginPopupModal("Delete asset", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            if (_deleteTarget is { } guid && Assets.Get(guid) is { } record)
+            {
+                ImGui.TextUnformatted($"Delete '{record.Path}'? This cannot be undone.");
+                var dependents = Assets.GetDependents(guid);
+                if (dependents.Count > 0)
+                {
+                    ImGui.TextColored(new SysVector4(1f, 0.7f, 0.3f, 1f), $"Referenced by {dependents.Count} asset(s); those references will break:");
+                    foreach (var dependent in dependents)
+                    {
+                        Gui.Muted("  " + dependent.Path);
+                    }
+                }
+
+                if (ImGui.Button("Delete", new SysVector2(100f, 0f)))
+                {
+                    Try($"Delete {record.Path}", () => Assets.Delete(guid));
+                    context.Session.Selection.Clear();
+                    ImGui.CloseCurrentPopup();
+                }
+
+                ImGui.SameLine();
+            }
+
+            if (ImGui.Button("Cancel", new SysVector2(100f, 0f)))
+            {
+                ImGui.CloseCurrentPopup();
+            }
+
+            ImGui.EndPopup();
+        }
+    }
+
+    private void CreatePrefab(GameObject gameObject)
+    {
+        var baseName = string.Concat(gameObject.Name.Split(Path.GetInvalidFileNameChars()));
+        var path = Combine(baseName + ".mnvtprefab");
+        for (var i = 1; File.Exists(Path.Combine(Assets.AssetsDirectory, path)); i++)
+        {
+            path = Combine($"{baseName} {i}.mnvtprefab");
+        }
+
+        Try($"Create prefab {path}", () =>
+        {
+            context.Session.Selection.SelectAsset(context.Session.CreatePrefab(gameObject, path));
+            EditorLog.PrefabCreated(context.Logger, path, gameObject.Name);
+        });
+        Rescan(force: true);
+    }
+
+    private void MoveInto(string assetPath, string folder)
+    {
+        if (!Assets.TryGetGuid(assetPath, out var guid))
+        {
+            return;
+        }
+
+        var target = folder.Length == 0 ? Path.GetFileName(assetPath) : $"{folder}/{Path.GetFileName(assetPath)}";
+        if (!string.Equals(target, assetPath, StringComparison.OrdinalIgnoreCase))
+        {
+            Try($"Move {assetPath}", () => Assets.Move(guid, target));
+            Rescan(force: true);
+        }
+    }
+
+    private void Try(string action, Action operation)
+    {
+        try
+        {
+            operation();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
+        {
+            EditorLog.ActionFailed(context.Logger, ex, action);
         }
     }
 
@@ -165,21 +368,23 @@ internal sealed class ProjectPanel(EditorContext context)
 
     private void Rescan(bool force)
     {
-        if (!force && DateTime.UtcNow - _lastScan < RefreshInterval)
+        if (!force && DateTime.UtcNow - _lastScan < RescanInterval)
         {
             return;
         }
 
         _lastScan = DateTime.UtcNow;
-        var full = _directory.Length == 0 ? context.Session.Project.AssetsDirectory : context.Session.Project.ResolveAsset(_directory);
+        var full = _directory.Length == 0 ? Assets.AssetsDirectory : AssetPaths.Resolve(Assets.AssetsDirectory, _directory);
         if (!Directory.Exists(full))
         {
             _directory = "";
-            full = context.Session.Project.AssetsDirectory;
+            full = Assets.AssetsDirectory;
         }
 
         _folders = [.. Directory.GetDirectories(full).Select(Path.GetFileName).Order(StringComparer.OrdinalIgnoreCase)!];
-        _files = [.. Directory.GetFiles(full).Select(Path.GetFileName).Where(f => !f!.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)).Order(StringComparer.OrdinalIgnoreCase)!];
+        _files = [.. Directory.GetFiles(full).Select(Path.GetFileName)
+            .Where(f => !f!.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase) && !f.EndsWith(AssetDatabase.MetaExtension, StringComparison.OrdinalIgnoreCase))
+            .Order(StringComparer.OrdinalIgnoreCase)!];
     }
 
     private string Combine(string name) => _directory.Length == 0 ? name : $"{_directory}/{name}";

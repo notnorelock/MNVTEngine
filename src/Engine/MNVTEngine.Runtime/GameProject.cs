@@ -1,3 +1,4 @@
+using MNVTEngine.Assets;
 using MNVTEngine.Serialization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -130,28 +131,5 @@ public sealed class GameProject
         {
             Error("startupScene", ex.Message);
         }
-    }
-}
-
-public static class AssetPaths
-{
-    /// <summary>Resolves a project-relative asset path, refusing anything outside <paramref name="assetsDirectory"/>.</summary>
-    /// <exception cref="ArgumentException">Empty, rooted, or escaping path.</exception>
-    public static string Resolve(string assetsDirectory, string relativePath)
-    {
-        if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath))
-        {
-            throw new ArgumentException($"Asset path '{relativePath}' must be a non-empty path relative to Assets.", nameof(relativePath));
-        }
-
-        var root = Path.GetFullPath(assetsDirectory);
-        var full = Path.GetFullPath(Path.Combine(root, relativePath));
-        var rootWithSeparator = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
-        if (!full.StartsWith(rootWithSeparator, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
-        {
-            throw new ArgumentException($"Asset path '{relativePath}' leaves the Assets folder.", nameof(relativePath));
-        }
-
-        return full;
     }
 }

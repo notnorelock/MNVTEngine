@@ -12,11 +12,16 @@ namespace MNVTEngine.Editor.Panels;
 internal sealed partial class InspectorPanel(EditorContext context)
 {
     private readonly Dictionary<Type, IReadOnlyList<InspectableMember>> _members = [];
+    private readonly AssetInspector _assetInspector = new(context);
     private Component? _pendingRemove;
 
     public void Draw()
     {
-        if (ImGui.Begin("Inspector") && context.Selected is { } gameObject)
+        if (ImGui.Begin("Inspector") && context.Session.Selection.Asset is { } asset)
+        {
+            _assetInspector.Draw(asset);
+        }
+        else if (context.Selected is { } gameObject)
         {
             DrawHeader(gameObject);
             DrawTransform(gameObject.Transform);
@@ -31,9 +36,9 @@ internal sealed partial class InspectorPanel(EditorContext context)
             ImGui.Spacing();
             DrawAddComponent(gameObject);
         }
-        else if (context.Selected is null)
+        else
         {
-            Gui.Muted("Select an object in the Hierarchy or Scene view.");
+            Gui.Muted("Select an object in the Hierarchy or Scene view, or an asset in the Project panel.");
         }
 
         ImGui.End();
@@ -212,6 +217,9 @@ internal sealed partial class InspectorPanel(EditorContext context)
                 }
 
                 break;
+            case MemberKind.AssetReference:
+                (changed, updated) = DrawAssetReference(member, (AssetRef)value!);
+                break;
             case MemberKind.GameObjectReference or MemberKind.ComponentReference:
                 (changed, updated) = DrawReference(member, value);
                 break;
@@ -266,6 +274,69 @@ internal sealed partial class InspectorPanel(EditorContext context)
             if (ImGui.MenuItem("Clear"))
             {
                 result = (true, null);
+            }
+
+            ImGui.EndPopup();
+        }
+
+        ImGui.SameLine();
+        ImGui.TextUnformatted(member.DisplayName);
+        return result;
+    }
+
+    private (bool Changed, object? Value) DrawAssetReference(InspectableMember member, AssetRef value)
+    {
+        var assets = context.Session.Assets;
+        var record = value.IsNone ? null : assets.Get(value.Guid);
+        var text = value.IsNone ? $"None ({member.AssetType ?? "Asset"})" : record?.Name ?? $"Missing ({value.Guid})";
+        if (record is null && !value.IsNone)
+        {
+            ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(1f, 0.45f, 0.45f, 1f));
+        }
+
+        ImGui.Button($"{text}##asset", new SysVector2(ImGui.CalcItemWidth(), 0f));
+        if (record is null && !value.IsNone)
+        {
+            ImGui.PopStyleColor();
+        }
+
+        if (record is not null && ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip(record.Path);
+        }
+
+        var result = (false, (object?)value);
+        if (ImGui.BeginDragDropTarget())
+        {
+            if (Gui.AcceptStringPayload(Gui.AssetPayload) is { } path && context.ResolveAsset(path) is { } dropped)
+            {
+                if (member.AcceptsAssetType(dropped.Type))
+                {
+                    result = (true, new AssetRef(dropped.Guid));
+                }
+                else
+                {
+                    LogRejected(context.Logger, $"{member.DisplayName} needs a {member.AssetType}, not a {dropped.Type}.");
+                }
+            }
+
+            ImGui.EndDragDropTarget();
+        }
+
+        if (ImGui.BeginPopupContextItem())
+        {
+            if (ImGui.MenuItem("Clear"))
+            {
+                result = (true, AssetRef.None);
+            }
+
+            ImGui.Separator();
+            foreach (var candidate in assets.Assets.Where(a => member.AcceptsAssetType(a.Type)).OrderBy(a => a.Path, StringComparer.OrdinalIgnoreCase))
+            {
+                if (ImGui.MenuItem(candidate.Path, null, candidate.Guid == value.Guid))
+                {
+                    result = (true, new AssetRef(candidate.Guid));
+                }
             }
 
             ImGui.EndPopup();

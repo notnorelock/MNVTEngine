@@ -3,9 +3,9 @@
 A modular 2D game engine in C# / .NET 11: OpenGL 4.5 renderer (Silk.NET), ImGui.NET editor, hybrid ECS,
 asset pipeline, the `.mnvts` gameplay scripting language with its own bytecode VM, and standalone game export.
 
-**Status: Milestone 3 (Editor).** ImGui editor with docked Hierarchy, Inspector, Scene/Game views,
-Project browser and Console, gizmos, scene save/load, and Play Mode on an isolated copy of the scene.
-Standalone games still run without the editor. The asset pipeline comes next.
+**Status: Milestone 4 (Asset Pipeline).** GUID-based assets with `.meta` files, importers with import
+settings, dependency tracking and prefabs, on top of the editor (Milestone 3) and standalone runtime
+(Milestone 2). C# game scripting with reload comes next.
 
 ## Requirements
 
@@ -61,6 +61,7 @@ See [the editor guide](docs/editor/editor.md) for controls.
 - [2D rendering, frame loop, resource ownership](docs/graphics/rendering.md)
 - [Scenes, ECS, lifecycle, scene format, standalone runtime](docs/engine/scenes-and-runtime.md)
 - [Editor: panels, Play Mode, ImGui integration](docs/editor/editor.md)
+- [Assets: metas, GUIDs, importers, prefabs](docs/engine/assets.md)
 
 ## Roadmap
 
@@ -70,8 +71,8 @@ See [the editor guide](docs/editor/editor.md) for controls.
 | 1 | Window, OpenGL context, shaders, textures, SpriteBatch, Camera2D, input | done |
 | 2 | Hybrid ECS, GameObject API, scenes, standalone runtime | done |
 | 3 | ImGui editor, Play Mode | done |
-| 4 | Asset pipeline with stable GUIDs | next |
-| 5 | C# game scripting via AssemblyLoadContext | |
+| 4 | Asset pipeline with stable GUIDs | done |
+| 5 | C# game scripting via AssemblyLoadContext | next |
 | 6 | `.mnvts` language, compiler, VM, mission framework | |
 | 7 | Build and Windows x64 packaging | |
 | 8 | Physics2D, audio, animation, tilemaps, 2D beta | |

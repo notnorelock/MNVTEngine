@@ -45,6 +45,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private string _saveAsPath = "Scenes/New.mnvt";
     private int _frames;
     private double _lastTick;
+    private double _lastAssetRefresh;
+    private string _lastAssetDiagnostics = "";
 
     public int ExitCode { get; private set; }
 
@@ -52,9 +54,9 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     {
         var device = GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"));
         var renderer = new Renderer2D(device);
-        var resources = new ResourceCache(device, project.AssetsDirectory, loggerFactory.CreateLogger("Resources"));
+        var session = new EditorSession(project, registry, loggerFactory.CreateLogger("Assets"));
+        var resources = new ResourceCache(device, session.Assets, loggerFactory.CreateLogger("Resources"));
         var font = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "segoeui.ttf");
-        var session = new EditorSession(project, registry);
 
         _context = new EditorContext
         {
@@ -84,11 +86,20 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _projectPanel = new ProjectPanel(_context);
         _console = new ConsolePanel(_context);
 
+        LogAssetDiagnostics();
         TryOpenScene(project.StartupScene);
         window.CloseRequested = OnCloseRequested;
         if (options.SelectOnStart is { } name)
         {
-            _context.Session.Selection.Select(_context.Session.Scene.Find(name));
+            // An object name in the startup scene, or an asset path.
+            if (_context.Session.Scene.Find(name) is { } gameObject)
+            {
+                _context.Session.Selection.Select(gameObject);
+            }
+            else if (_context.Session.Assets.TryGetGuid(name, out var asset))
+            {
+                _context.Session.Selection.SelectAsset(asset);
+            }
         }
 
         if (options.PlayOnStart)
@@ -104,6 +115,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
     public void Update(FrameTime time)
     {
+        RefreshAssetsPeriodically(time);
+        _context.ImGui.PruneDisposed();
         ImGuiInput.NewFrame(_context.Window, time.UnscaledDeltaTime);
         ImGui.NewFrame();
 
@@ -180,6 +193,39 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         }
 
         _context.Device.Dispose();
+    }
+
+    /// <summary>Picks up files added or changed outside the editor; logs asset problems when they change.</summary>
+    private void RefreshAssetsPeriodically(FrameTime time)
+    {
+        if (time.UnscaledTotalTime - _lastAssetRefresh < 2.0)
+        {
+            return;
+        }
+
+        _lastAssetRefresh = time.UnscaledTotalTime;
+        var result = _context.Session.Assets.Refresh();
+        foreach (var guid in result.Added.Concat(result.Reimported))
+        {
+            EditorLog.Imported(_logger, _context.Session.Assets.Get(guid)?.Path);
+        }
+
+        LogAssetDiagnostics();
+    }
+
+    private void LogAssetDiagnostics()
+    {
+        var current = string.Join('\n', _context.Session.Assets.Diagnostics);
+        if (current == _lastAssetDiagnostics)
+        {
+            return;
+        }
+
+        _lastAssetDiagnostics = current;
+        foreach (var diagnostic in _context.Session.Assets.Diagnostics)
+        {
+            EditorLog.AssetDiagnostic(_logger, diagnostic.Severity == DiagnosticSeverity.Error ? LogLevel.Error : LogLevel.Warning, diagnostic.Path, diagnostic.Message);
+        }
     }
 
     private void DrawWorkspace()

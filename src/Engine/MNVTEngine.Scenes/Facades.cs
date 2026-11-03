@@ -77,15 +77,19 @@ public static class SceneManager
 {
     /// <summary>Replaces the running scene at the end of the current frame. Path is relative to the project's Assets folder.</summary>
     /// <exception cref="InvalidOperationException">The scene is not hosted by a runtime that can load scenes.</exception>
-    public static void LoadScene(string path)
-    {
-        var loader = SceneContext.Current.Loader ?? throw new InvalidOperationException("This scene is not hosted by a runtime that can load scenes.");
-        loader.RequestLoad(path);
-    }
+    public static void LoadScene(string path) => Loader.RequestLoad(path);
+
+    /// <summary>Replaces the running scene at the end of the current frame.</summary>
+    public static void LoadScene(AssetRef scene) => Loader.RequestLoad(scene);
+
+    private static ISceneLoader Loader =>
+        SceneContext.Current.Loader ?? throw new InvalidOperationException("This scene is not hosted by a runtime that can load scenes.");
 }
 
-/// <summary>Implemented by the runtime host to service <see cref="SceneManager.LoadScene"/>.</summary>
+/// <summary>Implemented by the runtime host to service <see cref="SceneManager"/>.</summary>
 public interface ISceneLoader
 {
     void RequestLoad(string path);
+
+    void RequestLoad(AssetRef scene);
 }

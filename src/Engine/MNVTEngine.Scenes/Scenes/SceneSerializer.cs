@@ -10,18 +10,22 @@ public sealed record SceneLoadResult(Scene Scene, IReadOnlyList<SerializationDia
     public bool HasErrors => Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);
 }
 
+public sealed record PrefabInstance(GameObject Root, IReadOnlyList<SerializationDiagnostic> Diagnostics);
+
 /// <summary>
-/// Reads and writes <c>.mnvt</c> scene files. Loading never throws for problems inside individual objects:
-/// those become diagnostics and the rest of the scene still loads. Only unreadable documents throw.
+/// Reads and writes <c>.mnvt</c> scenes and <c>.mnvtprefab</c> prefabs (same format; a prefab holds one root
+/// subtree). Loading never throws for problems inside individual objects: those become diagnostics and the rest
+/// still loads. Only unreadable documents throw.
 /// </summary>
 /// <remarks>
-/// Format (schema 1): <c>{ schemaVersion, name, gameObjects: [ { id, name, active, parent, transform: { localPosition,
+/// Format (schema 2): <c>{ schemaVersion, name, gameObjects: [ { id, name, active, parent, transform: { localPosition,
 /// localRotation, localScale }, components: [ { type, id, enabled, data } ] } ] }</c>. GameObjects are written
-/// parents-first in sibling order; on load, sibling order follows file order.
+/// parents-first in sibling order; on load, sibling order follows file order. Asset references are
+/// <c>"asset:&lt;guid&gt;"</c> strings. Schema 1 stored sprite textures as paths; they are converted on load.
 /// </remarks>
 public sealed class SceneSerializer
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     private static readonly HashSet<string> RootKeys = ["schemaVersion", "name", "gameObjects"];
     private static readonly HashSet<string> ObjectKeys = ["id", "name", "active", "parent", "transform", "components"];
@@ -29,10 +33,12 @@ public sealed class SceneSerializer
 
     private readonly ComponentRegistry _registry;
 
-    public SceneSerializer(ComponentRegistry registry)
+    /// <param name="assets">Resolves asset paths when upgrading old files; optional.</param>
+    public SceneSerializer(ComponentRegistry registry, IAssetLookup? assets = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         _registry = registry;
+        Migrations.Add(1, (document, diagnostics) => MigrateTexturePaths(document, diagnostics, assets));
     }
 
     /// <summary>Register upgrades here when <see cref="CurrentSchemaVersion"/> increases.</summary>
@@ -48,20 +54,73 @@ public sealed class SceneSerializer
             Write(root, objects, serializer);
         }
 
-        var document = new JObject
-        {
-            ["schemaVersion"] = CurrentSchemaVersion,
-            ["name"] = scene.Name,
-            ["gameObjects"] = objects,
-        };
-        return document.ToString(Formatting.Indented);
+        return Document(scene.Name, objects);
+    }
+
+    /// <summary>Serializes <paramref name="root"/> and its descendants as a prefab. The root is written without a parent.</summary>
+    public string SerializePrefab(GameObject root)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        var serializer = CreateSerializer(new SceneReferenceConverter(null, null, null));
+        var objects = new JArray();
+        Write(root, objects, serializer);
+        objects[0]["parent"] = null;
+        return Document(root.Name, objects);
     }
 
     /// <exception cref="SerializationException">Malformed JSON, unsupported schema version, or missing object list.</exception>
     public SceneLoadResult Deserialize(string json, string sourceName = "<memory>")
     {
-        ArgumentNullException.ThrowIfNull(json);
         var diagnostics = new List<SerializationDiagnostic>();
+        var (root, items) = Parse(json, sourceName, diagnostics);
+        var scene = new Scene(root.Value<string>("name") ?? Path.GetFileNameWithoutExtension(sourceName));
+        LoadObjects(scene, items, diagnostics);
+        return new SceneLoadResult(scene, diagnostics);
+    }
+
+    /// <summary>
+    /// Adds a copy of a prefab to <paramref name="scene"/>. Every object and component gets a fresh id and references
+    /// inside the prefab are rewritten to the copies, so a prefab can be instantiated any number of times. In a running
+    /// scene, lifecycle callbacks run after all data has been loaded.
+    /// </summary>
+    /// <exception cref="SerializationException">Unreadable prefab, or it does not contain exactly one root object.</exception>
+    public PrefabInstance InstantiatePrefab(string json, Scene scene, Transform? parent = null, string sourceName = "<prefab>")
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        var diagnostics = new List<SerializationDiagnostic>();
+        var (_, items) = Parse(json, sourceName, diagnostics);
+        RemapIds(items);
+
+        var created = LoadObjects(scene, items, diagnostics);
+        var roots = created.Where(g => g.Transform.Parent is null).ToList();
+        if (roots.Count != 1)
+        {
+            foreach (var gameObject in roots)
+            {
+                scene.Destroy(gameObject);
+            }
+
+            throw new SerializationException(sourceName, $"A prefab must contain exactly one root object, found {roots.Count}.", diagnostics);
+        }
+
+        if (parent is not null)
+        {
+            roots[0].Transform.SetParent(parent, worldPositionStays: false);
+        }
+
+        return new PrefabInstance(roots[0], diagnostics);
+    }
+
+    private static string Document(string name, JArray objects) => new JObject
+    {
+        ["schemaVersion"] = CurrentSchemaVersion,
+        ["name"] = name,
+        ["gameObjects"] = objects,
+    }.ToString(Formatting.Indented);
+
+    private (JObject Root, JArray Items) Parse(string json, string sourceName, List<SerializationDiagnostic> diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(json);
         JObject root;
         try
         {
@@ -74,18 +133,21 @@ public sealed class SceneSerializer
         }
 
         WarnUnknownKeys(root, RootKeys, diagnostics);
-        if (root["gameObjects"] is not JArray items)
-        {
-            throw new SerializationException(sourceName, "'gameObjects' must be an array.", diagnostics);
-        }
+        return root["gameObjects"] is JArray items
+            ? (root, items)
+            : throw new SerializationException(sourceName, "'gameObjects' must be an array.", diagnostics);
+    }
 
-        var scene = new Scene(root.Value<string>("name") ?? Path.GetFileNameWithoutExtension(sourceName));
-        var componentsById = new Dictionary<Guid, Component>();
+    /// <summary>Creates the objects in <paramref name="items"/> inside <paramref name="scene"/> and returns them in file order.</summary>
+    private List<GameObject> LoadObjects(Scene scene, JArray items, List<SerializationDiagnostic> diagnostics)
+    {
+        var componentsById = scene.GameObjects.SelectMany(g => g.Components).Where(c => c is not Transform).ToDictionary(c => c.Id);
         var serializer = CreateSerializer(new SceneReferenceConverter(scene, componentsById, diagnostics));
+        var created = new List<(GameObject GameObject, bool Active)>();
         var pendingData = new List<(Component Component, JObject Data)>();
         var pendingParents = new List<(GameObject Child, JToken Parent)>();
 
-        // Pass 1: create objects and components so every id exists before data (and references) is read.
+        // Pass 1: create objects (inactive, so a running scene runs no callbacks yet) and their components.
         foreach (var token in items)
         {
             if (token is not JObject item)
@@ -96,10 +158,8 @@ public sealed class SceneSerializer
 
             WarnUnknownKeys(item, ObjectKeys, diagnostics);
             var gameObject = scene.CreateGameObject(item.Value<string>("name") ?? "GameObject", ReadId(item, scene, componentsById, diagnostics));
-            if (item["active"] is { Type: JTokenType.Boolean } active)
-            {
-                gameObject.SetActive(active.Value<bool>());
-            }
+            gameObject.SetActive(false);
+            created.Add((gameObject, item["active"] is not { Type: JTokenType.Boolean } active || active.Value<bool>()));
 
             if (item["parent"] is { Type: not JTokenType.Null } parent)
             {
@@ -135,7 +195,69 @@ public sealed class SceneSerializer
             Populate(component, data, serializer, diagnostics);
         }
 
-        return new SceneLoadResult(scene, diagnostics);
+        // Pass 4: activation, parents first; in a running scene this is where Awake/OnEnable run.
+        foreach (var (gameObject, active) in created)
+        {
+            gameObject.SetActive(active);
+        }
+
+        return [.. created.Select(c => c.GameObject)];
+    }
+
+    /// <summary>Gives every object and component in a prefab a fresh id and rewrites all references to them.</summary>
+    private static void RemapIds(JArray items)
+    {
+        var map = new Dictionary<Guid, Guid>();
+        foreach (var item in items.OfType<JObject>())
+        {
+            AddId(item);
+            foreach (var component in (item["components"] as JArray ?? []).OfType<JObject>())
+            {
+                AddId(component);
+            }
+        }
+
+        foreach (var value in items.Descendants().OfType<JValue>())
+        {
+            if (value.Type == JTokenType.String && Guid.TryParse((string?)value.Value, out var old) && map.TryGetValue(old, out var replacement))
+            {
+                value.Value = replacement.ToString();
+            }
+        }
+
+        void AddId(JObject owner)
+        {
+            if (Guid.TryParse(owner.Value<string>("id"), out var id))
+            {
+                map.TryAdd(id, Guid.NewGuid());
+            }
+        }
+    }
+
+    private static void MigrateTexturePaths(JObject document, ICollection<SerializationDiagnostic> diagnostics, IAssetLookup? assets)
+    {
+        var sprites = (document["gameObjects"] as JArray ?? []).OfType<JObject>()
+            .SelectMany(g => (g["components"] as JArray ?? []).OfType<JObject>())
+            .Where(c => c.Value<string>("type") == "MNVTEngine.SpriteRenderer" && c["data"] is JObject);
+
+        foreach (var sprite in sprites)
+        {
+            if (sprite["data"]!["texture"] is not JValue { Type: JTokenType.String } texture)
+            {
+                continue;
+            }
+
+            var path = (string)texture.Value!;
+            if (assets is not null && assets.TryGetGuid(path, out var guid))
+            {
+                texture.Value = new AssetRef(guid).ToString();
+            }
+            else
+            {
+                diagnostics.Add(new SerializationDiagnostic(DiagnosticSeverity.Warning, texture.Path, $"Texture path '{path}' is not a known asset; reference cleared."));
+                texture.Value = null;
+            }
+        }
     }
 
     private void Write(GameObject gameObject, JArray output, JsonSerializer serializer)
@@ -303,6 +425,7 @@ public sealed class SceneSerializer
         var settings = MnvtJson.CreateSettings();
         settings.ContractResolver = new ComponentContractResolver(references);
         settings.MissingMemberHandling = MissingMemberHandling.Ignore; // reported explicitly with paths instead
+        settings.Converters.Add(new AssetRefConverter());
         return JsonSerializer.Create(settings);
     }
 

@@ -1,5 +1,6 @@
 using MNVTEngine;
 using MNVTEngine.Mathematics;
+using MNVTEngine.Serialization;
 
 namespace SceneDemo;
 
@@ -60,30 +61,19 @@ public sealed class MouseMarker : Component
     }
 }
 
-/// <summary>Space spawns a short-lived orb at the player: runtime creation and destruction.</summary>
+/// <summary>Space spawns a copy of a prefab (a short-lived orb) at the player.</summary>
 [ComponentId("SceneDemo.Spawner")]
 public sealed class Spawner : Component
 {
-    [AssetPath(".png")]
-    public string OrbTexture = "Textures/orb.png";
-    public float Lifetime = 2f;
-    private int _spawned;
+    [AssetType(AssetTypes.Prefab)]
+    public AssetRef OrbPrefab;
 
     public override void Update()
     {
-        if (!Input.GetKeyDown(Key.Space))
+        if (Input.GetKeyDown(Key.Space) && !OrbPrefab.IsNone)
         {
-            return;
+            Prefab.Instantiate(OrbPrefab, Transform.Position);
         }
-
-        var orb = GameObject.Scene.CreateGameObject($"Orb {++_spawned}");
-        orb.Transform.Position = Transform.Position;
-        var sprite = orb.AddComponent<SpriteRenderer>();
-        sprite.Texture = OrbTexture;
-        sprite.Size = new Vector2(1.5f, 1.5f);
-        sprite.Color = new Color(1f, 0.8f, 0.2f, 0.9f);
-        sprite.SortingOrder = 5;
-        orb.AddComponent<Lifetime>().Seconds = Lifetime;
     }
 }
 
@@ -114,12 +104,12 @@ public sealed class Lifetime : Component
 [ComponentId("SceneDemo.SceneSwitcher")]
 public sealed class SceneSwitcher : Component
 {
-    [AssetPath(".mnvt")]
-    public string NextScene = "";
+    [AssetType(AssetTypes.Scene)]
+    public AssetRef NextScene;
 
     public override void Update()
     {
-        if (Input.GetKeyDown(Key.Tab) && NextScene.Length > 0)
+        if (Input.GetKeyDown(Key.Tab) && !NextScene.IsNone)
         {
             SceneManager.LoadScene(NextScene);
         }

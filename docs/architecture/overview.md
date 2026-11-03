@@ -1,6 +1,6 @@
 # MNVTEngine Architecture Overview
 
-Status: **Milestone 3 (Editor)** complete. This document is the source of truth for module boundaries.
+Status: **Milestone 4 (Asset Pipeline)** complete. This document is the source of truth for module boundaries.
 `tests/MNVTEngine.Architecture.Tests` enforces the rules below by reading the `.csproj` graph.
 
 ## Toolchain
@@ -55,8 +55,8 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.ECS** | M2 | Entity storage, component pools, queries, systems | Core |
 | **MNVTEngine.Input** | M2 | Backend-free input state, keys, axes | Mathematics |
 | **MNVTEngine.Scenes** | M2 | GameObject/Component API, Transform hierarchy, lifecycle, Time/Input facades, scene serialization | ECS, Input, Serialization |
-| **MNVTEngine.Runtime** | M2 | Project file, resource cache, scene renderer, standalone game loop; backend injected by the host | Graphics, Platform, Scenes |
-| MNVTEngine.Assets | M4 | GUID database, importers, metadata | Serialization |
+| **MNVTEngine.Runtime** | M2 | Project file, GUID-based resource cache, prefab provider, scene renderer, standalone game loop; backend injected by the host | Assets, Graphics, Platform, Scenes |
+| **MNVTEngine.Assets** | M4 | GUID database, sidecar metas, importers, import cache, dependencies, safe asset paths | Serialization, Graphics (image decoding) |
 | MNVTEngine.Scripting | M6 | Language (lexer, parser, AST), compiler, bytecode, VM | Core only |
 | MNVTEngine.Scripting.Missions | M6 | Mission framework, persistence | Scripting, Serialization |
 | **MNVTEngine.Editor.Services** | M3 | Session, selection, Play Mode, inspection, picking, gizmo math (no ImGui) | Runtime |
@@ -104,6 +104,9 @@ Deviations from the original proposal, and why:
 | Script exceptions | Logged with context, frame continues | One broken script does not take down the game |
 | Editor rendering | ImGui drawn through `IGraphicsDevice` (sprite shader + scissor + dynamic indices) | Editor works on any future backend; no second GL code path |
 | Play Mode | Copy made by serialize/deserialize; edit scene never runs | Identical to what a build loads; Stop needs no restore logic. See [editor](../editor/editor.md) |
+| Asset identity | Sidecar `.meta` with GUID; references are `"asset:<guid>"` | Renames/moves never break references; metas are diffable and merge-friendly. See [assets](../engine/assets.md) |
+| Scenes vs assets | Scenes depend only on `IAssetLookup` (Serialization); `Assets` does not know about scenes | Asset database stays usable by tooling without the gameplay model |
+| Prefabs | Unlinked copies with id remapping | Correct and simple; nested/override prefabs deferred |
 
 ## Technical risks
 

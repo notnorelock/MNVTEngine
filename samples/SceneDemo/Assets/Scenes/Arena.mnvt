@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "Arena",
   "gameObjects": [
     {
@@ -9,7 +9,7 @@
       "components": [
         { "type": "MNVTEngine.Camera", "id": "d0000000-0000-0000-0000-000000000001",
           "data": { "orthographicSize": 4.0, "backgroundColor": { "r": 0.16, "g": 0.06, "b": 0.08, "a": 1.0 } } },
-        { "type": "SceneDemo.SceneSwitcher", "id": "d0000000-0000-0000-0000-000000000002", "data": { "nextScene": "Scenes/Main.mnvt" } }
+        { "type": "SceneDemo.SceneSwitcher", "id": "d0000000-0000-0000-0000-000000000002", "data": { "nextScene": "asset:0f5e0000-0000-4000-8000-000000000010" } }
       ]
     },
     {
@@ -18,7 +18,7 @@
       "transform": { "localPosition": { "x": 0.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 2.0, "y": 2.0 } },
       "components": [
         { "type": "MNVTEngine.SpriteRenderer", "id": "d0000000-0000-0000-0000-000000000003",
-          "data": { "texture": "Textures/player.png", "color": { "r": 1.0, "g": 0.6, "b": 0.6, "a": 1.0 } } },
+          "data": { "texture": "asset:0f5e0000-0000-4000-8000-000000000001", "color": { "r": 1.0, "g": 0.6, "b": 0.6, "a": 1.0 } } },
         { "type": "SceneDemo.PlayerController", "id": "d0000000-0000-0000-0000-000000000004", "data": { "speed": 3.0 } },
         { "type": "SceneDemo.Spinner", "id": "d0000000-0000-0000-0000-000000000005", "enabled": false, "data": { "degreesPerSecond": 90.0 } }
       ]

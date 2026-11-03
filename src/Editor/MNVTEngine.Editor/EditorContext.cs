@@ -56,6 +56,32 @@ internal sealed class EditorContext
         return gameObject;
     }
 
+    /// <summary>Instantiates a prefab asset into the active scene and selects it. Failures are logged.</summary>
+    public GameObject? InstantiatePrefab(Guid prefab, Transform? parent, Mathematics.Vector2? position = null)
+    {
+        try
+        {
+            var instance = ActiveScene.Instantiate(new AssetRef(prefab), parent);
+            if (position is { } p)
+            {
+                instance.Transform.Position = p;
+            }
+
+            Session.Selection.Select(instance);
+            Changed();
+            return instance;
+        }
+        catch (InvalidOperationException ex)
+        {
+            EditorLog.ActionFailed(Logger, ex, "Instantiate prefab");
+            return null;
+        }
+    }
+
+    /// <summary>Resolves a dragged asset path to its GUID and type.</summary>
+    public (Guid Guid, string Type)? ResolveAsset(string relativePath) =>
+        Session.Assets.TryGetGuid(relativePath, out var guid) && Session.Assets.GetAssetType(guid) is { } type ? (guid, type) : null;
+
     public void Delete(GameObject gameObject)
     {
         if (PlayMode.IsPlaying)

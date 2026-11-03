@@ -140,6 +140,11 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         _pendingScene = path;
     }
 
+    public void RequestLoad(AssetRef scene) =>
+        RequestLoad(session.Assets.GetAssetType(scene.Guid) == Serialization.AssetTypes.Scene && session.Assets.TryGetPath(scene.Guid, out var path)
+            ? path
+            : throw new ArgumentException($"{scene} is not a scene asset in this project.", nameof(scene)));
+
     private void LoadPlayScene(string path)
     {
         try
@@ -159,6 +164,7 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         scene.Logger = loggerFactory.CreateLogger($"Scene.{scene.Name}");
         scene.Input = Input;
         scene.Loader = this;
+        scene.Prefabs = session.Prefabs;
         PlayScene = scene;
         scene.Start();
     }

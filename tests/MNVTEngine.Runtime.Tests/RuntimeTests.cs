@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using MNVTEngine.Assets;
 using MNVTEngine.Core.Logging;
 using MNVTEngine.Graphics.OpenGL;
 using MNVTEngine.Platform;
@@ -102,8 +103,79 @@ public sealed class RuntimeTests : IDisposable
         Assert.Equal(0, runtime.ExitCode);
         var messages = logs.Snapshot();
         Assert.Contains(messages, e => e.Message.Contains("Scene 'Second' running", StringComparison.Ordinal));
-        Assert.Contains(messages, e => e.Level == LogLevel.Error && e.Message.Contains("Textures/missing.png", StringComparison.Ordinal));
+        // Schema 1 scene: the unknown texture path is cleared during migration, with a warning.
+        Assert.Contains(messages, e => e.Level == LogLevel.Warning && e.Message.Contains("Textures/missing.png", StringComparison.Ordinal));
         Assert.True(Marker.Updates > 0);
+    }
+
+    [Fact]
+    public void Runtime_InstantiatesPrefabsFromReadOnlyAssets()
+    {
+        var prefabGuid = Guid.NewGuid();
+        File.WriteAllText(Path.Combine(_root, "Assets", "Bullet.mnvtprefab"), $$"""
+            { "schemaVersion": 2, "name": "Bullet", "gameObjects": [ { "id": "{{Guid.NewGuid()}}", "name": "Bullet", "parent": null,
+              "components": [ { "type": "Test.Marker", "data": {} } ] } ] }
+            """);
+        File.WriteAllText(Path.Combine(_root, "Assets", "Bullet.mnvtprefab.meta"), $$"""{ "schemaVersion": 1, "guid": "{{prefabGuid}}", "settings": {} }""");
+        WriteScene("First", $$"""{ "type": "Test.Shooter", "data": { "bullet": "asset:{{prefabGuid}}" } }""");
+        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt.meta"), $$"""{ "schemaVersion": 1, "guid": "{{Guid.NewGuid()}}", "settings": {} }""");
+
+        var project = GameProject.Load(WriteProject());
+        var registry = ComponentRegistry.CreateDefault().Register<Shooter>().Register<Marker>();
+        using var logs = new InMemoryLoggerProvider(minimumLevel: LogLevel.Debug);
+        using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
+        var runtime = RunHidden(project, registry, factory, frames: 6);
+
+        Assert.Equal(3, Shooter.BulletsSeen); // counted while running; Unload destroys everything afterwards
+        Assert.NotNull(runtime.CurrentScene);
+        Assert.DoesNotContain(logs.Snapshot(), e => e.Level >= LogLevel.Error);
+        Assert.False(File.Exists(Path.Combine(_root, "Assets", "Textures.meta")));
+        Assert.False(Directory.Exists(Path.Combine(_root, "Library")), "Read-only runtime must not write a Library folder.");
+    }
+
+    private static GameRuntime RunHidden(GameProject project, ComponentRegistry registry, ILoggerFactory factory, int frames)
+    {
+        GameWindow window;
+        try
+        {
+            window = new GameWindow(new GameWindowOptions { Hidden = true, Width = 64, Height = 64, VSync = false });
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            Assert.Skip($"No window system available: {ex.Message}");
+            throw;
+        }
+
+        var runtime = new GameRuntime(project, registry,
+            (w, l) => GLGraphicsDevice.Create(w.GraphicsContext, w.FramebufferWidth, w.FramebufferHeight, l),
+            factory, new GameRuntimeOptions { ExitAfterFrames = frames });
+        using (window)
+        {
+            window.Run(runtime);
+        }
+
+        return runtime;
+    }
+
+    [ComponentId("Test.Shooter")]
+    public sealed class Shooter : Component
+    {
+        [AssetType(Serialization.AssetTypes.Prefab)]
+        public AssetRef Bullet;
+        private int _shots;
+
+        public static int BulletsSeen { get; private set; }
+
+        public override void Update()
+        {
+            if (_shots++ < 3)
+            {
+                Prefab.Instantiate(Bullet, new Mathematics.Vector2(_shots, 0f));
+            }
+        }
+
+        public override void LateUpdate() =>
+            BulletsSeen = GameObject.Scene.GameObjects.Count(g => g.Name == "Bullet" && g.GetComponent<Marker>() is not null);
     }
 
     [ComponentId("Test.Switcher")]

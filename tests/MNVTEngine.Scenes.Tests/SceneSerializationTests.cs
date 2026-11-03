@@ -12,6 +12,8 @@ public class SceneSerializationTests
 
     private static readonly SceneSerializer Serializer = new(Registry);
 
+    private static readonly Guid PlayerTexture = Guid.Parse("0f5e0000-0000-4000-8000-000000000001");
+
     private static Scene BuildScene()
     {
         var scene = new Scene("Level");
@@ -21,7 +23,7 @@ public class SceneSerializationTests
         player.Transform.LocalScale = new Vector2(2f, 3f);
         player.AddComponent<PlayerController>().Speed = 12.5f;
         var sprite = player.AddComponent<SpriteRenderer>();
-        sprite.Texture = "Textures/player.png";
+        sprite.Texture = new AssetRef(PlayerTexture);
         sprite.Color = new Color(1f, 0.5f, 0.25f, 1f);
         sprite.SortingOrder = 3;
 
@@ -64,7 +66,7 @@ public class SceneSerializationTests
         Assert.Equal(new Vector2(2f, 3f), player.Transform.LocalScale);
         Assert.Equal(12.5f, player.GetComponent<PlayerController>()!.Speed);
         var sprite = player.GetComponent<SpriteRenderer>()!;
-        Assert.Equal("Textures/player.png", sprite.Texture);
+        Assert.Equal(new AssetRef(PlayerTexture), sprite.Texture);
         Assert.Equal(new Color(1f, 0.5f, 0.25f, 1f), sprite.Color);
         Assert.Equal(3, sprite.SortingOrder);
 
@@ -98,7 +100,7 @@ public class SceneSerializationTests
     public void Format_IsReadableAndUsesStableIds()
     {
         var json = JObject.Parse(Serializer.Serialize(BuildScene()));
-        Assert.Equal(1, json.Value<int>("schemaVersion"));
+        Assert.Equal(2, json.Value<int>("schemaVersion"));
         var player = (JObject)json["gameObjects"]![0]!;
         Assert.Equal("Player", player.Value<string>("name"));
         var controller = (JObject)player["components"]![0]!;
@@ -174,7 +176,7 @@ public class SceneSerializationTests
     public void ParentCycle_IsReportedNotFatal()
     {
         const string json = """
-            { "schemaVersion": 1, "name": "Cycle", "gameObjects": [
+            { "schemaVersion": 2, "name": "Cycle", "gameObjects": [
               { "id": "11111111-1111-1111-1111-111111111111", "name": "A", "parent": "22222222-2222-2222-2222-222222222222" },
               { "id": "22222222-2222-2222-2222-222222222222", "name": "B", "parent": "11111111-1111-1111-1111-111111111111" } ] }
             """;
@@ -188,7 +190,7 @@ public class SceneSerializationTests
     [InlineData("""{ "name": "x", "gameObjects": [] }""")]
     [InlineData("""{ "schemaVersion": 99, "gameObjects": [] }""")]
     [InlineData("""{ "schemaVersion": 1 }""")]
-    [InlineData("""{ "schemaVersion": 1, "gameObjects": [], "gameObjects": [] }""")]
+    [InlineData("""{ "schemaVersion": 2, "gameObjects": [], "gameObjects": [] }""")]
     public void UnreadableDocuments_Throw(string json) =>
         Assert.Throws<SerializationException>(() => Serializer.Deserialize(json, "bad.mnvt"));
 
@@ -196,7 +198,7 @@ public class SceneSerializationTests
     public void TypeNamesInData_AreNeverInstantiated()
     {
         const string json = """
-            { "schemaVersion": 1, "gameObjects": [ { "id": "11111111-1111-1111-1111-111111111111", "name": "A",
+            { "schemaVersion": 2, "gameObjects": [ { "id": "11111111-1111-1111-1111-111111111111", "name": "A",
               "components": [ { "type": "System.IO.FileInfo, System.IO.FileSystem", "data": { "fileName": "x" } } ] } ] }
             """;
         var result = Serializer.Deserialize(json);

@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 2,
+  "name": "Orb",
+  "gameObjects": [
+    {
+      "id": "b1000000-0000-0000-0000-000000000001",
+      "name": "Orb",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.SpriteRenderer",
+          "id": "b1000000-0000-0000-0000-000000000002",
+          "enabled": true,
+          "data": {
+            "texture": "asset:0f5e0000-0000-4000-8000-000000000003",
+            "color": {
+              "r": 1.0,
+              "g": 0.8,
+              "b": 0.2,
+              "a": 0.9
+            },
+            "size": {
+              "x": 1.5,
+              "y": 1.5
+            },
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "flipX": false,
+            "flipY": false,
+            "sortingOrder": 5
+          }
+        },
+        {
+          "type": "SceneDemo.Lifetime",
+          "id": "b1000000-0000-0000-0000-000000000003",
+          "enabled": true,
+          "data": {
+            "seconds": 1.5
+          }
+        }
+      ]
+    }
+  ]
+}

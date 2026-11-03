@@ -37,6 +37,8 @@ internal sealed class HierarchyPanel(EditorContext context)
                     context.Changed();
                 }
 
+                AcceptPrefabDrop(null);
+
                 ImGui.EndDragDropTarget();
             }
 
@@ -65,8 +67,7 @@ internal sealed class HierarchyPanel(EditorContext context)
 
         if (ImGui.MenuItem("Create Sprite"))
         {
-            var sprite = context.CreateGameObject("Sprite", parent).AddComponent<SpriteRenderer>();
-            sprite.Texture = "Textures/orb.png";
+            context.CreateGameObject("Sprite", parent).AddComponent<SpriteRenderer>();
         }
 
         if (ImGui.MenuItem("Create Camera"))
@@ -120,6 +121,8 @@ internal sealed class HierarchyPanel(EditorContext context)
                 context.Changed();
             }
 
+            AcceptPrefabDrop(gameObject.Transform);
+
             ImGui.EndDragDropTarget();
         }
 
@@ -144,6 +147,14 @@ internal sealed class HierarchyPanel(EditorContext context)
             }
 
             ImGui.TreePop();
+        }
+    }
+
+    private void AcceptPrefabDrop(Transform? parent)
+    {
+        if (Gui.AcceptStringPayload(Gui.AssetPayload) is { } path && context.ResolveAsset(path) is { Type: Serialization.AssetTypes.Prefab } asset)
+        {
+            context.InstantiatePrefab(asset.Guid, parent);
         }
     }
 

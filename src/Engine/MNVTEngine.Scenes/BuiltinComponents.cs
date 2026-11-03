@@ -1,4 +1,5 @@
 using MNVTEngine.Mathematics;
+using MNVTEngine.Serialization;
 
 namespace MNVTEngine;
 
@@ -6,10 +7,9 @@ namespace MNVTEngine;
 [ComponentId("MNVTEngine.SpriteRenderer")]
 public sealed class SpriteRenderer : Component
 {
-    /// <summary>Texture path relative to the project's Assets folder, e.g. "Textures/player.png".</summary>
     [SerializeField]
-    [AssetPath(".png", ".jpg", ".jpeg", ".bmp", ".tga")]
-    public string? Texture { get; set; }
+    [AssetType(AssetTypes.Texture)]
+    public AssetRef Texture { get; set; }
 
     [SerializeField]
     public Color Color { get; set; } = Color.White;

@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using MNVTEngine.Assets;
 using MNVTEngine.Runtime;
 using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
@@ -10,15 +13,22 @@ namespace MNVTEngine.Editor.Services;
 /// </summary>
 public sealed class EditorSession
 {
-    public EditorSession(GameProject project, ComponentRegistry registry)
+    public EditorSession(GameProject project, ComponentRegistry registry, ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(registry);
         Project = project;
         Registry = registry;
-        Serializer = new SceneSerializer(registry);
+        Assets = AssetDatabase.OpenForEditing(project.AssetsDirectory, Path.Combine(project.RootDirectory, "Library"));
+        Serializer = new SceneSerializer(registry, Assets);
+        Prefabs = new PrefabProvider(Serializer, Assets, logger ?? NullLogger.Instance);
         Scene = CreateDefaultScene("Untitled");
     }
+
+    /// <summary>The project's assets in editing mode (creates metas, imports, caches in Library/).</summary>
+    public AssetDatabase Assets { get; }
+
+    public PrefabProvider Prefabs { get; }
 
     public GameProject Project { get; }
 
@@ -76,20 +86,24 @@ public sealed class EditorSession
     public void SaveScene(string? relativePath = null)
     {
         relativePath ??= ScenePath ?? throw new InvalidOperationException("The scene has no file yet; choose a path.");
-        var full = Project.ResolveAsset(relativePath);
-        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
 
-        // Write next to the target and swap, so a crash mid-write never leaves a truncated scene.
-        var temp = full + ".tmp";
-        File.WriteAllText(temp, Serializer.Serialize(Scene));
-        File.Move(temp, full, overwrite: true);
+        // Written atomically (temp file + swap) and indexed, so the scene gets a GUID like any other asset.
+        Assets.WriteText(relativePath, Serializer.Serialize(Scene));
 
         ScenePath = relativePath;
         IsDirty = false;
     }
 
+    /// <summary>Saves <paramref name="root"/> and its children as a prefab asset and returns its GUID.</summary>
+    public Guid CreatePrefab(GameObject root, string relativePath)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        return Assets.WriteText(relativePath, Serializer.SerializePrefab(root));
+    }
+
     private void Replace(Scene scene, string? path)
     {
+        scene.Prefabs = Prefabs;
         Scene = scene;
         ScenePath = path;
         IsDirty = false;
@@ -97,10 +111,11 @@ public sealed class EditorSession
         SceneReplaced?.Invoke();
     }
 
-    private static Scene CreateDefaultScene(string name)
+    private Scene CreateDefaultScene(string name)
     {
         var scene = new Scene(name);
         scene.CreateGameObject("Main Camera").AddComponent<Camera>();
+        scene.Prefabs = Prefabs;
         return scene;
     }
 }
@@ -111,11 +126,29 @@ public sealed class EditorSession
 /// </summary>
 public sealed class Selection
 {
+    /// <summary>Selected GameObject id. Selecting an object clears <see cref="Asset"/> and vice versa.</summary>
     public Guid? Id { get; private set; }
 
-    public void Select(GameObject? gameObject) => Id = gameObject?.Id;
+    /// <summary>Selected asset GUID (Project panel).</summary>
+    public Guid? Asset { get; private set; }
 
-    public void Clear() => Id = null;
+    public void Select(GameObject? gameObject)
+    {
+        Id = gameObject?.Id;
+        Asset = null;
+    }
+
+    public void SelectAsset(Guid? asset)
+    {
+        Asset = asset;
+        Id = null;
+    }
+
+    public void Clear()
+    {
+        Id = null;
+        Asset = null;
+    }
 
     public GameObject? Resolve(Scene scene)
     {

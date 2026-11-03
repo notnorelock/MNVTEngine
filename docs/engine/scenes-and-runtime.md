@@ -43,7 +43,7 @@ Callbacks run only while the scene is running (`scene.Start()`). In edit mode th
 - `SetParent(parent, worldPositionStays = true)` rejects cycles and parenting across scenes.
 - With a rotated parent that also has non-uniform scale, the matrix is exact, but `Rotation` and `LossyScale` are approximations.
 
-## Scene files (`.mnvt`, schema 1)
+## Scene files (`.mnvt`, schema 2)
 
 ```json
 {
@@ -52,7 +52,7 @@ Callbacks run only while the scene is running (`scene.Start()`). In edit mode th
   "gameObjects": [
     { "id": "<guid>", "name": "Player", "active": true, "parent": null,
       "transform": { "localPosition": { "x": 0, "y": 0 }, "localRotation": 0, "localScale": { "x": 1, "y": 1 } },
-      "components": [ { "type": "SceneDemo.PlayerController", "id": "<guid>", "enabled": true, "data": { "speed": 6 } } ] }
+      "components": [ { "type": "MNVTEngine.SpriteRenderer", "id": "<guid>", "enabled": true, "data": { "texture": "asset:<guid>" } } ] }
   ]
 }
 ```
@@ -74,6 +74,8 @@ Callbacks run only while the scene is running (`scene.Start()`). In edit mode th
 
 - **Fatal errors:** only an unreadable document throws `SerializationException`. That means malformed JSON, duplicate keys, a missing or newer `schemaVersion`, or no `gameObjects` array.
 - **Migrations:** register upgrade steps in `SceneSerializer.Migrations` (a `JsonMigrationPipeline`) when the schema changes. Each step upgrades the document by one version.
+- **Schema 1 → 2:** sprite textures change from paths to `AssetRef`s. Paths are resolved through the asset database; unknown paths are cleared with a warning.
+- **Prefabs** (`.mnvtprefab`) use the same format; see [assets](assets.md#prefabs).
 
 ## Game projects
 
@@ -86,6 +88,7 @@ MyGame/
 ```
 
 - Asset paths are relative to `Assets/`. Absolute paths, and paths that escape `Assets/` (for example `../`), are rejected. This is a trust boundary for project files.
+- Every asset has a `.meta` file with its GUID; see [assets](assets.md). A standalone game opens the asset database read-only.
 - The project file is strict: unknown keys are errors. It is validated on load: name, timestep, window size, and that the startup scene exists.
 - **MSBuild note:** MSBuild treats any `*.*proj` file as a project. If a `.mnvtproj` sits next to the game's `.csproj`, name the `.csproj` explicitly in `dotnet build`. The solution build is unaffected.
 

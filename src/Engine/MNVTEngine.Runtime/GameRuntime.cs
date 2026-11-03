@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using MNVTEngine.Assets;
 using MNVTEngine.Core.Timing;
 using MNVTEngine.Graphics;
 using MNVTEngine.Platform;
@@ -32,13 +33,15 @@ public sealed partial class GameRuntime(
     GameRuntimeOptions? options = null) : IGameLoop, ISceneLoader
 {
     private readonly ILogger _logger = loggerFactory.CreateLogger("Runtime");
-    private readonly SceneSerializer _serializer = new(registry);
     private readonly GameRuntimeOptions _options = options ?? new GameRuntimeOptions();
     private GameWindow _window = null!;
     private IGraphicsDevice _device = null!;
     private Renderer2D _renderer = null!;
     private ResourceCache _resources = null!;
     private SceneRenderer _sceneRenderer = null!;
+    private AssetDatabase _assets = null!;
+    private SceneSerializer _serializer = null!;
+    private PrefabProvider _prefabs = null!;
     private string? _pendingScene;
     private int _frames;
 
@@ -52,7 +55,15 @@ public sealed partial class GameRuntime(
         _window = window;
         _device = createDevice(window, loggerFactory.CreateLogger("Graphics"));
         _renderer = new Renderer2D(_device);
-        _resources = new ResourceCache(_device, project.AssetsDirectory, loggerFactory.CreateLogger("Resources"));
+        _assets = AssetDatabase.OpenReadOnly(project.AssetsDirectory);
+        foreach (var diagnostic in _assets.Diagnostics)
+        {
+            LogAssetDiagnostic(_logger, diagnostic.Path, diagnostic.Message);
+        }
+
+        _serializer = new SceneSerializer(registry, _assets);
+        _prefabs = new PrefabProvider(_serializer, _assets, loggerFactory.CreateLogger("Prefabs"));
+        _resources = new ResourceCache(_device, _assets, loggerFactory.CreateLogger("Resources"));
         _sceneRenderer = new SceneRenderer(_renderer, _resources, _logger);
         LogStarting(_logger, project.Name, project.StartupScene);
 
@@ -123,6 +134,12 @@ public sealed partial class GameRuntime(
         _pendingScene = path;
     }
 
+    /// <exception cref="ArgumentException">The reference is not a scene asset of this project.</exception>
+    public void RequestLoad(AssetRef scene) =>
+        RequestLoad(_assets.GetAssetType(scene.Guid) == AssetTypes.Scene && _assets.TryGetPath(scene.Guid, out var path)
+            ? path
+            : throw new ArgumentException($"{scene} is not a scene asset in this project.", nameof(scene)));
+
     private Scene LoadScene(string path)
     {
         string json;
@@ -156,6 +173,7 @@ public sealed partial class GameRuntime(
         next.Logger = loggerFactory.CreateLogger($"Scene.{next.Name}");
         next.Input = _window.Input;
         next.Loader = this;
+        next.Prefabs = _prefabs;
         CurrentScene = next;
         next.Start();
         LogSceneStarted(_logger, next.Name, next.GameObjects.Count);
@@ -169,6 +187,9 @@ public sealed partial class GameRuntime(
         using var stream = File.Create(path);
         new StbImageWriteSharp.ImageWriter().WritePng(pixels, _device.BackBufferWidth, _device.BackBufferHeight, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, stream);
     }
+
+    [LoggerMessage(EventId = 3106, Level = LogLevel.Warning, Message = "Asset {Path}: {Message}")]
+    private static partial void LogAssetDiagnostic(ILogger logger, string path, string message);
 
     [LoggerMessage(EventId = 3100, Level = LogLevel.Information, Message = "Starting '{Project}' with scene '{Scene}'")]
     private static partial void LogStarting(ILogger logger, string project, string scene);

@@ -273,6 +273,8 @@ public sealed class LifecycleTests : IDisposable
         public List<string> Requests { get; } = [];
 
         public void RequestLoad(string path) => Requests.Add(path);
+
+        public void RequestLoad(AssetRef scene) => Requests.Add(scene.ToString());
     }
 }
 

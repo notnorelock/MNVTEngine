@@ -87,6 +87,15 @@ public sealed unsafe class ImGuiRenderer : IDisposable
         }
     }
 
+    /// <summary>Forgets textures that were disposed elsewhere (e.g. evicted after reimport).</summary>
+    public void PruneDisposed()
+    {
+        foreach (var texture in _ids.Keys.Where(t => t.IsDisposed).ToList())
+        {
+            Unregister(texture);
+        }
+    }
+
     public void Render(ImDrawDataPtr data, int framebufferWidth, int framebufferHeight)
     {
         if (data.CmdListsCount == 0 || framebufferWidth <= 0 || framebufferHeight <= 0)

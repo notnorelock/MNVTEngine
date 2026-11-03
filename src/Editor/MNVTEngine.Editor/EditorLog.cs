@@ -1,0 +1,25 @@
+using Microsoft.Extensions.Logging;
+
+namespace MNVTEngine.Editor;
+
+/// <summary>Structured log messages shared by editor panels.</summary>
+internal static partial class EditorLog
+{
+    [LoggerMessage(EventId = 5200, Level = LogLevel.Error, Message = "{Action} failed")]
+    public static partial void ActionFailed(ILogger logger, Exception exception, string action);
+
+    [LoggerMessage(EventId = 5201, Level = LogLevel.Warning, Message = "{Message}")]
+    public static partial void Warning(ILogger logger, string message);
+
+    [LoggerMessage(EventId = 5202, Level = LogLevel.Information, Message = "{Message}")]
+    public static partial void Info(ILogger logger, string message);
+
+    [LoggerMessage(EventId = 5204, Level = LogLevel.Information, Message = "Imported '{Path}'")]
+    public static partial void Imported(ILogger logger, string? path);
+
+    [LoggerMessage(EventId = 5205, Level = LogLevel.Information, Message = "Created prefab '{Path}' from '{GameObject}'")]
+    public static partial void PrefabCreated(ILogger logger, string path, string gameObject);
+
+    [LoggerMessage(EventId = 5203, Message = "Asset {Path}: {Message}")]
+    public static partial void AssetDiagnostic(ILogger logger, LogLevel level, string path, string message);
+}
