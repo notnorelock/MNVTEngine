@@ -96,7 +96,7 @@ public class DependencyRuleTests
     [Fact]
     public void OnlyPlatformBackends_ReferenceSilkNetDirectly()
     {
-        string[] allowed = ["MNVTEngine.Graphics.OpenGL", "MNVTEngine.Platform", "MNVTEngine.Windowing", "MNVTEngine.Audio"];
+        string[] allowed = ["MNVTEngine.Graphics.OpenGL", "MNVTEngine.Platform", "MNVTEngine.Windowing", "MNVTEngine.Audio.OpenAL"];
         var violations = Graph.Projects
             .Where(p => p.Area == "Engine" && !allowed.Contains(p.Name))
             .Where(p => p.Packages.Any(pkg => GraphicsBackendPackages.Any(b => pkg.StartsWith(b, StringComparison.OrdinalIgnoreCase))))
@@ -133,6 +133,10 @@ public class DependencyRuleTests
     [InlineData("MNVTEngine.Physics2D", "MNVTEngine.Platform")]
     [InlineData("MNVTEngine.Physics2D", "MNVTEngine.Assets")]
     [InlineData("MNVTEngine.Scenes", "MNVTEngine.Physics2D")]
+    [InlineData("MNVTEngine.Audio", "MNVTEngine.Audio.OpenAL")]
+    [InlineData("MNVTEngine.Audio", "MNVTEngine.Graphics")]
+    [InlineData("MNVTEngine.Runtime", "MNVTEngine.Audio.OpenAL")]
+    [InlineData("MNVTEngine.Scenes", "MNVTEngine.Audio")]
     public void ForbiddenDependency(string project, string forbidden)
     {
         if (!Graph.Contains(project))

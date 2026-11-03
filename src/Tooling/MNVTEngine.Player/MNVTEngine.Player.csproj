@@ -7,6 +7,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Audio.OpenAL\MNVTEngine.Audio.OpenAL.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Graphics.OpenGL\MNVTEngine.Graphics.OpenGL.csproj" />
     <ProjectReference Include="..\MNVTEngine.Build\MNVTEngine.Build.csproj" />
   </ItemGroup>

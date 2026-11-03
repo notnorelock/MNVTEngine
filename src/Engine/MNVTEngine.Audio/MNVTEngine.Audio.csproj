@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Backend-free audio: device abstraction, WAV/OGG decoding, AudioSource/AudioListener components, per-scene AudioSystem. -->
+  <ItemGroup>
+    <PackageReference Include="NVorbis" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+  </ItemGroup>
+</Project>

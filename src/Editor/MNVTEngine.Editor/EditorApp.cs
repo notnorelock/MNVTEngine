@@ -71,7 +71,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             SceneRenderer = new SceneRenderer(renderer, resources, _logger),
             ImGui = new ImGuiRenderer(device, renderer.DefaultMaterial, font, 17f),
             Session = session,
-            PlayMode = new PlayModeController(session, loggerFactory),
+            PlayMode = new PlayModeController(session, loggerFactory) { Audio = AudioDevices.CreateOrSilent(Audio.OpenAL.OpenALAudioDevice.Create, loggerFactory.CreateLogger("Audio")) },
             Logs = logs,
             Logger = _logger,
         };
@@ -208,6 +208,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         }
 
         _context.Device.Dispose();
+        _context.PlayMode.Audio?.Dispose();
     }
 
     /// <summary>Picks up files added or changed outside the editor; logs asset problems when they change.</summary>

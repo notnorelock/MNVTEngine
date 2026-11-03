@@ -13,6 +13,7 @@ mission "first_contact" {
 
     on start {
         log("Mission started: fly to the Sun")
+        audio.play("Mission")
         objective.activate("approach_sun")
     }
 
@@ -21,6 +22,7 @@ mission "first_contact" {
         wait until player.distance_to("Sun") < NEAR
         visits += 1
         log("Reached the Sun")
+        audio.play("Mission")
         objective.complete()
     }
 
@@ -33,6 +35,7 @@ mission "first_contact" {
             if player.distance_to("Sun") < NEAR { time_near_sun += 0.1 }
         }
         log("Sun studied")
+        audio.play("Mission")
         objective.complete()
     }
 
@@ -42,6 +45,7 @@ mission "first_contact" {
         wait until player.distance_to("Moon") < NEAR
         visits += 1
         log("Moon visited")
+        audio.play("Mission")
         objective.complete()
     }
 

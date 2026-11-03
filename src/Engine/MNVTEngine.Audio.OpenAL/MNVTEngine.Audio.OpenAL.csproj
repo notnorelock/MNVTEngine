@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- OpenAL Soft backend for MNVTEngine.Audio (soft_oal.dll is LGPL, loaded dynamically and replaceable). Chosen by the host. -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Silk.NET.OpenAL" />
+    <PackageReference Include="Silk.NET.OpenAL.Soft.Native" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Audio\MNVTEngine.Audio.csproj" />
+  </ItemGroup>
+</Project>

@@ -35,6 +35,8 @@ public static class SceneNatives
             }),
             new("marker.show", c => SetActive(Find(c, 0), true)),
             new("marker.hide", c => SetActive(Find(c, 0), false)),
+            new("audio.play", c => Sound(Find(c, 0)).Play()),
+            new("audio.stop", c => Sound(Find(c, 0)).Stop()),
             new("scene.load", c =>
             {
                 (scene.Loader ?? throw new ScriptRuntimeException("This scene cannot load other scenes.")).RequestLoad(c.String(0));
@@ -60,6 +62,9 @@ public static class SceneNatives
         ["y"] = ScriptValue.FromNumber(position.Y),
     });
 
+    private static AudioCall Sound(GameObject target) =>
+        new(target.GetComponent<AudioSource>() ?? throw new ScriptRuntimeException($"'{target.Name}' has no AudioSource."));
+
     private static ScriptValue SetActive(GameObject target, bool active)
     {
         target.SetActive(active);
@@ -68,4 +73,20 @@ public static class SceneNatives
 
     private static Key ParseKey(string name) =>
         Enum.TryParse<Key>(name, ignoreCase: true, out var key) && Enum.IsDefined(key) ? key : throw new ScriptRuntimeException($"Unknown key '{name}'.");
+}
+
+/// <summary>Adapts AudioSource calls to natives, which return a value.</summary>
+internal readonly struct AudioCall(AudioSource source)
+{
+    public ScriptValue Play()
+    {
+        source.Play();
+        return ScriptValue.Null;
+    }
+
+    public ScriptValue Stop()
+    {
+        source.Stop();
+        return ScriptValue.Null;
+    }
 }

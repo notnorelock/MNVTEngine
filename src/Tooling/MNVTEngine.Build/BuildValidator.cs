@@ -20,7 +20,7 @@ public static class BuildValidator
     /// <summary>Native libraries the engine loads by name at run time, per target. OpenGL itself (opengl32.dll) comes from the GPU driver.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> RequiredNativeLibraries = new Dictionary<string, string[]>
     {
-        ["win-x64"] = ["glfw3.dll"],
+        ["win-x64"] = ["glfw3.dll", "soft_oal.dll"],
     };
 
     /// <summary>Assembly name prefixes that must never ship: the editor, build tooling, compilers.</summary>

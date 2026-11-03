@@ -19,6 +19,9 @@ public sealed record GameRuntimeOptions
     /// <summary>PNG written from the last frame before an automatic exit.</summary>
     public string? ScreenshotPath { get; init; }
 
+    /// <summary>Audio output for every scene; null plays nothing. Owned by the host.</summary>
+    public Audio.IAudioDevice? Audio { get; init; }
+
     /// <summary>Content of an exported game: assets, index and compiled scripts come from it instead of the project folder.</summary>
     public ContentArchive? Archive { get; init; }
 }
@@ -178,6 +181,11 @@ public sealed partial class GameRuntime(
         next.Loader = this;
         next.Prefabs = _prefabs;
         next.TextAssets = _prefabs;
+        if (_options.Audio is { } audio)
+        {
+            AudioSystem.Attach(next, audio, clip => _assets.ReadAllBytes(clip.Guid));
+        }
+
         CurrentScene = next;
         next.Start();
         LogSceneStarted(_logger, next.Name, next.GameObjects.Count);

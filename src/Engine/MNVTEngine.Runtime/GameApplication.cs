@@ -16,8 +16,9 @@ public static partial class GameApplication
     /// </summary>
     /// <param name="prepareComponents">Registers game components (e.g. loads compiled scripts); returning false aborts startup.</param>
     /// <param name="archive">Content of an exported game; the project is read from it and a path argument is ignored.</param>
+    /// <param name="createAudio">Audio backend; without one (or without an output device) the game runs silently.</param>
     /// <returns>Process exit code: 0 ok, 1 resource leaks, 2 project or startup scene could not be loaded, 3 game code failed to load.</returns>
-    public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, Func<GameProject, ComponentRegistry, bool>? prepareComponents = null, ContentArchive? archive = null)
+    public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, Func<GameProject, ComponentRegistry, bool>? prepareComponents = null, ContentArchive? archive = null, AudioDeviceFactory? createAudio = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(createDevice);
@@ -54,11 +55,13 @@ public static partial class GameApplication
             DebugContext = args.Contains("--debug-gl"),
         });
 
+        using var audio = AudioDevices.CreateOrSilent(createAudio, loggerFactory.CreateLogger("Audio"));
         var runtime = new GameRuntime(project, registry, createDevice, loggerFactory, new GameRuntimeOptions
         {
             ExitAfterFrames = Option(args, "--frames") is { } frames ? int.Parse(frames, CultureInfo.InvariantCulture) : null,
             ScreenshotPath = Option(args, "--screenshot"),
             Archive = archive,
+            Audio = audio,
         });
 
         try

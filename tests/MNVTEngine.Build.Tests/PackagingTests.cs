@@ -56,7 +56,7 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
         Assert.Equal(["Managed", "Native", "Runtime"], Directory.EnumerateDirectories(Path.Combine(Output, "Dependencies")).Select(Path.GetFileName).Order(StringComparer.Ordinal));
         Assert.True(File.Exists(Path.Combine(Output, "Dependencies", "Managed", "MNVTEngine.Runtime.dll")));
         Assert.True(File.Exists(Path.Combine(Output, "Dependencies", "Managed", "Newtonsoft.Json.dll")));
-        Assert.Equal(["glfw3.dll"], Directory.EnumerateFiles(Path.Combine(Output, "Dependencies", "Native")).Select(Path.GetFileName));
+        Assert.Equal(["glfw3.dll", "soft_oal.dll"], Directory.EnumerateFiles(Path.Combine(Output, "Dependencies", "Native")).Select(Path.GetFileName).Order(StringComparer.Ordinal));
         Assert.Single(Directory.GetFiles(Path.Combine(Output, "Dependencies", "Runtime"), "coreclr.dll", SearchOption.AllDirectories)); // private .NET runtime
         Assert.Equal(["content.mnvtpak", "package.json"], Directory.EnumerateFiles(Path.Combine(Output, "PackTest_Data")).Select(Path.GetFileName).Order(StringComparer.Ordinal));
         Assert.Empty(Directory.GetFiles(Output, "*.pdb", SearchOption.AllDirectories)); // release builds ship no symbols

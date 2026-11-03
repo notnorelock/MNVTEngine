@@ -38,6 +38,8 @@ public static class StandardApi
         .Add("marker.show", 1, 1, "Activates the named marker object.")
         .Add("marker.hide", 1, 1, "Deactivates the named marker object.")
         .Add("scene.load", 1, 1, "Loads a scene by path relative to Assets.")
+        .Add("audio.play", 1, 1, "Plays the AudioSource on the named object.")
+        .Add("audio.stop", 1, 1, "Stops the AudioSource on the named object.")
         .Add("dialogue.start", 1, 2, "Raises 'dialogue_started' with {id, data} for the game's dialogue system.")
         .Add("input.key_down", 1, 1, "True while the named key (e.g. \"E\", \"Space\") is held.")
         .Add("input.key_pressed", 1, 1, "True on the frame the named key was pressed.");

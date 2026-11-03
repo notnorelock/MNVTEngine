@@ -28,6 +28,21 @@
             "startMission": "first_contact",
             "playerObject": "Player"
           }
+        },
+        {
+          "type": "MNVTEngine.AudioSource",
+          "id": "b0000000-0000-0000-0000-000000000021",
+          "enabled": true,
+          "data": {
+            "clip": "asset:0f5e0000-0000-4000-8000-000000000060",
+            "volume": 0.6,
+            "pitch": 1.0,
+            "loop": false,
+            "playOnStart": false,
+            "spatial": false,
+            "referenceDistance": 2.0,
+            "maxDistance": 30.0
+          }
         }
       ]
     },

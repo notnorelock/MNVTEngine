@@ -76,7 +76,7 @@ public static class DevelopmentScripts
 public static partial class DevelopmentRun
 {
     /// <returns>The <see cref="GameApplication.Run"/> exit code.</returns>
-    public static int Run(string[] args, ILoggerFactory loggerFactory, GraphicsDeviceFactory createDevice)
+    public static int Run(string[] args, ILoggerFactory loggerFactory, GraphicsDeviceFactory createDevice, AudioDeviceFactory? createAudio = null)
     {
         ArgumentNullException.ThrowIfNull(loggerFactory);
         var logger = loggerFactory.CreateLogger("Player");
@@ -89,7 +89,7 @@ public static partial class DevelopmentRun
             }
 
             return result.Succeeded;
-        });
+        }, createAudio: createAudio);
     }
 
     [LoggerMessage(EventId = 6000, Level = LogLevel.Information, Message = "Compiling scripts {Project}...")]

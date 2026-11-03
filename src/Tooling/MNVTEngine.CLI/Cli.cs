@@ -140,7 +140,8 @@ public static class Cli
         return DevelopmentRun.Run(
             [project, .. command.Passthrough("--frames", "--screenshot", "--debug-gl")],
             loggerFactory,
-            (window, log) => GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, log)) == 0 ? Ok : Failed;
+            (window, log) => GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, log),
+            Audio.OpenAL.OpenALAudioDevice.Create) == 0 ? Ok : Failed;
     }
 
     private static async Task<int> BuildAsync(CommandLine command, TextWriter output, ILoggerFactory loggerFactory, CancellationToken cancellationToken)

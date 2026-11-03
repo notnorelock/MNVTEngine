@@ -64,7 +64,8 @@ internal static class Game
                 (window, log) => GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, log),
                 loggerFactory,
                 (_, registry) => LoadScripts(package, archive, registry, logger),
-                archive);
+                archive,
+                Audio.OpenAL.OpenALAudioDevice.Create);
         }
     }
 

@@ -159,6 +159,9 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         }
     }
 
+    /// <summary>Audio output for Play Mode (owned by the editor); null plays nothing.</summary>
+    public Audio.IAudioDevice? Audio { get; set; }
+
     private void Start(Scene scene)
     {
         scene.Logger = loggerFactory.CreateLogger($"Scene.{scene.Name}");
@@ -166,6 +169,11 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         scene.Loader = this;
         scene.Prefabs = session.Prefabs;
         scene.TextAssets = session.Prefabs;
+        if (Audio is { } audio)
+        {
+            AudioSystem.Attach(scene, audio, clip => session.Assets.ReadAllBytes(clip.Guid));
+        }
+
         PlayScene = scene;
         scene.Start();
     }
