@@ -20,6 +20,7 @@ public sealed class ComponentRegistry
         registry.Register<Transform>();
         registry.Register<SpriteRenderer>();
         registry.Register<Camera>();
+        registry.Register<SpriteAnimator>();
         return registry;
     }
 

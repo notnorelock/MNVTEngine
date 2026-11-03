@@ -25,6 +25,7 @@ public static class AssetTypes
     public const string Shader = "Shader";
     public const string Script = "Script";
     public const string Json = "Json";
+    public const string Animation = "Animation";
     public const string Text = "Text";
     public const string Unknown = "Unknown";
 }

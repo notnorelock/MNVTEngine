@@ -7,13 +7,27 @@
       "name": "Mission",
       "active": true,
       "parent": null,
-      "transform": { "localPosition": { "x": 0.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
       "components": [
         {
           "type": "MNVTEngine.MissionRunner",
           "id": "b0000000-0000-0000-0000-000000000020",
           "enabled": true,
-          "data": { "script": "asset:0f5e0000-0000-4000-8000-000000000030", "startMission": "first_contact", "playerObject": "Player" }
+          "data": {
+            "script": "asset:0f5e0000-0000-4000-8000-000000000030",
+            "startMission": "first_contact",
+            "playerObject": "Player"
+          }
         }
       ]
     },
@@ -22,14 +36,49 @@
       "name": "Main Camera",
       "active": true,
       "parent": null,
-      "transform": { "localPosition": { "x": 0.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
       "components": [
-        { "type": "MNVTEngine.Camera", "id": "b0000000-0000-0000-0000-000000000001", "enabled": true,
-          "data": { "orthographicSize": 6.0, "backgroundColor": { "r": 0.06, "g": 0.07, "b": 0.1, "a": 1.0 } } },
-        { "type": "SceneDemo.CameraFollow", "id": "b0000000-0000-0000-0000-000000000002", "enabled": true,
-          "data": { "target": "a0000000-0000-0000-0000-000000000003", "sharpness": 6.0 } },
-        { "type": "SceneDemo.SceneSwitcher", "id": "b0000000-0000-0000-0000-000000000003", "enabled": true,
-          "data": { "nextScene": "asset:0f5e0000-0000-4000-8000-000000000011" } }
+        {
+          "type": "MNVTEngine.Camera",
+          "id": "b0000000-0000-0000-0000-000000000001",
+          "enabled": true,
+          "data": {
+            "orthographicSize": 6.0,
+            "backgroundColor": {
+              "r": 0.06,
+              "g": 0.07,
+              "b": 0.1,
+              "a": 1.0
+            }
+          }
+        },
+        {
+          "type": "SceneDemo.CameraFollow",
+          "id": "b0000000-0000-0000-0000-000000000002",
+          "enabled": true,
+          "data": {
+            "target": "a0000000-0000-0000-0000-000000000003",
+            "sharpness": 6.0
+          }
+        },
+        {
+          "type": "SceneDemo.SceneSwitcher",
+          "id": "b0000000-0000-0000-0000-000000000003",
+          "enabled": true,
+          "data": {
+            "nextScene": "asset:0f5e0000-0000-4000-8000-000000000011"
+          }
+        }
       ]
     },
     {
@@ -37,11 +86,43 @@
       "name": "Floor",
       "active": true,
       "parent": null,
-      "transform": { "localPosition": { "x": 0.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
       "components": [
-        { "type": "MNVTEngine.SpriteRenderer", "id": "b0000000-0000-0000-0000-000000000004", "enabled": true,
-          "data": { "texture": "asset:0f5e0000-0000-4000-8000-000000000002", "color": { "r": 1.0, "g": 1.0, "b": 1.0, "a": 1.0 }, "size": { "x": 30.0, "y": 18.0 },
-                    "pivot": { "x": 0.5, "y": 0.5 }, "flipX": false, "flipY": false, "sortingOrder": -10 } }
+        {
+          "type": "MNVTEngine.SpriteRenderer",
+          "id": "b0000000-0000-0000-0000-000000000004",
+          "enabled": true,
+          "data": {
+            "texture": "asset:0f5e0000-0000-4000-8000-000000000002",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "size": {
+              "x": 30.0,
+              "y": 18.0
+            },
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "flipX": false,
+            "flipY": false,
+            "sortingOrder": -10
+          }
+        }
       ]
     },
     {
@@ -49,14 +130,59 @@
       "name": "Player",
       "active": true,
       "parent": null,
-      "transform": { "localPosition": { "x": -4.0, "y": -2.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "transform": {
+        "localPosition": {
+          "x": -4.0,
+          "y": -2.0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
       "components": [
-        { "type": "MNVTEngine.SpriteRenderer", "id": "b0000000-0000-0000-0000-000000000005", "enabled": true,
-          "data": { "texture": "asset:0f5e0000-0000-4000-8000-000000000001", "color": { "r": 1.0, "g": 1.0, "b": 1.0, "a": 1.0 }, "size": { "x": 1.2, "y": 1.2 },
-                    "pivot": { "x": 0.5, "y": 0.5 }, "flipX": false, "flipY": false, "sortingOrder": 10 } },
-        { "type": "SceneDemo.PlayerController", "id": "b0000000-0000-0000-0000-000000000006", "enabled": true, "data": { "speed": 6.0 } },
-        { "type": "SceneDemo.Spawner", "id": "b0000000-0000-0000-0000-000000000007", "enabled": true,
-          "data": { "orbPrefab": "asset:0f5e0000-0000-4000-8000-000000000020" } }
+        {
+          "type": "MNVTEngine.SpriteRenderer",
+          "id": "b0000000-0000-0000-0000-000000000005",
+          "enabled": true,
+          "data": {
+            "texture": "asset:0f5e0000-0000-4000-8000-000000000001",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "size": {
+              "x": 1.2,
+              "y": 1.2
+            },
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "flipX": false,
+            "flipY": false,
+            "sortingOrder": 10
+          }
+        },
+        {
+          "type": "SceneDemo.PlayerController",
+          "id": "b0000000-0000-0000-0000-000000000006",
+          "enabled": true,
+          "data": {
+            "speed": 6.0
+          }
+        },
+        {
+          "type": "SceneDemo.Spawner",
+          "id": "b0000000-0000-0000-0000-000000000007",
+          "enabled": true,
+          "data": {
+            "orbPrefab": "asset:0f5e0000-0000-4000-8000-000000000020"
+          }
+        }
       ]
     },
     {
@@ -64,12 +190,51 @@
       "name": "Sun",
       "active": true,
       "parent": null,
-      "transform": { "localPosition": { "x": 3.0, "y": 1.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "transform": {
+        "localPosition": {
+          "x": 3.0,
+          "y": 1.0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
       "components": [
-        { "type": "MNVTEngine.SpriteRenderer", "id": "b0000000-0000-0000-0000-000000000008", "enabled": true,
-          "data": { "texture": "asset:0f5e0000-0000-4000-8000-000000000003", "color": { "r": 1.0, "g": 0.75, "b": 0.3, "a": 1.0 }, "size": { "x": 3.0, "y": 3.0 },
-                    "pivot": { "x": 0.5, "y": 0.5 }, "flipX": false, "flipY": false, "sortingOrder": 1 } },
-        { "type": "SceneDemo.Spinner", "id": "b0000000-0000-0000-0000-000000000009", "enabled": true, "data": { "degreesPerSecond": 30.0 } }
+        {
+          "type": "MNVTEngine.SpriteRenderer",
+          "id": "b0000000-0000-0000-0000-000000000008",
+          "enabled": true,
+          "data": {
+            "texture": "asset:0f5e0000-0000-4000-8000-000000000003",
+            "color": {
+              "r": 1.0,
+              "g": 0.75,
+              "b": 0.3,
+              "a": 1.0
+            },
+            "size": {
+              "x": 3.0,
+              "y": 3.0
+            },
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "flipX": false,
+            "flipY": false,
+            "sortingOrder": 1
+          }
+        },
+        {
+          "type": "SceneDemo.Spinner",
+          "id": "b0000000-0000-0000-0000-000000000009",
+          "enabled": true,
+          "data": {
+            "degreesPerSecond": 30.0
+          }
+        }
       ]
     },
     {
@@ -77,12 +242,51 @@
       "name": "Planet",
       "active": true,
       "parent": "a0000000-0000-0000-0000-000000000004",
-      "transform": { "localPosition": { "x": 3.5, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "transform": {
+        "localPosition": {
+          "x": 3.5,
+          "y": 0.0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
       "components": [
-        { "type": "MNVTEngine.SpriteRenderer", "id": "b0000000-0000-0000-0000-00000000000a", "enabled": true,
-          "data": { "texture": "asset:0f5e0000-0000-4000-8000-000000000003", "color": { "r": 0.3, "g": 0.7, "b": 1.0, "a": 1.0 }, "size": { "x": 1.2, "y": 1.2 },
-                    "pivot": { "x": 0.5, "y": 0.5 }, "flipX": false, "flipY": false, "sortingOrder": 2 } },
-        { "type": "SceneDemo.Spinner", "id": "b0000000-0000-0000-0000-00000000000b", "enabled": true, "data": { "degreesPerSecond": -120.0 } }
+        {
+          "type": "MNVTEngine.SpriteRenderer",
+          "id": "b0000000-0000-0000-0000-00000000000a",
+          "enabled": true,
+          "data": {
+            "texture": "asset:0f5e0000-0000-4000-8000-000000000003",
+            "color": {
+              "r": 0.3,
+              "g": 0.7,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "size": {
+              "x": 1.2,
+              "y": 1.2
+            },
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "flipX": false,
+            "flipY": false,
+            "sortingOrder": 2
+          }
+        },
+        {
+          "type": "SceneDemo.Spinner",
+          "id": "b0000000-0000-0000-0000-00000000000b",
+          "enabled": true,
+          "data": {
+            "degreesPerSecond": -120.0
+          }
+        }
       ]
     },
     {
@@ -90,11 +294,43 @@
       "name": "Moon",
       "active": true,
       "parent": "a0000000-0000-0000-0000-000000000005",
-      "transform": { "localPosition": { "x": 1.1, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 0.5, "y": 0.5 } },
+      "transform": {
+        "localPosition": {
+          "x": 1.1,
+          "y": 0.0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 0.5,
+          "y": 0.5
+        }
+      },
       "components": [
-        { "type": "MNVTEngine.SpriteRenderer", "id": "b0000000-0000-0000-0000-00000000000c", "enabled": true,
-          "data": { "texture": "asset:0f5e0000-0000-4000-8000-000000000003", "color": { "r": 0.85, "g": 0.85, "b": 0.9, "a": 1.0 }, "size": { "x": 1.0, "y": 1.0 },
-                    "pivot": { "x": 0.5, "y": 0.5 }, "flipX": false, "flipY": false, "sortingOrder": 3 } }
+        {
+          "type": "MNVTEngine.SpriteRenderer",
+          "id": "b0000000-0000-0000-0000-00000000000c",
+          "enabled": true,
+          "data": {
+            "texture": "asset:0f5e0000-0000-4000-8000-000000000003",
+            "color": {
+              "r": 0.85,
+              "g": 0.85,
+              "b": 0.9,
+              "a": 1.0
+            },
+            "size": {
+              "x": 1.0,
+              "y": 1.0
+            },
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "flipX": false,
+            "flipY": false,
+            "sortingOrder": 3
+          }
+        }
       ]
     },
     {
@@ -102,12 +338,229 @@
       "name": "Mouse Marker",
       "active": true,
       "parent": null,
-      "transform": { "localPosition": { "x": 0.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
       "components": [
-        { "type": "MNVTEngine.SpriteRenderer", "id": "b0000000-0000-0000-0000-00000000000d", "enabled": true,
-          "data": { "texture": "asset:0f5e0000-0000-4000-8000-000000000003", "color": { "r": 1.0, "g": 1.0, "b": 0.2, "a": 0.8 }, "size": { "x": 0.5, "y": 0.5 },
-                    "pivot": { "x": 0.5, "y": 0.5 }, "flipX": false, "flipY": false, "sortingOrder": 20 } },
-        { "type": "SceneDemo.MouseMarker", "id": "b0000000-0000-0000-0000-00000000000e", "enabled": true, "data": {} }
+        {
+          "type": "MNVTEngine.SpriteRenderer",
+          "id": "b0000000-0000-0000-0000-00000000000d",
+          "enabled": true,
+          "data": {
+            "texture": "asset:0f5e0000-0000-4000-8000-000000000003",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 0.2,
+              "a": 0.8
+            },
+            "size": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "flipX": false,
+            "flipY": false,
+            "sortingOrder": 20
+          }
+        },
+        {
+          "type": "SceneDemo.MouseMarker",
+          "id": "b0000000-0000-0000-0000-00000000000e",
+          "enabled": true,
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000030",
+      "name": "Coin 1",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": -2.0,
+          "y": 1.5
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.SpriteRenderer",
+          "id": "b0000000-0000-0000-0000-000000000030",
+          "enabled": true,
+          "data": {
+            "texture": "asset:0f5e0000-0000-4000-8000-000000000040",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "size": {
+              "x": 0.8,
+              "y": 0.8
+            },
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "flipX": false,
+            "flipY": false,
+            "sourceRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 16.0,
+              "height": 16.0
+            },
+            "sortingOrder": 5
+          }
+        },
+        {
+          "type": "MNVTEngine.SpriteAnimator",
+          "id": "b0000000-0000-0000-0000-000000000040",
+          "enabled": true,
+          "data": {
+            "clip": "asset:0f5e0000-0000-4000-8000-000000000041",
+            "speed": 1.0,
+            "playOnStart": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000031",
+      "name": "Coin 2",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 1.5
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.SpriteRenderer",
+          "id": "b0000000-0000-0000-0000-000000000031",
+          "enabled": true,
+          "data": {
+            "texture": "asset:0f5e0000-0000-4000-8000-000000000040",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "size": {
+              "x": 0.8,
+              "y": 0.8
+            },
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "flipX": false,
+            "flipY": false,
+            "sourceRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 16.0,
+              "height": 16.0
+            },
+            "sortingOrder": 5
+          }
+        },
+        {
+          "type": "MNVTEngine.SpriteAnimator",
+          "id": "b0000000-0000-0000-0000-000000000041",
+          "enabled": true,
+          "data": {
+            "clip": "asset:0f5e0000-0000-4000-8000-000000000041",
+            "speed": 1.3,
+            "playOnStart": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000032",
+      "name": "Coin 3",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 2.0,
+          "y": 1.5
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.SpriteRenderer",
+          "id": "b0000000-0000-0000-0000-000000000032",
+          "enabled": true,
+          "data": {
+            "texture": "asset:0f5e0000-0000-4000-8000-000000000040",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "size": {
+              "x": 0.8,
+              "y": 0.8
+            },
+            "pivot": {
+              "x": 0.5,
+              "y": 0.5
+            },
+            "flipX": false,
+            "flipY": false,
+            "sourceRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 16.0,
+              "height": 16.0
+            },
+            "sortingOrder": 5
+          }
+        },
+        {
+          "type": "MNVTEngine.SpriteAnimator",
+          "id": "b0000000-0000-0000-0000-000000000042",
+          "enabled": true,
+          "data": {
+            "clip": "asset:0f5e0000-0000-4000-8000-000000000041",
+            "speed": 0.8,
+            "playOnStart": true
+          }
+        }
       ]
     }
   ]

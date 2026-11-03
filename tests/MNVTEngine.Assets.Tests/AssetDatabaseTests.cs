@@ -256,4 +256,26 @@ public sealed class AssetDatabaseTests : IDisposable
         Assert.All(db.Assets, a => Assert.Equal(AssetImportStatus.Imported, a.Status));
         Assert.Equal(new[] { AssetTypes.Font, AssetTypes.Audio, AssetTypes.Shader }, db.Assets.OrderBy(a => a.Path, StringComparer.Ordinal).Select(a => a.Type));
     }
+
+    [Fact]
+    public void AnimationClips_AreValidated_AndDependOnTheirSheet()
+    {
+        var db = OpenEditing();
+        var png = WritePng("Sheets/hero.png", 64, 16);
+        db.Refresh(); // creates the sheet's meta
+        var sheet = MetaGuid(png);
+        Write("Anim/walk.mnvtanim", $$"""{ "schemaVersion": 1, "texture": "asset:{{sheet}}", "frameWidth": 16, "frameHeight": 16, "columns": 4, "frames": [0, 1, 2, 3], "frameRate": 8 }""");
+        Write("Anim/broken.mnvtanim", """{ "schemaVersion": 1, "texture": "asset:nope", "frameWidth": 16, "frameHeight": 16, "frames": [] }""");
+        db.Refresh();
+
+        var walk = db.Get(db.Assets.Single(a => a.Path == "Anim/walk.mnvtanim").Guid)!;
+        Assert.Equal((AssetTypes.Animation, AssetImportStatus.Imported, "0.5 s"), (walk.Type, walk.Status, walk.Properties["duration"]));
+        Assert.Equal([sheet], walk.Dependencies);
+        Assert.Contains(walk, db.GetDependents(sheet));
+
+        var broken = db.Assets.Single(a => a.Path == "Anim/broken.mnvtanim");
+        Assert.Equal(AssetImportStatus.Failed, broken.Status);
+        Assert.Contains(broken.Messages, m => m.Contains("texture", StringComparison.Ordinal));
+        Assert.Contains(broken.Messages, m => m.Contains("frames", StringComparison.Ordinal));
+    }
 }

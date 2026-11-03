@@ -80,10 +80,15 @@ public class ResourceAndImageTests
     }
 
     [Fact]
-    public async Task Tracker_RejectsOtherThreads()
+    public void Tracker_RejectsOtherThreads()
     {
         using var device = new FakeGraphicsDevice();
-        var error = await Task.Run(() => Record.Exception(() => device.CreateTexture(1, 1, new byte[4], SamplerState.PointClamp)), TestContext.Current.CancellationToken);
+        Exception? error = null;
+
+        // A dedicated thread: Task.Run may run the work on the very pool thread that created the device.
+        var other = new Thread(() => error = Record.Exception(() => device.CreateTexture(1, 1, new byte[4], SamplerState.PointClamp)));
+        other.Start();
+        other.Join();
         Assert.IsType<InvalidOperationException>(error);
     }
 

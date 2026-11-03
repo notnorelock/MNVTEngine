@@ -28,6 +28,10 @@ public sealed class SpriteRenderer : Component
     [SerializeField]
     public bool FlipY { get; set; }
 
+    /// <summary>Part of the texture to draw, in texels from the image's top-left; empty (zero size) draws the whole texture. Set by <see cref="SpriteAnimator"/>.</summary>
+    [SerializeField]
+    public Rect SourceRect { get; set; }
+
     /// <summary>Higher values draw on top. Equal values have no guaranteed order.</summary>
     [SerializeField]
     public int SortingOrder { get; set; }

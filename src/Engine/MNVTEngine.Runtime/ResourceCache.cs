@@ -289,7 +289,8 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
                 flip |= SpriteFlip.Vertical;
             }
 
-            batch.Draw(resources.GetTexture(sprite.Texture), position, size, sprite.Color, transform.Rotation, sprite.Pivot, flip: flip, depth: -sprite.SortingOrder);
+            var source = sprite.SourceRect is { Width: > 0f, Height: > 0f } rect ? rect : (Rect?)null;
+            batch.Draw(resources.GetTexture(sprite.Texture), position, size, sprite.Color, transform.Rotation, sprite.Pivot, source, flip, -sprite.SortingOrder);
             SpritesDrawn++;
         }
 
