@@ -75,6 +75,10 @@ public static class Input
 /// <summary>Scene switching for gameplay code.</summary>
 public static class SceneManager
 {
+    /// <summary>The scene whose callbacks are running on this thread.</summary>
+    /// <exception cref="InvalidOperationException">Called outside scene callbacks.</exception>
+    public static Scene ActiveScene => SceneContext.Current;
+
     /// <summary>Replaces the running scene at the end of the current frame. Path is relative to the project's Assets folder.</summary>
     /// <exception cref="InvalidOperationException">The scene is not hosted by a runtime that can load scenes.</exception>
     public static void LoadScene(string path) => Loader.RequestLoad(path);

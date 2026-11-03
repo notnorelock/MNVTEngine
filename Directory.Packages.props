@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Engine -->
+    <PackageVersion Include="Box2D.NET" Version="3.1.654" />
     <PackageVersion Include="ImGui.NET" Version="1.91.6.1" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageVersion Include="Silk.NET.Input.Glfw" Version="2.23.0" />

@@ -92,7 +92,7 @@ public sealed partial class GameBuilder(ILogger logger)
         LogBuilding(logger, project.Name, profile.Name, profile.Configuration, profile.Target);
 
         // 1. Game code, compiled with the profile's configuration, also used to load scenes for validation.
-        var registry = ScriptingComponents.Register(ComponentRegistry.CreateDefault());
+        var registry = EngineComponents.CreateRegistry();
         GameCode? code = null;
         string? scriptsOutput = null;
         if (scripts is not null)
@@ -202,7 +202,7 @@ public sealed partial class GameBuilder(ILogger logger)
             return diagnostics;
         }
 
-        var registry = ScriptingComponents.Register(ComponentRegistry.CreateDefault());
+        var registry = EngineComponents.CreateRegistry();
         var code = await DevelopmentScripts.LoadAsync(project, registry, file => LogCompilingScripts(logger, file, "Debug"), cancellationToken).ConfigureAwait(false);
         diagnostics.AddRange(code.Diagnostics);
         if (!code.Succeeded)

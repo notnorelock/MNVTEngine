@@ -209,6 +209,9 @@ public sealed partial class Scene
         }
     }
 
+    /// <summary>Raised at the end of <see cref="Unload"/>, after every object is destroyed; scene-level services release their resources.</summary>
+    public event Action<Scene>? Unloaded;
+
     /// <summary>Destroys every object (running OnDisable/OnDestroy when running) and returns to edit mode.</summary>
     public void Unload()
     {
@@ -227,6 +230,8 @@ public sealed partial class Scene
         {
             SceneContext.Exit(previous);
         }
+
+        Unloaded?.Invoke(this);
     }
 
     internal GameObject CreateGameObject(string name, Guid id)
@@ -389,6 +394,25 @@ public sealed partial class Scene
             {
                 Invoke(component, callback, name);
             }
+        }
+    }
+
+    /// <summary>
+    /// Runs an engine callback on a component (e.g. physics contacts) inside this scene's context, with the same
+    /// exception handling as lifecycle callbacks: logged with context, unless <see cref="RethrowScriptExceptions"/>.
+    /// </summary>
+    public void InvokeCallback(Component component, Action<Component> callback, string name)
+    {
+        ArgumentNullException.ThrowIfNull(component);
+        ArgumentNullException.ThrowIfNull(callback);
+        var previous = SceneContext.Enter(this);
+        try
+        {
+            Invoke(component, callback, name);
+        }
+        finally
+        {
+            SceneContext.Exit(previous);
         }
     }
 

@@ -37,7 +37,7 @@ public static partial class GameApplication
             return 2;
         }
 
-        var registry = ScriptingComponents.Register(ComponentRegistry.CreateDefault());
+        var registry = EngineComponents.CreateRegistry();
         if (prepareComponents is not null && !prepareComponents(project, registry))
         {
             return 3;

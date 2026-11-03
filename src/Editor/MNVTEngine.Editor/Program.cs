@@ -33,7 +33,7 @@ catch (Exception ex) when (ex is SerializationException or FileNotFoundException
 }
 
 // Game components are compiled and loaded from the project's scripts project by ScriptReloadController.
-var registry = ScriptingComponents.Register(ComponentRegistry.CreateDefault());
+var registry = EngineComponents.CreateRegistry();
 
 var options = new EditorOptions(
     Value("--frames") is { } frames ? int.Parse(frames, CultureInfo.InvariantCulture) : null,

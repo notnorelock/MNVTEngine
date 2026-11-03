@@ -22,7 +22,7 @@ public sealed class BuildPipelineTests : IDisposable
         return GameProject.Load(file);
     }
 
-    private static ComponentRegistry Registry => ScriptingComponents.Register(ComponentRegistry.CreateDefault());
+    private static ComponentRegistry Registry => EngineComponents.CreateRegistry();
 
     [Fact]
     public void Templates_ReplaceEveryToken_AndProduceLoadableProjects()

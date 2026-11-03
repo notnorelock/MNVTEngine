@@ -55,11 +55,12 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.ECS** | M2 | Entity storage, component pools, queries, systems | Core |
 | **MNVTEngine.Input** | M2 | Backend-free input state, keys, axes | Mathematics |
 | **MNVTEngine.Scenes** | M2 | GameObject/Component API, Transform hierarchy, lifecycle, Time/Input facades, scene serialization | ECS, Input, Serialization |
-| **MNVTEngine.Runtime** | M2 | Project file, GUID-based resource cache, prefab/text asset provider, scene renderer, standalone game loop; backend injected by the host | Assets, Graphics, Platform, Scenes, Scripting.Bindings |
+| **MNVTEngine.Runtime** | M2 | Project file, `EngineComponents` registry, GUID-based resource cache, prefab/text asset provider, scene renderer, standalone game loop; backend injected by the host | Assets, Graphics, Platform, Scenes, Scripting.Bindings |
 | **MNVTEngine.Assets** | M4 | GUID database, sidecar metas, importers (scripts are compiled on import for diagnostics), import cache, dependencies, safe asset paths, encrypted content archive (M7) | Serialization, Graphics (image decoding), Scripting.Missions (API declarations) |
 | **MNVTEngine.Scripting** | M6 | `.mnvts` lexer, parser, AST, semantic checks, compiler, bytecode format and verifier, coroutine VM, debugger hooks | nothing (enforced) |
 | **MNVTEngine.Scripting.Missions** | M6 | Standard API declarations, mission/objective lifecycle, save data with schema version | Scripting, Serialization; never Scenes/Graphics (enforced) |
 | **MNVTEngine.Scripting.Bindings** | M6 | `MissionRunner` component, scene API implementation (player, entity, marker, scene, dialogue, input) | Scenes, Scripting.Missions |
+| **MNVTEngine.Physics2D** | M8 | Rigidbody2D, Box/Circle colliders, collision and trigger callbacks, ray casts, per-scene Box2D world (Box2D.NET, MIT). See [physics](../engine/physics2d.md) | Scenes, Box2D.NET; never Graphics, Platform or Assets (enforced) |
 | **MNVTEngine.GameAssemblies** | M5 | Collectible load contexts for game code, component discovery and registration, unload support (reflection cache release) | Scenes |
 | **MNVTEngine.GameHost** | M7 | Executable of exported games: resolves `Dependencies/`, opens the encrypted content archive, loads game code from it; never compiles | Runtime, GameAssemblies, Graphics.OpenGL |
 | **MNVTEngine.Build** (Tooling) | M5/M7 | C# script compilation, build profiles, content compilation, host publishing, package validation, templates. See [building](../build-system/building.md) | GameAssemblies, Runtime |
@@ -127,5 +128,5 @@ Deviations from the original proposal, and why:
 | Silk.NET 2.x vs 3.0 transition | API churn | Pinned 2.23.0; Silk types do not appear in Graphics or gameplay-facing input APIs |
 | Newtonsoft.Json static reflection caches | Confirmed at M5 to pin unloaded game code | Per-operation contract resolvers plus `ReflectionCacheCleaner` clearing Newtonsoft's internal stores on unload; tests verify collection and fail if Newtonsoft internals change |
 | Native deps in self-contained publish | GLFW/OpenAL natives not always copied | Done in M7: the validator checks every deps.json asset plus required natives (`glfw3.dll`), and a build test launches the exported game |
-| Physics scope | Custom solver is a large effort | Decide at M8: simple custom impulse solver for AABB/circle vs. integrating a permissively licensed Box2D port |
+| Physics scope | Custom solver is a large effort | Decided at M8: Box2D.NET (MIT, pure C# Box2D v3) behind engine components; its process-wide world table is guarded and worlds are freed on scene unload |
 | OpenGL integration tests | CI agents may lack a GL context | Separate test category requiring a GPU; unit tests stay GL-free |

@@ -130,6 +130,9 @@ public class DependencyRuleTests
     [InlineData("MNVTEngine.Scripting.Compiler", "MNVTEngine.Graphics")]
     [InlineData("MNVTEngine.Scripting.Missions", "MNVTEngine.Graphics")]
     [InlineData("MNVTEngine.Physics2D", "MNVTEngine.Graphics")]
+    [InlineData("MNVTEngine.Physics2D", "MNVTEngine.Platform")]
+    [InlineData("MNVTEngine.Physics2D", "MNVTEngine.Assets")]
+    [InlineData("MNVTEngine.Scenes", "MNVTEngine.Physics2D")]
     public void ForbiddenDependency(string project, string forbidden)
     {
         if (!Graph.Contains(project))

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 2D physics: Rigidbody2D and collider components over Box2D.NET (MIT, C# port of Box2D v3). No rendering dependencies. -->
+  <PropertyGroup>
+    <!-- The gameplay facade is MNVTEngine.Physics2D; a namespace of that name would collide with it. -->
+    <RootNamespace>MNVTEngine</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Box2D.NET" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+  </ItemGroup>
+</Project>
