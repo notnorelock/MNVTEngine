@@ -18,6 +18,9 @@ public abstract class GraphicsResource : IDisposable
 
     public string DebugName { get; }
 
+    /// <summary>The owning device's tracker (null for resources created without one, e.g. in tests).</summary>
+    protected GraphicsResourceTracker? Tracker => _tracker;
+
     public bool IsDisposed { get; private set; }
 
     public void Dispose()

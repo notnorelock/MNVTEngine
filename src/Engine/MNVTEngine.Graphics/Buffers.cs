@@ -47,6 +47,7 @@ public abstract class VertexBuffer : GraphicsResource
 
         ArgumentOutOfRangeException.ThrowIfGreaterThan(vertices.Length, Capacity, nameof(vertices));
         SetDataCore(MemoryMarshal.AsBytes(vertices));
+        Tracker?.Statistics.RecordVertexUpload(vertices.Length);
     }
 
     protected abstract void SetDataCore(ReadOnlySpan<byte> data);

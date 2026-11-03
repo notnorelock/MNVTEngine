@@ -17,6 +17,9 @@ public sealed partial class GLGraphicsDevice : IGraphicsDevice
     private BlendMode? _currentBlend;
     private bool _scissorEnabled;
     private bool _disposed;
+    private uint _lastTexture;
+    private readonly GLGpuTimer _gpuTimer;
+    private readonly HashSet<string> _extensions = new(StringComparer.Ordinal);
 
     private GLGraphicsDevice(GL gl, ILogger logger, int width, int height)
     {
@@ -50,6 +53,14 @@ public sealed partial class GLGraphicsDevice : IGraphicsDevice
         gl.PixelStore(PixelStoreParameter.PackAlignment, 1);
         gl.Disable(EnableCap.DepthTest);
         gl.Disable(EnableCap.CullFace);
+
+        gl.GetInteger(GetPName.NumExtensions, out var extensionCount);
+        for (var i = 0u; i < extensionCount; i++)
+        {
+            _extensions.Add(gl.GetStringS(StringName.Extensions, i));
+        }
+
+        _gpuTimer = new GLGpuTimer(gl);
         LogCreated(Description, _debugCallback is not null);
     }
 
@@ -60,6 +71,33 @@ public sealed partial class GLGraphicsDevice : IGraphicsDevice
     public int BackBufferWidth { get; private set; }
 
     public int BackBufferHeight { get; private set; }
+
+    public GraphicsStatistics Statistics => Resources.Statistics;
+
+    public IGpuTimer GpuTimer => _gpuTimer;
+
+    /// <summary>GL_NVX_gpu_memory_info (total and available) or GL_ATI_meminfo (available texture memory only).</summary>
+    public GpuMemoryInfo QueryGpuMemory()
+    {
+        const GLEnum DedicatedKbNvx = (GLEnum)0x9047;
+        const GLEnum AvailableKbNvx = (GLEnum)0x9049;
+        const GLEnum TextureFreeAti = (GLEnum)0x87FC;
+        if (_extensions.Contains("GL_NVX_gpu_memory_info"))
+        {
+            _gl.GetInteger(DedicatedKbNvx, out var total);
+            _gl.GetInteger(AvailableKbNvx, out var available);
+            return new GpuMemoryInfo(true, total * 1024L, available * 1024L, "GL_NVX_gpu_memory_info");
+        }
+
+        if (_extensions.Contains("GL_ATI_meminfo"))
+        {
+            Span<int> info = stackalloc int[4];
+            _gl.GetInteger(TextureFreeAti, info);
+            return new GpuMemoryInfo(true, null, info[0] * 1024L, "GL_ATI_meminfo");
+        }
+
+        return GpuMemoryInfo.Unsupported;
+    }
 
     /// <summary>Loads GL entry points from the window's context, which must be current on this thread.</summary>
     public static GLGraphicsDevice Create(IGLContextSource contextSource, int backBufferWidth, int backBufferHeight, ILogger logger)
@@ -112,6 +150,11 @@ public sealed partial class GLGraphicsDevice : IGraphicsDevice
             : throw new ArgumentException("Render target was not created by this device.", nameof(target));
 
         _gl.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
+        if (!ReferenceEquals(_currentTarget, target))
+        {
+            Resources.Statistics.RecordRenderTargetSwitch();
+        }
+
         _currentTarget = target;
         var (w, h) = target is null ? (BackBufferWidth, BackBufferHeight) : (target.Width, target.Height);
         _gl.Viewport(0, 0, (uint)w, (uint)h);
@@ -147,6 +190,7 @@ public sealed partial class GLGraphicsDevice : IGraphicsDevice
         {
             _gl.UseProgram(shader.Program);
             _currentProgram = shader.Program;
+            Resources.Statistics.RecordShaderSwitch();
         }
 
         var vpLocation = shader.Location("uViewProjection");
@@ -166,7 +210,12 @@ public sealed partial class GLGraphicsDevice : IGraphicsDevice
 
         ApplyBlend(command.Material.BlendMode);
         ApplyScissor(command.Scissor);
-        _gl.BindTextureUnit(0, texture.Handle);
+        _gl.BindTextureUnit(0, texture.Handle); // always bound: a deleted texture's name may be reused by a new one
+        if (texture.Handle != _lastTexture)
+        {
+            _lastTexture = texture.Handle;
+            Resources.Statistics.RecordTextureSwitch();
+        }
         _gl.BindVertexArray(vertices.VertexArray);
         if (vertices.AttachedIndexBuffer != indices.Buffer)
         {
@@ -176,6 +225,7 @@ public sealed partial class GLGraphicsDevice : IGraphicsDevice
 
         var topology = command.Topology == PrimitiveTopology.Lines ? PrimitiveType.Lines : PrimitiveType.Triangles;
         _gl.DrawElements(topology, (uint)command.IndexCount, DrawElementsType.UnsignedShort, (void*)(command.IndexOffset * sizeof(ushort)));
+        Resources.Statistics.RecordDraw(command.Topology, command.IndexCount);
     }
 
     public unsafe void ReadPixels(Span<byte> destination)
@@ -209,6 +259,7 @@ public sealed partial class GLGraphicsDevice : IGraphicsDevice
         }
 
         _disposed = true;
+        _gpuTimer.Dispose();
         foreach (var leaked in Resources.DisposeAll())
         {
             LogLeak(leaked.ToString());

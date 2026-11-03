@@ -92,3 +92,7 @@ internal static class GpuHarness
         }
     }
 }
+
+/// <summary>GLFW windows and contexts are created one test at a time.</summary>
+[CollectionDefinition(nameof(GpuGroup), DisableParallelization = true)]
+public sealed class GpuGroup;

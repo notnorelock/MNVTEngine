@@ -11,6 +11,35 @@ public sealed class GraphicsResourceTracker
 
     public int LiveCount => _live.Count;
 
+    /// <summary>Per-frame rendering counters of this device.</summary>
+    public GraphicsStatistics Statistics { get; } = new();
+
+    /// <summary>Live objects by kind (walks the live set; no allocation).</summary>
+    public GraphicsResourceCounts Count()
+    {
+        int textures = 0, targets = 0, shaders = 0, buffers = 0;
+        long textureBytes = 0;
+        foreach (var resource in _live)
+        {
+            switch (resource)
+            {
+                case Texture2D texture:
+                    textures++;
+                    targets += texture is RenderTarget2D ? 1 : 0;
+                    textureBytes += (long)texture.Width * texture.Height * 4;
+                    break;
+                case Shader:
+                    shaders++;
+                    break;
+                case VertexBuffer or IndexBuffer:
+                    buffers++;
+                    break;
+            }
+        }
+
+        return new GraphicsResourceCounts(textures, targets, shaders, buffers, textureBytes);
+    }
+
     public IReadOnlyList<GraphicsResource> LiveResources() => [.. _live];
 
     /// <summary>Disposes every resource still alive (leaks) and returns them for reporting.</summary>

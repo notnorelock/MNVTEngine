@@ -5,6 +5,7 @@ using static MNVTEngine.Graphics.OpenGL.Tests.GpuHarness;
 namespace MNVTEngine.Graphics.OpenGL.Tests;
 
 /// <summary>Renders into a 64x64 target with a pixel-unit camera (world (0,0) = bottom-left) and reads pixels back.</summary>
+[Collection(nameof(GpuGroup))]
 public class GLRenderingTests
 {
     private const int Size = 64;

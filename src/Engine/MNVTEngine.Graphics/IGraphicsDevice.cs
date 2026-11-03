@@ -66,6 +66,15 @@ public interface IGraphicsDevice : IDisposable
 
     /// <summary>Reads the whole current target as RGBA8, row 0 = top of the image.</summary>
     void ReadPixels(Span<byte> destination);
+
+    /// <summary>Draw calls, uploads and state switches per frame (<c>Resources.Statistics</c>).</summary>
+    GraphicsStatistics Statistics => Resources.Statistics;
+
+    /// <summary>GPU timer queries; null when the backend has none.</summary>
+    IGpuTimer? GpuTimer => null;
+
+    /// <summary>Video memory from a vendor extension; <see cref="GpuMemoryInfo.Unsupported"/> without one. May cost a driver call: sample, don't poll.</summary>
+    GpuMemoryInfo QueryGpuMemory() => GpuMemoryInfo.Unsupported;
 }
 
 public static class GraphicsDeviceExtensions
