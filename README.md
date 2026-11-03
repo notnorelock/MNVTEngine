@@ -1,11 +1,13 @@
 # MNVTEngine
 
-A modular 2D game engine in C# / .NET 11: OpenGL 4.5 renderer (Silk.NET), ImGui.NET editor, hybrid ECS,
-asset pipeline, the `.mnvts` gameplay scripting language with its own bytecode VM, and standalone game export.
+A modular 2D game engine in C# / .NET 11:
 
-**Status: Milestone 7 (build and Windows x64 packaging).** The `mnvt` command creates, validates, runs and exports
-projects. `mnvt build` produces a Windows x64 game folder (`Game.exe`, `Dependencies/Managed|Native|Runtime`,
-encrypted `Game_Data/content.mnvtpak`) that needs no .NET SDK, no installed runtime and no editor. Gameplay and missions can be written in `.mnvts` (Milestone 6) and C# components (Milestone 5).
+- **Core:** an OpenGL 4.5 renderer (Silk.NET), an ImGui.NET editor and a hybrid ECS.
+- **Gameplay:** Box2D physics, OpenAL audio, sprite animation, tilemaps, materials and 2D lighting.
+- **Assets and scripting:** an asset pipeline with stable GUIDs, C# components with hot reload, and the `.mnvts` scripting language with its own bytecode VM, missions and debugger.
+- **Export:** standalone Windows games.
+
+**Status: Milestone 8 (2D beta).** The engine can be used to build actual 2D games. Start with [getting started](docs/getting-started.md) or play `samples/Platformer`.
 
 ## Requirements
 
@@ -33,24 +35,24 @@ MyGame\Builds\release\MyGame.exe
 ## Run the samples
 
 ```bash
-# A game project: scenes in Assets/Scenes, C# components in Scripts/ (compiled on first run)
-dotnet run --project src/Tooling/MNVTEngine.Player -- samples/SceneDemo
+scripts\mnvt.cmd run samples/Platformer     # A/D or arrows run, Space jumps: collect 5 coins, then reach the flag
+scripts\mnvt.cmd run samples/SceneDemo      # WASD flies; Tab switches to the physics/lighting arena
 
 dotnet run --project samples/HelloWorld
 # Automated: render 120 frames, save a screenshot, exit
 dotnet run --project samples/HelloWorld -- --frames 120 --screenshot shot.png --debug-gl
 ```
 
-SceneDemo: WASD/arrows move, Space spawns orbs, Tab switches scenes.
+SceneDemo: WASD/arrows move, Space spawns orbs, Tab switches scenes. Both samples export with `mnvt build`.
 HelloWorld: WASD/arrows move, mouse wheel zooms, Q/E rotate the camera, Escape quits. Requires an OpenGL 4.5 GPU.
 
 ## Run the editor
 
 ```bash
-dotnet run --project src/Editor/MNVTEngine.Editor -- samples/SceneDemo
+scripts\mnvt.cmd editor samples/Platformer
 ```
 
-See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/SceneDemo/Scripts/*.cs` while the editor runs to see hot reload.
+See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scripts/*.cs` while the editor runs to see hot reload.
 
 ## Layout
 
@@ -61,12 +63,13 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/SceneD
 | `src/Tooling` | `mnvt` CLI, build pipeline and packaging (`Build`), development runner (`Player`) |
 | `templates` | Project templates for `mnvt new` |
 | `scripts` | `mnvt.cmd` wrapper |
-| `samples` | Runnable sample games |
+| `samples` | `Platformer` (complete level), `SceneDemo` (feature tour), `HelloWorld` (renderer only) |
 | `tests` | xUnit v3 tests, including architecture dependency rules and GPU integration tests |
 | `docs` | Architecture and subsystem documentation |
 
 ## Documentation
 
+- [Getting started: create, edit, script and export a game](docs/getting-started.md)
 - [Architecture overview, dependency rules, decisions, risks](docs/architecture/overview.md)
 - [Mathematics conventions](docs/engine/mathematics.md)
 - [JSON serialization](docs/serialization/json.md)
@@ -78,6 +81,11 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/SceneD
 - [.mnvts language reference: grammar, semantics, VM limits, errors](docs/scripting/language.md)
 - [Missions: lifecycle, script API, persistence](docs/scripting/missions.md)
 - [Building and exporting games: CLI, profiles, packaging, validation](docs/build-system/building.md)
+- [Physics2D: rigidbodies, colliders, callbacks, ray casts](docs/engine/physics2d.md)
+- [Audio: sources, listener, spatial audio, decoding](docs/engine/audio.md)
+- [Sprite animation](docs/engine/animation.md) and [tilemaps](docs/engine/tilemaps.md)
+- [Materials and 2D lighting](docs/graphics/materials-and-lighting.md)
+- [Profiling](docs/engine/profiling.md)
 
 ## Roadmap
 
@@ -91,4 +99,4 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/SceneD
 | 5 | C# game scripting via AssemblyLoadContext | done |
 | 6 | `.mnvts` language, compiler, VM, mission framework | done |
 | 7 | Build and Windows x64 packaging, `mnvt` CLI | done |
-| 8 | Physics2D, audio, animation, tilemaps, 2D beta | next |
+| 8 | 2D beta: Physics2D, audio, sprite animation, tilemaps, materials, 2D lighting, undo/redo, profiling, script debugger, Platformer sample | done |

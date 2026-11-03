@@ -379,7 +379,7 @@ public static class Physics2D
         set => PhysicsWorld2D.For(SceneManager.ActiveScene).Gravity = value;
     }
 
-    /// <summary>Closest non-trigger collider along the ray, or null.</summary>
+    /// <summary>Closest non-trigger collider along the ray, or null. A collider containing the origin is ignored, so a character can cast from inside its own collider.</summary>
     public static RaycastHit2D? Raycast(Vector2 origin, Vector2 direction, float distance = 1000f) =>
         PhysicsWorld2D.For(SceneManager.ActiveScene).Raycast(origin, direction, distance);
 }

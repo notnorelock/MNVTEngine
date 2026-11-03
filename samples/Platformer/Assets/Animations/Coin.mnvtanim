@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "texture": "asset:9a000000-0000-4000-8000-000000000004",
+  "frameWidth": 16,
+  "frameHeight": 16,
+  "columns": 4,
+  "frames": [
+    0,
+    1,
+    2,
+    1
+  ],
+  "frameRate": 8,
+  "loop": true
+}

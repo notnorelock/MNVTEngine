@@ -1,6 +1,6 @@
 # MNVTEngine Architecture Overview
 
-Status: **Milestone 7 (build and Windows x64 packaging)** complete. This document is the source of truth for module boundaries.
+Status: **Milestone 8 (2D beta)** complete. This document is the source of truth for module boundaries.
 `tests/MNVTEngine.Architecture.Tests` enforces the rules below by reading the `.csproj` graph.
 
 ## Toolchain

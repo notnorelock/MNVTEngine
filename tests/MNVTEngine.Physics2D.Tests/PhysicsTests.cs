@@ -169,6 +169,8 @@ public class PhysicsTests
         Assert.Equal(Vector2.Up, hit.Normal);
         Assert.Null(world.Raycast(new Vector2(0, 5), Vector2.Up, 100f));
         Assert.Null(world.Raycast(new Vector2(0, 5), Vector2.Down, 2f));
+        var fromInside = Assert.IsType<RaycastHit2D>(world.Raycast(new Vector2(0, -1f), Vector2.Down, 10f)); // starts inside "Near"
+        Assert.Equal("Far", fromInside.Collider.GameObject.Name);
     }
 
     [Fact]

@@ -73,7 +73,7 @@ public sealed class PhysicsWorld2D : GameSystem
         return world;
     }
 
-    /// <summary>Closest non-trigger collider along the ray, or null.</summary>
+    /// <summary>Closest non-trigger collider along the ray, or null. Colliders containing the origin are ignored (ground checks start inside the caster's own collider).</summary>
     public RaycastHit2D? Raycast(Vector2 origin, Vector2 direction, float distance)
     {
         Flush();
@@ -87,7 +87,9 @@ public sealed class PhysicsWorld2D : GameSystem
         RaycastHit2D? closest = null;
         b2World_CastRay(_world, Rigidbody2D.Convert(origin), Rigidbody2D.Convert(translation), in filter, (shape, point, normal, fraction, _) =>
         {
-            if (!_shapes.TryGetValue(Key(shape), out var collider) || collider.IsTrigger)
+            // Box2D reports a shape containing the origin as a hit at fraction 0 with a zero normal.
+            var startsInside = fraction == 0f && normal.X == 0f && normal.Y == 0f;
+            if (startsInside || !_shapes.TryGetValue(Key(shape), out var collider) || collider.IsTrigger)
             {
                 return -1f; // ignore and continue
             }

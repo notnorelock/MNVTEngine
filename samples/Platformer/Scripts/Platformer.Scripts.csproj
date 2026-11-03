@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The game's C# components. References the engine's gameplay API only; the host provides these assemblies. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Engine\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\src\Engine\MNVTEngine.Physics2D\MNVTEngine.Physics2D.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\src\Engine\MNVTEngine.Audio\MNVTEngine.Audio.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\src\Engine\MNVTEngine.Scripting.Bindings\MNVTEngine.Scripting.Bindings.csproj" Private="false" />
+  </ItemGroup>
+</Project>

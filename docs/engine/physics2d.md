@@ -70,7 +70,7 @@ if (Physics2D.Raycast(transform.Position, Vector2.Down, 1.1f) is { } hit) { /* g
 Physics2D.Gravity = new Vector2(0, -20);
 ```
 
-- Ray casts ignore triggers.
+- Ray casts ignore triggers, and colliders that contain the ray's origin. A character can therefore cast from inside its own collider for ground checks.
 - `Physics2D` works on the scene whose callbacks are running. Outside callbacks, use `PhysicsWorld2D.For(scene)`.
 
 ## How it runs

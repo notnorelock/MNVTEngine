@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "name": "Platformer",
+  "startupScene": "Scenes/Level1.mnvt",
+  "window": {
+    "title": "MNVTEngine - Platformer",
+    "width": 1280,
+    "height": 720,
+    "vSync": true,
+    "resizable": true
+  },
+  "fixedTimestep": 0.016666668,
+  "scripts": {
+    "project": "Scripts/Platformer.Scripts.csproj"
+  },
+  "buildProfiles": [
+    {
+      "name": "debug",
+      "configuration": "Debug",
+      "target": "win-x64"
+    },
+    {
+      "name": "release",
+      "configuration": "Release",
+      "target": "win-x64"
+    }
+  ]
+}

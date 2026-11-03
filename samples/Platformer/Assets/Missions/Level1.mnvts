@@ -1,0 +1,43 @@
+// Level 1: collect every coin, then reach the flag that appears.
+// Coins and the flag raise "coin" and "reached_flag" through the MissionRunner (see Scripts/Gameplay.cs).
+
+const COINS = 5
+
+mission "level1" {
+    name = "Coin Run"
+    description = "Collect every coin, then reach the flag."
+    category = "level"
+
+    var collected = 0
+
+    on start {
+        log("Collect " + COINS + " coins")
+        objective.activate("coins")
+    }
+
+    objective "coins" {
+        description = "Collect all coins"
+        wait until collected >= COINS
+        objective.complete()
+    }
+
+    objective "flag" {
+        requires "coins"
+        description = "Reach the flag"
+        log("All coins! The flag is up")
+        marker.show("Flag")
+        wait for event "reached_flag"
+        objective.complete()
+        mission.complete()
+    }
+
+    on event "coin" {
+        collected += 1
+        log("Coins: " + collected + "/" + COINS)
+    }
+
+    on complete {
+        log("Level complete!")
+        audio.play("Sfx")
+    }
+}
