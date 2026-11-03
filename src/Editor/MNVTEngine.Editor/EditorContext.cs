@@ -51,6 +51,9 @@ internal sealed class EditorContext
         }
     }
 
+    /// <summary>File to open in the Script Editor (full path); set by panels, handled by <see cref="EditorApp"/>.</summary>
+    public string? OpenScriptRequest { get; set; }
+
     /// <summary>Set by panels; handled by <see cref="EditorApp"/> with an unsaved-changes check.</summary>
     public string? OpenSceneRequest { get; set; }
 

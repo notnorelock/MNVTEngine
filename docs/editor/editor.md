@@ -59,6 +59,20 @@ This replaces the nine Editor projects in the original proposal. They would have
 - **When it is cleared:** opening or creating a scene clears the history.
 - **Play Mode:** undo is off while playing, because Play Mode edits are discarded on Stop anyway.
 
+## Script Editor
+
+The Script Editor is docked next to the Scene and Game views.
+
+- **Opening files:** double-click a script or text asset in the Project panel, or press **Edit in Script Editor** in a script's inspector. Assets that open here include `.mnvts`, `.json`, shaders, `.mnvtanim` and `.mnvtmat`. The **C# scripts** list opens files from `Scripts/`.
+- **Saving:** Ctrl+S saves the file while the Script Editor has focus (and saves the scene otherwise). Tabs mark unsaved files.
+- **Changes from outside:** a clean tab reloads when the file changes on disk; a tab with unsaved edits keeps them and shows a warning.
+- **Checking:**
+  - `.mnvts` is compiled as you type; click a diagnostic to jump to its line.
+  - Saving a `.cs` file triggers the usual recompile and hot reload. Its compile errors are listed under that file.
+- **New files:** **+ C# component** creates `Scripts/<Name>.cs` with a component skeleton, and **+ Mission** creates `Assets/Missions/<Name>.mnvts`.
+- **Open externally** hands the file to the program Windows associates with it (for example Visual Studio or VS Code).
+- **Limitations:** there is no syntax highlighting or autocomplete, and closing a tab discards unsaved edits without asking.
+
 ## Project Hub and building
 
 - **Project Hub.** Starting the editor without a project, or **File → Project Hub**, opens the hub: recent projects (right-click to remove one), New Project from a template, and Open. The recent list is kept in `%APPDATA%/MNVTEngine/recent-projects.json`.

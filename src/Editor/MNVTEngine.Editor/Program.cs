@@ -14,7 +14,7 @@ using var logs = new InMemoryLoggerProvider(capacity: 5000, minimumLevel: LogLev
 using var loggerFactory = LoggerFactory.Create(b => b.AddProvider(logs).AddSimpleConsole(o => o.SingleLine = true));
 var logger = loggerFactory.CreateLogger("Editor");
 
-var projectArg = args.Where((a, i) => !a.StartsWith("--", StringComparison.Ordinal) && (i == 0 || args[i - 1] is not ("--frames" or "--screenshot" or "--select" or "--focus" or "--break"))).FirstOrDefault();
+var projectArg = args.Where((a, i) => !a.StartsWith("--", StringComparison.Ordinal) && (i == 0 || args[i - 1] is not ("--frames" or "--screenshot" or "--select" or "--focus" or "--break" or "--edit"))).FirstOrDefault();
 var recent = new MNVTEngine.Editor.Services.RecentProjects(MNVTEngine.Editor.Services.RecentProjects.DefaultFile);
 if (projectArg is null)
 {
@@ -53,7 +53,8 @@ var options = new EditorOptions(
     args.Contains("--play"),
     Value("--select"),
     Value("--focus"),
-    [.. args.Select((a, i) => (a, i)).Where(p => p.a == "--break" && p.i + 1 < args.Length).Select(p => args[p.i + 1])]);
+    [.. args.Select((a, i) => (a, i)).Where(p => p.a == "--break" && p.i + 1 < args.Length).Select(p => args[p.i + 1])],
+    Value("--edit"));
 
 using var window = new GameWindow(new GameWindowOptions
 {

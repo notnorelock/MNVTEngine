@@ -59,6 +59,11 @@ internal sealed class AssetInspector(EditorContext context)
         }
         else if (record.Type == AssetTypes.Script)
         {
+            if (ImGui.Button("Edit in Script Editor"))
+            {
+                context.OpenScriptRequest = assets.FullPath(guid);
+            }
+
             _script.Draw(assets.FullPath(guid), guid, context.ScriptDebugger);
         }
 

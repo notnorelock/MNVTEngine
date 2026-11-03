@@ -19,7 +19,8 @@ namespace MNVTEngine.Editor;
 
 /// <param name="FocusWindow">Panel brought to the front on start (e.g. "Profiler"), for automated screenshots.</param>
 /// <param name="Breakpoints">Script breakpoints set on start, as "path/relative/to/Assets.mnvts:line".</param>
-internal sealed record EditorOptions(int? ExitAfterFrames, string? ScreenshotPath, bool PlayOnStart, string? SelectOnStart = null, string? FocusWindow = null, IReadOnlyList<string>? Breakpoints = null);
+/// <param name="EditFile">File opened in the Script Editor on start (absolute, or relative to the project folder).</param>
+internal sealed record EditorOptions(int? ExitAfterFrames, string? ScreenshotPath, bool PlayOnStart, string? SelectOnStart = null, string? FocusWindow = null, IReadOnlyList<string>? Breakpoints = null, string? EditFile = null);
 
 /// <summary>
 /// The editor application: dockable workspace (menu, toolbar, panels), scene file commands with unsaved-change
@@ -41,6 +42,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private ProfilerPanel _profilerPanel = null!;
     private ScriptDebuggerPanel _scriptDebugger = null!;
     private BuildController _build = null!;
+    private ScriptEditorPanel _scriptEditor = null!;
     private bool _showBuildSettings;
     private readonly Core.Diagnostics.FrameProfiler _profiler = new();
     private ScriptReloadController _scripts = null!;
@@ -121,6 +123,11 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         // Opened once the first script load settles, so components resolve to real types instead of MissingComponent.
         _startupScene = project.StartupScene;
         _scripts.Reloaded += _inspector.ClearCaches;
+        _scriptEditor = new ScriptEditorPanel(_context, _scripts);
+        if (options.EditFile is { } file)
+        {
+            _context.OpenScriptRequest = Path.IsPathRooted(file) ? file : Path.Combine(project.RootDirectory, file);
+        }
         window.CloseRequested = OnCloseRequested;
         _selectOnStart = options.SelectOnStart;
 
@@ -190,6 +197,13 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _build.Update();
         DrawBuildSettings();
         _scriptDebugger.Draw();
+        if (_context.OpenScriptRequest is { } script)
+        {
+            _context.OpenScriptRequest = null;
+            _scriptEditor.Open(script);
+        }
+
+        _scriptEditor.Draw(time.UnscaledTotalTime);
         if (options.FocusWindow is { } focus && _frames == 10) // after the dock layout and Play Mode focus settle
         {
             ImGui.SetWindowFocus(focus);
@@ -365,6 +379,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         DockBuilder.DockWindow("Profiler", bottom);
         DockBuilder.DockWindow("Script Debugger", bottom);
         DockBuilder.DockWindow("Game", center);
+        DockBuilder.DockWindow("Script Editor", center);
         DockBuilder.DockWindow("Scene", center);
         DockBuilder.Finish(dockId);
     }
@@ -668,6 +683,13 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             {
                 _context.ScriptDebugger.Step();
             }
+        }
+
+        // Ctrl+S in the Script Editor saves the file, even while its text box has keyboard focus.
+        if (io.KeyCtrl && _scriptEditor.IsFocused && ImGui.IsKeyPressed(ImGuiKey.S, false))
+        {
+            _scriptEditor.SaveActive();
+            return;
         }
 
         if (!io.KeyCtrl || io.WantTextInput)
