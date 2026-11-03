@@ -29,6 +29,9 @@ internal sealed class EditorContext
 
     public required InMemoryLoggerProvider Logs { get; init; }
 
+    /// <summary>Per-logger levels and call-site capture (edited from the Console's Levels popup).</summary>
+    public required LogHub LogHub { get; init; }
+
     public required ILogger Logger { get; init; }
 
     /// <summary>The scene panels show and edit: the Play Mode copy while playing.</summary>

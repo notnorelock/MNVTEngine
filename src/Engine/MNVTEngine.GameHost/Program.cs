@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Assets;
+using MNVTEngine.Core.Logging;
 using MNVTEngine.GameAssemblies;
 using MNVTEngine.Graphics.OpenGL;
 using MNVTEngine.Runtime;
@@ -28,19 +29,29 @@ internal static class Game
     {
         var host = typeof(Game).Assembly;
         var data = Path.Combine(AppContext.BaseDirectory, GamePackage.DataFolder(host.GetName().Name!));
-        using var fileLog = FileLoggerProvider.TryCreate(Path.Combine(AppContext.BaseDirectory, "Logs", "game.log"), out var fileLogError);
-        using var loggerFactory = LoggerFactory.Create(builder =>
+        using var hub = new LogHub().AddSink(new ConsoleLogSink());
+        var fileLog = FileLogSink.TryCreate(Path.Combine(AppContext.BaseDirectory, "Logs", "game.log"), out var fileLogError);
+        if (fileLog is not null)
         {
-            builder.AddSimpleConsole(o => o.SingleLine = true);
-            if (fileLog is not null)
-            {
-                builder.AddProvider(fileLog);
-            }
-        });
+            hub.AddSink(fileLog);
+        }
+
+        using var loggerFactory = LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Trace).AddProvider(hub));
+        GameLog.Factory = loggerFactory;
         var logger = loggerFactory.CreateLogger("Game");
         if (fileLogError is not null)
         {
             HostLog.NoLogFile(logger, fileLogError);
+        }
+
+        // Optional logging.json next to the executable raises or lowers levels per logger without rebuilding.
+        try
+        {
+            LoggingSettings.Load(Path.Combine(AppContext.BaseDirectory, "logging.json")).ApplyTo(hub);
+        }
+        catch (Exception ex) when (ex is SerializationException or IOException)
+        {
+            HostLog.BadLoggingSettings(logger, ex.Message);
         }
 
         GamePackage package;
@@ -104,6 +115,9 @@ internal static partial class HostLog
 
     [LoggerMessage(EventId = 7002, Level = LogLevel.Warning, Message = "Log file not written: {Reason}")]
     public static partial void NoLogFile(ILogger logger, string reason);
+
+    [LoggerMessage(EventId = 7003, Level = LogLevel.Warning, Message = "logging.json ignored: {Reason}")]
+    public static partial void BadLoggingSettings(ILogger logger, string reason);
 
     [LoggerMessage(EventId = 7003, Message = "{Diagnostic}")]
     public static partial void Diagnostic(ILogger logger, LogLevel level, object diagnostic);

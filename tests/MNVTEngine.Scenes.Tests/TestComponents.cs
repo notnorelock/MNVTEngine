@@ -5,7 +5,7 @@ namespace MNVTEngine.Scenes.Tests;
 /// <summary>Records every lifecycle callback into a shared log as "Name.Callback".</summary>
 public class Recorder : Component
 {
-    public static List<string> Log { get; } = [];
+    public static new List<string> Log { get; } = [];
 
     public string Label = "R";
 

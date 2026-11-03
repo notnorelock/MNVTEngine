@@ -104,6 +104,7 @@ public sealed class Coin : Component, ITriggerHandler2D
             return;
         }
 
+        Log.Info($"Collected {GameObject.Name}"); // shows as Platformer.Coin.OnTriggerEnter2D in the Console
         Mission.Raise(GameObject.Scene, "coin");
         GameObject.Scene.Find("Sfx")?.GetComponent<AudioSource>()?.PlayOneShot(Sound);
         GameObject.Scene.Destroy(GameObject);
@@ -117,6 +118,7 @@ public sealed class Goal : Component, ITriggerHandler2D
     {
         if (other.GameObject.GetComponent<Player>() is not null)
         {
+            Log.Info("Reached the flag");
             Mission.Raise(GameObject.Scene, "reached_flag");
         }
     }

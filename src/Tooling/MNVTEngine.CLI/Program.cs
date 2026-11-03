@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
 using MNVTEngine.CLI;
 
-using var loggerFactory = LoggerFactory.Create(b => b.AddSimpleConsole(o => o.SingleLine = true));
+using var logHub = new MNVTEngine.Core.Logging.LogHub().AddSink(new MNVTEngine.Core.Logging.ConsoleLogSink());
+using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(logHub));
+MNVTEngine.GameLog.Factory = loggerFactory;
 using var cancel = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) =>
 {

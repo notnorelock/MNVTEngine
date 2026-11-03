@@ -6,7 +6,8 @@ using MNVTEngine.Samples.HelloWorld;
 var frames = ArgValue("--frames") is { } f ? int.Parse(f, System.Globalization.CultureInfo.InvariantCulture) : (int?)null;
 var screenshot = ArgValue("--screenshot");
 
-using var loggerFactory = LoggerFactory.Create(b => b.AddSimpleConsole(o => o.SingleLine = true).SetMinimumLevel(LogLevel.Debug));
+using var logHub = new MNVTEngine.Core.Logging.LogHub(new MNVTEngine.Core.Logging.LogLevels { Default = LogLevel.Debug }).AddSink(new MNVTEngine.Core.Logging.ConsoleLogSink());
+using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(logHub));
 var logger = loggerFactory.CreateLogger("HelloWorld");
 
 using var window = new GameWindow(new GameWindowOptions

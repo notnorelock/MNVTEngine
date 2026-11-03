@@ -5,8 +5,8 @@
     <AssemblyName>MNVTEngine.Editor</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="ImGui.NET" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="MNVTEngine.Editor.Tests" />

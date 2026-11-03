@@ -4,9 +4,9 @@ namespace MNVTEngine.Core.Logging;
 
 /// <summary>
 /// Thread-safe ring buffer of recent log entries. Backs the editor console and runtime crash reports;
-/// other sinks (console, file) are ordinary <see cref="ILoggerProvider"/>s added alongside it.
+/// use it on its own as a provider, or as a sink of a <see cref="LogHub"/> (which then does the level filtering).
 /// </summary>
-public sealed class InMemoryLoggerProvider : ILoggerProvider
+public sealed class InMemoryLoggerProvider : ILoggerProvider, ILogSink
 {
     private readonly Queue<LogEntry> _entries;
     private readonly Lock _lock = new();
@@ -45,6 +45,9 @@ public sealed class InMemoryLoggerProvider : ILoggerProvider
             _entries.Clear();
         }
     }
+
+    /// <summary>Stores an entry the hub already filtered (<see cref="MinimumLevel"/> does not apply).</summary>
+    public void Write(LogEntry entry) => Add(entry ?? throw new ArgumentNullException(nameof(entry)));
 
     public void Dispose()
     {

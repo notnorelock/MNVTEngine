@@ -27,7 +27,7 @@ internal sealed record EditorOptions(int? ExitAfterFrames, string? ScreenshotPat
 /// protection, and Play Mode. UI is built in <see cref="Update"/>; views and ImGui are drawn in <see cref="Render"/>.
 /// </summary>
 [SuppressMessage("Design", "CA1001", Justification = "GPU and ImGui resources live from IGameLoop.Load to IGameLoop.Unload.")]
-internal sealed partial class EditorApp(GameProject project, ComponentRegistry registry, ILoggerFactory loggerFactory, InMemoryLoggerProvider logs, EditorOptions options) : IGameLoop
+internal sealed partial class EditorApp(GameProject project, ComponentRegistry registry, ILoggerFactory loggerFactory, InMemoryLoggerProvider logs, LogHub logHub, EditorOptions options) : IGameLoop
 {
     private const string DockSpaceName = "MainDockSpace";
 
@@ -83,6 +83,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             Session = session,
             PlayMode = new PlayModeController(session, loggerFactory) { Audio = AudioDevices.CreateOrSilent(Audio.OpenAL.OpenALAudioDevice.Create, loggerFactory.CreateLogger("Audio")) },
             Logs = logs,
+            LogHub = logHub,
             Logger = _logger,
         };
 

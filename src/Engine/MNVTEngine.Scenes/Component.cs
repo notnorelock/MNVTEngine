@@ -15,6 +15,7 @@ namespace MNVTEngine;
 public abstract class Component
 {
     private bool _enabled = true;
+    private GameLog? _log;
 
     /// <summary>Stable identity, persisted in scene files and used by references.</summary>
     public Guid Id { get; internal set; }
@@ -22,6 +23,9 @@ public abstract class Component
     public GameObject GameObject { get; internal set; } = null!;
 
     public Transform Transform => GameObject.Transform;
+
+    /// <summary>Logger named after this component's class: <c>Log.Info("jumped")</c> records namespace, class, method and line.</summary>
+    public GameLog Log => _log ??= GameLog.For(GetType());
 
     /// <summary>Whether this component wants to run. It actually runs only if its GameObject is also active in the hierarchy.</summary>
     public bool Enabled
