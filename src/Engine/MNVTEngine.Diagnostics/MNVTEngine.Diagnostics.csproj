@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Backend-independent diagnostics: metrics, budgets, the Debug draw/log API, console commands, settings. No rendering. -->
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Core\MNVTEngine.Core.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Mathematics\MNVTEngine.Mathematics.csproj" />
+  </ItemGroup>
+</Project>

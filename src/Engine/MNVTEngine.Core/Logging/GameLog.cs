@@ -63,6 +63,29 @@ public sealed class GameLog
     public void Critical(string message, Exception? exception = null, [CallerMemberName] string member = "", [CallerFilePath] string file = "", [CallerLineNumber] int line = 0) =>
         Write(LogLevel.Critical, message, exception, member, file, line);
 
+    /// <summary>
+    /// Logs on behalf of a caller (for logging facades such as <c>Debug.Log</c>): the site is <paramref name="caller"/>'s
+    /// class with the given member, file and line.
+    /// </summary>
+    public void Write(LogLevel level, string message, Exception? exception, Type? caller, string member, string file, int line)
+    {
+        var logger = Logger;
+        if (!logger.IsEnabled(level))
+        {
+            return;
+        }
+
+        LogCallSite.Pending = caller is not null ? LogCallSite.For(caller, member, file, line) : new LogCallSite("", Name, member, file, line);
+        try
+        {
+            logger.Log(level, default, message, exception, static (text, _) => text);
+        }
+        finally
+        {
+            LogCallSite.Pending = null;
+        }
+    }
+
     private ILogger Logger
     {
         get

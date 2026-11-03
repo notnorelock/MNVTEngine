@@ -83,6 +83,9 @@ public sealed class GameProject
     /// <summary>Optional C# game code; null when the game uses only built-in components.</summary>
     public ScriptSettings? Scripts { get; set; }
 
+    /// <summary>Runtime debug UI, debug drawing, profiler and performance budgets (the "diagnostics" section).</summary>
+    public Diagnostics.DiagnosticsSettings Diagnostics { get; set; } = new();
+
     /// <summary>Export profiles; <see cref="BuildProfile.Defaults"/> (debug, release) when the file defines none.</summary>
     public List<BuildProfile> BuildProfiles { get; set; } = [];
 
@@ -203,6 +206,12 @@ public sealed class GameProject
     private void Validate(List<SerializationDiagnostic> diagnostics, Func<string, bool> assetExists)
     {
         void Error(string path, string message) => diagnostics.Add(new SerializationDiagnostic(DiagnosticSeverity.Error, path, message));
+
+        Diagnostics ??= new Diagnostics.DiagnosticsSettings();
+        foreach (var problem in Diagnostics.Validate())
+        {
+            diagnostics.Add(new SerializationDiagnostic(DiagnosticSeverity.Warning, "diagnostics", problem));
+        }
 
         if (string.IsNullOrWhiteSpace(Name))
         {
