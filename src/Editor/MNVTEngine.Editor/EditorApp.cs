@@ -311,6 +311,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             EditorLog.Imported(_logger, _context.Session.Assets.Get(guid)?.Path);
         }
 
+        _context.PlayMode.ReloadMissionScripts(result.Reimported); // live .mnvts edits while playing
+
         LogAssetDiagnostics();
     }
 
@@ -697,6 +699,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         if (io.KeyCtrl && _scriptEditor.IsFocused && ImGui.IsKeyPressed(ImGuiKey.S, false))
         {
             _scriptEditor.SaveActive();
+            _lastAssetRefresh = double.MinValue; // pick the change up next frame, not in up to 2 s
             return;
         }
 

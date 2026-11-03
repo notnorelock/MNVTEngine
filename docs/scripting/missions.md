@@ -83,6 +83,16 @@ runner.EventEmitted += (name, payload) => { /* events.emit from scripts */ };
 var state = runner.Missions!.Missions["escort"].State;
 ```
 
+## Live reload in Play Mode
+
+Saving a `.mnvts` file while the game runs in the editor swaps the new script into every `MissionRunner` that uses it. Saving from the Script Editor applies it on the next frame; saving from another program applies it within 2 seconds.
+
+- **Kept:** variable values and mission and objective states (through the same mechanism as save games, see below).
+- **New code:** new variables start at their initializer. Active objective bodies restart with the new code. `on start` does not run again.
+- **Errors:** a script with compile errors is reported in the Console, and the running version keeps going.
+- **From code:** `MissionRunner.Reload()` does the same.
+- **Exported games** run precompiled bytecode and never reload.
+
 ## Persistence
 
 ```csharp

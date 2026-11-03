@@ -126,7 +126,7 @@ public sealed class ScriptReloadTests : IDisposable
     }
 
     [Fact]
-    public async Task ReloadWaitsForPlayModeToEnd()
+    public async Task ReloadDuringPlay_ContinuesTheRunningGame()
     {
         var session = new EditorSession(GameProject.Load(_root), ComponentRegistry.CreateDefault());
         session.OpenScene("Scenes/Main.mnvt");
@@ -137,12 +137,28 @@ public sealed class ScriptReloadTests : IDisposable
         await WaitFor(scripts, () => reloads == 1);
 
         play.Play();
-        WriteSource("public int Points = 10; public bool Changed;");
-        await WaitFor(scripts, () => scripts.State == ScriptState.Ready && scripts.StatusText.Contains("after Play Mode", StringComparison.Ordinal));
-        Assert.Equal(1, reloads);
-        Assert.False(scripts.CanEnterPlayMode);
+        {
+            var running = play.PlayScene!.Find("Player")!.Components[1];
+            running.GetType().GetField("Points")!.SetValue(running, 7); // game state reached while playing
+        }
+
+        play.Tick(0.5);
+        var clock = play.Time.TotalTime;
+        WriteSource("public int Points = 10; public bool Changed = true;");
+        await WaitFor(scripts, () => reloads == 2);
+
+        Assert.True(play.IsPlaying);
+        Assert.Equal(clock, play.Time.TotalTime);
+        {
+            var reloaded = play.PlayScene!.Find("Player")!.Components[1];
+            Assert.Equal(7, reloaded.GetType().GetField("Points")!.GetValue(reloaded));  // state kept
+            Assert.Equal(true, reloaded.GetType().GetField("Changed")!.GetValue(reloaded)); // new code running
+            var edit = session.Scene.Find("Player")!.Components[1];
+            Assert.Equal(42, edit.GetType().GetField("Points")!.GetValue(edit));          // edit scene untouched
+        }
 
         play.Stop();
-        await WaitFor(scripts, () => reloads == 2);
+        await WaitFor(scripts, () => scripts.LastUnloadCollected is not null);
+        Assert.True(scripts.LastUnloadCollected);
     }
 }

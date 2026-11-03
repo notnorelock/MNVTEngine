@@ -19,8 +19,9 @@ public enum ScriptState
 /// Keeps the editor's game code in sync with the scripts project: watches sources, compiles in the background, and
 /// reloads. A reload saves the edit scene to JSON, swaps the component types in the registry, loads the scene back
 /// (data, ids and selection survive; components whose class was removed become MissingComponent), and unloads the
-/// previous generation. Static fields in game code reset on reload. Reloads wait until Play Mode ends; compile errors
-/// keep the last good code loaded and block entering Play Mode.
+/// previous generation. Static fields in game code reset on reload. In Play Mode the running game is saved and continued
+/// the same way (see <see cref="PlayModeController.Restore"/>). Compile errors keep the last good code loaded and block
+/// entering Play Mode.
 /// </summary>
 public sealed partial class ScriptReloadController : IDisposable
 {
@@ -92,7 +93,7 @@ public sealed partial class ScriptReloadController : IDisposable
         ScriptState.None => "No C# scripts",
         ScriptState.Compiling => "Compiling scripts...",
         ScriptState.Failed => $"Scripts: {Diagnostics.Count(d => d.Severity == ScriptDiagnosticSeverity.Error)} error(s)",
-        _ => _readyAssembly is not null ? "Scripts compiled; reload after Play Mode" : $"Scripts: {Code?.ComponentTypes.Count ?? 0} components",
+        _ => _readyAssembly is not null ? "Scripts compiled; reloading" : $"Scripts: {Code?.ComponentTypes.Count ?? 0} components",
     };
 
     /// <summary>Raised after game code was (re)loaded and the edit scene rebuilt with the new types.</summary>
@@ -112,7 +113,7 @@ public sealed partial class ScriptReloadController : IDisposable
             Complete(build);
         }
 
-        if (_readyAssembly is { } assembly && !_playMode.IsPlaying)
+        if (_readyAssembly is { } assembly)
         {
             _readyAssembly = null;
             Reload(assembly);
@@ -210,6 +211,7 @@ public sealed partial class ScriptReloadController : IDisposable
 
         // Save with the old types still registered, so every component can be written.
         var json = _session.Serializer.Serialize(_session.Scene);
+        var play = _playMode.Capture();
 
         var load = _host.Load(assemblyPath);
         if (load.Code is null || load.Code == previous)
@@ -231,6 +233,10 @@ public sealed partial class ScriptReloadController : IDisposable
         }
 
         _session.ReplaceAfterScriptReload(restored.Scene);
+        if (play is not null)
+        {
+            _playMode.Restore(play);
+        }
         if (previous is not null)
         {
             _unloading = GameAssemblyHost.Unload(previous);

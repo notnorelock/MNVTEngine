@@ -1,5 +1,6 @@
 using MNVTEngine.Editor.Services;
 using MNVTEngine.Runtime;
+using MNVTEngine.Scenes;
 using MNVTEngine.Scripting.Compiler;
 using MNVTEngine.Scripting.Missions;
 
@@ -92,6 +93,29 @@ public sealed class ScriptDocumentTests : IDisposable
         Assert.Throws<IOException>(() => ScriptTemplates.CreateComponent(project, "Enemy"));
         Assert.Throws<ArgumentException>(() => ScriptTemplates.CreateComponent(project, "2Bad"));
         Assert.Throws<ArgumentException>(() => ScriptTemplates.CreateMission(project, "../escape"));
+    }
+
+    [Fact]
+    public void SavedMissionScript_ReloadsInPlayMode_AfterAssetRefresh()
+    {
+        var project = NewProject();
+        var session = new EditorSession(project, EngineComponents.CreateRegistry());
+        session.OpenScene("Scenes/Main.mnvt");
+        var script = session.Assets.WriteText("Logic.mnvts", "var level = 1; var seen = 0; on start { seen = level }");
+        session.Scene.CreateGameObject("Logic").AddComponent<MissionRunner>().Script = new AssetRef(script);
+        var play = new PlayModeController(session, Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
+        play.Play();
+        var runner = play.PlayScene!.Find("Logic")!.GetComponent<MissionRunner>()!;
+        play.Tick(0.1);
+        Assert.Equal(1, runner.Vm!.GetGlobal("seen").AsNumber());
+
+        var path = session.Assets.FullPath(script);
+        File.WriteAllText(path, "var level = 2; var seen = 0; var added = 5; on start { seen = level }");
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddSeconds(30));
+        Assert.Equal(1, play.ReloadMissionScripts(session.Assets.Refresh().Reimported));
+        Assert.Equal(1, runner.Vm!.GetGlobal("seen").AsNumber()); // variables keep their values
+        Assert.Equal(5, runner.Vm.GetGlobal("added").AsNumber()); // new variables start at their initializer
+        play.Stop();
     }
 
     private string CreateText(string name, string text)

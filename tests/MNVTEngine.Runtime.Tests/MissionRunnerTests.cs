@@ -88,6 +88,50 @@ public class MissionRunnerTests
         Assert.Null(runner.Vm);
     }
 
+    private sealed class EditableTextAssets(string text) : ITextAssetReader
+    {
+        public string Text { get; set; } = text;
+
+        public string ReadText(AssetRef asset, string assetType) => Text;
+    }
+
+    [Fact]
+    public void Reload_SwapsInNewCode_KeepingVariablesAndMissionProgress()
+    {
+        var assets = new EditableTextAssets("""
+            var count = 0
+            on start { count = count + 100 }
+            mission "m" {
+                on start { objective.activate("a") }
+                objective "a" {
+                    while true {
+                        count = count + 1
+                        wait 0
+                    }
+                }
+            }
+            """);
+        var scene = new Scene { TextAssets = assets, RethrowScriptExceptions = true };
+        var runner = scene.CreateGameObject("Logic").AddComponent<MissionRunner>();
+        (runner.Script, runner.StartMission) = (new AssetRef(Guid.NewGuid()), "m");
+        scene.Start();
+        Frame(scene, 3);
+        var before = runner.Vm!.GetGlobal("count").AsNumber();
+        Assert.True(before >= 100);
+
+        assets.Text = assets.Text.Replace("count + 1", "count + 1000", StringComparison.Ordinal);
+        Assert.True(runner.Reload());
+        Assert.Equal(before, runner.Vm!.GetGlobal("count").AsNumber()); // kept; 'on start' did not add 100 again
+        Assert.Equal(ObjectiveState.Active, runner.Missions!.Missions["m"].Objectives["a"].State);
+        Frame(scene, 1);
+        Assert.True(runner.Vm.GetGlobal("count").AsNumber() >= before + 1000); // new code runs
+
+        var vm = runner.Vm;
+        assets.Text = "on start { oops( }";
+        Assert.False(runner.Reload());
+        Assert.Same(vm, runner.Vm); // broken edit: old script keeps running
+    }
+
     [Fact]
     public void Scripts_ControlTheAudioMixer()
     {

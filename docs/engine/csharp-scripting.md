@@ -42,7 +42,7 @@ Game components are written in C# in a class library that belongs to the project
 
 ## Hot reload in the editor
 
-`ScriptReloadController` polls the source stamp every second and compiles in the background. When a build succeeds and Play Mode is not running:
+`ScriptReloadController` polls the source stamp every second and compiles in the background. When a build succeeds:
 
 1. The edit scene is saved to JSON while the old types are still registered.
 2. The new generation is loaded and its components replace the old ones in the `ComponentRegistry`.
@@ -53,7 +53,11 @@ Rules:
 
 - **Static fields** in game code reset on reload.
 - **Compile errors** are shown in the Console with file, line and code. The last good code stays loaded, and Play Mode is blocked until the errors are fixed.
-- **During Play Mode**, a finished build waits until Play Mode stops.
+- **During Play Mode** the new code is applied live:
+  - The running game is saved with the old types, together with the progress of every `MissionRunner`. It is then loaded back with the new types and continues.
+  - Kept: serialized fields (public fields and `[SerializeField]`), transforms, objects spawned at runtime, the game clock, and mission progress.
+  - Reset: private fields and statics. Components run `Awake`/`Start` again, and sounds restart.
+  - The edit scene is reloaded too, but Play Mode changes still never reach it.
 - **On editor startup**, the scene is opened after the first script load, so its components resolve directly.
 
 ### Why unloading needs care
@@ -77,4 +81,4 @@ dotnet run --project src/Tooling/MNVTEngine.Player -- samples/SceneDemo
 ## Tests
 
 - `MNVTEngine.Build.Tests` compiles real game code against the engine assemblies. It covers loading, reload with data preserved, unloading, compile error locations, load failures, and host-shared assembly resolution.
-- `MNVTEngine.Editor.Tests` covers hot reload end to end: initial compile, edit, compile error, fix, and reload deferred until Play Mode ends.
+- `MNVTEngine.Editor.Tests` covers hot reload end to end: initial compile, edit, compile error, fix, and live reload during Play Mode with game state kept.

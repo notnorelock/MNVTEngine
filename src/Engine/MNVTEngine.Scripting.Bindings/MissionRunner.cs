@@ -45,6 +45,7 @@ public sealed partial class MissionRunner : Component
     }
 
     private IScriptDebugger? _debugger;
+    private MissionSaveData? _resume;
 
     public MissionManager? Missions { get; private set; }
 
@@ -72,6 +73,50 @@ public sealed partial class MissionRunner : Component
             return;
         }
 
+        var resume = _resume;
+        _resume = null;
+        Run(script, resume);
+    }
+
+    /// <summary>
+    /// Mission state to continue from instead of starting fresh, applied when this runner starts (the editor uses it
+    /// to keep missions going when Play Mode reloads C# code).
+    /// </summary>
+    public void ResumeOnStart(MissionSaveData state) => _resume = state ?? throw new ArgumentNullException(nameof(state));
+
+    /// <summary>
+    /// Hot reload: recompiles the script from source and swaps it in, keeping variables and mission/objective states
+    /// (active objective bodies restart; 'on start' does not run again). On compile errors the running script is kept.
+    /// Returns false when nothing was reloaded.
+    /// </summary>
+    public bool Reload()
+    {
+        var logger = GameObject.Scene.Logger;
+        if (Missions is not { } missions || GameObject.Scene.TextAssets is not { } reader || reader.ReadCompiled(Script, AssetTypes.Script) is not null)
+        {
+            return false; // not running, or exported bytecode (never changes)
+        }
+
+        var compiled = ScriptCompiler.Compile(reader.ReadText(Script, AssetTypes.Script), Script.ToString(), new CompileOptions { Api = StandardApi.All });
+        foreach (var diagnostic in compiled.Diagnostics)
+        {
+            LogDiagnostic(logger, diagnostic.ToString());
+        }
+
+        if (!compiled.Succeeded)
+        {
+            LogReloadFailed(logger, GameObject.Name);
+            return false;
+        }
+
+        Run(compiled.Script!, missions.Save());
+        LogReloaded(logger, GameObject.Name);
+        return true;
+    }
+
+    private void Run(CompiledScript script, MissionSaveData? resume)
+    {
+        var logger = GameObject.Scene.Logger;
         var missions = new MissionManager(script);
         ScriptVM? vm = null;
         vm = new ScriptVM(script, [
@@ -84,8 +129,15 @@ public sealed partial class MissionRunner : Component
         missions.Attach(vm);
         Vm = vm;
         Missions = missions;
-        vm.Initialize();
-        if (StartMission.Length > 0)
+        vm.Initialize(runStartHandlers: resume is null);
+        if (resume is not null)
+        {
+            foreach (var diagnostic in missions.Restore(resume))
+            {
+                LogDiagnostic(logger, diagnostic.ToString());
+            }
+        }
+        else if (StartMission.Length > 0)
         {
             missions.Start(StartMission);
         }
@@ -143,6 +195,12 @@ public sealed partial class MissionRunner : Component
 
     [LoggerMessage(EventId = 6004, Level = LogLevel.Error, Message = "Script coroutine '{Fiber}' failed: {Error}")]
     private static partial void LogFault(ILogger logger, string fiber, string error);
+
+    [LoggerMessage(EventId = 6006, Level = LogLevel.Information, Message = "Mission script on '{Owner}' reloaded; state kept")]
+    private static partial void LogReloaded(ILogger logger, string owner);
+
+    [LoggerMessage(EventId = 6007, Level = LogLevel.Error, Message = "Mission script on '{Owner}' has errors; the running version is kept")]
+    private static partial void LogReloadFailed(ILogger logger, string owner);
 
     [LoggerMessage(EventId = 6005, Level = LogLevel.Error, Message = "Mission bytecode on '{Owner}' is invalid; disabled (rebuild the game)")]
     private static partial void LogBadBytecode(ILogger logger, Exception exception, string owner);

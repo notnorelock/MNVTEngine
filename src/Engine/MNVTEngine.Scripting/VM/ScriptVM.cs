@@ -102,7 +102,8 @@ public sealed partial class ScriptVM
 
     /// <summary>Runs global initializers, then spawns the top-level <c>on start</c> handler.</summary>
     /// <exception cref="ScriptRuntimeException">An initializer failed or tried to wait.</exception>
-    public void Initialize()
+    /// <param name="runStartHandlers">False when state is restored afterwards (hot reload): 'on start' must not run again.</param>
+    public void Initialize(bool runStartHandlers = true)
     {
         var init = CreateFiber(Script.InitFunction, [], null);
         Run(init);
@@ -117,7 +118,7 @@ public sealed partial class ScriptVM
             throw new ScriptRuntimeException("Global initializers cannot wait.");
         }
 
-        if (Script.StartFunction >= 0)
+        if (runStartHandlers && Script.StartFunction >= 0)
         {
             Spawn(Script.StartFunction, [], null);
         }

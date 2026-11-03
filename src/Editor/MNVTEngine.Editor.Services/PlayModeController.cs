@@ -1,8 +1,12 @@
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Core.Timing;
+using MNVTEngine.Scripting.Missions;
 using MNVTEngine.Serialization;
 
 namespace MNVTEngine.Editor.Services;
+
+/// <summary>The running game saved for a C# code reload: scene JSON written with the old types, plus mission states.</summary>
+public sealed record PlaySnapshot(string Json, string Name, IReadOnlyDictionary<Guid, MissionSaveData> Missions);
 
 public enum PlayState
 {
@@ -134,6 +138,53 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         }
     }
 
+    /// <summary>Saves the running game before game code is swapped (null when not playing).</summary>
+    public PlaySnapshot? Capture() => PlayScene is { } scene
+        ? new PlaySnapshot(
+            session.Serializer.Serialize(scene),
+            scene.Name,
+            scene.FindObjectsOfType<MissionRunner>().Where(r => r.Missions is not null).ToDictionary(r => r.Id, r => r.Missions!.Save()))
+        : null;
+
+    /// <summary>
+    /// Continues the game from a snapshot after game code was reloaded. Serialized fields, transforms, runtime-spawned
+    /// objects, the clock and mission progress survive; components run Awake/Start again; private fields and statics reset.
+    /// </summary>
+    public void Restore(PlaySnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (PlayScene is null)
+        {
+            return;
+        }
+
+        var result = session.Serializer.Deserialize(snapshot.Json, snapshot.Name);
+        foreach (var diagnostic in result.Diagnostics)
+        {
+            LogCopyDiagnostic(_logger, diagnostic.ToString());
+        }
+
+        foreach (var runner in result.Scene.FindObjectsOfType<MissionRunner>())
+        {
+            if (snapshot.Missions.TryGetValue(runner.Id, out var missions))
+            {
+                runner.ResumeOnStart(missions);
+            }
+        }
+
+        PlayScene.Unload();
+        Input.ReleaseAll();
+        Start(result.Scene);
+        LogCodeReloaded(_logger);
+    }
+
+    /// <summary>Hot-reloads running mission scripts whose source changed; returns how many were swapped in.</summary>
+    public int ReloadMissionScripts(IEnumerable<Guid> changedScripts)
+    {
+        var changed = changedScripts.ToHashSet();
+        return PlayScene is null ? 0 : PlayScene.FindObjectsOfType<MissionRunner>().Count(r => changed.Contains(r.Script.Guid) && r.Reload());
+    }
+
     /// <summary>Services <see cref="SceneManager.LoadScene"/> inside Play Mode; only the play copy changes.</summary>
     public void RequestLoad(string path)
     {
@@ -187,6 +238,9 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
 
     [LoggerMessage(EventId = 4002, Level = LogLevel.Warning, Message = "Play copy: {Diagnostic}")]
     private static partial void LogCopyDiagnostic(ILogger logger, string diagnostic);
+
+    [LoggerMessage(EventId = 4004, Level = LogLevel.Information, Message = "Play Mode continues with the reloaded game code")]
+    private static partial void LogCodeReloaded(ILogger logger);
 
     [LoggerMessage(EventId = 4003, Level = LogLevel.Error, Message = "Play Mode could not load scene '{Scene}'")]
     private static partial void LogLoadFailed(ILogger logger, Exception exception, string scene);
