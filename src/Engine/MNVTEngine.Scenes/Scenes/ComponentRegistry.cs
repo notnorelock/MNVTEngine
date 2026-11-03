@@ -66,6 +66,21 @@ public sealed class ComponentRegistry
         return this;
     }
 
+    /// <summary>Removes every type from <paramref name="assembly"/> (before unloading or reloading game code).</summary>
+    /// <returns>The number of types removed.</returns>
+    public int Unregister(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        var removed = _byType.Keys.Where(t => t.Assembly == assembly).ToList();
+        foreach (var type in removed)
+        {
+            _byId.Remove(_byType[type]);
+            _byType.Remove(type);
+        }
+
+        return removed.Count;
+    }
+
     public bool TryGetType(string id, out Type type) => _byId.TryGetValue(id, out type!);
 
     /// <exception cref="InvalidOperationException">The type is not registered.</exception>

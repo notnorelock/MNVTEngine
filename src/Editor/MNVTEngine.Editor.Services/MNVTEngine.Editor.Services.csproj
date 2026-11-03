@@ -2,5 +2,6 @@
   <!-- Editor logic without UI: unit-testable, and reusable by future tooling. Must not reference ImGui. -->
   <ItemGroup>
     <ProjectReference Include="..\..\Engine\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" />
+    <ProjectReference Include="..\..\Tooling\MNVTEngine.Build\MNVTEngine.Build.csproj" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,196 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
+using MNVTEngine.GameAssemblies;
+using MNVTEngine.Runtime;
+
+namespace MNVTEngine.Build;
+
+public sealed record ScriptBuildResult(bool Succeeded, string? AssemblyPath, IReadOnlyList<ScriptDiagnostic> Diagnostics, string Output, TimeSpan Duration)
+{
+    public IEnumerable<ScriptDiagnostic> Errors => Diagnostics.Where(d => d.Severity == ScriptDiagnosticSeverity.Error);
+}
+
+/// <summary>The game's C# scripts project as configured in the .mnvtproj (<c>"scripts": { "project": ... }</c>).</summary>
+public sealed class ScriptProject
+{
+    private ScriptProject(string projectFile, string outputDirectory)
+    {
+        ProjectFile = projectFile;
+        OutputDirectory = outputDirectory;
+        AssemblyName = ReadAssemblyName(projectFile);
+    }
+
+    public string ProjectFile { get; }
+
+    public string SourceDirectory => Path.GetDirectoryName(ProjectFile)!;
+
+    /// <summary><c>Library/ScriptAssemblies</c>: build output, never committed.</summary>
+    public string OutputDirectory { get; }
+
+    public string AssemblyName { get; }
+
+    public string AssemblyPath => Path.Combine(OutputDirectory, AssemblyName + ".dll");
+
+    private string StampFile => Path.Combine(OutputDirectory, ".sourcestamp");
+
+    /// <summary>Null when the project has no C# scripts.</summary>
+    /// <exception cref="FileNotFoundException">The configured project file does not exist.</exception>
+    public static ScriptProject? For(GameProject project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        if (project.Scripts?.Project is not { Length: > 0 } relative)
+        {
+            return null;
+        }
+
+        var file = project.ResolveProjectFile(relative);
+        return File.Exists(file)
+            ? new ScriptProject(file, Path.Combine(project.RootDirectory, "Library", "ScriptAssemblies"))
+            : throw new FileNotFoundException($"Scripts project '{relative}' not found.", file);
+    }
+
+    /// <summary>Fingerprint of every source input (paths, sizes, timestamps of .cs/.csproj/.props/.targets; bin and obj excluded).</summary>
+    public string ComputeSourceStamp()
+    {
+        var builder = new StringBuilder();
+        var files = Directory.EnumerateFiles(SourceDirectory, "*", SearchOption.AllDirectories)
+            .Where(f => Path.GetExtension(f).ToUpperInvariant() is ".CS" or ".CSPROJ" or ".PROPS" or ".TARGETS")
+            .Where(f => !IsUnder(f, "bin") && !IsUnder(f, "obj"))
+            .Order(StringComparer.Ordinal);
+        foreach (var file in files)
+        {
+            var info = new FileInfo(file);
+            builder.Append(CultureInfo.InvariantCulture, $"{Path.GetRelativePath(SourceDirectory, file)}|{info.Length}|{info.LastWriteTimeUtc.Ticks}\n");
+        }
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
+    }
+
+    /// <summary>True if the last successful build used exactly the current sources.</summary>
+    public bool IsBuildUpToDate() =>
+        File.Exists(AssemblyPath) && File.Exists(StampFile) && File.ReadAllText(StampFile) == ComputeSourceStamp();
+
+    internal void WriteStamp(string stamp) => File.WriteAllText(StampFile, stamp);
+
+    private bool IsUnder(string file, string folder) =>
+        Path.GetRelativePath(SourceDirectory, file).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Contains(folder, StringComparer.OrdinalIgnoreCase);
+
+    private static string ReadAssemblyName(string projectFile) =>
+        XDocument.Load(projectFile).Descendants("AssemblyName").Select(e => e.Value.Trim()).FirstOrDefault(v => v.Length > 0)
+        ?? Path.GetFileNameWithoutExtension(projectFile);
+}
+
+/// <summary>
+/// Compiles game scripts by running <c>dotnet build</c> (requires the .NET SDK, so this is development tooling).
+/// Note: building a project runs its MSBuild logic, so opening an untrusted project runs untrusted code, as in any IDE.
+/// </summary>
+public static partial class ScriptCompiler
+{
+    public static TimeSpan Timeout { get; set; } = TimeSpan.FromMinutes(5);
+
+    public static async Task<ScriptBuildResult> BuildAsync(ScriptProject project, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        var stamp = project.ComputeSourceStamp(); // taken before building: edits made during the build trigger another one
+        Directory.CreateDirectory(project.OutputDirectory);
+
+        var start = new ProcessStartInfo("dotnet")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WorkingDirectory = project.SourceDirectory,
+        };
+        foreach (var argument in new[] { "build", project.ProjectFile, "-c", "Debug", "-o", project.OutputDirectory, "-nologo", "-v:q", "-clp:NoSummary;ForceNoAlign", "-p:GenerateFullPaths=true" })
+        {
+            start.ArgumentList.Add(argument);
+        }
+
+        start.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
+        start.Environment["DOTNET_NOLOGO"] = "1";
+
+        var watch = Stopwatch.StartNew();
+        using var process = new Process { StartInfo = start };
+        try
+        {
+            process.Start();
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            return Failed($"Could not start 'dotnet' (is the .NET SDK installed and on PATH?): {ex.Message}", watch.Elapsed);
+        }
+
+        var stdout = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stderr = process.StandardError.ReadToEndAsync(cancellationToken);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(Timeout);
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+
+            return Failed($"Script build timed out after {Timeout.TotalSeconds:0} s.", watch.Elapsed);
+        }
+
+        var output = await stdout.ConfigureAwait(false) + await stderr.ConfigureAwait(false);
+        var diagnostics = ParseDiagnostics(output);
+        var succeeded = process.ExitCode == 0 && File.Exists(project.AssemblyPath);
+        if (!succeeded && !diagnostics.Any(d => d.Severity == ScriptDiagnosticSeverity.Error))
+        {
+            diagnostics = [.. diagnostics, new ScriptDiagnostic(ScriptDiagnosticSeverity.Error, "BUILD", $"dotnet build exited with code {process.ExitCode}.\n{output.Trim()}")];
+        }
+
+        if (succeeded)
+        {
+            project.WriteStamp(stamp);
+        }
+
+        return new ScriptBuildResult(succeeded, succeeded ? project.AssemblyPath : null, diagnostics, output, watch.Elapsed);
+    }
+
+    /// <summary>Parses MSBuild/compiler lines like <c>C:\x\A.cs(12,5): error CS1002: ; expected [C:\x\A.csproj]</c>.</summary>
+    public static IReadOnlyList<ScriptDiagnostic> ParseDiagnostics(string output)
+    {
+        ArgumentNullException.ThrowIfNull(output);
+        var result = new List<ScriptDiagnostic>();
+        foreach (var line in output.Split('\n'))
+        {
+            var match = DiagnosticLine().Match(line.Trim());
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            var severity = match.Groups["severity"].Value == "error" ? ScriptDiagnosticSeverity.Error : ScriptDiagnosticSeverity.Warning;
+            var hasPosition = match.Groups["line"].Success;
+            result.Add(new ScriptDiagnostic(
+                severity,
+                match.Groups["code"].Value,
+                match.Groups["message"].Value.Trim(),
+                match.Groups["file"].Value,
+                hasPosition ? int.Parse(match.Groups["line"].Value, CultureInfo.InvariantCulture) : 0,
+                hasPosition ? int.Parse(match.Groups["column"].Value, CultureInfo.InvariantCulture) : 0));
+        }
+
+        return [.. result.Distinct()]; // MSBuild repeats errors at the end of the log
+    }
+
+    private static ScriptBuildResult Failed(string message, TimeSpan duration) =>
+        new(false, null, [new ScriptDiagnostic(ScriptDiagnosticSeverity.Error, "BUILD", message)], message, duration);
+
+    [GeneratedRegex(@"^(?<file>.+?)(\((?<line>\d+),(?<column>\d+)\))?\s*:\s*(?<severity>error|warning)\s+(?<code>[A-Za-z]+\d+)\s*:\s*(?<message>.*?)(\s+\[[^\]]+\])?$")]
+    private static partial Regex DiagnosticLine();
+}

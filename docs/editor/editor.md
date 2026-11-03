@@ -1,14 +1,12 @@
 # Editor
 
 ```bash
-dotnet build samples/SceneDemo/SceneDemo.csproj   # builds the demo's components
-dotnet run --project src/Editor/MNVTEngine.Editor -- samples/SceneDemo --scripts samples/SceneDemo/bin/Debug/net11.0/SceneDemo.dll
+dotnet run --project src/Editor/MNVTEngine.Editor -- samples/SceneDemo   # compiles and loads the project's C# scripts
 ```
 
 | Argument | Meaning |
 |---|---|
 | `<project>` | Project directory or `.mnvtproj` file. Opens the startup scene. |
-| `--scripts Game.dll` | Registers the components of a compiled game assembly. Can be repeated. |
 | `--play` | Enters Play Mode on start. |
 | `--debug-gl` | Logs GL driver messages. |
 | `--select Name`, `--frames N`, `--screenshot out.png` | For automation: select an object (or an asset by path), then exit after N frames and save a screenshot. |
@@ -34,7 +32,7 @@ This replaces the nine Editor projects in the original proposal. They would have
 
 | Panel | Features |
 |---|---|
-| Toolbar | Play/Stop, Pause/Resume, Step; play time. Ctrl+P toggles Play. |
+| Toolbar | Play/Stop, Pause/Resume, Step; play time. Ctrl+P toggles Play. Script status (compiling / N components / N errors) and Recompile; see [C# scripting](../engine/csharp-scripting.md). |
 | Hierarchy | Tree in sibling order; click to select; drag onto an object to reparent (world position kept) or onto empty space to move to root. Right-click to create Empty, Sprite or Camera, or to delete. |
 | Inspector | For assets: identity, import status, facts, preview, texture import settings (Apply reimports and refreshes every view), references and referenced-by. For objects: name, active state, Transform, every component with its enabled toggle and persisted members: float, int, bool, string, Vector2, Color, enum, asset path (drop from Project), GameObject/component reference (drop from Hierarchy; right-click to clear), asset reference (drop from Project, or right-click to pick an asset of the right type or clear it). Add Component lists the registry. Remove is in the header's context menu. Missing components show their type id and data read-only. |
 | Scene | Editor camera: right or middle drag pans, wheel zooms at the cursor, F frames the selection. Click picks the topmost sprite (or empty object). W/E/R switch between move, rotate and scale gizmos. Delete removes the selection. Dropping a texture creates a sprite sized by its pixels-per-unit setting; dropping a prefab instantiates it at the cursor (also works onto Hierarchy nodes as a child). Draws the grid with axes, camera frames and the selection outline. |
@@ -57,6 +55,5 @@ This replaces the nine Editor projects in the original proposal. They would have
 
 - **No undo/redo** until Milestone 8.
 - **One selected object** at a time.
-- **No reload of game assemblies:** `--scripts` loads them once, into the default load context, so rebuilt game code is not picked up. Milestone 5 introduces collectible load contexts and reload.
 - **Scene and Game views are sized in window coordinates.** On high-DPI displays they render at logical resolution, so they are slightly soft.
 - **File dialogs are in-app,** listing the project's Assets; there are no native file dialogs.

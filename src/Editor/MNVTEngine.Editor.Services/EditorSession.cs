@@ -94,6 +94,15 @@ public sealed class EditorSession
         IsDirty = false;
     }
 
+    /// <summary>Swaps in the scene rebuilt after a script reload; file, unsaved-changes state and selection are kept.</summary>
+    public void ReplaceAfterScriptReload(Scene scene)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        scene.Prefabs = Prefabs;
+        Scene = scene;
+        SceneReplaced?.Invoke();
+    }
+
     /// <summary>Saves <paramref name="root"/> and its children as a prefab asset and returns its GUID.</summary>
     public Guid CreatePrefab(GameObject root, string relativePath)
     {

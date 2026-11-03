@@ -13,8 +13,9 @@ public static partial class GameApplication
     /// Runs a project. Arguments: <c>[project path] [--frames N] [--screenshot file.png] [--debug-gl]</c>.
     /// Without a path, the single .mnvtproj next to the executable is used.
     /// </summary>
-    /// <returns>Process exit code: 0 ok, 1 resource leaks, 2 project or startup scene could not be loaded.</returns>
-    public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, Action<ComponentRegistry>? registerComponents = null)
+    /// <param name="prepareComponents">Registers game components (e.g. loads compiled scripts); returning false aborts startup.</param>
+    /// <returns>Process exit code: 0 ok, 1 resource leaks, 2 project or startup scene could not be loaded, 3 game code failed to load.</returns>
+    public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, Func<GameProject, ComponentRegistry, bool>? prepareComponents = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(createDevice);
@@ -33,7 +34,10 @@ public static partial class GameApplication
         }
 
         var registry = ComponentRegistry.CreateDefault();
-        registerComponents?.Invoke(registry);
+        if (prepareComponents is not null && !prepareComponents(project, registry))
+        {
+            return 3;
+        }
 
         using var window = new GameWindow(new GameWindowOptions
         {

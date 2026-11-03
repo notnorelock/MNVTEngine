@@ -31,8 +31,16 @@ public sealed class ComponentTypeInfo
     /// </summary>
     public IReadOnlyList<MemberInfo> SerializableMembers { get; }
 
-    // shortcut: types are cached for the process lifetime; collectible game assemblies (Milestone 5) must evict on unload.
     public static ComponentTypeInfo Get(Type type) => Cache.GetOrAdd(type, static t => new ComponentTypeInfo(t));
+
+    /// <summary>Forgets cached types from <paramref name="assembly"/>, so an unloaded game assembly can be collected.</summary>
+    public static void Evict(Assembly assembly)
+    {
+        foreach (var type in Cache.Keys.Where(t => t.Assembly == assembly))
+        {
+            Cache.TryRemove(type, out _);
+        }
+    }
 
     /// <summary>Name used in JSON: camelCase, without a leading underscore.</summary>
     public static string JsonName(MemberInfo member)

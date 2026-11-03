@@ -51,6 +51,9 @@ internal sealed partial class InspectorPanel(EditorContext context)
         }
     }
 
+    /// <summary>Drops cached member lists; required after a script reload replaced component types.</summary>
+    public void ClearCaches() => _members.Clear();
+
     private void DrawHeader(GameObject gameObject)
     {
         var active = gameObject.ActiveSelf;

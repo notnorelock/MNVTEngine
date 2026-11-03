@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The game's C# components. Built and loaded by the editor and MNVTEngine.Player; references the engine's gameplay API only. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Engine\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" Private="false" />
+  </ItemGroup>
+</Project>

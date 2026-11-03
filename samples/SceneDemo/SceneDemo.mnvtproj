@@ -9,5 +9,8 @@
     "vSync": true,
     "resizable": true
   },
-  "fixedTimestep": 0.016666668
+  "fixedTimestep": 0.016666668,
+  "scripts": {
+    "project": "Scripts/SceneDemo.Scripts.csproj"
+  }
 }

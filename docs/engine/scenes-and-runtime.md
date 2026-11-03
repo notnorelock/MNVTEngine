@@ -94,13 +94,13 @@ MyGame/
 
 ## Standalone runtime
 
-A game host is a few lines (see `samples/SceneDemo/Program.cs`):
+A game host is a few lines (see `src/Tooling/MNVTEngine.Player/Program.cs`):
 
 ```csharp
 return GameApplication.Run(args,
     (window, logger) => GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, logger),
     loggerFactory,
-    registry => registry.RegisterAssembly(typeof(Program).Assembly));
+    (project, registry) => LoadScripts(project, registry)); // false aborts startup (exit code 3)
 ```
 
 - **Project discovery:** the host uses the project path argument, or else the single `.mnvtproj` next to the executable.

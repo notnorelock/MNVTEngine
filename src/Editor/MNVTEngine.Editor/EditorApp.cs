@@ -36,6 +36,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private GameViewPanel _gameView = null!;
     private ProjectPanel _projectPanel = null!;
     private ConsolePanel _console = null!;
+    private ScriptReloadController _scripts = null!;
     private string _iniPath = "";
     private bool _resetLayout;
     private Action? _afterUnsavedPrompt;
@@ -46,6 +47,9 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private int _frames;
     private double _lastTick;
     private double _lastAssetRefresh;
+    private bool _playWhenScriptsReady;
+    private string? _startupScene;
+    private string? _selectOnStart;
     private string _lastAssetDiagnostics = "";
 
     public int ExitCode { get; private set; }
@@ -87,24 +91,17 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _console = new ConsolePanel(_context);
 
         LogAssetDiagnostics();
-        TryOpenScene(project.StartupScene);
+        _scripts = new ScriptReloadController(session, _context.PlayMode, loggerFactory.CreateLogger("Scripts"));
+
+        // Opened once the first script load settles, so components resolve to real types instead of MissingComponent.
+        _startupScene = project.StartupScene;
+        _scripts.Reloaded += _inspector.ClearCaches;
         window.CloseRequested = OnCloseRequested;
-        if (options.SelectOnStart is { } name)
-        {
-            // An object name in the startup scene, or an asset path.
-            if (_context.Session.Scene.Find(name) is { } gameObject)
-            {
-                _context.Session.Selection.Select(gameObject);
-            }
-            else if (_context.Session.Assets.TryGetGuid(name, out var asset))
-            {
-                _context.Session.Selection.SelectAsset(asset);
-            }
-        }
+        _selectOnStart = options.SelectOnStart;
 
         if (options.PlayOnStart)
         {
-            TogglePlay();
+            _playWhenScriptsReady = true;
         }
     }
 
@@ -116,6 +113,23 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     public void Update(FrameTime time)
     {
         RefreshAssetsPeriodically(time);
+        _scripts.Update(DateTime.UtcNow);
+        if (_startupScene is { } startup && !_scripts.IsBusy)
+        {
+            _startupScene = null;
+            TryOpenScene(startup);
+            if (_selectOnStart is { } name)
+            {
+                SelectByName(name);
+            }
+        }
+
+        if (_playWhenScriptsReady && _startupScene is null && _scripts.CanEnterPlayMode)
+        {
+            _playWhenScriptsReady = false;
+            TogglePlay();
+        }
+
         _context.ImGui.PruneDisposed();
         ImGuiInput.NewFrame(_context.Window, time.UnscaledDeltaTime);
         ImGui.NewFrame();
@@ -181,6 +195,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     {
         SaveLayout();
         _context.PlayMode.Stop();
+        _scripts.Dispose();
         _sceneView.Dispose();
         _gameView.Dispose();
         _context.ImGui.Dispose();
@@ -225,6 +240,19 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         foreach (var diagnostic in _context.Session.Assets.Diagnostics)
         {
             EditorLog.AssetDiagnostic(_logger, diagnostic.Severity == DiagnosticSeverity.Error ? LogLevel.Error : LogLevel.Warning, diagnostic.Path, diagnostic.Message);
+        }
+    }
+
+    /// <summary>Selects an object in the edit scene by name, or an asset by path.</summary>
+    private void SelectByName(string name)
+    {
+        if (_context.Session.Scene.Find(name) is { } gameObject)
+        {
+            _context.Session.Selection.Select(gameObject);
+        }
+        else if (_context.Session.Assets.TryGetGuid(name, out var asset))
+        {
+            _context.Session.Selection.SelectAsset(asset);
         }
     }
 
@@ -380,6 +408,23 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             ImGui.SameLine();
             Gui.Muted($"t = {play.Time.TotalTime:0.00}s  (changes made while playing are discarded on Stop)");
         }
+
+        ImGui.SameLine(ImGui.GetWindowWidth() - 300f);
+        var color = _scripts.State switch
+        {
+            ScriptState.Failed => new System.Numerics.Vector4(1f, 0.45f, 0.45f, 1f),
+            ScriptState.Compiling => new System.Numerics.Vector4(1f, 0.8f, 0.4f, 1f),
+            _ => new System.Numerics.Vector4(0.55f, 0.57f, 0.62f, 1f),
+        };
+        ImGui.TextColored(color, _scripts.StatusText);
+        if (_scripts.State != ScriptState.None)
+        {
+            ImGui.SameLine();
+            if (ImGui.SmallButton("Recompile"))
+            {
+                _scripts.Rebuild();
+            }
+        }
     }
 
     private void DrawDialogs()
@@ -513,6 +558,12 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         if (_context.PlayMode.IsPlaying)
         {
             _context.PlayMode.Stop();
+            return;
+        }
+
+        if (!_scripts.CanEnterPlayMode)
+        {
+            EditorLog.Warning(_logger, "Cannot enter Play Mode: " + _scripts.StatusText);
             return;
         }
 

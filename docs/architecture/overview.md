@@ -1,6 +1,6 @@
 # MNVTEngine Architecture Overview
 
-Status: **Milestone 4 (Asset Pipeline)** complete. This document is the source of truth for module boundaries.
+Status: **Milestone 5 (C# Game Scripting)** complete. This document is the source of truth for module boundaries.
 `tests/MNVTEngine.Architecture.Tests` enforces the rules below by reading the `.csproj` graph.
 
 ## Toolchain
@@ -59,6 +59,9 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.Assets** | M4 | GUID database, sidecar metas, importers, import cache, dependencies, safe asset paths | Serialization, Graphics (image decoding) |
 | MNVTEngine.Scripting | M6 | Language (lexer, parser, AST), compiler, bytecode, VM | Core only |
 | MNVTEngine.Scripting.Missions | M6 | Mission framework, persistence | Scripting, Serialization |
+| **MNVTEngine.GameAssemblies** | M5 | Collectible load contexts for game code, component discovery and registration, unload support (reflection cache release) | Scenes |
+| **MNVTEngine.Build** (Tooling) | M5 | Script compilation via `dotnet build`, diagnostics parsing, source stamps; later: packaging (M7) | GameAssemblies, Runtime |
+| **MNVTEngine.Player** (Tooling) | M5 | Development runner: compile scripts if stale, load, run any project | Build, Graphics.OpenGL |
 | **MNVTEngine.Editor.Services** | M3 | Session, selection, Play Mode, inspection, picking, gizmo math (no ImGui) | Runtime |
 | **MNVTEngine.Editor** | M3 | ImGui backend, docked workspace, panels, dialogs (exe) | Editor.Services, Graphics.OpenGL, ImGui.NET |
 | MNVTEngine.Build / CLI | M7 | Project build, packaging, `mnvt` command | engine + Assets, never Editor |
@@ -107,6 +110,8 @@ Deviations from the original proposal, and why:
 | Asset identity | Sidecar `.meta` with GUID; references are `"asset:<guid>"` | Renames/moves never break references; metas are diffable and merge-friendly. See [assets](../engine/assets.md) |
 | Scenes vs assets | Scenes depend only on `IAssetLookup` (Serialization); `Assets` does not know about scenes | Asset database stays usable by tooling without the gameplay model |
 | Prefabs | Unlinked copies with id remapping | Correct and simple; nested/override prefabs deferred |
+| C# game code | Separate class library compiled with `dotnet build`, loaded from bytes into a collectible ALC; host assemblies always shared | Real C# tooling and debugging; no file locks; game code cannot shadow the engine. See [C# scripting](../engine/csharp-scripting.md) |
+| Hot reload | Serialize scene, swap types, deserialize, unload, verify collection | Same path as save/load, so anything that persists survives reload |
 
 ## Technical risks
 
@@ -115,7 +120,7 @@ Deviations from the original proposal, and why:
 | .NET 11 is a release candidate | API or tooling changes before GA | `global.json` rolls forward to GA; CI should pin once GA ships |
 | ImGui.NET (1.91.6.1) is updated infrequently | Docking API or native binary gaps | Verified at M3: docking works; DockBuilder (not wrapped) is bound via P/Invoke to cimgui. Hexa.NET.ImGui remains the fallback; all ImGui use is in the Editor exe |
 | Silk.NET 2.x vs 3.0 transition | API churn | Pinned 2.23.0; Silk types do not appear in Graphics or gameplay-facing input APIs |
-| Newtonsoft.Json caches contracts per `Type` | Blocks unloading collectible game-script `AssemblyLoadContext`s (M5) | Use a per-load-context `JsonSerializer`/contract resolver and drop it on reload; verify unload with a `WeakReference` test |
+| Newtonsoft.Json static reflection caches | Confirmed at M5 to pin unloaded game code | Per-operation contract resolvers plus `ReflectionCacheCleaner` clearing Newtonsoft's internal stores on unload; tests verify collection and fail if Newtonsoft internals change |
 | Native deps in self-contained publish | GLFW/OpenAL natives not always copied | Explicit packaging step and a build test that launches the exported game (M7) |
 | Physics scope | Custom solver is a large effort | Decide at M8: simple custom impulse solver for AABB/circle vs. integrating a permissively licensed Box2D port |
 | OpenGL integration tests | CI agents may lack a GL context | Separate test category requiring a GPU; unit tests stay GL-free |

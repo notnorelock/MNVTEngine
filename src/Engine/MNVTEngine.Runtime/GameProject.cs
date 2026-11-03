@@ -5,6 +5,12 @@ using Newtonsoft.Json.Linq;
 
 namespace MNVTEngine.Runtime;
 
+public sealed class ScriptSettings
+{
+    /// <summary>C# class library with the game's components, relative to the project root, e.g. "Scripts/MyGame.Scripts.csproj".</summary>
+    public string? Project { get; set; }
+}
+
 public sealed class WindowSettings
 {
     /// <summary>Defaults to the project name.</summary>
@@ -38,6 +44,9 @@ public sealed class GameProject
     public WindowSettings Window { get; set; } = new();
 
     public float FixedTimestep { get; set; } = 1f / 60f;
+
+    /// <summary>Optional C# game code; null when the game uses only built-in components.</summary>
+    public ScriptSettings? Scripts { get; set; }
 
     [JsonIgnore]
     public string RootDirectory { get; private set; } = "";
@@ -101,6 +110,10 @@ public sealed class GameProject
     /// <exception cref="ArgumentException">The path is absolute or escapes the Assets folder.</exception>
     public string ResolveAsset(string relativePath) => AssetPaths.Resolve(AssetsDirectory, relativePath);
 
+    /// <summary>Resolves a path relative to the project root, refusing anything outside it.</summary>
+    /// <exception cref="ArgumentException">The path is absolute or escapes the project folder.</exception>
+    public string ResolveProjectFile(string relativePath) => AssetPaths.Resolve(RootDirectory, relativePath);
+
     private void Validate(List<SerializationDiagnostic> diagnostics)
     {
         void Error(string path, string message) => diagnostics.Add(new SerializationDiagnostic(DiagnosticSeverity.Error, path, message));
@@ -118,6 +131,21 @@ public sealed class GameProject
         if (Window.Width <= 0 || Window.Height <= 0)
         {
             Error("window", "Window size must be positive.");
+        }
+
+        if (Scripts?.Project is { Length: > 0 } scripts)
+        {
+            try
+            {
+                if (!File.Exists(ResolveProjectFile(scripts)))
+                {
+                    Error("scripts.project", $"Scripts project '{scripts}' not found.");
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                Error("scripts.project", ex.Message);
+            }
         }
 
         try

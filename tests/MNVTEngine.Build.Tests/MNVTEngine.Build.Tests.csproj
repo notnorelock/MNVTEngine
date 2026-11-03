@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Integration tests: compile real game code with the .NET SDK (slow, ~10 s per build). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Tooling\MNVTEngine.Build\MNVTEngine.Build.csproj" />
+  </ItemGroup>
+</Project>

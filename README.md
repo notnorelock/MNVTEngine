@@ -3,9 +3,9 @@
 A modular 2D game engine in C# / .NET 11: OpenGL 4.5 renderer (Silk.NET), ImGui.NET editor, hybrid ECS,
 asset pipeline, the `.mnvts` gameplay scripting language with its own bytecode VM, and standalone game export.
 
-**Status: Milestone 4 (Asset Pipeline).** GUID-based assets with `.meta` files, importers with import
-settings, dependency tracking and prefabs, on top of the editor (Milestone 3) and standalone runtime
-(Milestone 2). C# game scripting with reload comes next.
+**Status: Milestone 5 (C# Game Scripting).** Game components live in a C# class library that the editor
+compiles in the background and hot-reloads (collectible load contexts, data preserved, unload verified).
+The `.mnvts` gameplay language and VM come next.
 
 ## Requirements
 
@@ -22,8 +22,8 @@ dotnet test --solution MNVTEngine.sln
 ## Run the samples
 
 ```bash
-# A data-driven game project: scenes in Assets/Scenes, components in Scripts/
-dotnet run --project samples/SceneDemo/SceneDemo.csproj
+# A game project: scenes in Assets/Scenes, C# components in Scripts/ (compiled on first run)
+dotnet run --project src/Tooling/MNVTEngine.Player -- samples/SceneDemo
 
 dotnet run --project samples/HelloWorld
 # Automated: render 120 frames, save a screenshot, exit
@@ -36,11 +36,10 @@ HelloWorld: WASD/arrows move, mouse wheel zooms, Q/E rotate the camera, Escape q
 ## Run the editor
 
 ```bash
-dotnet build samples/SceneDemo/SceneDemo.csproj
-dotnet run --project src/Editor/MNVTEngine.Editor -- samples/SceneDemo --scripts samples/SceneDemo/bin/Debug/net11.0/SceneDemo.dll
+dotnet run --project src/Editor/MNVTEngine.Editor -- samples/SceneDemo
 ```
 
-See [the editor guide](docs/editor/editor.md) for controls.
+See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/SceneDemo/Scripts/*.cs` while the editor runs to see hot reload.
 
 ## Layout
 
@@ -48,7 +47,7 @@ See [the editor guide](docs/editor/editor.md) for controls.
 |---|---|
 | `src/Engine` | Runtime engine modules (`Core`, `Mathematics`, `Serialization`, ...) |
 | `src/Editor` | Editor: UI-free services and the ImGui application |
-| `src/Tooling` | CLI, build and packaging (Milestone 7) |
+| `src/Tooling` | Script compilation (`Build`), development runner (`Player`); CLI and packaging in Milestone 7 |
 | `samples` | Runnable sample games |
 | `tests` | xUnit v3 tests, including architecture dependency rules and GPU integration tests |
 | `docs` | Architecture and subsystem documentation |
@@ -62,6 +61,7 @@ See [the editor guide](docs/editor/editor.md) for controls.
 - [Scenes, ECS, lifecycle, scene format, standalone runtime](docs/engine/scenes-and-runtime.md)
 - [Editor: panels, Play Mode, ImGui integration](docs/editor/editor.md)
 - [Assets: metas, GUIDs, importers, prefabs](docs/engine/assets.md)
+- [C# scripting: game assemblies, hot reload, unloading](docs/engine/csharp-scripting.md)
 
 ## Roadmap
 
@@ -72,7 +72,7 @@ See [the editor guide](docs/editor/editor.md) for controls.
 | 2 | Hybrid ECS, GameObject API, scenes, standalone runtime | done |
 | 3 | ImGui editor, Play Mode | done |
 | 4 | Asset pipeline with stable GUIDs | done |
-| 5 | C# game scripting via AssemblyLoadContext | next |
-| 6 | `.mnvts` language, compiler, VM, mission framework | |
+| 5 | C# game scripting via AssemblyLoadContext | done |
+| 6 | `.mnvts` language, compiler, VM, mission framework | next |
 | 7 | Build and Windows x64 packaging | |
 | 8 | Physics2D, audio, animation, tilemaps, 2D beta | |
