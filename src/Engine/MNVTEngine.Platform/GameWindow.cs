@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using MNVTEngine.Core.Timing;
-using MNVTEngine.Platform.Input;
 using Silk.NET.Core.Contexts;
 using Silk.NET.Input;
 using Silk.NET.Input.Glfw;

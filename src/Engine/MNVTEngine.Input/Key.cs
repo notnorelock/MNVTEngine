@@ -1,4 +1,4 @@
-namespace MNVTEngine.Platform.Input;
+namespace MNVTEngine;
 
 /// <summary>Physical keyboard keys (US layout names). Names match Silk.NET's key names so the mapping is by name.</summary>
 public enum Key

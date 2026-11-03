@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Gameplay-facing types (GameObject, Component, Transform, Time, Input) live in the root MNVTEngine namespace. -->
+    <RootNamespace>MNVTEngine</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.ECS\MNVTEngine.ECS.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Input\MNVTEngine.Input.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Serialization\MNVTEngine.Serialization.csproj" />
+  </ItemGroup>
+</Project>

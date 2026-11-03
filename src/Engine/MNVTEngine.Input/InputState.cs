@@ -1,6 +1,6 @@
 using MNVTEngine.Mathematics;
 
-namespace MNVTEngine.Platform.Input;
+namespace MNVTEngine;
 
 /// <summary>
 /// Per-frame keyboard and mouse state fed by the platform backend. "Pressed" and "Released" are edges

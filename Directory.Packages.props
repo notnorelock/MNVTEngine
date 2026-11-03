@@ -10,6 +10,7 @@
     <PackageVersion Include="Silk.NET.Windowing.Glfw" Version="2.23.0" />
     <PackageVersion Include="StbImageSharp" Version="2.30.16" />
     <!-- Samples and tests -->
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.14" />
     <PackageVersion Include="StbImageWriteSharp" Version="1.16.7" />
     <!-- Tests -->

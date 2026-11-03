@@ -1,5 +1,4 @@
 using MNVTEngine.Mathematics;
-using MNVTEngine.Platform.Input;
 
 namespace MNVTEngine.Platform.Tests;
 

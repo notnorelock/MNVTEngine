@@ -4,7 +4,6 @@ using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.OpenGL;
 using MNVTEngine.Mathematics;
 using MNVTEngine.Platform;
-using MNVTEngine.Platform.Input;
 
 namespace MNVTEngine.Samples.HelloWorld;
 

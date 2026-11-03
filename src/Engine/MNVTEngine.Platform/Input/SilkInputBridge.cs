@@ -1,9 +1,11 @@
 using MNVTEngine.Mathematics;
 using Silk.NET.Input;
+using Key = MNVTEngine.Key;
+using MouseButton = MNVTEngine.MouseButton;
 using SilkKey = Silk.NET.Input.Key;
 using SilkMouseButton = Silk.NET.Input.MouseButton;
 
-namespace MNVTEngine.Platform.Input;
+namespace MNVTEngine.Platform;
 
 /// <summary>Forwards Silk.NET device events into an <see cref="InputState"/>.</summary>
 internal sealed class SilkInputBridge : IDisposable

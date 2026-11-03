@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Core\MNVTEngine.Core.csproj" />
+  </ItemGroup>
+</Project>

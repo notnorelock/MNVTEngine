@@ -31,6 +31,9 @@ public class DependencyRuleTests
         Assert.Empty(dangling);
     }
 
+    [Fact]
+    public void Input_DependsOnlyOnMathematics() => Assert.Equal(["MNVTEngine.Mathematics"], Graph["MNVTEngine.Input"].ProjectReferences);
+
     [Theory]
     [InlineData("MNVTEngine.Core")]
     [InlineData("MNVTEngine.Mathematics")]
@@ -78,7 +81,7 @@ public class DependencyRuleTests
     [Fact]
     public void OnlyPlatformBackends_ReferenceSilkNetDirectly()
     {
-        string[] allowed = ["MNVTEngine.Graphics.OpenGL", "MNVTEngine.Platform", "MNVTEngine.Windowing", "MNVTEngine.Input", "MNVTEngine.Audio"];
+        string[] allowed = ["MNVTEngine.Graphics.OpenGL", "MNVTEngine.Platform", "MNVTEngine.Windowing", "MNVTEngine.Audio"];
         var violations = Graph.Projects
             .Where(p => p.Area == "Engine" && !allowed.Contains(p.Name))
             .Where(p => p.Packages.Any(pkg => GraphicsBackendPackages.Any(b => pkg.StartsWith(b, StringComparison.OrdinalIgnoreCase))))
@@ -92,6 +95,10 @@ public class DependencyRuleTests
     [InlineData("MNVTEngine.Graphics", "MNVTEngine.Platform")]
     [InlineData("MNVTEngine.Graphics.OpenGL", "MNVTEngine.Platform")]
     [InlineData("MNVTEngine.Platform", "MNVTEngine.Graphics")]
+    [InlineData("MNVTEngine.Scenes", "MNVTEngine.Graphics")]
+    [InlineData("MNVTEngine.Scenes", "MNVTEngine.Platform")]
+    [InlineData("MNVTEngine.ECS", "MNVTEngine.Scenes")]
+    [InlineData("MNVTEngine.Input", "MNVTEngine.Platform")]
     [InlineData("MNVTEngine.Mathematics", "MNVTEngine.Graphics")]
     [InlineData("MNVTEngine.Runtime", "MNVTEngine.Graphics.OpenGL")]
     [InlineData("MNVTEngine.Scripting", "MNVTEngine.Graphics")]

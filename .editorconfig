@@ -23,6 +23,11 @@ dotnet_sort_system_directives_first = true
 # Graphics and scripting enums legitimately name primitive types (Float, Int).
 dotnet_diagnostic.CA1720.severity = none
 dotnet_style_qualification_for_field = false:suggestion
+dotnet_naming_rule.constants_pascal.symbols = constant_fields
+dotnet_naming_rule.constants_pascal.style = pascal
+dotnet_naming_rule.constants_pascal.severity = warning
+dotnet_naming_symbols.constant_fields.applicable_kinds = field
+dotnet_naming_symbols.constant_fields.required_modifiers = const
 dotnet_naming_rule.static_readonly_pascal.symbols = static_readonly_fields
 dotnet_naming_rule.static_readonly_pascal.style = pascal
 dotnet_naming_rule.static_readonly_pascal.severity = warning
@@ -42,6 +47,10 @@ dotnet_naming_style.underscore_camel.required_prefix = _
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1848.severity = none
 dotnet_diagnostic.CA1873.severity = none
+# Components use public fields as their serialized, inspector-visible state.
+dotnet_diagnostic.CA1051.severity = none
+# Tests exercise the System.Type overloads deliberately.
+dotnet_diagnostic.CA2263.severity = none
 
 # Math value types expose mutable public fields by design (component access, GPU-compatible layout).
 [src/Engine/MNVTEngine.Mathematics/**.cs]
@@ -52,3 +61,4 @@ dotnet_diagnostic.CA1051.severity = none
 dotnet_diagnostic.CA1848.severity = none
 dotnet_diagnostic.CA1873.severity = none
 dotnet_diagnostic.CA1001.severity = none
+dotnet_diagnostic.CA1051.severity = none

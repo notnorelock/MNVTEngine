@@ -1,6 +1,6 @@
 # MNVTEngine Architecture Overview
 
-Status: **Milestone 1 (Graphics Foundation)** complete. This document is the source of truth for module boundaries.
+Status: **Milestone 2 (Runtime and Scenes)** complete. This document is the source of truth for module boundaries.
 `tests/MNVTEngine.Architecture.Tests` enforces the rules below by reading the `.csproj` graph.
 
 ## Toolchain
@@ -52,9 +52,10 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.Graphics** | M1 | Renderer2D, SpriteBatch, Camera2D, materials, resources, image decoding (no GL types) | Core, Mathematics, StbImageSharp |
 | **MNVTEngine.Graphics.OpenGL** | M1 | GL 4.5 implementation of Graphics | Graphics, Silk.NET.OpenGL |
 | **MNVTEngine.Platform** | M1 | Window, GL context, input state, frame loop (Silk.NET GLFW) | Core, Mathematics |
-| MNVTEngine.ECS | M2 | Entity storage, component pools, queries, systems | Core |
-| MNVTEngine.Scene | M2 | GameObject/Component API, Transform hierarchy, scene lifecycle and serialization | ECS, Serialization |
-| MNVTEngine.Runtime | M2 | Game host loop wiring platform + graphics + scene | everything engine-side except Editor/Tooling |
+| **MNVTEngine.ECS** | M2 | Entity storage, component pools, queries, systems | Core |
+| **MNVTEngine.Input** | M2 | Backend-free input state, keys, axes | Mathematics |
+| **MNVTEngine.Scenes** | M2 | GameObject/Component API, Transform hierarchy, lifecycle, Time/Input facades, scene serialization | ECS, Input, Serialization |
+| **MNVTEngine.Runtime** | M2 | Project file, resource cache, scene renderer, standalone game loop; backend injected by the host | Graphics, Platform, Scenes |
 | MNVTEngine.Assets | M4 | GUID database, importers, metadata | Serialization |
 | MNVTEngine.Scripting | M6 | Language (lexer, parser, AST), compiler, bytecode, VM | Core only |
 | MNVTEngine.Scripting.Missions | M6 | Mission framework, persistence | Scripting, Serialization |
@@ -63,7 +64,8 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 
 Deviations from the original proposal, and why:
 
-- **Windowing + Input merged into `Platform`.** Both come from the same Silk.NET window object and lifetime; splitting them creates an interface layer with one implementation.
+- **Windowing lives in `Platform`; device-level input state is its own small `Input` project.** The GLFW bridge stays in Platform, while `InputState`/`Key` are backend-free so the gameplay `Input` facade in Scenes needs no window dependency (moved in M2).
+- **`Scene` project is named `MNVTEngine.Scenes`.** A project named `MNVTEngine.Scene` makes tooling generate the namespace `MNVTEngine.Scene`, which collides with the `MNVTEngine.Scene` type for every consumer.
 - **Scripting.Language/Compiler/VM start as one project** with folders. The editor reuses the compiler through its public API; the VM's isolation from graphics is enforced by the architecture tests, not by assembly count. Split later if build times or ownership require it.
 - **No separate `Resources` or `Diagnostics` projects yet.** Resource lifetime belongs with Graphics/Assets; diagnostics types live in Core until there is more than a handful.
 - The architecture tests already contain rules for the original names (`Windowing`, `Input`, `Scripting.VM`, ...) so the boundary is protected whichever split is chosen.
@@ -78,6 +80,7 @@ Deviations from the original proposal, and why:
 6. Only platform backends reference Silk.NET packages directly.
 7. Graphics never references Graphics.OpenGL; Runtime never references Graphics.OpenGL directly (backend chosen at the host).
    Graphics and Platform never reference each other, and Graphics.OpenGL never references Platform; the host wires them.
+   Scenes never references Graphics or Platform; ECS never references Scenes; Input depends only on Mathematics.
 8. Scripting projects and Physics2D never reference Graphics, OpenGL or ImGui.
 
 ## Key decisions
@@ -94,6 +97,9 @@ Deviations from the original proposal, and why:
 | GPU API | OpenGL 4.5 DSA only, single graphics thread | No bind-to-edit state bugs; simple ownership. See [rendering](../graphics/rendering.md) |
 | Resource lifetime | Explicit `Dispose`, tracker per device, no finalizers | GL objects cannot be freed off-thread; leaks are reported, not hidden |
 | Input | Engine-owned `Key` enum mapped by name from Silk.NET | Gameplay code never sees backend types |
+| Hybrid ECS | GameObjects are entities; object components live in world pools by concrete type; one component per type per object | Systems query scripts and data alike; see [scenes](../engine/scenes-and-runtime.md) |
+| Gameplay facades | `Time`/`Input`/`SceneManager` statics backed by a thread-static current scene | Unity-like ergonomics without cross-scene global state |
+| Script exceptions | Logged with context, frame continues | One broken script does not take down the game |
 
 ## Technical risks
 
