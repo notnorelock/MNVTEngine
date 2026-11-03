@@ -4,8 +4,8 @@ A modular 2D game engine in C# / .NET 11: OpenGL 4.5 renderer (Silk.NET), ImGui.
 asset pipeline, the `.mnvts` gameplay scripting language with its own bytecode VM, and standalone game export.
 
 **Status: Milestone 7 (build and Windows x64 packaging).** The `mnvt` command creates, validates, runs and exports
-projects. `mnvt build` produces a self-contained Windows x64 game folder that needs no .NET SDK, no installed runtime
-and no editor. Gameplay and missions can be written in `.mnvts` (Milestone 6) and C# components (Milestone 5).
+projects. `mnvt build` produces a Windows x64 game folder (`Game.exe`, `Dependencies/Managed|Native|Runtime`,
+encrypted `Game_Data/content.mnvtpak`) that needs no .NET SDK, no installed runtime and no editor. Gameplay and missions can be written in `.mnvts` (Milestone 6) and C# components (Milestone 5).
 
 ## Requirements
 

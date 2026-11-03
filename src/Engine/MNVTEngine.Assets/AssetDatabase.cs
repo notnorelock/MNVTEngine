@@ -10,11 +10,18 @@ namespace MNVTEngine.Assets;
 /// GUID-based index of a project's Assets folder. Every asset file has a sidecar <c>&lt;file&gt;.meta</c> holding its GUID and
 /// import settings; the GUID is the asset's identity, independent of its path. In editing mode the database creates
 /// missing metas, imports changed files (by size/time, then content hash, settings and importer version) and caches
-/// results in <c>Library/AssetDatabase.json</c>. Read-only mode (standalone games) never writes and only reads metas.
+/// results in <c>Library/AssetDatabase.json</c>. Read-only mode never writes and only reads metas. Packaged mode
+/// (exported games) reads the index and the asset data from an encrypted <see cref="ContentArchive"/>.
 /// </summary>
 public sealed class AssetDatabase : IAssetLookup
 {
     public const string MetaExtension = ".meta";
+
+    /// <summary>Archive entry with the asset index of an exported game.</summary>
+    public const string IndexEntry = "assets.json";
+
+    /// <summary>Archive folder holding the assets of an exported game.</summary>
+    public const string AssetsEntryFolder = "Assets/";
     private const int MetaSchemaVersion = 1;
     private const int CacheSchemaVersion = 1;
 
@@ -25,10 +32,11 @@ public sealed class AssetDatabase : IAssetLookup
     private Dictionary<Guid, JObject> _settings = [];
     private Dictionary<string, Guid> _byPath = new(AssetPaths.Comparer);
     private List<SerializationDiagnostic> _diagnostics = [];
+    private ContentArchive? _archive;
 
     private AssetDatabase(string assetsDirectory, string? libraryDirectory, IEnumerable<IAssetImporter> importers)
     {
-        _assetsDirectory = Path.GetFullPath(assetsDirectory);
+        _assetsDirectory = assetsDirectory.Length > 0 ? Path.GetFullPath(assetsDirectory) : "";
         _cachePath = libraryDirectory is null ? null : Path.Combine(libraryDirectory, "AssetDatabase.json");
         foreach (var importer in importers)
         {
@@ -69,6 +77,92 @@ public sealed class AssetDatabase : IAssetLookup
         return database;
     }
 
+    /// <summary>Packaged mode: the asset index and data come from <paramref name="archive"/> (written by <c>mnvt build</c>).</summary>
+    /// <exception cref="InvalidDataException">The index is missing, damaged or from a newer engine.</exception>
+    public static AssetDatabase OpenPackaged(ContentArchive archive)
+    {
+        ArgumentNullException.ThrowIfNull(archive);
+        var database = new AssetDatabase("", null, []) { _archive = archive };
+        JObject index;
+        try
+        {
+            index = JObject.Parse(System.Text.Encoding.UTF8.GetString(archive.Read(IndexEntry)));
+        }
+        catch (Exception ex) when (ex is JsonException or FileNotFoundException)
+        {
+            throw new InvalidDataException($"The game's asset index is unreadable: {ex.Message}", ex);
+        }
+
+        if (index.Value<int?>("schemaVersion") != MetaSchemaVersion || index["assets"] is not JArray assets)
+        {
+            throw new InvalidDataException("The game's asset index has an unsupported format.");
+        }
+
+        foreach (var item in assets.OfType<JObject>())
+        {
+            var record = new AssetRecord
+            {
+                Guid = Guid.Parse(item.Value<string>("guid")!),
+                Path = item.Value<string>("path")!,
+                Type = item.Value<string>("type") ?? AssetTypes.Unknown,
+                Importer = item.Value<string>("importer"),
+                Status = AssetImportStatus.Imported,
+            };
+            record.Path = AssetPaths.Canonical(record.Path); // refuses absolute or escaping paths
+            database._records[record.Guid] = record;
+            database._settings[record.Guid] = item["settings"] as JObject ?? [];
+        }
+
+        database._byPath = database._records.Values.ToDictionary(r => r.Path, r => r.Guid, AssetPaths.Comparer);
+        return database;
+    }
+
+    /// <summary>The index an exported game opens with <see cref="OpenPackaged"/>: GUID, path, type and settings of every asset.</summary>
+    public JObject ExportIndex() => new()
+    {
+        ["schemaVersion"] = MetaSchemaVersion,
+        ["assets"] = new JArray(_records.Values.OrderBy(r => r.Path, StringComparer.Ordinal).Select(r => new JObject
+        {
+            ["guid"] = r.Guid.ToString("D"),
+            ["path"] = r.Path,
+            ["type"] = r.Type,
+            ["importer"] = r.Importer,
+            ["settings"] = GetSettings(r.Guid),
+        })),
+    };
+
+    /// <summary>True for exported games, whose assets live in a <see cref="ContentArchive"/>.</summary>
+    public bool IsPackaged => _archive is not null;
+
+    /// <exception cref="KeyNotFoundException">Unknown asset.</exception>
+    /// <exception cref="IOException">The file or archive entry cannot be read.</exception>
+    /// <exception cref="InvalidDataException">The archive entry was modified or is damaged.</exception>
+    public byte[] ReadAllBytes(Guid guid) => TryGetPath(guid, out var path)
+        ? ReadAllBytes(path)
+        : throw new KeyNotFoundException($"Asset {guid} is not in the database.");
+
+    /// <summary>Reads a file by its path relative to Assets (also files without a GUID, in development).</summary>
+    /// <exception cref="ArgumentException">The path is absolute or escapes the Assets folder.</exception>
+    /// <exception cref="IOException">The file or archive entry cannot be read.</exception>
+    /// <exception cref="InvalidDataException">The archive entry was modified or is damaged.</exception>
+    public byte[] ReadAllBytes(string relativePath)
+    {
+        if (_archive is null)
+        {
+            return File.ReadAllBytes(AssetPaths.Resolve(_assetsDirectory, relativePath));
+        }
+
+        return _archive.Read(AssetsEntryFolder + AssetPaths.Canonical(relativePath));
+    }
+
+    /// <summary>Archive entry with the build-time compiled form of an asset (e.g. script bytecode).</summary>
+    public static string CompiledEntry(Guid guid) => $"Bytecode/{guid:D}.mnvtb";
+
+    /// <summary>The asset's build-time compiled form in exported games; null in development (compile the source).</summary>
+    /// <exception cref="FileNotFoundException">Packaged game without a compiled form of this asset.</exception>
+    /// <exception cref="InvalidDataException">The archive entry was modified or is damaged.</exception>
+    public byte[]? ReadCompiled(Guid guid) => _archive?.Read(CompiledEntry(guid));
+
     public bool TryGetGuid(string relativePath, out Guid guid)
     {
         guid = Guid.Empty;
@@ -92,7 +186,10 @@ public sealed class AssetDatabase : IAssetLookup
 
     public AssetRecord? Get(Guid guid) => _records.GetValueOrDefault(guid);
 
-    public string FullPath(Guid guid) => TryGetPath(guid, out var path)
+    /// <exception cref="InvalidOperationException">Packaged games have no asset files; use <see cref="ReadAllBytes(Guid)"/>.</exception>
+    public string FullPath(Guid guid) => _archive is not null
+        ? throw new InvalidOperationException("Exported games have no asset files; read assets with ReadAllBytes.")
+        : TryGetPath(guid, out var path)
         ? AssetPaths.Resolve(_assetsDirectory, path)
         : throw new KeyNotFoundException($"Asset {guid} is not in the database.");
 
@@ -127,6 +224,11 @@ public sealed class AssetDatabase : IAssetLookup
     /// <summary>Rescans the Assets folder. Unchanged files are not re-read; changed ones are reimported.</summary>
     public AssetRefreshResult Refresh()
     {
+        if (_archive is not null)
+        {
+            return new AssetRefreshResult([], [], [], []); // packaged content never changes
+        }
+
         var diagnostics = new List<SerializationDiagnostic>();
         var previous = _records;
         var records = new Dictionary<Guid, AssetRecord>();

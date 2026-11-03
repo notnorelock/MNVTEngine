@@ -57,17 +57,31 @@ public sealed class GameAssemblyHost
     public GameCodeLoadResult Load(string assemblyPath)
     {
         ArgumentException.ThrowIfNullOrEmpty(assemblyPath);
-        var diagnostics = new List<ScriptDiagnostic>();
         var context = new GameAssemblyLoadContext($"GameCode#{++_generation}", Path.GetDirectoryName(Path.GetFullPath(assemblyPath))!);
+        return Load(context, () => context.LoadFromFileBytes(assemblyPath), assemblyPath);
+    }
+
+    /// <summary>Loads game code from any source (exported games: the content archive) as the new current generation.</summary>
+    /// <param name="readFile">Returns a file's bytes by file name (main assembly, dependencies, .pdb), or null.</param>
+    public GameCodeLoadResult Load(string mainFileName, Func<string, byte[]?> readFile)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(mainFileName);
+        var context = new GameAssemblyLoadContext($"GameCode#{++_generation}", readFile);
+        return Load(context, () => context.LoadByFileName(mainFileName), mainFileName);
+    }
+
+    private GameCodeLoadResult Load(GameAssemblyLoadContext context, Func<Assembly> loadMain, string source)
+    {
+        var diagnostics = new List<ScriptDiagnostic>();
         Assembly main;
         try
         {
-            main = context.LoadFromFileBytes(assemblyPath);
+            main = loadMain();
         }
-        catch (Exception ex) when (ex is IOException or BadImageFormatException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or BadImageFormatException or UnauthorizedAccessException or InvalidDataException)
         {
             context.Unload();
-            diagnostics.Add(new ScriptDiagnostic(ScriptDiagnosticSeverity.Error, "LOAD001", $"Cannot load '{assemblyPath}': {ex.Message}"));
+            diagnostics.Add(new ScriptDiagnostic(ScriptDiagnosticSeverity.Error, "LOAD001", $"Cannot load '{source}': {ex.Message}"));
             return new GameCodeLoadResult(null, diagnostics);
         }
 

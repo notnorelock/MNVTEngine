@@ -30,6 +30,12 @@ public static class AssetPaths
     public static string Normalize(string assetsDirectory, string relativePath) =>
         ToRelative(assetsDirectory, Resolve(assetsDirectory, relativePath));
 
+    /// <summary>Canonical relative form of a path that has no folder on disk (packaged content), with the same checks as <see cref="Resolve"/>.</summary>
+    /// <exception cref="ArgumentException">Empty, rooted, or escaping path.</exception>
+    public static string Canonical(string relativePath) => Normalize(VirtualRoot, relativePath);
+
+    private static readonly string VirtualRoot = Path.Combine(Path.GetTempPath(), "mnvt-virtual-root");
+
     /// <summary>Converts a full path under <paramref name="assetsDirectory"/> to the canonical relative form.</summary>
     public static string ToRelative(string assetsDirectory, string fullPath) =>
         Path.GetRelativePath(Path.GetFullPath(assetsDirectory), Path.GetFullPath(fullPath)).Replace(Path.DirectorySeparatorChar, '/');

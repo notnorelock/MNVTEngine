@@ -73,48 +73,72 @@ The steps run in this order. Every step reports diagnostics as `file(line,col): 
 
 1. **Project.** Loads and validates the project file and its profiles, then checks the output folder.
    The build refuses output folders that overlap the project, `Assets` or `Library`. It also refuses non-empty folders that do not contain a previous build, so a typo in `--output` cannot delete your files.
+   It also loads the content key from `Settings/content.key` (see [Content encryption](#content-encryption)).
 2. **C# scripts.** `dotnet build -c <configuration>` into `Library/Build/<profile>/Scripts`. The compiled components are loaded so that scenes can be checked against them, then unloaded.
 3. **Content** (`ContentCompiler`). Assets are opened **read-only**, so a build never writes metas or caches into the project. Then:
    - Every importer runs: images are decoded, JSON is parsed, and so on.
    - Every `.mnvts` script is compiled strictly against the full runtime API. In the editor an unknown API function is only a warning; in a build it is an error (`MNV3014`), because the game would fail to link.
    - Every scene and prefab is loaded with the game's components.
    - Every asset reference must point to an asset in the project.
-   - The content is written out: assets with their `.meta` files (so GUID references stay valid), bytecode per script GUID, and the project file without its development-only settings (`scripts`, `buildProfiles`).
-4. **Host** (`GamePackager`). Runs `dotnet publish` on `src/Engine/MNVTEngine.GameHost` with `--self-contained`, the profile's RID, and `--artifacts-path Library/Build/<profile>/artifacts`. The artifacts path keeps builds separate from each other and from the engine's own `bin`/`obj`.
-   The host is renamed to the game (`-p:MnvtGameName`), and Release builds ship no `.pdb` files.
-   The game's C# assemblies are copied into `Content/Scripts`, except assemblies the host already ships, because the host's copy is always used at run time.
-5. **Manifest.** Writes `Content/package.json`: name, profile, configuration, target, engine version, the scripts assembly, and the size and SHA-256 of every file.
-6. **Validation** (`BuildValidator`). Validates the staged package (see [Validation](#validation)).
-7. **Output.** Only now is the previous build replaced: the staged package is moved into the output folder. A failed build leaves the last good build untouched.
+   - Everything is written into the encrypted content archive: the asset index (GUID, path, type and import settings of every asset, so GUID references stay valid), every asset, bytecode per script GUID, and the project file without its development-only settings (`scripts`, `buildProfiles`).
+4. **Host** (`GamePackager`). Runs `dotnet publish` on `src/Engine/MNVTEngine.GameHost` for the profile's RID with `--artifacts-path Library/Build/<profile>/artifacts`, which keeps builds separate from each other and from the engine's own `bin`/`obj`.
+   - The host is renamed to the game (`-p:MnvtGameName`) and carries the content key (`-p:MnvtContentKey`). Release builds ship no `.pdb` files.
+   - Publishing also copies a private .NET runtime from the runtime pack into `Dependencies/Runtime`.
+   - The packager then moves every other managed assembly to `Dependencies/Managed` and every native library to `Dependencies/Native`, and removes `deps.json`.
+   - The game's C# assemblies go into the archive under `Scripts/`, except assemblies the host already ships, because the host's copy is always used at run time.
+5. **Manifest.** Writes `<Game>_Data/package.json`: name, profile, configuration, target, engine version, the scripts assembly, and the size and SHA-256 of every file.
+6. **Validation** (`BuildValidator`). Validates the staged game (see [Validation](#validation)).
+7. **Output.** The previous build is first moved aside in one step, which fails cleanly if a file in it is in use (the game is running, or a terminal is open in the folder). Then the staged game is moved in, and the previous build is deleted. If anything fails, the previous build is put back.
 8. **Test run** (`--run [N]`, optional). Starts the exported game for N frames. The game must exit with code 0.
 
 ## Output layout
 
 ```text
 Builds/release/
-├── MyGame.exe               apphost; double-click to play
-├── MyGame.dll               the game host (MNVTEngine.GameHost renamed)
-├── MyGame.runtimeconfig.json / MyGame.deps.json
-├── MNVTEngine.*.dll         engine runtime assemblies (no editor, no build tooling)
-├── Newtonsoft.Json.dll, Silk.NET.*.dll, StbImage*.dll
-├── glfw3.dll                native windowing library
-├── coreclr.dll, System.*.dll, ...   the .NET runtime (self-contained)
-├── Logs/game.log            written at run time
-└── Content/
-    ├── package.json         manifest with file hashes
-    ├── MyGame.mnvtproj      project settings (window, startup scene, timestep)
-    ├── Assets/...           scenes, prefabs, textures, scripts, each with its .meta
-    ├── Bytecode/<guid>.mnvtb  verified .mnvts bytecode, run instead of the source
-    └── Scripts/MyGame.Scripts.dll   C# game code (plus .pdb in Debug)
+├── MyGame.exe                   apphost; double-click to play
+├── MyGame.dll                   the game host (MNVTEngine.GameHost renamed); carries the content key
+├── MyGame.runtimeconfig.json
+├── Dependencies/
+│   ├── Managed/                 MNVTEngine.*.dll, Newtonsoft.Json, Silk.NET.*, StbImage*, Microsoft.Extensions.*
+│   ├── Native/                  glfw3.dll
+│   └── Runtime/                 private .NET runtime
+│       ├── host/fxr/<version>/hostfxr.dll
+│       └── shared/Microsoft.NETCore.App/<version>/   coreclr.dll, System.*.dll, ...
+├── MyGame_Data/
+│   ├── content.mnvtpak          encrypted: asset index, assets, .mnvts bytecode, C# game code (+ .pdb in Debug)
+│   └── package.json             manifest with the hash of every file
+└── Logs/game.log                written at run time
 ```
 
-This differs from the layout originally proposed, which had separate `Dependencies/Managed` and `Dependencies/Native` folders. A self-contained .NET application resolves managed and native assemblies from its own folder through `deps.json`. Moving them would need custom probing and native-library resolvers for every package, for no benefit to the player.
+How each part is found at run time:
+
+- **Runtime.** The apphost is built with `AppHostDotNetSearch=AppRelative` and `AppHostRelativeDotNet=Dependencies/Runtime`, so it only looks for .NET in `Dependencies/Runtime` and never uses a .NET installed on the machine. If that folder is removed, the game refuses to start. It does not fall back to an installed .NET.
+- **Managed and native dependencies.** `Program.Main` in the host uses only the base class library. It first installs resolvers for `Dependencies/Managed` and `Dependencies/Native` (`HostLayout`), then calls into engine code.
+  Native libraries in `Dependencies/Native` are loaded up front, because Silk.NET's GLFW loader probes fixed paths next to the executable and reuses an already loaded library.
+- **Content.** The host opens `<its assembly name>_Data/content.mnvtpak`. Renaming the `.exe` does not break the game.
 
 Size is about 89 MB, mostly the .NET runtime. Trimming is not enabled because component discovery and serialization use reflection.
 
+## Content encryption
+
+`content.mnvtpak` is a single archive with one AES-256-GCM encrypted, authenticated entry per file. The entry list (index) is encrypted too.
+
+- **Compression.** Entries are deflated when that makes them smaller.
+- **Nothing on disk.** Reading is random-access, in memory only. Nothing is extracted to disk, and C# game code is loaded from bytes into its collectible load context.
+- **Integrity.** A modified byte anywhere is detected. A damaged index or wrong key stops the game with exit code 2. A damaged entry fails only when it is read, with an error naming the entry. `mnvt validate` reads and authenticates every entry.
+- **Reproducibility.** Nonces are derived from the key, the entry path and a hash of the entry's content. Identical input gives an identical archive, and a nonce is never reused for different data.
+- **Key.** The key is `Settings/content.key` (32 random bytes, hex). It is created by `mnvt new`, or by the first build with warning `MNVB107`. **Commit it**: then every machine builds identical content, and patches stay compatible. Delete it to rotate the key.
+
+**What this protects, and what it does not:**
+
+- **It does:** assets, scripts and C# game code cannot be browsed, copied or swapped with normal tools, and modified content is rejected.
+- **It does not:** the key must ship inside the game, so the game can decrypt its own content. Anyone willing to reverse-engineer `MyGame.dll` can recover the key and decrypt everything.
+- **No real fix exists.** This is true of every game engine's asset encryption, Unity's included, and no client-side scheme can avoid it.
+- **Keep secrets out of the game.** Never put secrets such as server credentials or API keys in game content or game code.
+
 ## Running an exported game
 
-- `MyGame.exe` runs the package in `Content/` next to it. It never compiles anything, and it needs neither the .NET SDK, an installed .NET runtime, nor the editor. The build tests run the game with no `dotnet` on `PATH`.
+- `MyGame.exe` runs the content in `MyGame_Data/`. It never compiles anything, and it needs neither the .NET SDK, an installed .NET runtime, nor the editor. The build tests run the game with no `dotnet` on `PATH`.
 - `.mnvts` scripts run from the build-time bytecode. Invalid bytecode disables that mission runner with an error ("rebuild the game"). It never falls back to the source.
 - Optional arguments: `--frames N`, `--screenshot file.png`, `--debug-gl`.
 - Exit codes:
@@ -123,7 +147,7 @@ Size is about 89 MB, mostly the .NET runtime. Trimming is not enabled because co
   |---|---|
   | 0 | OK |
   | 1 | GPU resources leaked |
-  | 2 | Missing or damaged content |
+  | 2 | Content missing, damaged or not decryptable |
   | 3 | The game's C# code failed to load |
 
 - The log goes to the console (Debug builds) and to `Logs/game.log`. If that folder is not writable, a warning is printed and there is no log file.
@@ -132,8 +156,7 @@ Size is about 89 MB, mostly the .NET runtime. Trimming is not enabled because co
 
 - Windows 10/11 x64.
 - A GPU and driver with **OpenGL 4.5**. `opengl32.dll` and the GPU driver come from Windows and the vendor; they are not packaged and cannot be.
-- `glfw3.dll` is packaged. Validation fails if it is missing (`MNVB506`).
-- Nothing else needs to be installed.
+- Nothing else needs to be installed: the .NET runtime and `glfw3.dll` ship in `Dependencies/`.
 
 ## Validation
 
@@ -141,33 +164,36 @@ Size is about 89 MB, mostly the .NET runtime. Trimming is not enabled because co
 
 | Code | Check |
 |---|---|
-| MNVB501/502 | `Content/package.json` exists and loads (schema version 1; newer versions are rejected) |
-| MNVB503 | `<exe>.exe`, `.dll`, `.runtimeconfig.json` and `.deps.json` are present |
-| MNVB504 | The runtime config is self-contained (`includedFrameworks`) |
-| MNVB505 | Every runtime and native asset listed in `deps.json` is present |
-| MNVB506 | Required native libraries for the target are present (`glfw3.dll` on win-x64) |
+| MNVB501/502 | `<Game>_Data/package.json` exists and loads (schema version 1; newer versions are rejected) |
+| MNVB503 | `<exe>.exe`, `.dll` and `.runtimeconfig.json` are in the root |
+| MNVB504 | The private runtime is complete: `hostfxr`, `hostpolicy`, `coreclr`, `System.Private.CoreLib` and the framework `deps.json` for the version in the runtime config |
+| MNVB505 | Every assembly reference of the host and of `Dependencies/Managed` resolves to the private runtime or `Dependencies/Managed`; every shipped assembly is valid |
+| MNVB506 | Required native libraries for the target are in `Dependencies/Native` (`glfw3.dll` on win-x64) |
 | MNVB507 | No development-only assemblies (editor, build tooling, ImGui, MSBuild, Roslyn) |
-| MNVB508 | Every file matches its manifest size and SHA-256 (detects damaged or modified files) |
+| MNVB508 | Every file matches its manifest size and SHA-256 |
 | MNVB509 | Warning for files that are not part of the build (`Logs/` is ignored) |
+| MNVB514 | The archive opens with the key embedded in the executable (or the given key) |
+| MNVB515 | Every archive entry decrypts and authenticates |
 | MNVB510 | The packaged project loads, and its startup scene exists |
 | MNVB511 | Every script asset has bytecode that passes the verifier |
-| MNVB512/513 | Asset index errors; the C# scripts assembly named in the manifest exists |
+| MNVB512 | The asset index loads, and every indexed asset is in the archive |
+| MNVB513 | The C# scripts assembly named in the manifest is in the archive |
 | MNVB520 | `--run`: the game started, rendered N frames and exited with code 0 |
 
 ## Diagnostic codes
 
 | Range | Stage |
 |---|---|
-| MNVB1xx | Project, profile and output folder (`100` load, `101` unknown profile, `102` configuration, `103` target, `104` output folder, `105` name clash, `106` engine not found) |
+| MNVB1xx | Project, profile, output folder and key (`100` load, `101` unknown profile, `102` configuration, `103` target, `104` output folder, `105` name clash, `106` engine not found, `107` key created, `108` invalid key file) |
 | MNVB2xx | Content (`201` asset index, `202` unreadable, `203` import settings, `204`/`205` import errors and warnings, `206` missing referenced asset, `207`/`208` scene and prefab loading) |
 | MNVB3xx, CSxxxx | C# scripts (`301` scripts project missing; compiler errors keep their `CS` codes and source positions) |
 | MNV1xxx–3xxx | `.mnvts` errors from the compiler; see the [language reference](../scripting/language.md) |
-| MNVB4xx | Packaging (`401` host project missing, `402` dotnet not found, `403` publish failed, `404` native dependencies of game code not packaged) |
-| MNVB5xx | Package validation (table above) |
+| MNVB4xx | Packaging (`401` host project missing, `402` dotnet not found, `403` publish failed, `404` native dependencies of game code not packaged, `409` previous build in use) |
+| MNVB5xx | Validation (table above) |
 
 ## Reproducible builds
 
-The build uses deterministic compilation (`Deterministic`, `ContinuousIntegrationBuild`). Files are written in a fixed order, and the manifest contains no timestamps or machine paths. As a result, building the same sources twice gives an identical manifest, including the hash of every file. This holds for an incremental rebuild and for a rebuild after deleting `Library/Build`, and `PackagingTests.Rebuild_IsByteForByteIdentical` checks it.
+The build uses deterministic compilation (`Deterministic`, `ContinuousIntegrationBuild`), a fixed file order, content-derived archive nonces and a committed key. The manifest contains no timestamps or machine paths. As a result, building the same sources twice gives an identical manifest, including the hash of every file and of the archive. This holds for an incremental rebuild and for a rebuild after deleting `Library/Build`, and `PackagingTests.Rebuild_IsByteForByteIdentical` checks it.
 
 ## Engine location
 
@@ -182,5 +208,6 @@ The first build of each project and profile compiles the engine into `Library/Bu
 
 - Only `win-x64` is supported. Other runtime identifiers are rejected (`MNVB103`).
 - If the game's C# scripts use NuGet packages with native libraries, those libraries are not packaged. The build warns with `MNVB404`.
-- `.mnvts` sources are shipped next to their bytecode. The read-only asset index finds assets through their files. The runtime never reads the sources.
+- The archive is read into memory entry by entry, and the build holds each asset in memory while writing it. This suits 2D games; streaming very large assets would need chunked entries.
+- `.mnvts` sources are stored (encrypted) next to their bytecode, so the asset index stays complete. The runtime never reads them.
 - There is no installer, icon or version resource, and no code signing.

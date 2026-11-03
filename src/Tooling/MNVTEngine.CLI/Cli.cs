@@ -166,7 +166,7 @@ public static class Cli
     {
         var target = command.Single("project or exported game");
         List<BuildDiagnostic> diagnostics;
-        if (GamePackage.IsPackage(Path.Combine(target, GamePackage.ContentFolder)))
+        if (GamePackage.FindDataDirectory(target) is not null)
         {
             diagnostics = [.. BuildValidator.Validate(target)];
             if (command.Has("--run") && !diagnostics.HasErrors())

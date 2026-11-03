@@ -1,14 +1,17 @@
 using System.Globalization;
 using System.Reflection;
+using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
+using MNVTEngine.Assets;
 using MNVTEngine.Runtime;
 
 namespace MNVTEngine.Build;
 
 /// <summary>
-/// Assembles the package: publishes the engine's game host self-contained for the target (the .NET runtime, engine
-/// assemblies, managed packages and their native libraries such as glfw3.dll all land next to the executable), adds the
-/// game's C# code, and writes the manifest with a hash of every file.
+/// Assembles an exported game (layout: <see cref="GamePackage"/>). Publishes the engine's game host for the target with
+/// its private .NET runtime in <c>Dependencies/Runtime</c>, moves engine and package assemblies to
+/// <c>Dependencies/Managed</c> and native libraries to <c>Dependencies/Native</c>, adds the game's C# code to the
+/// encrypted content archive, and writes the manifest with a hash of every file.
 /// </summary>
 public static class GamePackager
 {
@@ -19,7 +22,7 @@ public static class GamePackager
 
     /// <param name="workDirectory">Per-profile build cache (<c>Library/Build/&lt;profile&gt;</c>); holds the intermediate output of the engine build.</param>
     public static async Task<IReadOnlyList<BuildDiagnostic>> PublishHostAsync(
-        string engineRoot, BuildProfile profile, string executableName, string workDirectory, string packageDirectory, CancellationToken cancellationToken = default)
+        string engineRoot, BuildProfile profile, string executableName, byte[] contentKey, string workDirectory, string packageDirectory, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
         var hostProject = EngineLocation.GameHostProject(engineRoot);
@@ -33,13 +36,13 @@ public static class GamePackager
             "publish", hostProject,
             "-c", profile.Configuration,
             "-r", profile.Target,
-            "--self-contained", "true",
             "-o", packageDirectory,
             "--artifacts-path", Path.Combine(workDirectory, "artifacts"), // isolates game builds from each other and from the engine's own bin/obj
             "-nologo", "-v:q", "-clp:NoSummary;ForceNoAlign",
             "-p:GenerateFullPaths=true",
             $"-p:MnvtGameName={executableName}",
             $"-p:MnvtConsole={(profile.ShowsConsole ? "true" : "false")}",
+            $"-p:MnvtContentKey={Convert.ToHexString(contentKey)}",
             "-p:Deterministic=true",
             "-p:ContinuousIntegrationBuild=true",
         ];
@@ -64,50 +67,82 @@ public static class GamePackager
     }
 
     /// <summary>
-    /// Copies the game's compiled C# code into <c>Content/Scripts</c>. Assemblies the host already ships (engine,
-    /// shared packages) are left out: the host's copies are always used at run time.
+    /// Leaves only the executable, the host assembly and its runtime config in the root: other managed assemblies (and
+    /// their symbols) go to <c>Dependencies/Managed</c>, native libraries to <c>Dependencies/Native</c>. The deps.json is
+    /// removed: the host resolves these folders itself (see MNVTEngine.GameHost's HostLayout).
     /// </summary>
-    /// <returns>Path of the main assembly relative to Content.</returns>
-    public static string CopyGameCode(string scriptsOutput, string assemblyName, string packageDirectory, bool includeSymbols, List<BuildDiagnostic> diagnostics)
+    public static void ArrangeLayout(string packageDirectory, string executableName)
     {
+        var managed = Path.Combine(packageDirectory, GamePackage.ManagedFolder);
+        var native = Path.Combine(packageDirectory, GamePackage.NativeFolder);
+        Directory.CreateDirectory(managed);
+        Directory.CreateDirectory(native);
+        File.Delete(Path.Combine(packageDirectory, executableName + ".deps.json"));
+        foreach (var file in Directory.GetFiles(packageDirectory, "*.dll"))
+        {
+            var name = Path.GetFileNameWithoutExtension(file);
+            if (name.Equals(executableName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var target = IsManaged(file) ? managed : native;
+            File.Move(file, Path.Combine(target, Path.GetFileName(file)));
+            var symbols = Path.ChangeExtension(file, ".pdb");
+            if (File.Exists(symbols))
+            {
+                File.Move(symbols, Path.Combine(target, Path.GetFileName(symbols)));
+            }
+        }
+    }
+
+    public static bool IsManaged(string file)
+    {
+        using var pe = new PEReader(File.OpenRead(file));
+        return pe.HasMetadata;
+    }
+
+    /// <summary>
+    /// Adds the game's compiled C# code to the content archive under <c>Scripts/</c>. Assemblies the host already ships
+    /// (engine, shared packages) are left out: the host's copies are always used at run time.
+    /// </summary>
+    /// <returns>Archive entry of the main assembly.</returns>
+    public static string AddGameCode(ContentArchive.Writer archive, string scriptsOutput, string assemblyName, string packageDirectory, bool includeSymbols, List<BuildDiagnostic> diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(archive);
         ArgumentNullException.ThrowIfNull(diagnostics);
-        var target = Path.Combine(packageDirectory, GamePackage.ContentFolder, GamePackage.ScriptsFolder);
-        Directory.CreateDirectory(target);
+        var shipped = Path.Combine(packageDirectory, GamePackage.ManagedFolder);
         foreach (var file in Directory.EnumerateFiles(scriptsOutput).Order(StringComparer.Ordinal))
         {
             var extension = Path.GetExtension(file).ToUpperInvariant();
-            if (extension != ".DLL" && !(includeSymbols && extension == ".PDB"))
+            if ((extension != ".DLL" && !(includeSymbols && extension == ".PDB"))
+                || File.Exists(Path.Combine(shipped, Path.GetFileNameWithoutExtension(file) + ".dll")))
             {
                 continue;
             }
 
-            if (File.Exists(Path.Combine(packageDirectory, Path.GetFileNameWithoutExtension(file) + ".dll")))
-            {
-                continue;
-            }
-
-            File.Copy(file, Path.Combine(target, Path.GetFileName(file)), overwrite: true);
+            archive.Add(GamePackage.ScriptsEntryFolder + Path.GetFileName(file), File.ReadAllBytes(file));
         }
 
         if (Directory.Exists(Path.Combine(scriptsOutput, "runtimes")))
         {
-            // shortcut: game code's own native libraries are not packaged; add RID-specific copying when a game needs one.
+            // shortcut: game code's own native libraries are not packaged; add them to Dependencies/Native when a game needs one.
             diagnostics.Add(BuildDiagnostic.Warning("MNVB404", "The C# scripts depend on packages with native libraries (runtimes/ folder); those are not packaged.", scriptsOutput));
         }
 
-        return $"{GamePackage.ScriptsFolder}/{assemblyName}.dll";
+        return GamePackage.ScriptsEntryFolder + assemblyName + ".dll";
     }
 
-    /// <summary>Writes Content/package.json listing every file in the package with its SHA-256.</summary>
+    /// <summary>Writes <c>&lt;Game&gt;_Data/package.json</c> listing every file of the game folder with its SHA-256.</summary>
     public static GamePackage WriteManifest(string packageDirectory, GamePackage package)
     {
         ArgumentNullException.ThrowIfNull(package);
-        var content = Path.Combine(packageDirectory, GamePackage.ContentFolder);
-        var manifest = Path.Combine(content, GamePackage.ManifestFile);
+        var data = Path.Combine(packageDirectory, GamePackage.DataFolder(package.ExecutableName));
+        var manifest = Path.Combine(data, GamePackage.ManifestFile);
         package.Files = [.. Directory.EnumerateFiles(packageDirectory, "*", SearchOption.AllDirectories)
             .Where(f => !string.Equals(Path.GetFullPath(f), Path.GetFullPath(manifest), StringComparison.OrdinalIgnoreCase))
             .Select(f => Describe(packageDirectory, f))];
-        package.Save(content);
+        package.Save(data);
         return package;
     }
 

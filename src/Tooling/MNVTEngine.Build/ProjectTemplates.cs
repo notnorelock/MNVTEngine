@@ -9,7 +9,7 @@ public sealed record ProjectTemplate(string Id, string Description, string Direc
 /// <summary>
 /// Project creation from <c>templates/*</c>. A template is a folder with a <c>template.json</c> (<c>id</c>,
 /// <c>description</c>). Tokens are replaced in file names (<c>__Name__</c>, <c>__Identifier__</c>) and in text files
-/// (<c>{{Name}}</c>, <c>{{Identifier}}</c>, <c>{{EngineRoot}}</c>).
+/// (<c>{{Name}}</c>, <c>{{Identifier}}</c>, <c>{{EngineRoot}}</c>). Every new project gets its own content encryption key.
 /// </summary>
 public static class ProjectTemplates
 {
@@ -108,6 +108,7 @@ public static class ProjectTemplates
             }
         }
 
+        ContentKeys.Create(targetDirectory);
         return GameProject.Load(targetDirectory).ProjectFile;
     }
 }

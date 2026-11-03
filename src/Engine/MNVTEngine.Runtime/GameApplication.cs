@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.Extensions.Logging;
+using MNVTEngine.Assets;
 using MNVTEngine.Platform;
 using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
@@ -14,8 +15,9 @@ public static partial class GameApplication
     /// Without a path, the single .mnvtproj next to the executable is used.
     /// </summary>
     /// <param name="prepareComponents">Registers game components (e.g. loads compiled scripts); returning false aborts startup.</param>
+    /// <param name="archive">Content of an exported game; the project is read from it and a path argument is ignored.</param>
     /// <returns>Process exit code: 0 ok, 1 resource leaks, 2 project or startup scene could not be loaded, 3 game code failed to load.</returns>
-    public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, Func<GameProject, ComponentRegistry, bool>? prepareComponents = null)
+    public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, Func<GameProject, ComponentRegistry, bool>? prepareComponents = null, ContentArchive? archive = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(createDevice);
@@ -25,7 +27,9 @@ public static partial class GameApplication
         GameProject project;
         try
         {
-            project = GameProject.Load(args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal) && !IsOptionValue(args, a)) ?? AppContext.BaseDirectory);
+            project = archive is not null
+                ? GameProject.LoadPackaged(archive, Path.GetDirectoryName(archive.FilePath)!)
+                : GameProject.Load(args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal) && !IsOptionValue(args, a)) ?? AppContext.BaseDirectory);
         }
         catch (Exception ex) when (ex is SerializationException or FileNotFoundException)
         {
@@ -54,7 +58,7 @@ public static partial class GameApplication
         {
             ExitAfterFrames = Option(args, "--frames") is { } frames ? int.Parse(frames, CultureInfo.InvariantCulture) : null,
             ScreenshotPath = Option(args, "--screenshot"),
-            PackageContent = GamePackage.IsPackage(project.RootDirectory) ? project.RootDirectory : null,
+            Archive = archive,
         });
 
         try

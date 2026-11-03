@@ -16,14 +16,15 @@ public sealed record ContentResult(IReadOnlyList<BuildDiagnostic> Diagnostics, i
 /// <summary>
 /// Asset compilation for exported games. Opens the project's assets read-only (the project is never modified), runs
 /// every importer, compiles <c>.mnvts</c> scripts to verified bytecode against the full runtime API, loads every scene
-/// and prefab with the game's components, and checks asset references. With an output folder it writes the package
-/// Content: assets with their metas (GUIDs, so references stay valid), bytecode per script GUID, and the project file.
+/// and prefab with the game's components, and checks asset references. With an archive it writes the game content:
+/// the asset index (GUIDs, paths, types, import settings, so references stay valid), every asset, bytecode per script
+/// GUID, and the project file.
 /// </summary>
 public static class ContentCompiler
 {
     /// <param name="registry">Built-in and game components, used to load scenes and prefabs.</param>
-    /// <param name="contentDirectory">Package Content folder to write; null to validate only.</param>
-    public static ContentResult Compile(GameProject project, ComponentRegistry registry, string? contentDirectory)
+    /// <param name="archive">Content archive to write; null to validate only.</param>
+    public static ContentResult Compile(GameProject project, ComponentRegistry registry, ContentArchive.Writer? archive)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(registry);
@@ -66,24 +67,20 @@ public static class ContentCompiler
                 LoadSceneOrPrefab(serializer, record, data, diagnostics);
             }
 
-            if (contentDirectory is not null)
+            if (archive is not null)
             {
-                var target = Path.Combine(contentDirectory, "Assets", record.Path);
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                File.Copy(fullPath, target, overwrite: true);
-                File.Copy(fullPath + AssetDatabase.MetaExtension, target + AssetDatabase.MetaExtension, overwrite: true);
+                archive.Add(AssetDatabase.AssetsEntryFolder + record.Path, data);
                 if (bytecode is not null)
                 {
-                    var path = GamePackage.BytecodePath(contentDirectory, record.Guid);
-                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                    File.WriteAllBytes(path, bytecode);
+                    archive.Add(AssetDatabase.CompiledEntry(record.Guid), bytecode);
                 }
             }
         }
 
-        if (contentDirectory is not null)
+        if (archive is not null)
         {
-            WriteProjectFile(project, contentDirectory);
+            archive.Add(AssetDatabase.IndexEntry, Encoding.UTF8.GetBytes(assets.ExportIndex().ToString(Formatting.None)));
+            archive.Add(Path.GetFileName(project.ProjectFile), PackagedProjectFile(project));
         }
 
         return new ContentResult(diagnostics, assets.Assets.Count, scripts);
@@ -151,12 +148,11 @@ public static class ContentCompiler
     }
 
     /// <summary>The project file without development-only settings (C# project path, build profiles).</summary>
-    private static void WriteProjectFile(GameProject project, string contentDirectory)
+    private static byte[] PackagedProjectFile(GameProject project)
     {
-        var source = project.ProjectFile;
-        var document = JObject.Parse(File.ReadAllText(source));
+        var document = JObject.Parse(File.ReadAllText(project.ProjectFile));
         document.Remove("scripts");
         document.Remove("buildProfiles");
-        File.WriteAllText(Path.Combine(contentDirectory, Path.GetFileName(source)), document.ToString(Formatting.Indented));
+        return Encoding.UTF8.GetBytes(document.ToString(Formatting.Indented));
     }
 }

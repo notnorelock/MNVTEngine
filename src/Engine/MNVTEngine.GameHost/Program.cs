@@ -1,62 +1,96 @@
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
+using MNVTEngine.Assets;
 using MNVTEngine.GameAssemblies;
-using MNVTEngine.GameHost;
 using MNVTEngine.Graphics.OpenGL;
 using MNVTEngine.Runtime;
 using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
 
-// Exported game: runs the package in the Content folder next to the executable.
+namespace MNVTEngine.GameHost;
+
+// Exported game: runs <Game>_Data/content.mnvtpak next to the executable.
 // Usage: <Game>.exe [--frames N] [--screenshot out.png] [--debug-gl]
-var content = Path.Combine(AppContext.BaseDirectory, GamePackage.ContentFolder);
-using var fileLog = FileLoggerProvider.TryCreate(Path.Combine(AppContext.BaseDirectory, "Logs", "game.log"), out var fileLogError);
-using var loggerFactory = LoggerFactory.Create(builder =>
+internal static class Program
 {
-    builder.AddSimpleConsole(o => o.SingleLine = true);
-    if (fileLog is not null)
+    private static int Main(string[] args)
     {
-        builder.AddProvider(fileLog);
+        HostLayout.Install();
+        return Game.Run(args);
     }
-});
-var logger = loggerFactory.CreateLogger("Game");
-if (fileLogError is not null)
-{
-    HostLog.NoLogFile(logger, fileLogError);
 }
 
-GamePackage package;
-try
+internal static class Game
 {
-    package = GamePackage.Load(content);
-}
-catch (SerializationException ex)
-{
-    HostLog.BadPackage(logger, ex);
-    return 2;
-}
-
-HostLog.Starting(logger, package.Name, package.Profile, package.EngineVersion);
-return GameApplication.Run(
-    [content, .. args],
-    (window, log) => GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, log),
-    loggerFactory,
-    (_, registry) => LoadScripts(package, content, registry, logger));
-
-static bool LoadScripts(GamePackage package, string content, ComponentRegistry registry, ILogger logger)
-{
-    if (package.ScriptsAssembly is null)
+    [MethodImpl(MethodImplOptions.NoInlining)] // engine types load only after HostLayout is installed
+    public static int Run(string[] args)
     {
-        return true;
+        var host = typeof(Game).Assembly;
+        var data = Path.Combine(AppContext.BaseDirectory, GamePackage.DataFolder(host.GetName().Name!));
+        using var fileLog = FileLoggerProvider.TryCreate(Path.Combine(AppContext.BaseDirectory, "Logs", "game.log"), out var fileLogError);
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.AddSimpleConsole(o => o.SingleLine = true);
+            if (fileLog is not null)
+            {
+                builder.AddProvider(fileLog);
+            }
+        });
+        var logger = loggerFactory.CreateLogger("Game");
+        if (fileLogError is not null)
+        {
+            HostLog.NoLogFile(logger, fileLogError);
+        }
+
+        GamePackage package;
+        ContentArchive archive;
+        try
+        {
+            package = GamePackage.Load(data);
+            archive = ContentArchive.Open(Path.Combine(data, GamePackage.ArchiveFile), ContentKey(host));
+        }
+        catch (Exception ex) when (ex is SerializationException or IOException or InvalidDataException or FormatException)
+        {
+            HostLog.BadPackage(logger, ex);
+            return 2;
+        }
+
+        using (archive)
+        {
+            HostLog.Starting(logger, package.Name, package.Profile, package.EngineVersion);
+            return GameApplication.Run(
+                args,
+                (window, log) => GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, log),
+                loggerFactory,
+                (_, registry) => LoadScripts(package, archive, registry, logger),
+                archive);
+        }
     }
 
-    var load = new GameAssemblyHost().Load(Path.Combine(content, package.ScriptsAssembly));
-    var diagnostics = load.Diagnostics.Concat(GameAssemblyHost.Register(registry, null, load.Code)).ToList();
-    foreach (var diagnostic in diagnostics)
-    {
-        HostLog.Diagnostic(logger, diagnostic.Severity == ScriptDiagnosticSeverity.Error ? LogLevel.Error : LogLevel.Warning, diagnostic);
-    }
+    /// <exception cref="InvalidDataException">The executable carries no content key.</exception>
+    private static byte[] ContentKey(Assembly host) =>
+        host.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == GamePackage.ContentKeyMetadata)?.Value is { Length: > 0 } hex
+            ? Convert.FromHexString(hex)
+            : throw new InvalidDataException("The executable has no content key; rebuild the game with mnvt build.");
 
-    return load.Code is not null && diagnostics.All(d => d.Severity != ScriptDiagnosticSeverity.Error);
+    private static bool LoadScripts(GamePackage package, ContentArchive archive, ComponentRegistry registry, ILogger logger)
+    {
+        if (package.ScriptsAssembly is not { } scripts)
+        {
+            return true;
+        }
+
+        var folder = scripts[..(scripts.LastIndexOf('/') + 1)];
+        var load = new GameAssemblyHost().Load(scripts[folder.Length..], file => archive.TryRead(folder + file));
+        var diagnostics = load.Diagnostics.Concat(GameAssemblyHost.Register(registry, null, load.Code)).ToList();
+        foreach (var diagnostic in diagnostics)
+        {
+            HostLog.Diagnostic(logger, diagnostic.Severity == ScriptDiagnosticSeverity.Error ? LogLevel.Error : LogLevel.Warning, diagnostic);
+        }
+
+        return load.Code is not null && diagnostics.All(d => d.Severity != ScriptDiagnosticSeverity.Error);
+    }
 }
 
 internal static partial class HostLog

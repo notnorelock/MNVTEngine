@@ -102,24 +102,65 @@ public sealed class GameProject
     /// <exception cref="SerializationException">The file is unreadable or fails validation.</exception>
     public static GameProject Load(string path)
     {
-        var file = FindProjectFile(path);
+        var file = Path.GetFullPath(FindProjectFile(path));
+        string text;
+        try
+        {
+            text = File.ReadAllText(file);
+        }
+        catch (IOException ex)
+        {
+            throw new SerializationException(file, ex.Message, [], ex);
+        }
+
+        return Parse(text, file, Path.GetDirectoryName(file)!, null);
+    }
+
+    /// <summary>The project of an exported game, stored at the root of its content archive.</summary>
+    /// <param name="dataDirectory">The game's data folder; becomes <see cref="RootDirectory"/> (there are no project files on disk).</param>
+    /// <exception cref="SerializationException">Missing, unreadable or invalid project.</exception>
+    public static GameProject LoadPackaged(ContentArchive archive, string dataDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(archive);
+        var entries = archive.Entries.Where(e => !e.Contains('/', StringComparison.Ordinal) && e.EndsWith(Extension, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (entries.Count != 1)
+        {
+            throw new SerializationException(archive.FilePath, $"The game content must contain exactly one {Extension} file, found {entries.Count}.", []);
+        }
+
+        string text;
+        try
+        {
+            text = System.Text.Encoding.UTF8.GetString(archive.Read(entries[0]));
+        }
+        catch (InvalidDataException ex)
+        {
+            throw new SerializationException(entries[0], ex.Message, [], ex);
+        }
+
+        return Parse(text, entries[0], dataDirectory, path => archive.Contains(AssetDatabase.AssetsEntryFolder + AssetPaths.Canonical(path)));
+    }
+
+    /// <param name="assetExists">Checks a path relative to Assets; null to look on disk. Packaged projects have no scripts project.</param>
+    private static GameProject Parse(string text, string file, string rootDirectory, Func<string, bool>? assetExists)
+    {
         var diagnostics = new List<SerializationDiagnostic>();
         GameProject project;
         try
         {
-            var document = JObject.Parse(File.ReadAllText(file));
+            var document = JObject.Parse(text);
             new JsonMigrationPipeline(CurrentSchemaVersion).Migrate(document, diagnostics);
             project = document.ToObject<GameProject>(MnvtJson.CreateSerializer())
                 ?? throw new InvalidDataException("Project file is empty.");
         }
-        catch (Exception ex) when (ex is JsonException or InvalidDataException or IOException)
+        catch (Exception ex) when (ex is JsonException or InvalidDataException)
         {
             throw new SerializationException(file, ex.Message, diagnostics, ex);
         }
 
-        project.ProjectFile = Path.GetFullPath(file);
-        project.RootDirectory = Path.GetDirectoryName(project.ProjectFile)!;
-        project.Validate(diagnostics);
+        project.ProjectFile = file;
+        project.RootDirectory = rootDirectory;
+        project.Validate(diagnostics, assetExists ?? (path => File.Exists(project.ResolveAsset(path))));
         if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
         {
             throw new SerializationException(file, string.Join(" ", diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Message)), diagnostics);
@@ -159,7 +200,7 @@ public sealed class GameProject
     /// <exception cref="ArgumentException">The path is absolute or escapes the project folder.</exception>
     public string ResolveProjectFile(string relativePath) => AssetPaths.Resolve(RootDirectory, relativePath);
 
-    private void Validate(List<SerializationDiagnostic> diagnostics)
+    private void Validate(List<SerializationDiagnostic> diagnostics, Func<string, bool> assetExists)
     {
         void Error(string path, string message) => diagnostics.Add(new SerializationDiagnostic(DiagnosticSeverity.Error, path, message));
 
@@ -197,7 +238,7 @@ public sealed class GameProject
 
         try
         {
-            if (!File.Exists(ResolveAsset(StartupScene)))
+            if (!assetExists(StartupScene))
             {
                 Error("startupScene", $"Startup scene '{StartupScene}' not found under Assets.");
             }

@@ -19,8 +19,8 @@ public sealed record GameRuntimeOptions
     /// <summary>PNG written from the last frame before an automatic exit.</summary>
     public string? ScreenshotPath { get; init; }
 
-    /// <summary>Content folder of an exported game: compiled assets are read from it instead of compiling sources.</summary>
-    public string? PackageContent { get; init; }
+    /// <summary>Content of an exported game: assets, index and compiled scripts come from it instead of the project folder.</summary>
+    public ContentArchive? Archive { get; init; }
 }
 
 /// <summary>
@@ -58,14 +58,14 @@ public sealed partial class GameRuntime(
         _window = window;
         _device = createDevice(window, loggerFactory.CreateLogger("Graphics"));
         _renderer = new Renderer2D(_device);
-        _assets = AssetDatabase.OpenReadOnly(project.AssetsDirectory);
+        _assets = _options.Archive is { } archive ? AssetDatabase.OpenPackaged(archive) : AssetDatabase.OpenReadOnly(project.AssetsDirectory);
         foreach (var diagnostic in _assets.Diagnostics)
         {
             LogAssetDiagnostic(_logger, diagnostic.Path, diagnostic.Message);
         }
 
         _serializer = new SceneSerializer(registry, _assets);
-        _prefabs = new PrefabProvider(_serializer, _assets, loggerFactory.CreateLogger("Prefabs"), _options.PackageContent);
+        _prefabs = new PrefabProvider(_serializer, _assets, loggerFactory.CreateLogger("Prefabs"));
         _resources = new ResourceCache(_device, _assets, loggerFactory.CreateLogger("Resources"));
         _sceneRenderer = new SceneRenderer(_renderer, _resources, _logger);
         LogStarting(_logger, project.Name, project.StartupScene);
@@ -148,9 +148,9 @@ public sealed partial class GameRuntime(
         string json;
         try
         {
-            json = File.ReadAllText(project.ResolveAsset(path));
+            json = System.Text.Encoding.UTF8.GetString(_assets.ReadAllBytes(path));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidDataException)
         {
             throw new SerializationException(path, ex.Message, [], ex);
         }

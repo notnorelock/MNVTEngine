@@ -35,6 +35,7 @@ public sealed class BuildPipelineTests : IDisposable
             .Where(f => File.ReadAllText(f).Contains("{{", StringComparison.Ordinal) || f.Contains("__", StringComparison.Ordinal));
         Assert.Empty(leftovers);
         Assert.False(File.Exists(Path.Combine(project.RootDirectory, ProjectTemplates.ManifestFile)));
+        Assert.Equal(64, File.ReadAllText(ContentKeys.PathFor(project)).Trim().Length); // every project gets its own key
     }
 
     [Fact]
@@ -105,7 +106,7 @@ public sealed class BuildPipelineTests : IDisposable
         File.WriteAllText(Path.Combine(project.AssetsDirectory, "notes.txt"), "no meta");
         var before = Directory.GetFiles(project.RootDirectory, "*", SearchOption.AllDirectories).Order().ToList();
 
-        var result = ContentCompiler.Compile(project, Registry, contentDirectory: null);
+        var result = ContentCompiler.Compile(project, Registry, archive: null);
 
         var script = Assert.Single(result.Diagnostics, d => d.Code == "MNV3014"); // the editor only warns (MNV3015); a build must not link-fail at run time
         Assert.Equal((BuildSeverity.Error, "Missions/Bad.mnvts", 2), (script.Severity, script.File, script.Line));
@@ -115,24 +116,30 @@ public sealed class BuildPipelineTests : IDisposable
     }
 
     [Fact]
-    public void ContentCompiler_WritesAssetsMetasBytecodeAndAProjectWithoutDevelopmentSettings()
+    public void ContentCompiler_WritesIndexAssetsBytecodeAndAProjectWithoutDevelopmentSettings_IntoTheArchive()
     {
         var project = NewProject();
         File.WriteAllText(Path.Combine(project.AssetsDirectory, "Hello.mnvts"), "on start { log(\"hi\") }");
         File.WriteAllText(Path.Combine(project.AssetsDirectory, "Hello.mnvts.meta"), """{ "schemaVersion": 1, "guid": "33333333-3333-4333-8333-333333333333", "settings": {} }""");
-        var content = Path.Combine(_root, "Content");
+        var key = Assets.ContentArchive.CreateKey();
+        var path = Path.Combine(_root, "content.mnvtpak");
 
-        var result = ContentCompiler.Compile(project, Registry, content);
+        ContentResult result;
+        using (var writer = new Assets.ContentArchive.Writer(path, key))
+        {
+            result = ContentCompiler.Compile(project, Registry, writer);
+        }
 
         Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
-        Assert.True(File.Exists(Path.Combine(content, "Assets", "Scenes", "Main.mnvt.meta")));
-        var bytecode = File.ReadAllBytes(GamePackage.BytecodePath(content, Guid.Parse("33333333-3333-4333-8333-333333333333")));
-        var compiled = Scripting.Bytecode.BytecodeSerializer.Read(bytecode);
+        using var archive = Assets.ContentArchive.Open(path, key);
+        Assert.DoesNotContain(archive.Entries, e => e.EndsWith(".meta", StringComparison.Ordinal)); // GUIDs travel in the index
+        var assets = Assets.AssetDatabase.OpenPackaged(archive);
+        Assert.Equal("Scenes/Main.mnvt", assets.Get(Guid.Parse("7e000000-0000-4000-8000-000000000001"))!.Path);
+        var compiled = Scripting.Bytecode.BytecodeSerializer.Read(assets.ReadCompiled(Guid.Parse("33333333-3333-4333-8333-333333333333"))!);
         Assert.Equal("Hello.mnvts", compiled.SourceName); // runtime errors point at the asset path
         Assert.Contains("log", compiled.NativeNames);
-        var packaged = File.ReadAllText(Path.Combine(content, "Game.mnvtproj"));
-        Assert.DoesNotContain("buildProfiles", packaged, StringComparison.Ordinal);
-        Assert.Equal("Game", GameProject.Load(content).Name);
+        Assert.DoesNotContain("buildProfiles", System.Text.Encoding.UTF8.GetString(archive.Read("Game.mnvtproj")), StringComparison.Ordinal);
+        Assert.Equal("Game", GameProject.LoadPackaged(archive, _root).Name);
     }
 
     [Fact]
@@ -162,6 +169,10 @@ public sealed class BuildPipelineTests : IDisposable
         Assert.Equal(Cli.Failed, await Cli.RunAsync(["validate", Path.Combine(_root, "Missing")], output, NullLoggerFactory.Instance, ct));
         Assert.Contains("MNVB100", output.ToString(), StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void GameCodeLoading_AndPackaging_AgreeOnTheManagedFolder() =>
+        Assert.Equal(GamePackage.ManagedFolder, GameAssemblies.GameAssemblyLoadContext.ManagedDependenciesFolder);
 
     [Fact]
     public void CommandLine_ParsesOptionalValues()

@@ -56,12 +56,12 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.Input** | M2 | Backend-free input state, keys, axes | Mathematics |
 | **MNVTEngine.Scenes** | M2 | GameObject/Component API, Transform hierarchy, lifecycle, Time/Input facades, scene serialization | ECS, Input, Serialization |
 | **MNVTEngine.Runtime** | M2 | Project file, GUID-based resource cache, prefab/text asset provider, scene renderer, standalone game loop; backend injected by the host | Assets, Graphics, Platform, Scenes, Scripting.Bindings |
-| **MNVTEngine.Assets** | M4 | GUID database, sidecar metas, importers (scripts are compiled on import for diagnostics), import cache, dependencies, safe asset paths | Serialization, Graphics (image decoding), Scripting.Missions (API declarations) |
+| **MNVTEngine.Assets** | M4 | GUID database, sidecar metas, importers (scripts are compiled on import for diagnostics), import cache, dependencies, safe asset paths, encrypted content archive (M7) | Serialization, Graphics (image decoding), Scripting.Missions (API declarations) |
 | **MNVTEngine.Scripting** | M6 | `.mnvts` lexer, parser, AST, semantic checks, compiler, bytecode format and verifier, coroutine VM, debugger hooks | nothing (enforced) |
 | **MNVTEngine.Scripting.Missions** | M6 | Standard API declarations, mission/objective lifecycle, save data with schema version | Scripting, Serialization; never Scenes/Graphics (enforced) |
 | **MNVTEngine.Scripting.Bindings** | M6 | `MissionRunner` component, scene API implementation (player, entity, marker, scene, dialogue, input) | Scenes, Scripting.Missions |
 | **MNVTEngine.GameAssemblies** | M5 | Collectible load contexts for game code, component discovery and registration, unload support (reflection cache release) | Scenes |
-| **MNVTEngine.GameHost** | M7 | Executable of exported games: loads the package manifest, game code and content; never compiles | Runtime, GameAssemblies, Graphics.OpenGL |
+| **MNVTEngine.GameHost** | M7 | Executable of exported games: resolves `Dependencies/`, opens the encrypted content archive, loads game code from it; never compiles | Runtime, GameAssemblies, Graphics.OpenGL |
 | **MNVTEngine.Build** (Tooling) | M5/M7 | C# script compilation, build profiles, content compilation, host publishing, package validation, templates. See [building](../build-system/building.md) | GameAssemblies, Runtime |
 | **MNVTEngine.CLI** (Tooling, `mnvt`) | M7 | Commands `new`, `editor`, `run`, `build`, `validate`; argument parsing and reporting only | Build, Graphics.OpenGL |
 | **MNVTEngine.Player** (Tooling) | M5 | Development runner: compile scripts if stale, load, run any project | Build, Graphics.OpenGL |
@@ -75,7 +75,7 @@ Deviations from the original proposal, and why:
 - **Scripting.Language/Compiler/VM start as one project** with folders. The editor reuses the compiler through its public API; the VM's isolation from graphics is enforced by the architecture tests, not by assembly count. Split later if build times or ownership require it.
 - **Editor is two projects, not nine.** `Editor.Services` (UI-free, tested) and the `Editor` exe with panels as folders; the proposed per-panel projects would all share one ImGui context and the same services.
 - **Packaging, asset compilation and templates live in `MNVTEngine.Build`, not in separate `Packaging`/`AssetCompiler`/`ProjectTemplates` projects.** They are separate classes (`GamePackager`, `ContentCompiler`, `BuildValidator`, `ProjectTemplates`, with `GameBuilder` orchestrating), but they share the same dependencies and are only used by tooling.
-- **Exported games are flat, not `Dependencies/Managed|Native`.** Self-contained .NET apps resolve assemblies and native libraries from the app folder via `deps.json`; see [building](../build-system/building.md#output-layout).
+- **Exported games use `Dependencies/Managed`, `Dependencies/Native` and `Dependencies/Runtime`, plus `<Game>_Data/content.mnvtpak`.** The runtime folder keeps the layout hostfxr requires (`host/fxr`, `shared/Microsoft.NETCore.App`), so it cannot be merged into Managed/Native. See [building](../build-system/building.md#output-layout).
 - **No separate `Resources` or `Diagnostics` projects yet.** Resource lifetime belongs with Graphics/Assets; diagnostics types live in Core until there is more than a handful.
 - The architecture tests already contain rules for the original names (`Windowing`, `Input`, `Scripting.VM`, ...) so the boundary is protected whichever split is chosen.
 
@@ -116,7 +116,7 @@ Deviations from the original proposal, and why:
 | Prefabs | Unlinked copies with id remapping | Correct and simple; nested/override prefabs deferred |
 | C# game code | Separate class library compiled with `dotnet build`, loaded from bytes into a collectible ALC; host assemblies always shared | Real C# tooling and debugging; no file locks; game code cannot shadow the engine. See [C# scripting](../engine/csharp-scripting.md) |
 | Hot reload | Serialize scene, swap types, deserialize, unload, verify collection | Same path as save/load, so anything that persists survives reload |
-| Game export | Publish the engine's `GameHost` self-contained and renamed to the game; content as assets+metas plus bytecode; staged, validated, then swapped in | One tested host for every game; asset GUIDs unchanged; a failed build never destroys the last good one |
+| Game export | Publish the engine's `GameHost` renamed to the game, with a private runtime found app-relative; dependencies resolved by the host from `Dependencies/`; content, bytecode and C# game code in one AES-GCM archive with an asset index; staged, validated, then swapped in | One tested host for every game; no installed .NET; asset GUIDs unchanged; tampering detected; a failed build never destroys the last good one |
 
 ## Technical risks
 

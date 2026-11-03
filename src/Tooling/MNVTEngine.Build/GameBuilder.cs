@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
+using MNVTEngine.Assets;
 using MNVTEngine.GameAssemblies;
 using MNVTEngine.Runtime;
 using MNVTEngine.Scenes;
@@ -78,7 +79,8 @@ public sealed partial class GameBuilder(ILogger logger)
             diagnostics.Add(BuildDiagnostic.Error("MNVB106", ex.Message));
         }
 
-        if (output is null || diagnostics.HasErrors())
+        var key = ContentKeys.LoadOrCreate(project, diagnostics);
+        if (output is null || key is null || diagnostics.HasErrors())
         {
             return Fail(profile);
         }
@@ -106,41 +108,49 @@ public sealed partial class GameBuilder(ILogger logger)
             }
         }
 
-        // 2. Content: assets, metas, bytecode, project file.
-        ContentResult content;
-        try
+        // 2. Content: asset index, assets, bytecode and project file, encrypted into the archive.
+        var archivePath = Path.Combine(work, GamePackage.ArchiveFile);
+        string? scriptsAssembly = null;
+        using (var archive = new ContentArchive.Writer(archivePath, key))
         {
-            content = ContentCompiler.Compile(project, registry, Path.Combine(stage, GamePackage.ContentFolder));
-        }
-        finally
-        {
-            if (code is not null)
+            ContentResult content;
+            try
             {
-                DevelopmentScripts.Unload(code, registry);
+                content = ContentCompiler.Compile(project, registry, archive);
+            }
+            finally
+            {
+                if (code is not null)
+                {
+                    DevelopmentScripts.Unload(code, registry);
+                }
+            }
+
+            diagnostics.AddRange(content.Diagnostics);
+            LogContent(logger, content.AssetCount, content.ScriptCount);
+            if (diagnostics.HasErrors())
+            {
+                return Fail(profile);
+            }
+
+            // 3. Host with its private runtime; dependencies into Dependencies/Managed and Dependencies/Native.
+            LogPublishing(logger, executableName, profile.Target);
+            diagnostics.AddRange(await GamePackager.PublishHostAsync(engineRoot, profile, executableName, key, work, stage, cancellationToken).ConfigureAwait(false));
+            if (diagnostics.HasErrors())
+            {
+                return Fail(profile);
+            }
+
+            GamePackager.ArrangeLayout(stage, executableName);
+            if (scripts is not null)
+            {
+                scriptsAssembly = GamePackager.AddGameCode(archive, scriptsOutput!, scripts.AssemblyName, stage, profile.Configuration == "Debug", diagnostics);
             }
         }
 
-        diagnostics.AddRange(content.Diagnostics);
-        LogContent(logger, content.AssetCount, content.ScriptCount);
-        if (diagnostics.HasErrors())
-        {
-            return Fail(profile);
-        }
-
-        // 3. Self-contained host with every managed and native dependency.
-        LogPublishing(logger, executableName, profile.Target);
-        diagnostics.AddRange(await GamePackager.PublishHostAsync(engineRoot, profile, executableName, work, stage, cancellationToken).ConfigureAwait(false));
-        if (diagnostics.HasErrors())
-        {
-            return Fail(profile);
-        }
-
-        string? scriptsAssembly = null;
-        if (scripts is not null)
-        {
-            scriptsAssembly = GamePackager.CopyGameCode(scriptsOutput!, scripts.AssemblyName, stage, profile.Configuration == "Debug", diagnostics);
-        }
-
+        var data = Path.Combine(stage, GamePackage.DataFolder(executableName));
+        Directory.CreateDirectory(data);
+        File.Move(archivePath, Path.Combine(data, GamePackage.ArchiveFile));
         GamePackager.WriteManifest(stage, new GamePackage
         {
             Name = project.Name,
@@ -160,16 +170,14 @@ public sealed partial class GameBuilder(ILogger logger)
             return Fail(profile);
         }
 
-        DeleteDirectory(output);
-        Directory.CreateDirectory(Path.GetDirectoryName(output)!);
-        if (string.Equals(Path.GetPathRoot(stage), Path.GetPathRoot(output), StringComparison.OrdinalIgnoreCase))
+        try
         {
-            Directory.Move(stage, output);
+            ReplaceOutput(stage, output);
         }
-        else
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            CopyDirectory(stage, output);
-            DeleteDirectory(stage);
+            diagnostics.Add(BuildDiagnostic.Error("MNVB409", $"Could not replace the previous build (is the game running, or a window or terminal open in that folder?): {ex.Message}", output));
+            return Fail(profile);
         }
 
         var size = Directory.EnumerateFiles(output, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
@@ -204,7 +212,7 @@ public sealed partial class GameBuilder(ILogger logger)
 
         try
         {
-            var content = ContentCompiler.Compile(project, registry, contentDirectory: null);
+            var content = ContentCompiler.Compile(project, registry, archive: null);
             diagnostics.AddRange(content.Diagnostics);
             LogContent(logger, content.AssetCount, content.ScriptCount);
         }
@@ -319,7 +327,7 @@ public sealed partial class GameBuilder(ILogger logger)
         }
 
         if (Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any()
-            && !GamePackage.IsPackage(Path.Combine(output, GamePackage.ContentFolder)))
+            && GamePackage.FindDataDirectory(output) is null)
         {
             diagnostics.Add(BuildDiagnostic.Error("MNVB104", $"Output folder '{output}' is not empty and does not contain a previous build; refusing to overwrite it."));
             return null;
@@ -343,6 +351,49 @@ public sealed partial class GameBuilder(ILogger logger)
         }
     }
 
+    /// <summary>
+    /// Swaps the staged build in. The previous build is first moved aside in one step, which fails without changing
+    /// anything if a file in it is in use; if the new build cannot be moved in, the previous one is put back.
+    /// </summary>
+    private static void ReplaceOutput(string stage, string output)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(output)!);
+        var previous = Directory.Exists(output) ? output + ".previous" : null;
+        if (previous is not null)
+        {
+            DeleteDirectory(previous);
+            Directory.Move(output, previous);
+        }
+
+        try
+        {
+            if (string.Equals(Path.GetPathRoot(stage), Path.GetPathRoot(output), StringComparison.OrdinalIgnoreCase))
+            {
+                Directory.Move(stage, output);
+            }
+            else
+            {
+                CopyDirectory(stage, output);
+                DeleteDirectory(stage);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            DeleteDirectory(output);
+            if (previous is not null)
+            {
+                Directory.Move(previous, output);
+            }
+
+            throw;
+        }
+
+        if (previous is not null)
+        {
+            DeleteDirectory(previous);
+        }
+    }
+
     private static void CopyDirectory(string source, string target)
     {
         foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
@@ -362,7 +413,7 @@ public sealed partial class GameBuilder(ILogger logger)
     [LoggerMessage(EventId = 8002, Level = LogLevel.Information, Message = "Compiled content: {Assets} assets, {Scripts} .mnvts scripts")]
     private static partial void LogContent(ILogger logger, int assets, int scripts);
 
-    [LoggerMessage(EventId = 8003, Level = LogLevel.Information, Message = "Publishing {Executable}.exe ({Target}, self-contained)")]
+    [LoggerMessage(EventId = 8003, Level = LogLevel.Information, Message = "Publishing {Executable}.exe ({Target}, private .NET runtime)")]
     private static partial void LogPublishing(ILogger logger, string executable, string target);
 
     [LoggerMessage(EventId = 8004, Level = LogLevel.Information, Message = "Validating package")]

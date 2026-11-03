@@ -21,7 +21,7 @@ public sealed class PackagedGameFixture : IAsyncLifetime
         ProjectTemplates.Create(template, "PackTest", ProjectDirectory, engine);
         First = await Build();
         Assert.True(First.Succeeded, string.Join("\n", First.Diagnostics));
-        FirstManifest = File.ReadAllText(Path.Combine(First.OutputDirectory!, GamePackage.ContentFolder, GamePackage.ManifestFile));
+        FirstManifest = File.ReadAllText(Path.Combine(First.OutputDirectory!, "PackTest_Data", GamePackage.ManifestFile));
     }
 
     public Task<BuildResult> Build(BuildOptions? options = null) =>
@@ -47,22 +47,39 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
     private string Output => game.First.OutputDirectory!;
 
     [Fact]
-    public async Task Build_ProducesASelfContainedGame_ThatRunsWithoutTheSdk()
+    public async Task Build_ProducesTheGameLayout_ThatRunsWithoutTheSdk()
     {
         Assert.Equal(Path.Combine(game.ProjectDirectory, "Builds", "release"), Output);
-        Assert.True(File.Exists(Path.Combine(Output, "PackTest.exe")));
-        Assert.True(File.Exists(Path.Combine(Output, "glfw3.dll")));
-        Assert.True(File.Exists(Path.Combine(Output, "coreclr.dll"))); // the .NET runtime ships with the game
-        Assert.True(File.Exists(Path.Combine(Output, "Content", "Scripts", "PackTest.Scripts.dll")));
-        Assert.False(File.Exists(Path.Combine(Output, "Content", "Scripts", "MNVTEngine.Scenes.dll"))); // host copy is used
-        Assert.Single(Directory.GetFiles(Path.Combine(Output, "Content", "Bytecode")));
-        Assert.Empty(Directory.GetFiles(Output, "*.pdb")); // release builds ship no symbols
+        Assert.Equal(
+            ["Dependencies", "PackTest.dll", "PackTest.exe", "PackTest.runtimeconfig.json", "PackTest_Data"],
+            Directory.EnumerateFileSystemEntries(Output).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+        Assert.Equal(["Managed", "Native", "Runtime"], Directory.EnumerateDirectories(Path.Combine(Output, "Dependencies")).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+        Assert.True(File.Exists(Path.Combine(Output, "Dependencies", "Managed", "MNVTEngine.Runtime.dll")));
+        Assert.True(File.Exists(Path.Combine(Output, "Dependencies", "Managed", "Newtonsoft.Json.dll")));
+        Assert.Equal(["glfw3.dll"], Directory.EnumerateFiles(Path.Combine(Output, "Dependencies", "Native")).Select(Path.GetFileName));
+        Assert.Single(Directory.GetFiles(Path.Combine(Output, "Dependencies", "Runtime"), "coreclr.dll", SearchOption.AllDirectories)); // private .NET runtime
+        Assert.Equal(["content.mnvtpak", "package.json"], Directory.EnumerateFiles(Path.Combine(Output, "PackTest_Data")).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+        Assert.Empty(Directory.GetFiles(Output, "*.pdb", SearchOption.AllDirectories)); // release builds ship no symbols
         Assert.Empty(BuildValidator.Validate(Output));
+
+        // Assets, bytecode and C# game code are only in the encrypted archive.
+        var key = Convert.FromHexString(File.ReadAllText(Path.Combine(game.ProjectDirectory, ContentKeys.RelativePath)).Trim());
+        Assert.Equal(key, ContentKeys.ReadFromHost(Path.Combine(Output, "PackTest.dll")));
+        using (var archive = Assets.ContentArchive.Open(Path.Combine(Output, "PackTest_Data", "content.mnvtpak"), key))
+        {
+            Assert.Contains("Scripts/PackTest.Scripts.dll", archive.Entries);
+            Assert.DoesNotContain("Scripts/MNVTEngine.Scenes.dll", archive.Entries); // the host's copy is used
+            Assert.Single(archive.Entries, e => e.StartsWith("Bytecode/", StringComparison.Ordinal));
+        }
+
+        var raw = System.Text.Encoding.Latin1.GetString(File.ReadAllBytes(Path.Combine(Output, "PackTest_Data", "content.mnvtpak")));
+        Assert.DoesNotContain("reach_goal", raw, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlayerController", raw, StringComparison.Ordinal);
 
         var run = await BuildValidator.RunAsync(Output, 20, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken);
         Assert.Empty(run);
         var log = File.ReadAllText(Path.Combine(Output, "Logs", "game.log"));
-        Assert.Contains("[script] Move to the goal with WASD", log, StringComparison.Ordinal); // C# component, scene and bytecode all loaded
+        Assert.Contains("[script] Move to the goal with WASD", log, StringComparison.Ordinal); // C# component, scene and bytecode all loaded from the archive
     }
 
     [Fact]
@@ -70,7 +87,7 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
     {
         var again = await game.Build();
         Assert.True(again.Succeeded, string.Join("\n", again.Diagnostics));
-        Assert.Equal(game.FirstManifest, File.ReadAllText(Path.Combine(Output, GamePackage.ContentFolder, GamePackage.ManifestFile)));
+        Assert.Equal(game.FirstManifest, File.ReadAllText(Path.Combine(Output, "PackTest_Data", GamePackage.ManifestFile)));
     }
 
     [Fact]
@@ -122,11 +139,18 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
             File.Copy(file, target);
         }
 
-        File.WriteAllText(Directory.GetFiles(Path.Combine(copy, "Content", "Bytecode")).Single(), "garbage");
-        File.Delete(Path.Combine(copy, "glfw3.dll"));
-        File.WriteAllText(Path.Combine(copy, "MNVTEngine.Editor.dll"), "");
+        var pak = Path.Combine(copy, "PackTest_Data", "content.mnvtpak");
+        var bytes = File.ReadAllBytes(pak);
+        bytes[100] ^= 1;
+        File.WriteAllBytes(pak, bytes);
+        File.Delete(Path.Combine(copy, "Dependencies", "Native", "glfw3.dll"));
+        File.Delete(Path.Combine(copy, "Dependencies", "Managed", "Newtonsoft.Json.dll"));
+        Directory.Delete(Path.Combine(copy, "Dependencies", "Runtime", "host"), recursive: true);
+        File.WriteAllText(Path.Combine(copy, "Dependencies", "Managed", "MNVTEngine.Editor.dll"), "");
 
         var codes = BuildValidator.Validate(copy).Where(d => d.Severity == BuildSeverity.Error).Select(d => d.Code).ToHashSet();
-        Assert.Superset(new HashSet<string> { "MNVB505", "MNVB506", "MNVB507", "MNVB508", "MNVB511" }, codes);
+        Assert.Superset(new HashSet<string> { "MNVB504", "MNVB505", "MNVB506", "MNVB507", "MNVB508", "MNVB515" }, codes);
+
+        Assert.Contains(BuildValidator.Validate(Output, Assets.ContentArchive.CreateKey()), d => d.Code == "MNVB514"); // wrong key
     }
 }

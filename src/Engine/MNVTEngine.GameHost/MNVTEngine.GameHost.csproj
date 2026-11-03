@@ -1,7 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    Executable of exported games. `mnvt build` publishes it self-contained for the profile's target and renames it to
-    the game (MnvtGameName). It only runs packaged content: no compiler, no SDK, no editor.
+    Executable of exported games. `mnvt build` publishes it per game, renamed to the game (MnvtGameName). It only runs
+    packaged content: no compiler, no SDK, no editor.
+
+    Layout: the apphost is framework-dependent but searches for .NET only in Dependencies/Runtime (AppRelative), where
+    publishing places a private copy of the runtime from the runtime pack. The game therefore needs no installed .NET,
+    and the root folder stays free of runtime files. Managed and native dependencies are moved to Dependencies/Managed
+    and Dependencies/Native by the packager and resolved by HostLayout at startup.
   -->
   <PropertyGroup>
     <OutputType Condition="'$(MnvtConsole)' == 'false'">WinExe</OutputType>
@@ -10,14 +15,35 @@
     <RootNamespace>MNVTEngine.GameHost</RootNamespace>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <SelfContained>false</SelfContained>
+    <AppHostDotNetSearch>AppRelative</AppHostDotNetSearch>
+    <AppHostRelativeDotNet>Dependencies/Runtime</AppHostRelativeDotNet>
   </PropertyGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="MNVTEngine.ContentKey" Value="$(MnvtContentKey)" Condition="'$(MnvtContentKey)' != ''" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>
   <ItemGroup>
-    <!-- The game name and console switch only concern this executable; engine libraries build the same for every game. -->
-    <ProjectReference Include="..\MNVTEngine.GameAssemblies\MNVTEngine.GameAssemblies.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole" />
-    <ProjectReference Include="..\MNVTEngine.Graphics.OpenGL\MNVTEngine.Graphics.OpenGL.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole" />
-    <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole" />
+    <!-- Game settings only concern this executable; engine libraries build the same for every game. -->
+    <ProjectReference Include="..\MNVTEngine.GameAssemblies\MNVTEngine.GameAssemblies.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey" />
+    <ProjectReference Include="..\MNVTEngine.Graphics.OpenGL\MNVTEngine.Graphics.OpenGL.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey" />
+    <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey" />
   </ItemGroup>
+
+  <!-- Private runtime in the layout of a .NET install (host/fxr + shared/Microsoft.NETCore.App), as hostfxr requires.
+       The SDK restores the runtime pack for every RuntimeIdentifiers entry. -->
+  <Target Name="MnvtPublishPrivateRuntime" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' != ''">
+    <PropertyGroup>
+      <MnvtRuntimePack>$(NuGetPackageRoot)microsoft.netcore.app.runtime.$(RuntimeIdentifier.ToLowerInvariant())/$(BundledNETCoreAppPackageVersion)/runtimes/$(RuntimeIdentifier)/</MnvtRuntimePack>
+      <MnvtRuntimeRoot>$(PublishDir)$(AppHostRelativeDotNet)/</MnvtRuntimeRoot>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(MnvtRuntimePack)')" Text="Runtime pack not found: $(MnvtRuntimePack)" />
+    <ItemGroup>
+      <MnvtFrameworkFile Include="$(MnvtRuntimePack)lib/$(TargetFramework)/*;$(MnvtRuntimePack)native/*" Exclude="$(MnvtRuntimePack)native/hostfxr.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(MnvtFrameworkFile)" DestinationFolder="$(MnvtRuntimeRoot)shared/Microsoft.NETCore.App/$(BundledNETCoreAppPackageVersion)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MnvtRuntimePack)native/hostfxr.dll" DestinationFolder="$(MnvtRuntimeRoot)host/fxr/$(BundledNETCoreAppPackageVersion)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>
