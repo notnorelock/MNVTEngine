@@ -20,7 +20,10 @@ public class Slider : UIElement
             {
                 _value = v;
                 InvalidateVisual();
-                ValueChanged?.Invoke(v);
+                if (ValueChanged is { } handler)
+                {
+                    RaiseEvent(nameof(ValueChanged), () => handler(v));
+                }
             }
         }
     }
@@ -240,7 +243,10 @@ public class Dropdown : UIElement
             {
                 _selected = v;
                 InvalidateLayout();
-                SelectionChanged?.Invoke(v);
+                if (SelectionChanged is { } handler)
+                {
+                    RaiseEvent(nameof(SelectionChanged), () => handler(v));
+                }
             }
         }
     }

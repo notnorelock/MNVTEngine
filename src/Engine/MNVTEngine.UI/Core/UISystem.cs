@@ -27,11 +27,15 @@ public sealed class UISystem : GameSystem
 
     private UISystem(Scene scene, UIServices services)
     {
+        Scene = scene;
         Services = services;
         scene.Unloaded += _ => Dispose();
     }
 
     public UIServices Services { get; }
+
+    /// <summary>The scene this UI belongs to: game event handlers run in its context.</summary>
+    public Scene Scene { get; }
 
     public IReadOnlyList<UIContext> Contexts => _contexts;
 
@@ -138,11 +142,13 @@ public sealed class UISystem : GameSystem
             _pending.RemoveAt(i);
             if (task.IsCompletedSuccessfully)
             {
-                loaded(task.Result);
+                var font = task.Result;
+                Scene.RunGameCode(() => loaded(font), nameof(UISystem), "FontLoaded", font.FamilyName);
             }
             else if (failed is not null)
             {
-                failed(task.Exception?.InnerException ?? new OperationCanceledException("Font loading was cancelled."));
+                var error = task.Exception?.InnerException ?? new OperationCanceledException("Font loading was cancelled.");
+                Scene.RunGameCode(() => failed(error), nameof(UISystem), "FontFailed", error.Message);
             }
             else
             {

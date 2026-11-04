@@ -42,7 +42,10 @@ public sealed class PlatformerSampleTests
         return new Level(scene, input, scene.Find("Player")!, null!);
     }
 
-    private void Frames(Level level, int count, params Key[] held)
+    private void Frames(Level level, int count, params Key[] held) => Frames(level, count, null, held);
+
+    /// <param name="mouse">Sets mouse input for the frame (after the input frame begins, so presses register).</param>
+    private void Frames(Level level, int count, Action<InputState>? mouse, params Key[] held)
     {
         for (var i = 0; i < count; i++)
         {
@@ -51,6 +54,8 @@ public sealed class PlatformerSampleTests
             {
                 level.Input.SetKey(key, held.Contains(key));
             }
+
+            mouse?.Invoke(level.Input);
 
             _frame++;
             var step = Step * level.Scene.TimeScale; // the host's clock applies Time.TimeScale
@@ -145,6 +150,43 @@ public sealed class PlatformerSampleTests
         Assert.Equal(1f, level.Scene.TimeScale);
         Frames(level, 30, Key.Right);
         Assert.True(level.Player.Transform.Position.X > x + 1f);
+    }
+
+    [Fact]
+    public async Task PauseMenuButtons_ResumeAndRestart()
+    {
+        var level = await LoadAsync();
+        var loader = new RecordingLoader();
+        level.Scene.Loader = loader;
+        level.Scene.RethrowScriptExceptions = false; // as in the editor and the runtime
+        var pause = level.Scene.Find("Pause Menu")!.GetComponent<UIDocument>()!;
+        Frames(level, 30);
+
+        Frames(level, 1, Key.Escape);
+        Click(level, pause.Root!.Find("Resume")!);
+        Assert.False(pause.Context!.Visible);
+        Assert.Equal(1f, level.Scene.TimeScale);
+
+        Frames(level, 1, Key.Escape);
+        Click(level, pause.Root!.Find("Restart")!);
+        Assert.Equal(["asset:9a000000-0000-4000-8000-000000000028"], loader.Requests); // Level1, through SceneManager
+        Assert.Equal(0, level.Scene.ScriptExceptionCount);
+    }
+
+    private void Click(Level level, UIElement element)
+    {
+        Frames(level, 1, input => input.SetMousePosition(element.Bounds.Center));
+        Frames(level, 1, input => input.SetMouseButton(MouseButton.Left, true));
+        Frames(level, 1, input => input.SetMouseButton(MouseButton.Left, false));
+    }
+
+    private sealed class RecordingLoader : ISceneLoader
+    {
+        public List<string> Requests { get; } = [];
+
+        public void RequestLoad(string path) => Requests.Add(path);
+
+        public void RequestLoad(AssetRef scene) => Requests.Add(scene.ToString());
     }
 
     [Fact]

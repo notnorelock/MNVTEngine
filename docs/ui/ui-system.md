@@ -94,7 +94,7 @@ ui.OnAction("play", _ => SceneManager.LoadScene("Scenes/Level1.mnvt"));
   - Flex grow and shrink, down to min/max sizes.
   - Justify and align, gap, and a measure cache.
   - Layout runs only when something changed; element counts are taken in the same pass.
-- **Events.** `PointerEntered`, `PointerExited`, `PointerPressed`, `PointerReleased` and `PointerClicked` bubble from the target to the root. `KeyPressed` and text input go to the focused element (`GotFocus`/`LostFocus`). The wheel scrolls the innermost `ScrollView` under the pointer.
+- **Events.** `PointerEntered`, `PointerExited`, `PointerPressed`, `PointerReleased` and `PointerClicked` bubble from the target to the root. `KeyPressed` and text input go to the focused element (`GotFocus`/`LostFocus`). The wheel scrolls the innermost `ScrollView` under the pointer. In a scene's UI, event handlers and actions run in the scene's context (`Time`, `Input` and `SceneManager` work), and a handler that throws is logged like a component callback (event 2000) instead of breaking the UI or the game.
 - **Widgets.**
   - Display: `Panel`, `Label`, `Image`, `Separator`, `Tooltip`, `ProgressBar` (determinate or indeterminate).
   - Toggles: `Button`, `Checkbox`, `Toggle`, `RadioButton` (grouped).

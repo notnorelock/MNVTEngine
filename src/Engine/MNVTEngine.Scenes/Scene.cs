@@ -459,6 +459,32 @@ public sealed partial class Scene
         }
     }
 
+    /// <summary>
+    /// Runs game code that is not a component callback (UI event handlers and actions, completion callbacks) inside this
+    /// scene's context, so <c>Time</c>, <c>Input</c> and <c>SceneManager</c> work, with the same exception handling as
+    /// component callbacks: logged with context and the frame continues, unless <see cref="RethrowScriptExceptions"/>.
+    /// </summary>
+    /// <param name="source">What raised it, for the log (e.g. the widget type).</param>
+    /// <param name="callback">The event or action name.</param>
+    /// <param name="target">The object it belongs to (e.g. the element name).</param>
+    public void RunGameCode(Action code, string source, string callback, string target)
+    {
+        ArgumentNullException.ThrowIfNull(code);
+        var previous = SceneContext.Enter(this);
+        try
+        {
+            code();
+        }
+        catch (Exception ex) when (!RethrowScriptExceptions)
+        {
+            Report(ex, source, callback, target);
+        }
+        finally
+        {
+            SceneContext.Exit(previous);
+        }
+    }
+
     private void Invoke(Component component, Action<Component> callback, string name)
     {
         using var sample = Core.Diagnostics.Profiler.TimesComponents ? Core.Diagnostics.Profiler.Sample(SampleName(component.GetType(), name)) : default;
@@ -468,15 +494,20 @@ public sealed partial class Scene
         }
         catch (Exception ex) when (!RethrowScriptExceptions)
         {
-            ScriptExceptionCount++;
-            _recentErrors.Enqueue(new ScriptError(DateTimeOffset.UtcNow, component.GetType().Name, name, component.GameObject.Name, ex));
-            while (_recentErrors.Count > 32)
-            {
-                _recentErrors.Dequeue();
-            }
-
-            LogScriptException(Logger, ex, component.GetType().Name, name, component.GameObject.Name);
+            Report(ex, component.GetType().Name, name, component.GameObject.Name);
         }
+    }
+
+    private void Report(Exception ex, string source, string callback, string target)
+    {
+        ScriptExceptionCount++;
+        _recentErrors.Enqueue(new ScriptError(DateTimeOffset.UtcNow, source, callback, target, ex));
+        while (_recentErrors.Count > 32)
+        {
+            _recentErrors.Dequeue();
+        }
+
+        LogScriptException(Logger, ex, source, callback, target);
     }
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<(Type, string), string> SampleNames = new();

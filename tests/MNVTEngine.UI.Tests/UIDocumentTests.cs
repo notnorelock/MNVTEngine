@@ -53,6 +53,49 @@ public sealed class UIDocumentTests
     }
 
     [Fact]
+    public void Handlers_RunInTheScenesContext_AndAThrowingHandlerIsLoggedNotFatal()
+    {
+        var scene = new Scene();
+        var loader = new RecordingLoader();
+        scene.Loader = loader;
+        var system = UISystem.Attach(scene, new UIServices(UIHarness.Font, null, _ => System.Text.Encoding.UTF8.GetBytes(Menu()), null));
+        var document = scene.CreateGameObject("HUD").AddComponent<UIDocument>();
+        document.Layout = Layout;
+        scene.Start();
+        var ui = document.Context!;
+        var input = new InputState();
+        void Frame()
+        {
+            system.Update(input, new Vector2(800, 600), 1f, 0.016f);
+            input.BeginFrame();
+        }
+
+        Frame();
+        ui.OnAction("play", _ => SceneManager.LoadScene("Scenes/Next.mnvt")); // needs the scene's context
+        var play = document.Root!.Find<Button>("Play")!;
+        play.Clicked += () => throw new InvalidOperationException("game bug");
+        input.SetMousePosition(play.Bounds.Center);
+        Frame();
+        input.SetMouseButton(MouseButton.Left, true);
+        Frame();
+        input.SetMouseButton(MouseButton.Left, false);
+        Frame(); // the click: the action loads a scene, then the Clicked handler throws
+
+        Assert.Equal(["Scenes/Next.mnvt"], loader.Requests);
+        Assert.Equal(1, scene.ScriptExceptionCount);
+        Assert.Equal(("Button", "Clicked", "Play"), (scene.RecentScriptErrors.Single().Component, scene.RecentScriptErrors.Single().Callback, scene.RecentScriptErrors.Single().GameObject));
+    }
+
+    private sealed class RecordingLoader : ISceneLoader
+    {
+        public List<string> Requests { get; } = [];
+
+        public void RequestLoad(string path) => Requests.Add(path);
+
+        public void RequestLoad(AssetRef scene) => Requests.Add(scene.ToString());
+    }
+
+    [Fact]
     public void ABrokenLayout_LeavesAnEmptyContext_InsteadOfFailingTheScene()
     {
         var scene = new Scene();

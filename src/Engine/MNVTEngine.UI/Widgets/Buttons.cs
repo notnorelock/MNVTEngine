@@ -30,7 +30,11 @@ public class Button : UIElement
     protected internal override void OnClick(PointerEventArgs e)
     {
         base.OnClick(e);
-        Clicked?.Invoke();
+        if (Clicked is { } handler)
+        {
+            RaiseEvent(nameof(Clicked), handler);
+        }
+
         e.Handled = true;
     }
 
@@ -93,7 +97,10 @@ public class Checkbox : UIElement
             {
                 _checked = value;
                 InvalidateVisual();
-                CheckedChanged?.Invoke(value);
+                if (CheckedChanged is { } handler)
+                {
+                    RaiseEvent(nameof(CheckedChanged), () => handler(value));
+                }
             }
         }
     }

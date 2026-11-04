@@ -224,7 +224,16 @@ public sealed partial class UIContext : IDisposable
 
     internal void MarkVisualDirty() => VisualDirty = true;
 
-    internal void RaiseAction(UIElement element, string action) => ActionInvoked?.Invoke(element, action);
+    internal void RaiseAction(UIElement element, string action)
+    {
+        if (ActionInvoked is { } handler)
+        {
+            element.RaiseEvent($"action '{action}'", () => handler(element, action));
+        }
+    }
+
+    /// <summary>The scene whose context game event handlers run in; null for standalone contexts.</summary>
+    internal Scene? Scene => _system?.Scene;
 
     /// <summary>A texture asset through the scene's UI services (null without a UI system or when missing).</summary>
     internal Texture2D? LoadTexture(AssetRef asset) => _system?.Services.LoadTexture?.Invoke(asset);

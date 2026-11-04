@@ -21,7 +21,11 @@ public abstract class TextInputBase : UIElement
         Editor.Changed += () =>
         {
             InvalidateLayout();
-            TextChanged?.Invoke(Editor.Text);
+            if (TextChanged is { } handler)
+            {
+                var text = Editor.Text;
+                RaiseEvent(nameof(TextChanged), () => handler(text));
+            }
         };
     }
 
@@ -317,7 +321,12 @@ public class TextField : TextInputBase
                 Editor.SetCaret(Editor.Text.Length, e.Shift);
                 return true;
             case Key.Enter when !e.Repeat:
-                Submitted?.Invoke(Editor.Text);
+                if (Submitted is { } handler)
+                {
+                    var text = Editor.Text;
+                    RaiseEvent(nameof(Submitted), () => handler(text));
+                }
+
                 return true;
             default:
                 return false;

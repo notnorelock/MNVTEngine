@@ -42,13 +42,55 @@ public partial class UIElement
     /// <summary>Called every update while attached (caret blink, animation). Return true when the element must be redrawn.</summary>
     protected internal virtual bool Tick(float deltaSeconds) => false;
 
-    protected internal virtual void OnPointerEnter(PointerEventArgs e) => PointerEntered?.Invoke(this, e);
+    /// <summary>
+    /// Raises an event to game code. In a scene's UI it runs in the scene's context (<c>Time</c>, <c>Input</c> and
+    /// <c>SceneManager</c> work), and a throwing handler is logged like a component callback instead of breaking the
+    /// UI or the host. Standalone contexts call it directly.
+    /// </summary>
+    protected internal void RaiseEvent(string name, Action raise)
+    {
+        ArgumentNullException.ThrowIfNull(raise);
+        if (Context?.Scene is { } scene)
+        {
+            scene.RunGameCode(raise, GetType().Name, name, Name.Length > 0 ? Name : GetType().Name);
+        }
+        else
+        {
+            raise();
+        }
+    }
 
-    protected internal virtual void OnPointerExit(PointerEventArgs e) => PointerExited?.Invoke(this, e);
+    protected internal virtual void OnPointerEnter(PointerEventArgs e)
+    {
+        if (PointerEntered is { } handler)
+        {
+            RaiseEvent(nameof(PointerEntered), () => handler(this, e));
+        }
+    }
 
-    protected internal virtual void OnPointerDown(PointerEventArgs e) => PointerPressed?.Invoke(this, e);
+    protected internal virtual void OnPointerExit(PointerEventArgs e)
+    {
+        if (PointerExited is { } handler)
+        {
+            RaiseEvent(nameof(PointerExited), () => handler(this, e));
+        }
+    }
 
-    protected internal virtual void OnPointerUp(PointerEventArgs e) => PointerReleased?.Invoke(this, e);
+    protected internal virtual void OnPointerDown(PointerEventArgs e)
+    {
+        if (PointerPressed is { } handler)
+        {
+            RaiseEvent(nameof(PointerPressed), () => handler(this, e));
+        }
+    }
+
+    protected internal virtual void OnPointerUp(PointerEventArgs e)
+    {
+        if (PointerReleased is { } handler)
+        {
+            RaiseEvent(nameof(PointerReleased), () => handler(this, e));
+        }
+    }
 
     /// <summary>Pointer moved while this element holds the pointer capture (dragging after a press on it).</summary>
     protected internal virtual void OnPointerDrag(PointerEventArgs e)
@@ -57,7 +99,11 @@ public partial class UIElement
 
     protected internal virtual void OnClick(PointerEventArgs e)
     {
-        PointerClicked?.Invoke(this, e);
+        if (PointerClicked is { } handler)
+        {
+            RaiseEvent(nameof(PointerClicked), () => handler(this, e));
+        }
+
         if (Action is { } action)
         {
             Context?.RaiseAction(this, action);
@@ -68,15 +114,33 @@ public partial class UIElement
     {
     }
 
-    protected internal virtual void OnKeyDown(KeyEventArgs e) => KeyPressed?.Invoke(this, e);
+    protected internal virtual void OnKeyDown(KeyEventArgs e)
+    {
+        if (KeyPressed is { } handler)
+        {
+            RaiseEvent(nameof(KeyPressed), () => handler(this, e));
+        }
+    }
 
     protected internal virtual void OnTextInput(TextInputEventArgs e)
     {
     }
 
-    protected internal virtual void OnFocus() => GotFocus?.Invoke(this);
+    protected internal virtual void OnFocus()
+    {
+        if (GotFocus is { } handler)
+        {
+            RaiseEvent(nameof(GotFocus), () => handler(this));
+        }
+    }
 
-    protected internal virtual void OnBlur() => LostFocus?.Invoke(this);
+    protected internal virtual void OnBlur()
+    {
+        if (LostFocus is { } handler)
+        {
+            RaiseEvent(nameof(LostFocus), () => handler(this));
+        }
+    }
 }
 
 public sealed partial class UITheme
