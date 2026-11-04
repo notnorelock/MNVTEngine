@@ -141,6 +141,12 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
             steps = _fixed.Accumulate(time.DeltaTime);
         }
 
+        // The UI goes first and takes the keyboard and mouse it uses away from gameplay, as in the standalone runtime.
+        if (UI.UISystem.For(PlayScene) is { } ui && ViewportSize is { X: > 0, Y: > 0 })
+        {
+            ui.Update(Input, ViewportSize, 1f, time.UnscaledDeltaTime);
+        }
+
         for (var i = 0; i < steps; i++)
         {
             PlayScene.FixedUpdate(_fixed.StepSeconds);
@@ -231,6 +237,12 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
     /// <summary>Audio output for Play Mode (owned by the editor); null plays nothing.</summary>
     public Audio.IAudioDevice? Audio { get; set; }
 
+    /// <summary>Fonts, clipboard and assets for the game UI of play scenes (owned by the editor); null attaches no UI.</summary>
+    public UI.UIServices? UIServices { get; set; }
+
+    /// <summary>Size of the Game view in pixels: the game UI lays out to it.</summary>
+    public Mathematics.Vector2 ViewportSize { get; set; }
+
     private void Start(Scene scene)
     {
         scene.Logger = loggerFactory.CreateLogger($"Scene.{scene.Name}");
@@ -241,6 +253,11 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         if (Audio is { } audio)
         {
             AudioSystem.Attach(scene, audio, clip => session.Assets.ReadAllBytes(clip.Guid));
+        }
+
+        if (UIServices is { } ui)
+        {
+            UI.UISystem.Attach(scene, ui);
         }
 
         PlayScene = scene;

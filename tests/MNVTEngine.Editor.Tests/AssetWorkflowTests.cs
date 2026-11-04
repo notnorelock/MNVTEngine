@@ -106,6 +106,30 @@ public sealed class AssetWorkflowTests : IDisposable
         Assert.Throws<ArgumentException>(() => play.RequestLoad(new AssetRef(Guid.NewGuid())));
     }
 
+    [Fact]
+    public void PlayMode_GivesPlayScenesAGameUI_LaidOutToTheGameView_ThatTakesTheMouse()
+    {
+        using var font = Graphics.Text.Font.LoadDefault();
+        var play = new PlayModeController(_session, NullLoggerFactory.Instance)
+        {
+            UIServices = new UI.UIServices(font, null, null, null),
+            ViewportSize = new Mathematics.Vector2(400, 300),
+        };
+        play.Play();
+        var context = UI.UISystem.For(play.PlayScene!)!.CreateContext();
+        var button = context.Root.AddChild(new UI.Widgets.Button { Text = "Play", Width = 100, Height = 40 });
+
+        play.Input.BeginFrame();
+        play.Input.SetMousePosition(new Mathematics.Vector2(20, 20));
+        play.Tick(0.016);
+        Assert.Equal(new Mathematics.Vector2(400, 300), context.Size);
+        Assert.Same(button, context.Hovered);
+        Assert.True(play.Input.MouseCaptured); // gameplay does not see the click meant for the UI
+
+        play.Stop();
+        Assert.Null(play.PlayScene);
+    }
+
     public sealed class Holder : Component
     {
         public float Speed;

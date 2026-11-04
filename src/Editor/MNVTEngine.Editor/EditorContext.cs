@@ -23,6 +23,9 @@ internal sealed class EditorContext
 
     public required ImGuiRenderer ImGui { get; init; }
 
+    /// <summary>Draws the game UI of the play scene into the Game view.</summary>
+    public required UI.UIRenderer GameUI { get; init; }
+
     public required EditorSession Session { get; init; }
 
     public required PlayModeController PlayMode { get; init; }

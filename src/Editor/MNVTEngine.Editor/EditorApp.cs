@@ -48,6 +48,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private int _focusSceneFrames;
     private readonly Core.Diagnostics.FrameProfiler _profiler = new();
     private ScriptReloadController _scripts = null!;
+    private Graphics.Text.Font _gameUIFont = null!;
     private string _iniPath = "";
     private bool _resetLayout;
     private Action? _afterUnsavedPrompt;
@@ -81,6 +82,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             Resources = resources,
             SceneRenderer = new SceneRenderer(renderer, resources, _logger),
             ImGui = new ImGuiRenderer(device, renderer.DefaultMaterial, font, 17f),
+            GameUI = new UI.UIRenderer(device, renderer.DefaultMaterial),
             Session = session,
             PlayMode = new PlayModeController(session, loggerFactory) { Audio = AudioDevices.CreateOrSilent(Audio.OpenAL.OpenALAudioDevice.Create, loggerFactory.CreateLogger("Audio")) },
             Logs = logs,
@@ -94,9 +96,12 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         {
             var diagnostics = new RuntimeDiagnostics(_context.DiagnosticsSettings.Clone(), loggerFactory.CreateLogger("Diagnostics"),
                 Path.Combine(project.RootDirectory, "Library", "Diagnostics", "Profiles"), _profiler, ownsProfilerFrames: false);
-            diagnostics.Attach(new DiagnosticsTarget(device, () => _context.PlayMode.PlayScene, resources, session.Assets, _context.SceneRenderer));
+            diagnostics.Attach(new DiagnosticsTarget(device, () => _context.PlayMode.PlayScene, resources, session.Assets, _context.SceneRenderer, _context.GameUI));
             return diagnostics;
         };
+
+        _gameUIFont = Graphics.Text.Font.LoadDefault();
+        _context.PlayMode.UIServices = new UI.UIServices(_gameUIFont, new WindowClipboard(window), asset => session.Assets.ReadAllBytes(asset.Guid), asset => resources.GetTexture(asset));
 
         Gui.ApplyDarkTheme();
         _iniPath = Path.Combine(project.RootDirectory, "Library", "Editor", "layout.ini");
@@ -306,6 +311,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _sceneView.Dispose();
         _gameView.Dispose();
         _context.ImGui.Dispose();
+        _context.GameUI.Dispose();
+        _gameUIFont.Dispose();
         _context.SceneRenderer.Dispose();
         _context.Resources.Dispose();
         _context.Renderer.Dispose();

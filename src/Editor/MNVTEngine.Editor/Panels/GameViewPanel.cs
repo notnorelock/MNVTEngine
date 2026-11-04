@@ -58,6 +58,7 @@ internal sealed class GameViewPanel : IDisposable
     {
         var game = _context.PlayMode.Input;
         game.BeginFrame();
+        _context.PlayMode.ViewportSize = new Vector2(_view.Target.Width, _view.Target.Height);
         UpdateOverlay();
         if (!_context.PlayMode.IsPlaying || !_focused)
         {
@@ -132,6 +133,13 @@ internal sealed class GameViewPanel : IDisposable
         using (new Graphics.GpuScope(gpu, "Scene"))
         {
             _context.SceneRenderer.Render(_context.ActiveScene, _view.Target.Width, _view.Target.Height, _view.Target);
+        }
+
+        if (_context.PlayMode.PlayScene is { } playing && UI.UISystem.For(playing) is { } ui)
+        {
+            using var sample = Core.Diagnostics.Profiler.Sample("UI");
+            _context.Device.SetRenderTarget(_view.Target);
+            ui.Render(_context.GameUI, _view.Target.Width, _view.Target.Height);
         }
 
         diagnostics?.SceneRendered();
