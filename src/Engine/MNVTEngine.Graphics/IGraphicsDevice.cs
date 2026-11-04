@@ -67,6 +67,14 @@ public interface IGraphicsDevice : IDisposable
     /// <summary>Reads the whole current target as RGBA8, row 0 = top of the image.</summary>
     void ReadPixels(Span<byte> destination);
 
+    /// <summary>
+    /// Ends the frame: submits the recorded work and shows the back buffer. Hosts call it once at the end of each rendered
+    /// frame. The next frame starts with the next command. Backends whose window presents by itself do nothing.
+    /// </summary>
+    void Present()
+    {
+    }
+
     /// <summary>Draw calls, uploads and state switches per frame (<c>Resources.Statistics</c>).</summary>
     GraphicsStatistics Statistics => Resources.Statistics;
 

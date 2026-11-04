@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Unit tests (selection rules, SPIR-V reflection) run anywhere. Integration tests need a Vulkan 1.4 GPU and are skipped
+    (not passed) without one. They request the validation layer and fail on any validation error when it is installed.
+  -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" />
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Platform\MNVTEngine.Platform.csproj" />
+  </ItemGroup>
+</Project>

@@ -9,7 +9,11 @@ public readonly record struct GraphicsFrameStatistics(
     long VerticesUploaded,
     int TextureSwitches,
     int ShaderSwitches,
-    int RenderTargetSwitches);
+    int RenderTargetSwitches,
+    int PipelineSwitches = 0,
+    int DescriptorWrites = 0,
+    int Barriers = 0,
+    int Submits = 0);
 
 /// <summary>Live GPU objects by kind; texture bytes are estimated as width × height × 4 (RGBA8, no mipmaps).</summary>
 public readonly record struct GraphicsResourceCounts(int Textures, int RenderTargets, int Shaders, int Buffers, long TextureBytes);
@@ -28,11 +32,15 @@ public sealed class GraphicsStatistics
     private int _textureSwitches;
     private int _shaderSwitches;
     private int _targetSwitches;
+    private int _pipelineSwitches;
+    private int _descriptorWrites;
+    private int _barriers;
+    private int _submits;
 
     public GraphicsFrameStatistics LastFrame { get; private set; }
 
     /// <summary>Counts so far in the frame being rendered.</summary>
-    public GraphicsFrameStatistics Current => new(_drawCalls, _indices, _triangles, _lines, _vertices, _textureSwitches, _shaderSwitches, _targetSwitches);
+    public GraphicsFrameStatistics Current => new(_drawCalls, _indices, _triangles, _lines, _vertices, _textureSwitches, _shaderSwitches, _targetSwitches, _pipelineSwitches, _descriptorWrites, _barriers, _submits);
 
     public void RecordDraw(PrimitiveTopology topology, int indexCount)
     {
@@ -56,10 +64,23 @@ public sealed class GraphicsStatistics
 
     public void RecordRenderTargetSwitch() => _targetSwitches++;
 
+    /// <summary>A different pipeline (shader and fixed-function state) was bound.</summary>
+    public void RecordPipelineSwitch() => _pipelineSwitches++;
+
+    /// <summary>Descriptors written for draws (push descriptor writes).</summary>
+    public void RecordDescriptorWrites(int count) => _descriptorWrites += count;
+
+    /// <summary>A pipeline barrier (image layout transition) was recorded.</summary>
+    public void RecordBarrier() => _barriers++;
+
+    /// <summary>A batch of command buffers was submitted to the GPU queue.</summary>
+    public void RecordSubmit() => _submits++;
+
     public void EndFrame()
     {
         LastFrame = Current;
         (_drawCalls, _indices, _triangles, _lines, _vertices, _textureSwitches, _shaderSwitches, _targetSwitches) = (0, 0, 0, 0, 0, 0, 0, 0);
+        (_pipelineSwitches, _descriptorWrites, _barriers, _submits) = (0, 0, 0, 0);
     }
 }
 

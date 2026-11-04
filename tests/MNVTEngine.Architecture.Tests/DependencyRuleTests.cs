@@ -8,7 +8,7 @@ public class DependencyRuleTests
 {
     private static readonly ProjectGraph Graph = ProjectGraph.Load();
 
-    private static readonly string[] GraphicsBackendPackages = ["Silk.NET"];
+    private static readonly string[] GraphicsBackendPackages = ["Silk.NET", "Vortice"];
     private static readonly string[] EditorUiPackages = ["ImGui.NET", "Hexa.NET.ImGui"];
 
     [Fact]
@@ -99,7 +99,7 @@ public class DependencyRuleTests
     [Fact]
     public void OnlyPlatformBackends_ReferenceSilkNetDirectly()
     {
-        string[] allowed = ["MNVTEngine.Graphics.OpenGL", "MNVTEngine.Platform", "MNVTEngine.Windowing", "MNVTEngine.Audio.OpenAL"];
+        string[] allowed = ["MNVTEngine.Graphics.OpenGL", "MNVTEngine.Graphics.Vulkan", "MNVTEngine.Platform", "MNVTEngine.Windowing", "MNVTEngine.Audio.OpenAL"];
         var violations = Graph.Projects
             .Where(p => p.Area == "Engine" && !allowed.Contains(p.Name))
             .Where(p => p.Packages.Any(pkg => GraphicsBackendPackages.Any(b => pkg.StartsWith(b, StringComparison.OrdinalIgnoreCase))))
@@ -112,6 +112,12 @@ public class DependencyRuleTests
     [InlineData("MNVTEngine.Graphics", "MNVTEngine.Graphics.OpenGL")]
     [InlineData("MNVTEngine.Graphics", "MNVTEngine.Platform")]
     [InlineData("MNVTEngine.Graphics.OpenGL", "MNVTEngine.Platform")]
+    [InlineData("MNVTEngine.Graphics", "MNVTEngine.Graphics.Vulkan")]
+    [InlineData("MNVTEngine.Graphics.Vulkan", "MNVTEngine.Platform")]
+    [InlineData("MNVTEngine.Runtime", "MNVTEngine.Graphics.Vulkan")]
+    [InlineData("MNVTEngine.Assets", "MNVTEngine.Graphics.Vulkan")]
+    [InlineData("MNVTEngine.Scripting", "MNVTEngine.Graphics.Vulkan")]
+    [InlineData("MNVTEngine.Scenes", "MNVTEngine.Graphics.Vulkan")]
     [InlineData("MNVTEngine.Platform", "MNVTEngine.Graphics")]
     [InlineData("MNVTEngine.Scenes", "MNVTEngine.Graphics")]
     [InlineData("MNVTEngine.Scenes", "MNVTEngine.Assets")]
