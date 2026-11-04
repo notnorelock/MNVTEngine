@@ -73,13 +73,7 @@
           "type": "MNVTEngine.MeshRenderer",
           "data": {
             "primitive": "Plane",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "texture": "asset:d3000000-0000-4000-8000-000000000001"
+            "material": "asset:d3000000-0000-4000-8000-000000000011"
           },
           "id": "d3100000-0000-0000-0002-000000000000",
           "enabled": true
@@ -166,13 +160,7 @@
           "type": "MNVTEngine.MeshRenderer",
           "data": {
             "primitive": "Sphere",
-            "color": {
-              "r": 0.3,
-              "g": 0.85,
-              "b": 0.35,
-              "a": 1
-            },
-            "texture": "asset:d3000000-0000-4000-8000-000000000001"
+            "material": "asset:d3000000-0000-4000-8000-000000000012"
           },
           "id": "d3100000-0000-0000-0004-000000000000",
           "enabled": true
@@ -287,12 +275,7 @@
           "type": "MNVTEngine.MeshRenderer",
           "data": {
             "primitive": "Cone",
-            "color": {
-              "r": 0.95,
-              "g": 0.55,
-              "b": 0.2,
-              "a": 1
-            }
+            "material": "asset:d3000000-0000-4000-8000-000000000013"
           },
           "id": "d3100000-0000-0000-0007-000000000000",
           "enabled": true
@@ -400,6 +383,53 @@
           },
           "id": "d3100000-0000-0000-0009-000000000000",
           "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000020",
+      "name": "Leaves",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 2.0,
+          "y": 1.0,
+          "z": 1.8
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1.4,
+          "y": 1.4,
+          "z": 1.4
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "id": "d3100000-0000-0000-0020-000000000000",
+          "enabled": true,
+          "data": {
+            "primitive": "Quad",
+            "material": "asset:d3000000-0000-4000-8000-000000000014"
+          }
+        },
+        {
+          "type": "Showcase3D.Spinner",
+          "id": "d3100000-0000-0000-0020-000000000001",
+          "enabled": true,
+          "data": {
+            "degreesPerSecond": {
+              "x": 0,
+              "y": 40,
+              "z": 0
+            }
+          }
         }
       ]
     }

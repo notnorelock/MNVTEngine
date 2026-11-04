@@ -10,8 +10,9 @@ using SysVector4 = System.Numerics.Vector4;
 namespace MNVTEngine.Editor.Panels;
 
 /// <summary>Inspector content for a selected asset: identity, import status, facts, references, and import settings.</summary>
-internal sealed class AssetInspector(EditorContext context)
+internal sealed class AssetInspector(EditorContext context) : IDisposable
 {
+    private readonly MaterialInspector _material = new(context);
     private static readonly string[] Filters = Enum.GetNames<TextureFilter>();
     private static readonly string[] Wraps = Enum.GetNames<TextureWrap>();
 
@@ -57,6 +58,10 @@ internal sealed class AssetInspector(EditorContext context)
         {
             context.OpenSceneRequest = record.Path;
         }
+        else if (record.Type == AssetTypes.Material)
+        {
+            _material.Draw(guid);
+        }
         else if (record.Type == AssetTypes.UILayout && ImGui.Button("Edit in UI Editor"))
         {
             context.OpenUILayoutRequest = assets.FullPath(guid);
@@ -74,6 +79,11 @@ internal sealed class AssetInspector(EditorContext context)
         DrawReferences("References", record.Dependencies.Select(assets.Get));
         DrawReferences("Referenced by", assets.GetDependents(guid));
     }
+
+    /// <summary>Render phase: previews that draw with the engine (materials).</summary>
+    public void Render() => _material.Render();
+
+    public void Dispose() => _material.Dispose();
 
     private void DrawTexture(Guid guid, AssetRecord record)
     {

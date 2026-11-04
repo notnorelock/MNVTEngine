@@ -57,6 +57,11 @@ internal sealed class ProjectPanel(EditorContext context)
                             CreateUILayout();
                         }
 
+                        if (ImGui.MenuItem("Material"))
+                        {
+                            CreateMaterial();
+                        }
+
                         ImGui.EndMenu();
                     }
 
@@ -335,6 +340,19 @@ internal sealed class ProjectPanel(EditorContext context)
 
             ImGui.EndPopup();
         }
+    }
+
+    /// <summary>A new Standard material in the current folder, selected so the inspector shows it.</summary>
+    private void CreateMaterial()
+    {
+        var path = Combine("New Material.mnvtmat");
+        for (var i = 1; File.Exists(Path.Combine(Assets.AssetsDirectory, path)); i++)
+        {
+            path = Combine($"New Material {i}.mnvtmat");
+        }
+
+        Try($"Create material {path}", () => context.Session.Selection.SelectAsset(Assets.WriteText(path, Services.MaterialDocument.NewStandardMaterialJson())));
+        Rescan(force: true);
     }
 
     /// <summary>A new full-screen layout in the current folder, opened in the UI Editor.</summary>

@@ -78,6 +78,23 @@ public static class Gui
         }
     }
 
+    /// <summary>
+    /// Makes the last item a drop target for <paramref name="type"/> and returns what was dropped on it this frame.
+    /// Wraps <see cref="AcceptStringPayload"/> in Begin/EndDragDropTarget, which ImGui requires (it asserts otherwise).
+    /// </summary>
+    public static string? DropTarget(string type)
+    {
+        if (!ImGui.BeginDragDropTarget())
+        {
+            return null;
+        }
+
+        var dropped = AcceptStringPayload(type);
+        ImGui.EndDragDropTarget();
+        return dropped;
+    }
+
+    /// <summary>Only between <c>ImGui.BeginDragDropTarget</c> and <c>EndDragDropTarget</c>; prefer <see cref="DropTarget"/>.</summary>
     public static unsafe string? AcceptStringPayload(string type)
     {
         var payload = ImGui.AcceptDragDropPayload(type);

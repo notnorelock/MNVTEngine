@@ -295,6 +295,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         }
 
         _gameView.EndDiagnosticsFrame();
+        _inspector.Render();
         using (Core.Diagnostics.Profiler.Sample("Editor.UIEditor"))
         {
             _uiEditor.Render(time.UnscaledDeltaTime);
@@ -331,6 +332,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _context.PlayMode.Stop();
         _scripts.Dispose();
         _uiEditor.Dispose();
+        _inspector.Dispose();
         _sceneView.Dispose();
         _gameView.Dispose();
         _context.ImGui.Dispose();

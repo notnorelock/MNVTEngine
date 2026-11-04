@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "shader": "builtin:standard",
+  "blend": "Opaque",
+  "properties": {
+    "_BaseColor": [
+      0.2,
+      0.08,
+      0.02,
+      1.0
+    ],
+    "_EmissiveColor": [
+      1.6,
+      0.6,
+      0.1,
+      1.0
+    ]
+  }
+}

@@ -9,11 +9,16 @@ using SysVector2 = System.Numerics.Vector2;
 namespace MNVTEngine.Editor.Panels;
 
 /// <summary>Edits the selected GameObject: name, active state, Transform, and every component's persisted members.</summary>
-internal sealed partial class InspectorPanel(EditorContext context)
+internal sealed partial class InspectorPanel(EditorContext context) : IDisposable
 {
     private readonly Dictionary<Type, IReadOnlyList<InspectableMember>> _members = [];
     private readonly AssetInspector _assetInspector = new(context);
     private Component? _pendingRemove;
+
+    /// <summary>Render phase: asset previews (material spheres).</summary>
+    public void Render() => _assetInspector.Render();
+
+    public void Dispose() => _assetInspector.Dispose();
 
     public void Draw()
     {

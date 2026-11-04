@@ -97,6 +97,21 @@ The UI Editor edits game UI layouts (`.mnvtui`, see [game UI](../ui/ui-system.md
 - **Saving and undo:** Ctrl+S saves and Ctrl+Z / Ctrl+Y undo and redo while the window has focus. A drag or a typed value becomes one step. **Save*** marks unsaved changes.
 - **Limitations:** no drag and drop in the tree or preview, and quitting the editor does not ask about an unsaved layout.
 
+## Material inspector
+
+Selecting a `.mnvtmat` in the Project panel shows it in the Inspector ([format](../graphics/materials-and-lighting.md)):
+
+- **Preview.** A sphere drawn with the material by the engine's 3D renderer. 2D sprite materials are previewed on sprites in the scene instead.
+- **Shader.** Standard, Unlit, Sprite (2D), or a custom shader: a fragment asset path and, for meshes, a vertex asset path; press Enter to apply.
+- **Render settings.** Blend; cull, depth test and depth write ("Default" follows the shader); render-queue override. The values in effect are shown below them.
+- **Properties.**
+  - Standard and Unlit list their documented properties: colors (emission is HDR), sliders, numbers and texture slots.
+  - Custom shaders list the uniforms and samplers their GLSL declares.
+  - Texture slots show a thumbnail. Drag a texture onto one from the Project panel; **x** clears it, and **Reset** returns a value to the shader's default.
+- **Saving.** Every edit is written to the file when it ends, so the scene and Game view update at once. **Undo**/**Redo** in the inspector step through the edits.
+
+**Create > Material** (right-click the Project panel's file list) makes a new white Standard material in the current folder.
+
 ## Project Hub and building
 
 - **Project Hub.** Starting the editor without a project, or **File → Project Hub**, opens the hub: recent projects (right-click to remove one), New Project from a template, and Open. The recent list is kept in `%APPDATA%/MNVTEngine/recent-projects.json`.

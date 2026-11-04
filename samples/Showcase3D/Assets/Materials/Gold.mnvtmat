@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 2,
+  "shader": "builtin:standard",
+  "blend": "Opaque",
+  "properties": {
+    "_BaseColor": [
+      1.0,
+      0.77,
+      0.34,
+      1.0
+    ],
+    "_Metallic": 1.0,
+    "_Roughness": 0.3
+  }
+}
