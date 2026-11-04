@@ -11,7 +11,7 @@ using MNVTEngine.Serialization;
 
 namespace MNVTEngine.GameHost;
 
-// Exported game: runs <Game>_Data/content.mnvtpak next to the executable.
+// Exported game: runs the content archives listed in <Game>_Data/package.json next to the executable.
 // Usage: <Game>.exe [--frames N] [--screenshot out.png] [--gpu-validation]
 internal static class Program
 {
@@ -62,11 +62,11 @@ internal static class Game
         }
 
         GamePackage package;
-        ContentArchive archive;
+        ContentArchiveSet archive;
         try
         {
             package = GamePackage.Load(data);
-            archive = ContentArchive.Open(Path.Combine(data, GamePackage.ArchiveFile), ContentKey(host));
+            archive = package.OpenContent(data, ContentKey(host));
         }
         catch (Exception ex) when (ex is SerializationException or IOException or InvalidDataException or FormatException)
         {
@@ -79,7 +79,7 @@ internal static class Game
             HostLog.Starting(logger, package.Name, package.Profile, package.EngineVersion);
             return GameApplication.Run(
                 args,
-                (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication(package.Name, window.Options.VSync, window.Options.GraphicsValidation)),
+                (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication(package.Name, window.Options.VSync, window.Options.GraphicsValidation) with { PrecompiledShaders = archive.TryRead }),
                 loggerFactory,
                 (_, registry) => LoadScripts(package, archive, registry, logger),
                 archive,
@@ -94,7 +94,7 @@ internal static class Game
             ? Convert.FromHexString(hex)
             : throw new InvalidDataException("The executable has no content key; rebuild the game with mnvt build.");
 
-    private static bool LoadScripts(GamePackage package, ContentArchive archive, ComponentRegistry registry, ILogger logger)
+    private static bool LoadScripts(GamePackage package, ContentArchiveSet archive, ComponentRegistry registry, ILogger logger)
     {
         if (package.ScriptsAssembly is not { } scripts)
         {

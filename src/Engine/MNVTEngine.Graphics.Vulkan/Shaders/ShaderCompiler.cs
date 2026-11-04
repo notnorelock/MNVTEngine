@@ -18,8 +18,12 @@ internal enum ShaderStage
 /// GLSL to SPIR-V with shaderc (glslang) for Vulkan 1.4, under Vulkan <em>relaxed rules</em>: loose <c>uniform</c>s are
 /// gathered into <c>gl_DefaultUniformBlock</c>, and unassigned locations and bindings are filled in. Engine GLSL
 /// (<c>#version 450 core</c>, GL style) therefore compiles unchanged. Binding layout of set 0: 0 = <c>uTexture</c>,
-/// 1 = vertex uniforms, 2 = fragment uniforms. Results are cached in memory and, when a directory is given, on disk,
-/// keyed by a SHA-256 of the source, stage and <see cref="OptionsVersion"/>.
+/// 1 = vertex uniforms, 2 = fragment uniforms.
+/// <para>
+/// Lookup order: memory, precompiled SPIR-V (an exported game's default resources, keyed by <see cref="EntryFor"/>),
+/// the disk cache, then shaderc. shaderc is loaded on first use only, so a game whose shaders were all precompiled at
+/// build time never loads it. Keys are a SHA-256 of the source, stage and <see cref="OptionsVersion"/>.
+/// </para>
 /// </summary>
 internal sealed unsafe partial class ShaderCompiler : IDisposable
 {
@@ -27,42 +31,36 @@ internal sealed unsafe partial class ShaderCompiler : IDisposable
     public const uint VertexUniformBinding = 1;
     public const uint FragmentUniformBinding = 2;
 
+    /// <summary>Archive folder of precompiled SPIR-V.</summary>
+    public const string EntryFolder = "Shaders/";
+
     /// <summary>Bump when compile options change, so cached SPIR-V from older options is not reused.</summary>
     private const string OptionsVersion = "vk1.3env-spv1.6-relaxed-b012-o0";
 
-    private readonly ShadercApi _api;
-    private readonly Compiler* _compiler;
-    private readonly CompileOptions* _options;
     private readonly string? _cacheDirectory;
+    private readonly Func<string, byte[]?>? _precompiled;
     private readonly ILogger _logger;
     private readonly Dictionary<string, uint[]> _memory = new(StringComparer.Ordinal);
+    private ShadercApi? _api;
+    private Compiler* _compiler;
+    private CompileOptions* _options;
 
-    public ShaderCompiler(string? cacheDirectory, ILogger logger)
+    /// <param name="precompiled">Reads precompiled SPIR-V by entry name (<see cref="EntryFor"/>); null when there is none.</param>
+    public ShaderCompiler(string? cacheDirectory, ILogger logger, Func<string, byte[]?>? precompiled = null)
     {
         _logger = logger;
         _cacheDirectory = cacheDirectory;
-        try
-        {
-            _api = ShadercApi.GetApi();
-        }
-        catch (Exception ex) when (ex is DllNotFoundException or FileNotFoundException or EntryPointNotFoundException)
-        {
-            throw new GraphicsInitializationException("The shader compiler (shaderc_shared) could not be loaded.", ex);
-        }
-
-        _compiler = _api.CompilerInitialize();
-        _options = _api.CompileOptionsInitialize();
-        // The bundled shaderc knows no Vulkan 1.4 environment (it silently falls back to 1.0). SPIR-V 1.6 is the newest
-        // version Vulkan 1.4 consumes and is what the 1.3 environment produces, so nothing is lost.
-        _api.CompileOptionsSetTargetEnv(_options, TargetEnv.Vulkan, (uint)EnvVersion.Vulkan13);
-        _api.CompileOptionsSetTargetSpirv(_options, SpirvVersion.Shaderc16);
-        _api.CompileOptionsSetVulkanRulesRelaxed(_options, true);
-        _api.CompileOptionsSetAutoMapLocations(_options, true);
-        _api.CompileOptionsSetAutoBindUniforms(_options, true);
-        _api.CompileOptionsSetBindingBaseForStage(_options, ShaderKind.VertexShader, ShadercUniformKind.Buffer, VertexUniformBinding);
-        _api.CompileOptionsSetBindingBaseForStage(_options, ShaderKind.FragmentShader, ShadercUniformKind.Buffer, FragmentUniformBinding);
-        _api.CompileOptionsSetOptimizationLevel(_options, OptimizationLevel.Zero); // the optimizer strips the names reflection and linking need; drivers optimize anyway
+        _precompiled = precompiled;
     }
+
+    /// <summary>Stages compiled by shaderc in this process (not found precompiled, cached or in memory).</summary>
+    public int Compiled { get; private set; }
+
+    /// <summary>Stages served from precompiled SPIR-V.</summary>
+    public int Precompiled { get; private set; }
+
+    /// <summary>Archive entry holding the precompiled SPIR-V of this stage and source.</summary>
+    public static string EntryFor(ShaderStage stage, string glsl) => EntryFolder + CacheKey(stage, glsl) + ".spv";
 
     /// <summary>Compiles and reflects one stage.</summary>
     /// <exception cref="ShaderCompilationException">GLSL errors, with the compiler log.</exception>
@@ -74,6 +72,14 @@ internal sealed unsafe partial class ShaderCompiler : IDisposable
             return (uint[])cached.Clone(); // linking patches the words
         }
 
+        if (_precompiled?.Invoke(EntryFolder + key + ".spv") is { } bytes)
+        {
+            var words = ToWords(bytes) ?? throw new InvalidDataException($"Precompiled shader '{shaderName}' ({stage}) is not SPIR-V.");
+            Precompiled++;
+            _memory[key] = words;
+            return (uint[])words.Clone();
+        }
+
         var file = _cacheDirectory is null ? null : Path.Combine(_cacheDirectory, key + ".spv");
         if (file is not null && TryReadCache(file) is { } fromDisk)
         {
@@ -81,51 +87,91 @@ internal sealed unsafe partial class ShaderCompiler : IDisposable
             return (uint[])fromDisk.Clone();
         }
 
-        var words = CompileCore(shaderName, stage, glsl);
-        _memory[key] = words;
+        var compiled = CompileCore(shaderName, stage, glsl);
+        Compiled++;
+        _memory[key] = compiled;
         if (file is not null)
         {
-            WriteCache(file, words);
+            WriteCache(file, compiled);
         }
 
-        return (uint[])words.Clone();
+        return (uint[])compiled.Clone();
     }
 
     public void Dispose()
     {
-        _api.CompileOptionsRelease(_options);
-        _api.CompilerRelease(_compiler);
-        _api.Dispose();
+        if (_api is not null)
+        {
+            _api.CompileOptionsRelease(_options);
+            _api.CompilerRelease(_compiler);
+            _api.Dispose();
+            _api = null;
+        }
+    }
+
+    private static uint[]? ToWords(byte[] bytes) =>
+        bytes.Length >= 20 && bytes.Length % 4 == 0 && BitConverter.ToUInt32(bytes, 0) == 0x07230203 ? MemoryMarshal.Cast<byte, uint>(bytes).ToArray() : null;
+
+    private ShadercApi Api()
+    {
+        if (_api is not null)
+        {
+            return _api;
+        }
+
+        ShadercApi api;
+        try
+        {
+            api = ShadercApi.GetApi();
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or FileNotFoundException or EntryPointNotFoundException)
+        {
+            throw new GraphicsInitializationException("The shader compiler (shaderc_shared) could not be loaded.", ex);
+        }
+
+        _compiler = api.CompilerInitialize();
+        _options = api.CompileOptionsInitialize();
+        // The bundled shaderc knows no Vulkan 1.4 environment (it silently falls back to 1.0). SPIR-V 1.6 is the newest
+        // version Vulkan 1.4 consumes and is what the 1.3 environment produces, so nothing is lost.
+        api.CompileOptionsSetTargetEnv(_options, TargetEnv.Vulkan, (uint)EnvVersion.Vulkan13);
+        api.CompileOptionsSetTargetSpirv(_options, SpirvVersion.Shaderc16);
+        api.CompileOptionsSetVulkanRulesRelaxed(_options, true);
+        api.CompileOptionsSetAutoMapLocations(_options, true);
+        api.CompileOptionsSetAutoBindUniforms(_options, true);
+        api.CompileOptionsSetBindingBaseForStage(_options, ShaderKind.VertexShader, ShadercUniformKind.Buffer, VertexUniformBinding);
+        api.CompileOptionsSetBindingBaseForStage(_options, ShaderKind.FragmentShader, ShadercUniformKind.Buffer, FragmentUniformBinding);
+        api.CompileOptionsSetOptimizationLevel(_options, OptimizationLevel.Zero); // the optimizer strips the names reflection and linking need; drivers optimize anyway
+        return _api = api;
     }
 
     private uint[] CompileCore(string shaderName, ShaderStage stage, string glsl)
     {
+        var api = Api();
         var source = Encoding.UTF8.GetBytes(glsl);
         var kind = stage == ShaderStage.Vertex ? ShaderKind.VertexShader : ShaderKind.FragmentShader;
         var stageName = stage == ShaderStage.Vertex ? "vertex" : "fragment";
         CompilationResult* result;
         fixed (byte* p = source)
         {
-            result = _api.CompileIntoSpv(_compiler, p, (nuint)source.Length, kind, shaderName, "main", _options);
+            result = api.CompileIntoSpv(_compiler, p, (nuint)source.Length, kind, shaderName, "main", _options);
         }
 
         try
         {
-            if (_api.ResultGetCompilationStatus(result) != CompilationStatus.Success)
+            if (api.ResultGetCompilationStatus(result) != CompilationStatus.Success)
             {
-                var log = Marshal.PtrToStringUTF8((nint)_api.ResultGetErrorMessage(result)) ?? "Unknown shaderc error.";
+                var log = Marshal.PtrToStringUTF8((nint)api.ResultGetErrorMessage(result)) ?? "Unknown shaderc error.";
                 throw new ShaderCompilationException(shaderName, stageName, log.Trim());
             }
 
-            var length = (int)_api.ResultGetLength(result);
-            return new ReadOnlySpan<uint>(_api.ResultGetBytes(result), length / sizeof(uint)).ToArray();
+            var length = (int)api.ResultGetLength(result);
+            return new ReadOnlySpan<uint>(api.ResultGetBytes(result), length / sizeof(uint)).ToArray();
         }
         finally
         {
-            _api.ResultRelease(result);
+            api.ResultRelease(result);
         }
     }
-
     private static string CacheKey(ShaderStage stage, string glsl) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{OptionsVersion}\n{stage}\n{glsl}")));
 
@@ -138,14 +184,13 @@ internal sealed unsafe partial class ShaderCompiler : IDisposable
                 return null;
             }
 
-            var bytes = File.ReadAllBytes(file);
-            if (bytes.Length < 20 || bytes.Length % 4 != 0 || BitConverter.ToUInt32(bytes, 0) != 0x07230203)
+            if (ToWords(File.ReadAllBytes(file)) is { } words)
             {
-                LogCacheCorrupt(file);
-                return null;
+                return words;
             }
 
-            return MemoryMarshal.Cast<byte, uint>(bytes).ToArray();
+            LogCacheCorrupt(file);
+            return null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

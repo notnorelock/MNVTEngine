@@ -58,6 +58,14 @@ internal sealed unsafe class VulkanShader : Shader
     /// <exception cref="ShaderCompilationException">GLSL errors (stage "vertex"/"fragment") or interface/resource problems ("link").</exception>
     public static VulkanShader Create(VulkanGraphicsDevice device, ShaderSource source, ShaderCompiler compiler)
     {
+        var (vertex, fragment) = CompileAndLink(source, compiler);
+        return new VulkanShader(device, source.Name, vertex, fragment);
+    }
+
+    /// <summary>Both stages compiled, reflected and linked; the checks every shader must pass, at run time or at build time.</summary>
+    /// <exception cref="ShaderCompilationException">GLSL errors (stage "vertex"/"fragment") or interface/resource problems ("link").</exception>
+    internal static (SpirvModule Vertex, SpirvModule Fragment) CompileAndLink(ShaderSource source, ShaderCompiler compiler)
+    {
         var vertex = SpirvModule.Parse(compiler.Compile(source.Name, ShaderStage.Vertex, source.VertexGlsl));
         var fragment = SpirvModule.Parse(compiler.Compile(source.Name, ShaderStage.Fragment, source.FragmentGlsl));
 
@@ -76,7 +84,7 @@ internal sealed unsafe class VulkanShader : Shader
             throw new ShaderCompilationException(source.Name, "link", string.Join(Environment.NewLine, errors));
         }
 
-        return new VulkanShader(device, source.Name, vertex, fragment);
+        return (vertex, fragment);
     }
 
     public IReadOnlyList<UniformSlot> Slots(string name) => _uniforms.TryGetValue(name, out var slots) ? slots : [];

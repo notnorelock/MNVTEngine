@@ -58,28 +58,42 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
         Assert.True(File.Exists(Path.Combine(Output, "Dependencies", "Managed", "Newtonsoft.Json.dll")));
         Assert.Equal(["glfw3.dll", "shaderc_shared.dll", "soft_oal.dll", "vma.dll"], Directory.EnumerateFiles(Path.Combine(Output, "Dependencies", "Native")).Select(Path.GetFileName).Order(StringComparer.Ordinal));
         Assert.Single(Directory.GetFiles(Path.Combine(Output, "Dependencies", "Runtime"), "coreclr.dll", SearchOption.AllDirectories)); // private .NET runtime
-        Assert.Equal(["content.mnvtpak", "package.json"], Directory.EnumerateFiles(Path.Combine(Output, "PackTest_Data")).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+        var data = Path.Combine(Output, "PackTest_Data");
+        var package = GamePackage.Load(data);
+        Assert.Equal(
+            ["defaultresources.mnvtpak", "globals.mnvtpak", "level0.mnvtpak", "package.json"],
+            Directory.EnumerateFiles(data).Select(Path.GetFileName).Where(f => f is not "resources.mnvtpak" and not "sharedassets.mnvtpak").Order(StringComparer.Ordinal));
+        Assert.Equal(package.ArchiveFiles.Append("package.json").Order(StringComparer.Ordinal), Directory.EnumerateFiles(data).Select(Path.GetFileName).Order(StringComparer.Ordinal)); // nothing unlisted
+        Assert.Equal(("globals.mnvtpak", "Scenes/Main.mnvt"), (package.Archives[0].File, package.Archives.Single(a => a.File == "level0.mnvtpak").Scene));
         Assert.Empty(Directory.GetFiles(Output, "*.pdb", SearchOption.AllDirectories)); // release builds ship no symbols
         Assert.Empty(BuildValidator.Validate(Output));
 
-        // Assets, bytecode and C# game code are only in the encrypted archive.
+        // Assets, bytecode and C# game code are only in the encrypted archives: code in globals, the scene in level0,
+        // engine-generated SPIR-V in the default resources.
         var key = Convert.FromHexString(File.ReadAllText(Path.Combine(game.ProjectDirectory, ContentKeys.RelativePath)).Trim());
         Assert.Equal(key, ContentKeys.ReadFromHost(Path.Combine(Output, "PackTest.dll")));
-        using (var archive = Assets.ContentArchive.Open(Path.Combine(Output, "PackTest_Data", "content.mnvtpak"), key))
+        using (var content = package.OpenContent(data, key))
         {
-            Assert.Contains("Scripts/PackTest.Scripts.dll", archive.Entries);
-            Assert.DoesNotContain("Scripts/MNVTEngine.Scenes.dll", archive.Entries); // the host's copy is used
-            Assert.Single(archive.Entries, e => e.StartsWith("Bytecode/", StringComparison.Ordinal));
+            Assert.Equal("globals.mnvtpak", content.ArchiveOf("Scripts/PackTest.Scripts.dll"));
+            Assert.DoesNotContain("Scripts/MNVTEngine.Scenes.dll", content.Entries); // the host's copy is used
+            Assert.Equal("level0.mnvtpak", content.ArchiveOf("Assets/Scenes/Main.mnvt"));
+            Assert.Single(content.Entries, e => e.StartsWith("Bytecode/", StringComparison.Ordinal));
+            Assert.All(content.Entries.Where(e => e.StartsWith("Shaders/", StringComparison.Ordinal)), e => Assert.Equal("defaultresources.mnvtpak", content.ArchiveOf(e)));
+            Assert.True(content.Entries.Count(e => e.StartsWith("Shaders/", StringComparison.Ordinal)) >= 2);
         }
 
-        var raw = System.Text.Encoding.Latin1.GetString(File.ReadAllBytes(Path.Combine(Output, "PackTest_Data", "content.mnvtpak")));
-        Assert.DoesNotContain("reach_goal", raw, StringComparison.Ordinal);
-        Assert.DoesNotContain("PlayerController", raw, StringComparison.Ordinal);
+        foreach (var archiveFile in package.ArchiveFiles)
+        {
+            var raw = System.Text.Encoding.Latin1.GetString(File.ReadAllBytes(Path.Combine(data, archiveFile)));
+            Assert.DoesNotContain("reach_goal", raw, StringComparison.Ordinal);
+            Assert.DoesNotContain("PlayerController", raw, StringComparison.Ordinal);
+        }
 
         var run = await BuildValidator.RunAsync(Output, 20, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken);
         Assert.Empty(run);
         var log = File.ReadAllText(Path.Combine(Output, "Logs", "game.log"));
-        Assert.Contains("[script] Move to the goal with WASD", log, StringComparison.Ordinal); // C# component, scene and bytecode all loaded from the archive
+        Assert.Contains("[script] Move to the goal with WASD", log, StringComparison.Ordinal); // C# component, scene and bytecode all loaded from the archives
+        Assert.Contains(", 0 compiled at run time", log, StringComparison.Ordinal); // every shader came precompiled from the default resources
     }
 
     [Fact]
@@ -139,7 +153,7 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
             File.Copy(file, target);
         }
 
-        var pak = Path.Combine(copy, "PackTest_Data", "content.mnvtpak");
+        var pak = Path.Combine(copy, "PackTest_Data", "level0.mnvtpak");
         var bytes = File.ReadAllBytes(pak);
         bytes[100] ^= 1;
         File.WriteAllBytes(pak, bytes);

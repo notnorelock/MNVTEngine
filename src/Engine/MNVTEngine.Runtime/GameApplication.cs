@@ -28,7 +28,7 @@ public static partial class GameApplication
     /// <param name="createAudio">Audio backend; without one (or without an output device) the game runs silently.</param>
     /// <param name="tools">Development builds: diagnostics and the debug UI.</param>
     /// <returns>Process exit code: 0 ok, 1 resource leaks, 2 project or startup scene could not be loaded, 3 game code failed to load, 4 graphics could not start (no Vulkan 1.4 GPU or driver).</returns>
-    public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, Func<GameProject, ComponentRegistry, bool>? prepareComponents = null, ContentArchive? archive = null, AudioDeviceFactory? createAudio = null, DevelopmentTools? tools = null)
+    public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, Func<GameProject, ComponentRegistry, bool>? prepareComponents = null, ContentArchiveSet? archive = null, AudioDeviceFactory? createAudio = null, DevelopmentTools? tools = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(createDevice);
@@ -39,7 +39,7 @@ public static partial class GameApplication
         try
         {
             project = archive is not null
-                ? GameProject.LoadPackaged(archive, Path.GetDirectoryName(archive.FilePath)!)
+                ? GameProject.LoadPackaged(archive, archive.Directory)
                 : GameProject.Load(args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal) && !IsOptionValue(args, a)) ?? AppContext.BaseDirectory);
         }
         catch (Exception ex) when (ex is SerializationException or FileNotFoundException)

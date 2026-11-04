@@ -110,10 +110,14 @@ public sealed partial class GameBuilder(ILogger logger)
             }
         }
 
-        // 2. Content: asset index, assets, bytecode and project file, encrypted into the archive.
-        var archivePath = Path.Combine(work, GamePackage.ArchiveFile);
+        // 2. Content, encrypted into archives: globals (index, project, game code), default resources (precompiled
+        //    shaders), one archive per level, shared assets and resources. See ContentLayout.
+        var contentDirectory = Path.Combine(work, "Content");
+        DeleteDirectory(contentDirectory);
+        Directory.CreateDirectory(contentDirectory);
         string? scriptsAssembly = null;
-        using (var archive = new ContentArchive.Writer(archivePath, key))
+        var archive = new ContentArchiveWriter(contentDirectory, key);
+        using (archive)
         {
             ContentResult content;
             try
@@ -129,7 +133,7 @@ public sealed partial class GameBuilder(ILogger logger)
             }
 
             diagnostics.AddRange(content.Diagnostics);
-            LogContent(logger, content.AssetCount, content.ScriptCount);
+            LogContent(logger, content.AssetCount, content.ScriptCount, content.Shaders);
             if (diagnostics.HasErrors())
             {
                 return Fail(profile);
@@ -146,13 +150,20 @@ public sealed partial class GameBuilder(ILogger logger)
             GamePackager.ArrangeLayout(stage, executableName);
             if (scripts is not null)
             {
-                scriptsAssembly = GamePackager.AddGameCode(archive, scriptsOutput!, scripts.AssemblyName, stage, profile.Configuration == "Debug", diagnostics);
+                scriptsAssembly = GamePackager.AddGameCode(archive.Globals, scriptsOutput!, scripts.AssemblyName, stage, profile.Configuration == "Debug", diagnostics);
             }
         }
 
         var data = Path.Combine(stage, GamePackage.DataFolder(executableName));
         Directory.CreateDirectory(data);
-        File.Move(archivePath, Path.Combine(data, GamePackage.ArchiveFile));
+        foreach (var file in archive.Files)
+        {
+            File.Move(file, Path.Combine(data, Path.GetFileName(file)));
+        }
+
+        var archives = archive.Archives;
+        var archiveList = string.Join(", ", archives.Select(a => $"{a.File} ({a.Entries})"));
+        LogArchives(logger, archives.Count, archiveList);
         GamePackager.WriteManifest(stage, new GamePackage
         {
             Name = project.Name,
@@ -163,6 +174,7 @@ public sealed partial class GameBuilder(ILogger logger)
             Target = profile.Target,
             EngineVersion = GamePackager.EngineVersion,
             ScriptsAssembly = scriptsAssembly,
+            Archives = archives,
         });
 
         // 4. Validate before touching the output folder.
@@ -216,9 +228,9 @@ public sealed partial class GameBuilder(ILogger logger)
 
         try
         {
-            var content = ContentCompiler.Compile(project, registry, archive: null);
+            var content = ContentCompiler.Compile(project, registry, output: null);
             diagnostics.AddRange(content.Diagnostics);
-            LogContent(logger, content.AssetCount, content.ScriptCount);
+            LogContent(logger, content.AssetCount, content.ScriptCount, content.Shaders);
         }
         finally
         {
@@ -414,8 +426,11 @@ public sealed partial class GameBuilder(ILogger logger)
     [LoggerMessage(EventId = 8001, Level = LogLevel.Information, Message = "Compiling C# scripts {Scripts} ({Configuration})")]
     private static partial void LogCompilingScripts(ILogger logger, string scripts, string configuration);
 
-    [LoggerMessage(EventId = 8002, Level = LogLevel.Information, Message = "Compiled content: {Assets} assets, {Scripts} .mnvts scripts")]
-    private static partial void LogContent(ILogger logger, int assets, int scripts);
+    [LoggerMessage(EventId = 8002, Level = LogLevel.Information, Message = "Compiled content: {Assets} assets, {Scripts} .mnvts scripts, {Shaders} shader stages precompiled")]
+    private static partial void LogContent(ILogger logger, int assets, int scripts, int shaders);
+
+    [LoggerMessage(EventId = 8007, Level = LogLevel.Information, Message = "Content split into {Count} archives: {Archives}")]
+    private static partial void LogArchives(ILogger logger, int count, string archives);
 
     [LoggerMessage(EventId = 8003, Level = LogLevel.Information, Message = "Publishing {Executable}.exe ({Target}, private .NET runtime)")]
     private static partial void LogPublishing(ILogger logger, string executable, string target);

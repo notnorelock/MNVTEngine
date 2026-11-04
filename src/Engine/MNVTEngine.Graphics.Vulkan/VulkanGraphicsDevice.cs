@@ -121,7 +121,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
 
             Context = new VulkanContext(_instance, _surface, _khrSurface, options.ResolvePreferredDevice(), logger);
             _allocator = new GpuAllocator(Context);
-            _compiler = new ShaderCompiler(options.ShaderCacheDirectory, logger);
+            _compiler = new ShaderCompiler(options.ShaderCacheDirectory, logger, options.PrecompiledShaders);
             _pipelines = new PipelineFactory(Context, options.PipelineCachePath, logger);
             _slots = new FrameSlot[FramesInFlight];
             for (var i = 0; i < FramesInFlight; i++)
@@ -200,6 +200,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
             new("Pipelines", $"{_pipelines.Created} created; driver cache {(_options.PipelineCachePath is null ? "in memory" : $"{_pipelines.LoadedBytes / 1024} KB loaded from disk")}"),
             new("Streaming memory", $"{_slots[FrameSlot].Stream.BytesUsed / 1024} KB used of {_slots[FrameSlot].Stream.Capacity / 1024} KB this frame"),
             new("Memory budget", budget),
+            new("Shaders", $"{_compiler.Precompiled} stages precompiled, {_compiler.Compiled} compiled at run time"),
             new("GPU timer", _timer is null ? "unsupported: the graphics queue has no timestamps" : $"timestamps, {Context.TimestampValidBits} bits, {Context.Limits.TimestampPeriod:0.##} ns/tick"),
         ];
     }
@@ -638,6 +639,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
             }
 
             _pipelines.Save();
+            LogShaderStats(_compiler.Precompiled, _compiler.Compiled, _pipelines.Created);
         }
 
         _disposed = true;
@@ -1251,6 +1253,9 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
 
     [LoggerMessage(EventId = 1001, Level = LogLevel.Warning, Message = "GPU resource leaked and released at device shutdown: {Resource}")]
     private partial void LogLeak(string resource);
+
+    [LoggerMessage(EventId = 1109, Level = LogLevel.Information, Message = "Shader stages: {Precompiled} precompiled, {Compiled} compiled at run time; {Pipelines} pipelines created")]
+    private partial void LogShaderStats(int precompiled, int compiled, int pipelines);
 
     [LoggerMessage(EventId = 1107, Level = LogLevel.Warning, Message = "Vulkan surface lost; recreating it and the swapchain")]
     private partial void LogSurfaceLost();

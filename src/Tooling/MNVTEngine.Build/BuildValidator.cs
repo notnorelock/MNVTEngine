@@ -233,14 +233,14 @@ public static class BuildValidator
 
     private static void ValidateContent(string gameDirectory, string data, GamePackage package, byte[]? key, List<BuildDiagnostic> diagnostics)
     {
-        var archivePath = Path.Combine(data, GamePackage.ArchiveFile);
-        var where = $"{GamePackage.DataFolder(package.ExecutableName)}/{GamePackage.ArchiveFile}";
-        ContentArchive archive;
+        var dataFolder = GamePackage.DataFolder(package.ExecutableName);
+        var where = $"{dataFolder}/{string.Join(", ", package.ArchiveFiles)}";
+        ContentArchiveSet archive;
         try
         {
             key ??= ContentKeys.ReadFromHost(Path.Combine(gameDirectory, package.ExecutableName + ".dll"))
                 ?? throw new InvalidDataException("The game executable carries no content key.");
-            archive = ContentArchive.Open(archivePath, key);
+            archive = package.OpenContent(data, key);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or BadImageFormatException or FormatException or ArgumentException)
         {
@@ -260,9 +260,11 @@ public static class BuildValidator
                 catch (InvalidDataException ex)
                 {
                     damaged.Add(entry);
-                    diagnostics.Add(BuildDiagnostic.Error("MNVB515", ex.Message, where));
+                    diagnostics.Add(BuildDiagnostic.Error("MNVB515", ex.Message, $"{dataFolder}/{archive.ArchiveOf(entry)}"));
                 }
             }
+
+            ValidateLayout(package, archive, dataFolder, diagnostics);
 
             try
             {
@@ -304,6 +306,56 @@ public static class BuildValidator
             if (package.ScriptsAssembly is { } scripts && !archive.Contains(scripts))
             {
                 diagnostics.Add(BuildDiagnostic.Error("MNVB513", $"The game's C# assembly '{scripts}' is not in the content.", where));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Split content (MNVB516): every listed archive exists with the kind it claims; globals hold the project and index;
+    /// each level holds its scene; and the index's archive of every asset is where the asset really is.
+    /// </summary>
+    private static void ValidateLayout(GamePackage package, ContentArchiveSet archive, string dataFolder, List<BuildDiagnostic> diagnostics)
+    {
+        if (package.Archives.Count == 0)
+        {
+            return; // a single content.mnvtpak from before the split
+        }
+
+        if (package.Archives.Count(a => a.Kind == ContentArchiveKinds.Globals) != 1 || package.Archives[0].File != GamePackage.GlobalsArchive)
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB516", $"The first archive must be the only globals archive, {GamePackage.GlobalsArchive}.", dataFolder));
+        }
+
+        foreach (var level in package.Archives.Where(a => a.Kind == ContentArchiveKinds.Level))
+        {
+            if (level.Scene is not { } scene || archive.ArchiveOf(AssetDatabase.AssetsEntryFolder + scene) != level.File)
+            {
+                diagnostics.Add(BuildDiagnostic.Error("MNVB516", $"Level archive does not hold its scene '{level.Scene}'.", $"{dataFolder}/{level.File}"));
+            }
+        }
+
+        if (archive.ArchiveOf(AssetDatabase.IndexEntry) != GamePackage.GlobalsArchive)
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB516", $"'{AssetDatabase.IndexEntry}' must be in {GamePackage.GlobalsArchive}.", dataFolder));
+        }
+
+        JObject index;
+        try
+        {
+            index = JObject.Parse(System.Text.Encoding.UTF8.GetString(archive.Read(AssetDatabase.IndexEntry)));
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or InvalidDataException)
+        {
+            return; // reported by the asset index check
+        }
+
+        foreach (var item in index["assets"]?.OfType<JObject>() ?? [])
+        {
+            var path = item.Value<string>("path");
+            var expected = item.Value<string>("archive");
+            if (path is not null && expected is not null && archive.ArchiveOf(AssetDatabase.AssetsEntryFolder + path) is { } actual && actual != expected)
+            {
+                diagnostics.Add(BuildDiagnostic.Error("MNVB516", $"The asset index places this asset in {expected}, but it is in {actual}.", path));
             }
         }
     }

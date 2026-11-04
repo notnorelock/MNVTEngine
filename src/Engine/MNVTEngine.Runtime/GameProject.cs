@@ -119,16 +119,16 @@ public sealed class GameProject
         return Parse(text, file, Path.GetDirectoryName(file)!, null);
     }
 
-    /// <summary>The project of an exported game, stored at the root of its content archive.</summary>
+    /// <summary>The project of an exported game, stored at the root of its globals archive.</summary>
     /// <param name="dataDirectory">The game's data folder; becomes <see cref="RootDirectory"/> (there are no project files on disk).</param>
     /// <exception cref="SerializationException">Missing, unreadable or invalid project.</exception>
-    public static GameProject LoadPackaged(ContentArchive archive, string dataDirectory)
+    public static GameProject LoadPackaged(ContentArchiveSet archive, string dataDirectory)
     {
         ArgumentNullException.ThrowIfNull(archive);
         var entries = archive.Entries.Where(e => !e.Contains('/', StringComparison.Ordinal) && e.EndsWith(Extension, StringComparison.OrdinalIgnoreCase)).ToList();
         if (entries.Count != 1)
         {
-            throw new SerializationException(archive.FilePath, $"The game content must contain exactly one {Extension} file, found {entries.Count}.", []);
+            throw new SerializationException(archive.Directory, $"The game content must contain exactly one {Extension} file, found {entries.Count}.", []);
         }
 
         string text;

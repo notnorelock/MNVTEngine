@@ -106,7 +106,7 @@ public sealed class BuildPipelineTests : IDisposable
         File.WriteAllText(Path.Combine(project.AssetsDirectory, "notes.txt"), "no meta");
         var before = Directory.GetFiles(project.RootDirectory, "*", SearchOption.AllDirectories).Order().ToList();
 
-        var result = ContentCompiler.Compile(project, Registry, archive: null);
+        var result = ContentCompiler.Compile(project, Registry, output: null);
 
         var script = Assert.Single(result.Diagnostics, d => d.Code == "MNV3014"); // the editor only warns (MNV3015); a build must not link-fail at run time
         Assert.Equal((BuildSeverity.Error, "Missions/Bad.mnvts", 2), (script.Severity, script.File, script.Line));
@@ -116,22 +116,15 @@ public sealed class BuildPipelineTests : IDisposable
     }
 
     [Fact]
-    public void ContentCompiler_WritesIndexAssetsBytecodeAndAProjectWithoutDevelopmentSettings_IntoTheArchive()
+    public void ContentCompiler_WritesIndexAssetsBytecodeAndAProjectWithoutDevelopmentSettings_IntoTheArchives()
     {
         var project = NewProject();
         File.WriteAllText(Path.Combine(project.AssetsDirectory, "Hello.mnvts"), "on start { log(\"hi\") }");
         File.WriteAllText(Path.Combine(project.AssetsDirectory, "Hello.mnvts.meta"), """{ "schemaVersion": 1, "guid": "33333333-3333-4333-8333-333333333333", "settings": {} }""");
-        var key = Assets.ContentArchive.CreateKey();
-        var path = Path.Combine(_root, "content.mnvtpak");
-
-        ContentResult result;
-        using (var writer = new Assets.ContentArchive.Writer(path, key))
-        {
-            result = ContentCompiler.Compile(project, Registry, writer);
-        }
+        var (result, archives, key) = CompileInto(project);
 
         Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
-        using var archive = Assets.ContentArchive.Open(path, key);
+        using var archive = Assets.ContentArchiveSet.Open(_root, archives.Select(a => a.File), key);
         Assert.DoesNotContain(archive.Entries, e => e.EndsWith(".meta", StringComparison.Ordinal)); // GUIDs travel in the index
         var assets = Assets.AssetDatabase.OpenPackaged(archive);
         Assert.Equal("Scenes/Main.mnvt", assets.Get(Guid.Parse("7e000000-0000-4000-8000-000000000001"))!.Path);
@@ -155,7 +148,7 @@ public sealed class BuildPipelineTests : IDisposable
         var meta = File.ReadAllText(notes + ".meta");
         Assert.Empty(ContentCompiler.CreateMissingMetas(project));
         Assert.Equal(meta, File.ReadAllText(notes + ".meta")); // the GUID stays
-        Assert.DoesNotContain(ContentCompiler.Compile(project, Registry, archive: null).Diagnostics, d => d.File == "Docs/notes.txt");
+        Assert.DoesNotContain(ContentCompiler.Compile(project, Registry, output: null).Diagnostics, d => d.File == "Docs/notes.txt");
     }
 
     [Fact]
@@ -198,5 +191,92 @@ public sealed class BuildPipelineTests : IDisposable
         Assert.Equal(120, run.Int("--run", 120));
         Assert.Equal(30, CommandLine.Parse(["build", "p", "--run", "30"], [], [], ["--run"]).Int("--run", 120));
         Assert.Throws<FormatException>(() => CommandLine.Parse(["build", "--output", "a", "--output", "b"], ["--output"], []));
+    }
+
+    [Fact]
+    public void ContentLayout_SplitsLevelsSharedAssetsResources_AndPrecompilesShaders()
+    {
+        var project = NewProject();
+        var assets = project.AssetsDirectory;
+        var png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+        void Asset(string path, byte[] data, string guid)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(assets, path))!);
+            File.WriteAllBytes(Path.Combine(assets, path), data);
+            File.WriteAllText(Path.Combine(assets, path + ".meta"), $$"""{ "schemaVersion": 1, "guid": "{{guid}}", "settings": {} }""");
+        }
+
+        const string Shared = "a1000000-0000-4000-8000-000000000001", OnlySecond = "a1000000-0000-4000-8000-000000000002";
+        const string Shader = "a1000000-0000-4000-8000-000000000003", Material = "a1000000-0000-4000-8000-000000000004";
+        Asset("Textures/shared.png", png, Shared);
+        Asset("Textures/second.png", png, OnlySecond);
+        Asset("Shaders/Tint.frag", "#version 450 core\nin vec2 vTexCoord;\nin vec4 vColor;\nlayout(binding = 0) uniform sampler2D uTexture;\nuniform vec4 uTint;\nout vec4 fragColor;\nvoid main() { fragColor = texture(uTexture, vTexCoord) * vColor * uTint; }\n"u8.ToArray(), Shader);
+        Asset("Materials/Tint.mnvtmat", System.Text.Encoding.UTF8.GetBytes($$"""{ "schemaVersion": 1, "shader": "asset:{{Shader}}", "blend": "Alpha", "uniforms": { "uTint": [1, 0, 0, 1] } }"""), Material);
+        Asset("Missions/Unused.mnvts", "on start { log(\"spawned by code\") }"u8.ToArray(), "a1000000-0000-4000-8000-000000000005");
+
+        var main = Path.Combine(assets, "Scenes", "Main.mnvt");
+        var template = File.ReadAllText(main);
+        string WithSprite(string texture, string? material) => template.Replace(
+            "\"components\": [",
+            $$"""
+            "components": [ { "type": "MNVTEngine.SpriteRenderer", "id": "b0000000-0000-0000-0000-0000000000ff", "enabled": true, "data": { "texture": "asset:{{texture}}"{{(material is null ? "" : $", \"material\": \"asset:{material}\"")}} } },
+            """,
+            StringComparison.Ordinal);
+        File.WriteAllText(main, WithSprite(Shared, Material));
+        Asset("Scenes/Second.mnvt", System.Text.Encoding.UTF8.GetBytes(WithSprite(Shared, null).Replace(
+            "\"gameObjects\": [",
+            $"\"gameObjects\": [ {{ \"id\": \"c0000000-0000-4000-8000-000000000001\", \"name\": \"Prop\", \"parent\": null, \"components\": [ {{ \"type\": \"MNVTEngine.SpriteRenderer\", \"id\": \"b0000000-0000-0000-0000-0000000000fe\", \"enabled\": true, \"data\": {{ \"texture\": \"asset:{OnlySecond}\" }} }} ] }},",
+            StringComparison.Ordinal)), "a1000000-0000-4000-8000-000000000006");
+
+        var (result, archives, key) = CompileInto(project);
+        Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
+        Assert.Equal(
+            [("globals.mnvtpak", "globals", null), ("defaultresources.mnvtpak", "defaultResources", null), ("level0.mnvtpak", "level", "Scenes/Main.mnvt"),
+             ("level1.mnvtpak", "level", "Scenes/Second.mnvt"), ("sharedassets.mnvtpak", "sharedAssets", null), ("resources.mnvtpak", "resources", null)],
+            archives.Select(a => (a.File, a.Kind, a.Scene)));
+
+        using var content = Assets.ContentArchiveSet.Open(_root, archives.Select(a => a.File), key);
+        Assert.Equal("level0.mnvtpak", content.ArchiveOf("Assets/Materials/Tint.mnvtmat"));   // only Main uses the material
+        Assert.Equal("level0.mnvtpak", content.ArchiveOf("Assets/Shaders/Tint.frag"));        // ...and, through it, the shader
+        Assert.Equal("level1.mnvtpak", content.ArchiveOf("Assets/Textures/second.png"));
+        Assert.Equal("sharedassets.mnvtpak", content.ArchiveOf("Assets/Textures/shared.png"));
+        Assert.Equal("resources.mnvtpak", content.ArchiveOf("Assets/Missions/Unused.mnvts"));
+        Assert.Equal("resources.mnvtpak", content.ArchiveOf(Assets.AssetDatabase.CompiledEntry(Guid.Parse("a1000000-0000-4000-8000-000000000005")))); // bytecode follows its script
+        Assert.Equal("globals.mnvtpak", content.ArchiveOf("Game.mnvtproj"));
+
+        // Built-in sprite shader (2 stages) + the material's fragment (its vertex stage is the built-in one).
+        Assert.Equal(3, result.Shaders);
+        Assert.Equal(3, content.Archives[1].Entries.Count(e => e.StartsWith("Shaders/", StringComparison.Ordinal)));
+        Assert.Equal(archives.Sum(a => a.Entries), content.Entries.Count());
+
+        var index = Newtonsoft.Json.Linq.JObject.Parse(System.Text.Encoding.UTF8.GetString(content.Read(Assets.AssetDatabase.IndexEntry)));
+        Assert.Equal("level1.mnvtpak", index["assets"]!.Single(a => (string?)a["guid"] == OnlySecond)["archive"]!.ToString());
+    }
+
+    [Fact]
+    public void ContentCompiler_FailsTheBuild_OnAMaterialShaderTheDeviceWouldReject()
+    {
+        var project = NewProject();
+        File.WriteAllText(Path.Combine(project.AssetsDirectory, "Broken.frag"), "#version 450 core\nout vec4 c;\nvoid main() { c = undefined; }\n");
+        File.WriteAllText(Path.Combine(project.AssetsDirectory, "Broken.frag.meta"), """{ "schemaVersion": 1, "guid": "a2000000-0000-4000-8000-000000000001", "settings": {} }""");
+        File.WriteAllText(Path.Combine(project.AssetsDirectory, "Broken.mnvtmat"), """{ "schemaVersion": 1, "shader": "asset:a2000000-0000-4000-8000-000000000001", "blend": "Alpha", "uniforms": {} }""");
+        File.WriteAllText(Path.Combine(project.AssetsDirectory, "Broken.mnvtmat.meta"), """{ "schemaVersion": 1, "guid": "a2000000-0000-4000-8000-000000000002", "settings": {} }""");
+
+        var error = Assert.Single(ContentCompiler.Compile(project, Registry, output: null).Diagnostics, d => d.Code == "MNVB210");
+        Assert.Equal(("Broken.mnvtmat", BuildSeverity.Error), (error.File, error.Severity));
+        Assert.Contains("undefined", error.Message, StringComparison.Ordinal);
+    }
+
+    private (ContentResult Result, List<PackagedArchive> Archives, byte[] Key) CompileInto(GameProject project)
+    {
+        var key = Assets.ContentArchive.CreateKey();
+        var writer = new ContentArchiveWriter(_root, key);
+        ContentResult result;
+        using (writer)
+        {
+            result = ContentCompiler.Compile(project, Registry, writer);
+        }
+
+        return (result, writer.Archives, key);
     }
 }

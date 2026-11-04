@@ -11,7 +11,7 @@ namespace MNVTEngine.Assets;
 /// import settings; the GUID is the asset's identity, independent of its path. In editing mode the database creates
 /// missing metas, imports changed files (by size/time, then content hash, settings and importer version) and caches
 /// results in <c>Library/AssetDatabase.json</c>. Read-only mode never writes and only reads metas. Packaged mode
-/// (exported games) reads the index and the asset data from an encrypted <see cref="ContentArchive"/>.
+/// (exported games) reads the index and the asset data from the game's encrypted archives (<see cref="ContentArchiveSet"/>).
 /// </summary>
 public sealed class AssetDatabase : IAssetLookup
 {
@@ -32,7 +32,7 @@ public sealed class AssetDatabase : IAssetLookup
     private Dictionary<Guid, JObject> _settings = [];
     private Dictionary<string, Guid> _byPath = new(AssetPaths.Comparer);
     private List<SerializationDiagnostic> _diagnostics = [];
-    private ContentArchive? _archive;
+    private ContentArchiveSet? _archive;
 
     private AssetDatabase(string assetsDirectory, string? libraryDirectory, IEnumerable<IAssetImporter> importers)
     {
@@ -79,7 +79,7 @@ public sealed class AssetDatabase : IAssetLookup
 
     /// <summary>Packaged mode: the asset index and data come from <paramref name="archive"/> (written by <c>mnvt build</c>).</summary>
     /// <exception cref="InvalidDataException">The index is missing, damaged or from a newer engine.</exception>
-    public static AssetDatabase OpenPackaged(ContentArchive archive)
+    public static AssetDatabase OpenPackaged(ContentArchiveSet archive)
     {
         ArgumentNullException.ThrowIfNull(archive);
         var database = new AssetDatabase("", null, []) { _archive = archive };
@@ -118,7 +118,8 @@ public sealed class AssetDatabase : IAssetLookup
     }
 
     /// <summary>The index an exported game opens with <see cref="OpenPackaged"/>: GUID, path, type and settings of every asset.</summary>
-    public JObject ExportIndex() => new()
+    /// <param name="archiveOf">Archive file each asset is written to (informational: reads are routed by entry); null to omit.</param>
+    public JObject ExportIndex(Func<Guid, string?>? archiveOf = null) => new()
     {
         ["schemaVersion"] = MetaSchemaVersion,
         ["assets"] = new JArray(_records.Values.OrderBy(r => r.Path, StringComparer.Ordinal).Select(r => new JObject
@@ -128,10 +129,11 @@ public sealed class AssetDatabase : IAssetLookup
             ["type"] = r.Type,
             ["importer"] = r.Importer,
             ["settings"] = GetSettings(r.Guid),
+            ["archive"] = archiveOf?.Invoke(r.Guid),
         })),
     };
 
-    /// <summary>True for exported games, whose assets live in a <see cref="ContentArchive"/>.</summary>
+    /// <summary>True for exported games, whose assets live in content archives.</summary>
     public bool IsPackaged => _archive is not null;
 
     /// <exception cref="KeyNotFoundException">Unknown asset.</exception>

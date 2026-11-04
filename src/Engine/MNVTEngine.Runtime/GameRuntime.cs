@@ -26,7 +26,7 @@ public sealed record GameRuntimeOptions
     public Audio.IAudioDevice? Audio { get; init; }
 
     /// <summary>Content of an exported game: assets, index and compiled scripts come from it instead of the project folder.</summary>
-    public ContentArchive? Archive { get; init; }
+    public ContentArchiveSet? Archive { get; init; }
 
     /// <summary>Metrics, budgets, debug drawing and console commands; null in Release builds without diagnostics.</summary>
     public RuntimeDiagnostics? Diagnostics { get; init; }

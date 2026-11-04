@@ -58,7 +58,7 @@ Design decisions, the synchronization model and the migration from OpenGL are in
   - Two names are reserved: `uViewProjection` and `uTexture` (binding 0, the only texture). Supported uniform types are `float`, `int`, `vec2`, `vec4` and `mat4`. Other types compile but cannot be set (they read as 0).
   - Storage buffers, push constants and extra samplers are rejected.
 - Compile failures throw `ShaderCompilationException` with stage `vertex` or `fragment` and the compiler log. Linking and resource problems use stage `link`.
-- Compiled SPIR-V is cached on disk by a hash of the source. Pipelines are created once per shader, blend mode, topology, vertex layout and target format, and the driver's pipeline cache is saved between runs. Both caches live in `%LOCALAPPDATA%\MNVTEngine\GpuCache\<application>` and are safe to delete.
+- Exported games ship every shader precompiled to SPIR-V in `defaultresources.mnvtpak` (`VulkanShaderPrecompiler` at build time, `VulkanDeviceOptions.PrecompiledShaders` at run time). In development, compiled SPIR-V is cached on disk by a hash of the source. Pipelines are created once per shader, blend mode, topology, vertex layout and target format, and the driver's pipeline cache is saved between runs. Both caches live in `%LOCALAPPDATA%\MNVTEngine\GpuCache\<application>` and are safe to delete.
 
 ## Scissor and dynamic buffers
 

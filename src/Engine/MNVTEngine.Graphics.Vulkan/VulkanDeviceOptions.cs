@@ -23,6 +23,12 @@ public sealed record VulkanDeviceOptions
     public string ApplicationName { get; init; } = "MNVTEngine";
 
     /// <summary>
+    /// Reads precompiled SPIR-V by entry name (<c>Shaders/&lt;hash&gt;.spv</c>, from <see cref="Shaders.VulkanShaderPrecompiler"/>);
+    /// returns null for a shader that was not precompiled, which is then compiled at run time.
+    /// </summary>
+    public Func<string, byte[]?>? PrecompiledShaders { get; init; }
+
+    /// <summary>
     /// Options for an application window: pipeline and SPIR-V caches in <c>%LOCALAPPDATA%\MNVTEngine\GpuCache\&lt;name&gt;</c>
     /// (per user, per application; safe to delete).
     /// </summary>

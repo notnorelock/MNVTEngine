@@ -103,14 +103,14 @@ public sealed class ContentArchiveTests : IDisposable
         var guid = Guid.Parse("44444444-4444-4444-8444-444444444444");
         Assert.Null(source.ReadCompiled(guid));
 
-        var path = Write(
-            "game.mnvtpak",
-            (AssetDatabase.IndexEntry, Encoding.UTF8.GetBytes(source.ExportIndex().ToString())),
-            ("Assets/Text/readme.txt", Encoding.UTF8.GetBytes("hello")),
-            (AssetDatabase.CompiledEntry(guid), [9, 9]));
-        using var archive = ContentArchive.Open(path, Key);
+        // Index in one archive, data and bytecode in another: reads are routed by entry.
+        Write("globals.mnvtpak", (AssetDatabase.IndexEntry, Encoding.UTF8.GetBytes(source.ExportIndex(_ => "level0.mnvtpak").ToString())));
+        Write("level0.mnvtpak", ("Assets/Text/readme.txt", Encoding.UTF8.GetBytes("hello")), (AssetDatabase.CompiledEntry(guid), [9, 9]));
+        using var archive = ContentArchiveSet.Open(_root, ["globals.mnvtpak", "level0.mnvtpak"], Key);
         var packaged = AssetDatabase.OpenPackaged(archive);
 
+        Assert.Equal("level0.mnvtpak", archive.ArchiveOf("Assets/Text/readme.txt"));
+        Assert.Equal("globals.mnvtpak", archive.ArchiveOf(AssetDatabase.IndexEntry));
         Assert.True(packaged.IsPackaged);
         Assert.Equal(AssetTypes.Text, packaged.GetAssetType(guid));
         Assert.Equal("hello", Encoding.UTF8.GetString(packaged.ReadAllBytes(guid)));
@@ -118,5 +118,24 @@ public sealed class ContentArchiveTests : IDisposable
         Assert.Throws<ArgumentException>(() => packaged.ReadAllBytes("../outside.txt"));
         Assert.Throws<InvalidOperationException>(() => packaged.FullPath(guid));
         Assert.False(packaged.Refresh().HasChanges);
+    }
+
+    [Fact]
+    public void ArchiveSet_RejectsAnEntryInTwoArchives_AndBadNames_AndClosesWhatItOpened()
+    {
+        Write("a.mnvtpak", ("Assets/x.txt", [1]));
+        Write("b.mnvtpak", ("Assets/X.txt", [2])); // entry paths are case-insensitive
+        var ex = Assert.Throws<InvalidDataException>(() => ContentArchiveSet.Open(_root, ["a.mnvtpak", "b.mnvtpak"], Key));
+        Assert.Contains("a.mnvtpak", ex.Message, StringComparison.Ordinal);
+
+        Assert.Throws<InvalidDataException>(() => ContentArchiveSet.Open(_root, ["../a.mnvtpak"], Key));
+        Assert.Throws<InvalidDataException>(() => ContentArchiveSet.Open(_root, [], Key));
+        Assert.ThrowsAny<IOException>(() => ContentArchiveSet.Open(_root, ["a.mnvtpak", "missing.mnvtpak"], Key));
+
+        File.Delete(Path.Combine(_root, "a.mnvtpak")); // nothing kept it open
+        using var single = ContentArchiveSet.Open(_root, ["b.mnvtpak"], Key);
+        Assert.Equal([2], single.Read("assets/x.txt"));
+        Assert.Null(single.TryRead("Assets/none.txt"));
+        Assert.Null(single.ArchiveOf("Assets/none.txt"));
     }
 }
