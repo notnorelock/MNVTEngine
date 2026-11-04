@@ -6,8 +6,43 @@ namespace MNVTEngine.Assets.Models;
 /// <summary>Steps every reader shares: unique names, generated normals and tangents, the import scale, validation.</summary>
 internal static class ModelProcessing
 {
-    public static void Finish(ModelData model, ModelImportSettings settings, ICollection<string> warnings)
+    public static void Finish(ModelData model, ModelImportSettings settings, ICollection<string> warnings, ISet<Guid> dependencies)
     {
+        var textureNames = UniqueNames(model.Textures.Select(t => t.Name), "Texture");
+        for (var i = 0; i < model.Textures.Count; i++)
+        {
+            var texture = model.Textures[i];
+            texture.Name = textureNames[i];
+            if (settings.Textures.TryGetValue(texture.Name, out var replacement))
+            {
+                (texture.ProjectAsset, texture.Embedded, texture.Problem) = (replacement, null, null);
+                dependencies.Add(replacement);
+            }
+            else if (texture.Problem is { } problem)
+            {
+                warnings.Add(problem);
+            }
+        }
+
+        foreach (var material in model.Materials)
+        {
+            if (settings.Materials.TryGetValue(material.Name, out var replacement))
+            {
+                material.Override = replacement;
+                dependencies.Add(replacement);
+            }
+        }
+
+        foreach (var stale in settings.Materials.Keys.Where(k => model.FindMaterial(k) is null))
+        {
+            warnings.Add($"The material remap for '{stale}' matches no material of the model (renamed in the source?); it is ignored.");
+        }
+
+        foreach (var stale in settings.Textures.Keys.Where(k => model.Textures.TrueForAll(t => t.Name != k)))
+        {
+            warnings.Add($"The texture remap for '{stale}' matches no texture of the model (renamed in the source?); it is ignored.");
+        }
+
         if (settings.Scale != 1f && model.Nodes.Count > 0)
         {
             var root = model.Nodes[0];
@@ -87,7 +122,7 @@ internal static class ModelProcessing
 /// Found textures become dependencies (the model reimports when they change). Missing ones and files the engine cannot
 /// read (e.g. EXR) are reported, never replaced silently.
 /// </summary>
-internal sealed class TextureResolver(ModelSource source, ICollection<string> warnings, ISet<Guid> dependencies)
+internal sealed class TextureResolver(ModelSource source, ISet<Guid> dependencies)
 {
     private readonly Dictionary<string, ModelTexture> _byPath = new(StringComparer.OrdinalIgnoreCase);
     private string[]? _allFiles;
@@ -103,34 +138,35 @@ internal sealed class TextureResolver(ModelSource source, ICollection<string> wa
         _byPath[sourcePath] = texture;
         if (source.FullPath is null || source.AssetsDirectory is null)
         {
-            warnings.Add($"Material '{material}': {role} texture '{sourcePath}' cannot be resolved (the model was imported from memory).");
+            texture.Problem = $"Material '{material}': {role} texture '{sourcePath}' cannot be resolved (the model was imported from memory).";
             return texture;
         }
 
-        if (FindFile(sourcePath) is not { } file)
+        var (file, ambiguous) = FindFile(sourcePath);
+        if (file is null)
         {
-            warnings.Add($"Material '{material}': {role} texture '{sourcePath}' was not found next to the model or in Assets/.");
+            texture.Problem = ambiguous ?? $"Material '{material}': {role} texture '{sourcePath}' was not found next to the model or in Assets/.";
             return texture;
         }
 
         var assets = Path.GetFullPath(source.AssetsDirectory) + Path.DirectorySeparatorChar;
         if (!file.StartsWith(assets, StringComparison.OrdinalIgnoreCase))
         {
-            warnings.Add($"Material '{material}': {role} texture '{sourcePath}' is outside Assets/ ({file}); copy it into the project (Extract Textures).");
+            texture.Problem = $"Material '{material}': {role} texture '{sourcePath}' is outside Assets/ ({file}); copy it into the project (Extract Textures).";
             return texture;
         }
 
         var relative = file[assets.Length..].Replace('\\', '/');
         if (source.ResolveAsset(relative) is not { } guid)
         {
-            warnings.Add($"Material '{material}': {role} texture '{relative}' is not an asset.");
+            texture.Problem = $"Material '{material}': {role} texture '{relative}' is not an asset.";
             return texture;
         }
 
         dependencies.Add(guid);
         if (!IsSupportedImage(file))
         {
-            warnings.Add($"Material '{material}': {role} texture '{relative}' is in a format the engine cannot load ({Path.GetExtension(file)}); convert it to PNG, JPEG, TGA or BMP.");
+            texture.Problem = $"Material '{material}': {role} texture '{relative}' is in a format the engine cannot load ({Path.GetExtension(file)}); convert it to PNG, JPEG, TGA or BMP, then remap the texture.";
             return texture;
         }
 
@@ -141,7 +177,8 @@ internal sealed class TextureResolver(ModelSource source, ICollection<string> wa
     private static bool IsSupportedImage(string file) =>
         Path.GetExtension(file).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".tga" or ".bmp";
 
-    private string? FindFile(string sourcePath)
+    /// <summary>The file a source path refers to, or null with the reason when several candidates match.</summary>
+    private (string? File, string? Ambiguous) FindFile(string sourcePath)
     {
         var modelDirectory = Path.GetDirectoryName(source.FullPath!)!;
         var normalized = sourcePath.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
@@ -156,7 +193,7 @@ internal sealed class TextureResolver(ModelSource source, ICollection<string> wa
         {
             if (File.Exists(candidate))
             {
-                return Path.GetFullPath(candidate);
+                return (Path.GetFullPath(candidate), null);
             }
         }
 
@@ -164,10 +201,9 @@ internal sealed class TextureResolver(ModelSource source, ICollection<string> wa
         var matches = _allFiles.Where(f => string.Equals(Path.GetFileName(f), name, StringComparison.OrdinalIgnoreCase)).ToList();
         if (matches.Count > 1)
         {
-            warnings.Add($"Texture '{sourcePath}': {matches.Count} files named '{name}' in Assets/; none was chosen. Put the texture next to the model.");
-            return null;
+            return (null, $"Texture '{sourcePath}': {matches.Count} files named '{name}' in Assets/; none was chosen. Put the texture next to the model or remap it.");
         }
 
-        return matches.Count == 1 ? Path.GetFullPath(matches[0]) : null;
+        return (matches.Count == 1 ? Path.GetFullPath(matches[0]) : null, null);
     }
 }

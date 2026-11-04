@@ -13,7 +13,8 @@ namespace MNVTEngine.Assets.Models;
 public static class ModelArtifact
 {
     public const string Name = "model";
-    public const int Version = 1;
+    /// <summary>2: material overrides (extracted or remapped materials).</summary>
+    public const int Version = 2;
     private static readonly byte[] Magic = "MNVTMODL"u8.ToArray();
     private const int MaxCount = 1 << 24;
 
@@ -66,6 +67,8 @@ public static class ModelArtifact
                 w.Write((int)role);
                 w.Write(index);
             }
+
+            w.Write(m.Override?.ToString("D") ?? "");
         }
 
         w.Write(model.Textures.Count);
@@ -171,6 +174,8 @@ public static class ModelArtifact
                     m.Textures[Enum<TextureRole>(r.ReadInt32())] = r.ReadInt32();
                 }
 
+                var materialOverride = r.ReadString();
+                m.Override = materialOverride.Length == 0 ? null : Guid.Parse(materialOverride);
                 model.Materials.Add(m);
             }
 
@@ -230,6 +235,10 @@ public static class ModelArtifact
         catch (EndOfStreamException ex)
         {
             throw new InvalidDataException("The model artifact is truncated.", ex);
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidDataException("The model artifact has a malformed asset reference.", ex);
         }
     }
 

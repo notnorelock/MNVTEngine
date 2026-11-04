@@ -41,6 +41,9 @@ public sealed class AssetRecord
     /// <summary>Other assets this one references (by <c>asset:</c> GUID).</summary>
     public List<Guid> Dependencies { get; set; } = [];
 
+    /// <summary>Assets whose content the last import read; a change to one reimports this asset (see <c>AssetImportContext.ImportInputs</c>).</summary>
+    public List<Guid> ImportInputs { get; set; } = [];
+
     /// <summary>Errors and warnings from the last import.</summary>
     public List<string> Messages { get; set; } = [];
 

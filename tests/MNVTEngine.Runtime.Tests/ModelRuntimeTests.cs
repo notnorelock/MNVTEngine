@@ -85,6 +85,42 @@ public sealed class ModelRuntimeTests : IDisposable
         Assert.True(image.Pixels[center] + image.Pixels[center + 1] + image.Pixels[center + 2] > 30, "the crate covers the center of the view");
     }
 
+    [Fact]
+    public void RemappedMaterial_ReplacesTheImportedOne_AndAnUnloadableRemapFallsBack()
+    {
+        var guid = ImportFixture("Khronos", "BoxAnimated.glb", out var model);
+        var red = Guid.Parse("e6000000-0000-4000-8000-000000000001");
+        var missing = Guid.Parse("e6000000-0000-4000-8000-000000000002");
+        var materials = Path.Combine(_root, "Assets", "Materials");
+        Directory.CreateDirectory(materials);
+        File.WriteAllText(Path.Combine(materials, "Red.mnvtmat"), """{ "schemaVersion": 2, "shader": "builtin:standard", "blend": "Opaque", "properties": { "_BaseColor": [1, 0, 0, 1] } }""");
+        File.WriteAllText(Path.Combine(materials, "Red.mnvtmat.meta"), $$"""{ "schemaVersion": 1, "guid": "{{red}}", "settings": {} }""");
+        var meta = Path.Combine(_root, "Assets", "Models", "BoxAnimated.glb.meta");
+        var json = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(meta));
+        json["settings"]!["materials"] = new Newtonsoft.Json.Linq.JObject { [model.Materials[0].Name] = $"asset:{red}", [model.Materials[1].Name] = $"asset:{missing}" };
+        File.WriteAllText(meta, json.ToString());
+
+        VulkanGraphicsDevice device;
+        try
+        {
+            device = VulkanGraphicsDevice.CreateHeadless(16, 16, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        }
+        catch (Graphics.GraphicsInitializationException ex)
+        {
+            Assert.Skip($"No Vulkan 1.4 device available: {ex.Message}");
+            throw;
+        }
+
+        using (device)
+        {
+            var assets = AssetDatabase.OpenForEditing(Path.Combine(_root, "Assets"), Path.Combine(_root, "Library"), ModelImporters.WithDefaults());
+            using var resources = new ResourceCache(device, assets, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+            Assert.Same(resources.GetMaterial(new AssetRef(red)), resources.GetModelMaterial(guid, 0));
+            var fallback = resources.GetModelMaterial(guid, 1)!; // the remap target does not exist: the imported material draws
+            Assert.Contains("#", fallback.Name, StringComparison.Ordinal);
+        }
+    }
+
     private static GameRuntime RunHidden(GameProject project, ILoggerFactory factory, string screenshot)
     {
         GameWindow window;

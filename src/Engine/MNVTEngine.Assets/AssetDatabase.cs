@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
+using System.Text;
 using MNVTEngine.Serialization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -352,15 +353,15 @@ public sealed class AssetDatabase : IAssetLookup
             settingsByGuid[guid] = settings;
         }
 
-        // Assets whose dependencies were added or reimported (a model's .bin or textures) import again, and so do
-        // assets whose last import reported problems when files were added (a texture that was missing may exist now).
+        // Assets whose import inputs were added or reimported (a glTF's .bin) import again, and so do assets whose last
+        // import reported problems when files were added (a texture that was missing may exist now).
         if (!IsReadOnly)
         {
             var changed = added.Concat(reimported).ToHashSet();
             foreach (var record in records.Values.ToList())
             {
                 if (_importers.GetValueOrDefault(Path.GetExtension(record.Path)) is { ReimportWhenDependenciesChange: true } importer
-                    && !changed.Contains(record.Guid) && (record.Dependencies.Any(changed.Contains) || (added.Count > 0 && record.Messages.Count > 0)))
+                    && !changed.Contains(record.Guid) && (record.ImportInputs.Any(changed.Contains) || (added.Count > 0 && record.Messages.Count > 0)))
                 {
                     var file = AssetPaths.Resolve(_assetsDirectory, record.Path);
                     var data = File.ReadAllBytes(file);
@@ -447,16 +448,27 @@ public sealed class AssetDatabase : IAssetLookup
     }
 
     /// <summary>Creates or replaces a text asset atomically and returns its GUID.</summary>
-    public Guid WriteText(string relativePath, string content)
+    public Guid WriteText(string relativePath, string content) =>
+        WriteFiles(new Dictionary<string, byte[]> { [relativePath] = new UTF8Encoding(false).GetBytes(content) })[relativePath];
+
+    /// <summary>
+    /// Creates or replaces several assets (each atomically), then refreshes once, and returns their GUIDs by path.
+    /// </summary>
+    public IReadOnlyDictionary<string, Guid> WriteFiles(IReadOnlyDictionary<string, byte[]> files)
     {
+        ArgumentNullException.ThrowIfNull(files);
         EnsureWritable();
-        var full = AssetPaths.Resolve(_assetsDirectory, relativePath);
-        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
-        var temp = full + ".tmp";
-        File.WriteAllText(temp, content);
-        File.Move(temp, full, overwrite: true);
+        foreach (var (relativePath, bytes) in files)
+        {
+            var full = AssetPaths.Resolve(_assetsDirectory, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+            var temp = full + ".tmp";
+            File.WriteAllBytes(temp, bytes);
+            File.Move(temp, full, overwrite: true);
+        }
+
         Refresh();
-        return TryGetGuid(relativePath, out var guid) ? guid : throw new InvalidOperationException($"'{relativePath}' was written but is not indexed.");
+        return files.Keys.ToDictionary(p => p, p => TryGetGuid(p, out var guid) ? guid : throw new InvalidOperationException($"'{p}' was written but is not indexed."));
     }
 
     private IEnumerable<string> EnumerateAssetFiles()
@@ -568,7 +580,8 @@ public sealed class AssetDatabase : IAssetLookup
             WriteArtifacts(guid, context.Artifacts);
         }
         record.Messages = [.. context.Errors.Select(e => "error: " + e), .. context.Warnings.Select(w => "warning: " + w)];
-        record.Dependencies = [.. context.Dependencies.Where(d => d != guid)];
+        record.Dependencies = [.. context.Dependencies.Union(context.ImportInputs).Where(d => d != guid)];
+        record.ImportInputs = [.. context.ImportInputs.Where(d => d != guid)];
         record.Properties = context.Properties;
         return record;
     }

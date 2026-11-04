@@ -3,4 +3,7 @@
     <ProjectReference Include="..\..\src\Editor\MNVTEngine.Editor\MNVTEngine.Editor.csproj" />
     <ProjectReference Include="..\..\src\Editor\MNVTEngine.Editor.Services\MNVTEngine.Editor.Services.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\TestAssets\Models\**\*" LinkBase="Models" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

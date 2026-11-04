@@ -33,6 +33,8 @@ Stored in the model's `.meta` under `settings`; invalid values are reported and 
 | `generateTangents` | true | Tangents for meshes with normals and UVs (needed by normal maps). |
 | `optimizeMeshes` | true | FBX: merge identical vertices, reorder for the vertex cache. |
 | `importMaterials`, `importSkins`, `importAnimations` | true | Skip that part of the file. |
+| `materials` | `{}` | Source material name to `"asset:<guid>"` of a `.mnvtmat` used instead (Extract Materials, Remap). |
+| `textures` | `{}` | Model texture name to `"asset:<guid>"` of a project texture used instead (Extract Textures). |
 
 ## Textures
 
@@ -50,9 +52,31 @@ Texture names are never guessed beyond that. The import reports, as warnings:
 - a texture outside `Assets/`;
 - a format the engine cannot load (for example EXR).
 
-A found texture becomes a **dependency**: when it changes the model reimports. When files are added, a model whose
-last import reported problems reimports too, so a missing texture is picked up once it is copied in. Textures embedded
-in the file stay in the artifact.
+A found texture becomes a **dependency** (it is packed with the model). Its content is not read by the import, so
+editing it does not reimport the model. A glTF's `.bin` buffers are **import inputs**: changing one reimports the
+model. When files are added, a model whose last import reported problems reimports too, so a missing texture is picked
+up once it is copied in. Textures embedded in the file stay in the artifact until they are extracted.
+
+A texture listed in the `textures` remap table is replaced by that project texture, and its problem is no longer
+reported. Texture names are unique within the model (`diffuse`, `diffuse_1`, ...).
+
+## Model inspector
+
+Select a model in the Project panel. The inspector shows its import messages and facts, then:
+
+- **Add to scene** instantiates it (see below).
+- **Preview:** the model with its current materials; drag to orbit.
+- **Import settings** with **Apply** (writes the meta and reimports) and **Revert**.
+- **Materials:** each source material shows whether it is imported, extracted or remapped.
+  - Click it to remap it to any `.mnvtmat` (or back to *Imported*), or drop a material on it.
+  - **Extract Materials** writes `<Model>_<Material>.mnvtmat` (Standard shader, the imported values and textures) into a `Materials` folder next to the model. Embedded textures are extracted first, because a material file can only reference project textures. Existing files are reused and never overwritten, so extracting again creates no duplicates and keeps your edits.
+  - **Reset remaps** draws the imported materials again; extracted files stay.
+- **Textures:** project, embedded or missing. **Extract Textures** writes embedded images, and images found outside `Assets/`, as `<Model>_<Texture>.<ext>` into a `Textures` folder next to the model. Identical images are written once. A different file already at that path gets a content-hash suffix. EXR and other formats the engine cannot read are skipped and reported.
+- **Meshes, skins and animations,** with vertex, triangle, joint and channel counts.
+
+All of it is `ModelWorkflow` (Editor.Services, UI-free and tested). Every change goes through the model's meta and a
+reimport; source files are never modified. A remap whose source material or texture no longer exists is reported as
+a warning (renamed in the source?) and ignored. A remap target that cannot be loaded falls back to the imported material.
 
 ## Artifacts
 
@@ -76,7 +100,7 @@ Who imports:
 - **Code:** `ModelInstantiation.Instantiate(scene, guid, modelData, name, parent)` does the same.
 - **`MeshRenderer.Mesh`.** It takes precedence over `Primitive`.
   - A reference to a whole model (no `#mesh/...`) draws the model's mesh if it has exactly one.
-  - With `Material` empty, each submesh uses the model's material, built on the Standard shader. `Material` set draws every submesh with it.
+  - With `Material` empty, each submesh uses the model's material: the remapped `.mnvtmat` if there is one, else the imported material on the Standard shader. `Material` set draws every submesh with it.
   - A missing model or mesh logs one warning and draws nothing.
 - **At runtime.** `ResourceCache.GetModel`, `GetModelMesh` and `GetModelMaterial` read the artifact on first use. Reimports evict the model, its materials, its embedded textures and its GPU meshes.
 

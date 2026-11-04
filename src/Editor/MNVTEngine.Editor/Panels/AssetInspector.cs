@@ -13,6 +13,7 @@ namespace MNVTEngine.Editor.Panels;
 internal sealed class AssetInspector(EditorContext context) : IDisposable
 {
     private readonly MaterialInspector _material = new(context);
+    private readonly ModelInspector _model = new(context);
     private static readonly string[] Filters = Enum.GetNames<TextureFilter>();
     private static readonly string[] Wraps = Enum.GetNames<TextureWrap>();
 
@@ -54,9 +55,9 @@ internal sealed class AssetInspector(EditorContext context) : IDisposable
         {
             context.InstantiatePrefab(guid, null);
         }
-        else if (record.Type == AssetTypes.Model && ImGui.Button("Add to scene"))
+        else if (record.Type == AssetTypes.Model)
         {
-            context.InstantiateModel(guid, null);
+            _model.Draw(guid);
         }
         else if (record.Type == AssetTypes.Scene && ImGui.Button("Open scene"))
         {
@@ -84,10 +85,18 @@ internal sealed class AssetInspector(EditorContext context) : IDisposable
         DrawReferences("Referenced by", assets.GetDependents(guid));
     }
 
-    /// <summary>Render phase: previews that draw with the engine (materials).</summary>
-    public void Render() => _material.Render();
+    /// <summary>Render phase: previews that draw with the engine (materials, models).</summary>
+    public void Render()
+    {
+        _material.Render();
+        _model.Render();
+    }
 
-    public void Dispose() => _material.Dispose();
+    public void Dispose()
+    {
+        _material.Dispose();
+        _model.Dispose();
+    }
 
     private void DrawTexture(Guid guid, AssetRecord record)
     {

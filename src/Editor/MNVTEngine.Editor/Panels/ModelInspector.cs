@@ -1,0 +1,443 @@
+using ImGuiNET;
+using MNVTEngine.Assets.Models;
+using MNVTEngine.DebugUI.ImGuiBackend;
+using MNVTEngine.Editor.Services;
+using MNVTEngine.Graphics;
+using MNVTEngine.Graphics.Materials;
+using MNVTEngine.Graphics.Meshes;
+using MNVTEngine.Graphics.Rendering3D;
+using MNVTEngine.Mathematics;
+using MNVTEngine.Serialization;
+using SysVector2 = System.Numerics.Vector2;
+using SysVector4 = System.Numerics.Vector4;
+
+namespace MNVTEngine.Editor.Panels;
+
+/// <summary>
+/// Inspector for an imported model (FBX, glTF, GLB), like Unity's model import inspector:
+/// <list type="bullet">
+/// <item>a preview of the model with its materials (drag to orbit);</item>
+/// <item>import settings with Apply and Revert;</item>
+/// <item>materials: imported, extracted or remapped, with Extract Materials, per-material Remap and Reset;</item>
+/// <item>textures: project, embedded or missing, with Extract Textures;</item>
+/// <item>meshes, skins and animations; Add to scene.</item>
+/// </list>
+/// Every change goes through <see cref="ModelWorkflow"/>, which writes the model's meta and reimports it.
+/// </summary>
+internal sealed class ModelInspector(EditorContext context) : IDisposable
+{
+    private const int PreviewSize = 220;
+    private static readonly SysVector4 Warning = new(1f, 0.75f, 0.35f, 1f);
+    private ModelWorkflow? _workflow;
+    private ModelData? _model;
+    private string? _modelHash;
+    private string? _error;
+    private ModelImportSettings _settings = new();
+    private ModelImportSettings _applied = new();
+    private List<string> _report = [];
+    private ViewTarget? _preview;
+    private GpuMeshCache? _meshes;
+    private Renderer3D? _renderer;
+    private (Vector3 Center, float Radius) _bounds;
+    private float _yaw = 30f;
+    private float _pitch = 20f;
+    private bool _visible;
+
+    public void Draw(Guid guid)
+    {
+        _visible = true;
+        Sync(guid);
+        if (_error is not null)
+        {
+            Gui.TextColored(new SysVector4(1f, 0.45f, 0.45f, 1f), _error);
+        }
+
+        if (_workflow is not { } workflow)
+        {
+            return;
+        }
+
+        if (ImGui.Button("Add to scene"))
+        {
+            context.InstantiateModel(guid, null);
+        }
+
+        if (_model is { } model)
+        {
+            DrawPreview();
+            DrawSettings(workflow);
+            DrawMaterials(workflow, model);
+            DrawTextures(workflow, model);
+            DrawContents(model);
+        }
+        else
+        {
+            Gui.Muted("The model has not imported yet; fix the errors above, then it can be previewed and extracted.");
+            DrawSettings(workflow);
+        }
+
+        if (_report.Count > 0 && ImGui.CollapsingHeader("Last operation", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            foreach (var line in _report)
+            {
+                Gui.Bullet(line);
+            }
+        }
+    }
+
+    /// <summary>Draws the preview (render phase), only while the inspector shows a model.</summary>
+    public void Render()
+    {
+        var visible = _visible;
+        _visible = false;
+        if (!visible || _model is null || _workflow is null || _preview is null)
+        {
+            return;
+        }
+
+        _preview.EnsureSize();
+        var device = context.Device;
+        device.SetRenderTarget(_preview.Target);
+        device.Clear(new Color(0.16f, 0.17f, 0.2f, 1f));
+        device.ClearDepth();
+        if (_meshes is null)
+        {
+            _meshes = new GpuMeshCache(device);
+            context.Resources.MeshesEvicted += OnMeshesEvicted;
+        }
+
+        _renderer ??= new Renderer3D(device);
+        var white = context.Resources.GetDefaultTexture(DefaultTexture.White);
+        var items = new List<MeshDrawItem>();
+        var world = WorldMatrices(_model);
+        for (var i = 0; i < _model.Nodes.Count; i++)
+        {
+            if (_model.Nodes[i].Mesh is var meshIndex && meshIndex < 0)
+            {
+                continue;
+            }
+
+            var source = _model.Meshes[meshIndex];
+            var mesh = _meshes.Get(source.Mesh);
+            for (var s = 0; s < mesh.SubMeshes.Count; s++)
+            {
+                var material = context.Resources.GetModelMaterial(_workflow.Guid, s < source.SubMeshMaterials.Count ? source.SubMeshMaterials[s] : -1) ?? DefaultMaterial();
+                items.Add(new MeshDrawItem(mesh, s, material, white, world[i]));
+            }
+        }
+
+        var (center, radius) = _bounds;
+        var distance = radius / MathF.Sin(17.5f * MathF.PI / 180f) * 1.1f;
+        var rotation = Quaternion.Euler(-_pitch, _yaw, 0f);
+        var eye = center + (rotation * new Vector3(0f, 0f, distance));
+        var view = new View3D(Matrix4x4.LookAt(eye, center, Vector3.Up), Matrix4x4.PerspectiveZeroToOne(35f, 1f, MathF.Max(distance - (radius * 2f), distance * 0.01f), distance + (radius * 2f)), eye);
+        _renderer.Render(view, items);
+        device.SetRenderTarget(null);
+    }
+
+    public void Dispose()
+    {
+        if (_meshes is not null)
+        {
+            context.Resources.MeshesEvicted -= OnMeshesEvicted;
+        }
+
+        _meshes?.Dispose();
+        _preview?.Dispose();
+        _default = null;
+    }
+
+    private Material? _default;
+
+    private Material DefaultMaterial()
+    {
+        if (_default is null)
+        {
+            _default = new Material(context.Resources.GetBuiltinShader(MaterialDefinition.BuiltinStandard), BlendMode.Opaque, "Model preview default");
+            MaterialShaders.ApplyDefaults(_default, MaterialShaders.StandardProperties, context.Resources.GetDefaultTexture);
+        }
+
+        return _default;
+    }
+
+    private void OnMeshesEvicted(IReadOnlyCollection<Mesh> meshes)
+    {
+        foreach (var mesh in meshes)
+        {
+            _meshes?.Remove(mesh);
+        }
+    }
+
+    /// <summary>Reloads the workflow, settings and model when another model is selected or this one reimported.</summary>
+    private void Sync(Guid guid)
+    {
+        var record = context.Session.Assets.Get(guid);
+        var hash = $"{record?.SourceHash}|{record?.SettingsHash}|{record?.Status}";
+        if (_workflow?.Guid == guid && hash == _modelHash)
+        {
+            return;
+        }
+
+        if (_workflow?.Guid != guid)
+        {
+            _report = [];
+            (_yaw, _pitch) = (30f, 20f);
+        }
+
+        _modelHash = hash;
+        _error = null;
+        _model = null;
+        try
+        {
+            _workflow = new ModelWorkflow(context.Session.Assets, guid);
+            _applied = _settings = _workflow.Settings;
+            _model = _workflow.Load() is { } model ? context.Resources.GetModel(guid) ?? model : null;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or KeyNotFoundException or ArgumentException)
+        {
+            _error = ex.Message;
+            return;
+        }
+
+        if (_model is not null)
+        {
+            _bounds = Bounds(_model);
+            _preview ??= new ViewTarget(context, "Model preview");
+            _preview.Request(PreviewSize, PreviewSize);
+        }
+    }
+
+    private void DrawPreview()
+    {
+        if (_preview is null)
+        {
+            return;
+        }
+
+        Gui.Image(_preview.Id, _preview.Target, new SysVector2(PreviewSize, PreviewSize));
+        if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left))
+        {
+            var delta = ImGui.GetIO().MouseDelta;
+            _yaw -= delta.X * 0.5f;
+            _pitch = Math.Clamp(_pitch + (delta.Y * 0.5f), -85f, 85f);
+        }
+
+        Gui.Muted("Drag to orbit. Shown at full ambient light until the scene has lights.");
+    }
+
+    private void DrawSettings(ModelWorkflow workflow)
+    {
+        if (!ImGui.CollapsingHeader("Import settings", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            return;
+        }
+
+        var scale = _settings.Scale;
+        if (ImGui.DragFloat("Scale", ref scale, 0.01f, 0.0001f, 10000f, "%.4f"))
+        {
+            _settings = _settings with { Scale = Math.Clamp(scale, 0.0001f, 10000f) };
+        }
+
+        Toggle("Generate missing normals", _settings.GenerateMissingNormals, v => _settings = _settings with { GenerateMissingNormals = v });
+        Toggle("Generate tangents", _settings.GenerateTangents, v => _settings = _settings with { GenerateTangents = v });
+        Toggle("Optimize meshes (FBX)", _settings.OptimizeMeshes, v => _settings = _settings with { OptimizeMeshes = v });
+        Toggle("Import materials", _settings.ImportMaterials, v => _settings = _settings with { ImportMaterials = v });
+        Toggle("Import skins", _settings.ImportSkins, v => _settings = _settings with { ImportSkins = v });
+        Toggle("Import animations", _settings.ImportAnimations, v => _settings = _settings with { ImportAnimations = v });
+
+        var dirty = _settings.ToJson().ToString() != _applied.ToJson().ToString();
+        ImGui.BeginDisabled(!dirty);
+        if (ImGui.Button("Apply"))
+        {
+            Run("Apply import settings", () => workflow.ApplySettings(_settings));
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Revert"))
+        {
+            _settings = _applied;
+        }
+
+        ImGui.EndDisabled();
+    }
+
+    private static void Toggle(string label, bool value, Action<bool> set)
+    {
+        if (ImGui.Checkbox(label, ref value))
+        {
+            set(value);
+        }
+    }
+
+    private void DrawMaterials(ModelWorkflow workflow, ModelData model)
+    {
+        if (!ImGui.CollapsingHeader($"Materials ({model.Materials.Count})", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            return;
+        }
+
+        var assets = context.Session.Assets;
+        foreach (var material in model.Materials)
+        {
+            ImGui.PushID(material.Name);
+            ImGui.TextUnformatted(material.Name);
+            ImGui.SameLine();
+            Gui.Muted(material.SourceModel);
+            var current = material.Override is { } o ? assets.TryGetPath(o, out var path) ? path : $"missing ({o})" : "Imported";
+            if (ImGui.Button($"{current}##remap", new SysVector2(ImGui.GetContentRegionAvail().X, 0f)))
+            {
+                ImGui.OpenPopup("remap");
+            }
+
+            if (ImGui.IsItemHovered())
+            {
+                Gui.Tooltip("Click to remap this material to a project material, or drop a .mnvtmat here.");
+            }
+
+            if (Gui.DropTarget(Gui.AssetPayload) is { } dropped && context.ResolveAsset(dropped) is { Type: AssetTypes.Material } target)
+            {
+                Run($"Remap {material.Name}", () => workflow.RemapMaterial(material.Name, target.Guid));
+            }
+
+            if (ImGui.BeginPopup("remap"))
+            {
+                if (ImGui.MenuItem("Imported (no remap)", null, material.Override is null))
+                {
+                    Run($"Remap {material.Name}", () => workflow.RemapMaterial(material.Name, null));
+                }
+
+                ImGui.Separator();
+                foreach (var candidate in assets.Assets.Where(a => a.Type == AssetTypes.Material).OrderBy(a => a.Path, StringComparer.OrdinalIgnoreCase))
+                {
+                    if (ImGui.MenuItem(candidate.Path, null, candidate.Guid == material.Override))
+                    {
+                        Run($"Remap {material.Name}", () => workflow.RemapMaterial(material.Name, candidate.Guid));
+                    }
+                }
+
+                ImGui.EndPopup();
+            }
+
+            ImGui.PopID();
+        }
+
+        if (ImGui.Button("Extract Materials"))
+        {
+            Run("Extract materials", () => _report = [.. workflow.ExtractMaterials(workflow.DefaultFolder("Materials"), workflow.DefaultFolder("Textures"))]);
+        }
+
+        ImGui.SameLine();
+        ImGui.BeginDisabled(model.Materials.TrueForAll(m => m.Override is null));
+        if (ImGui.Button("Reset remaps"))
+        {
+            Run("Reset material remaps", workflow.ResetMaterialRemaps);
+        }
+
+        ImGui.EndDisabled();
+        Gui.Muted($"Extracted materials go to {workflow.DefaultFolder("Materials")}/; existing files are reused, never overwritten.");
+    }
+
+    private void DrawTextures(ModelWorkflow workflow, ModelData model)
+    {
+        if (!ImGui.CollapsingHeader($"Textures ({model.Textures.Count})"))
+        {
+            return;
+        }
+
+        var assets = context.Session.Assets;
+        foreach (var texture in model.Textures)
+        {
+            var state = texture.ProjectAsset is { } guid ? assets.TryGetPath(guid, out var path) ? path : $"missing ({guid})"
+                : texture.Embedded is not null ? "embedded in the model" : $"not found: {texture.SourcePath}";
+            Gui.Bullet($"{texture.Name}: {state}");
+            if (texture.ProjectAsset is null && texture.Embedded is null)
+            {
+                ImGui.SameLine();
+                Gui.TextColored(Warning, "(!)");
+            }
+        }
+
+        ImGui.BeginDisabled(model.Textures.TrueForAll(t => t.ProjectAsset is not null));
+        if (ImGui.Button("Extract Textures"))
+        {
+            Run("Extract textures", () => _report = [.. workflow.ExtractTextures(workflow.DefaultFolder("Textures"))]);
+        }
+
+        ImGui.EndDisabled();
+        Gui.Muted("Writes embedded textures, and textures found outside Assets/, into the project.");
+    }
+
+    private static void DrawContents(ModelData model)
+    {
+        if (!ImGui.CollapsingHeader($"Meshes ({model.Meshes.Count}), skins ({model.Skins.Count}), animations ({model.Animations.Count})"))
+        {
+            return;
+        }
+
+        foreach (var mesh in model.Meshes)
+        {
+            Gui.Bullet($"mesh/{mesh.Name}: {mesh.Mesh.VertexCount} vertices, {mesh.Mesh.TriangleCount} triangles, {mesh.Mesh.SubMeshes.Count} submesh(es){(mesh.Joints is null ? "" : ", skinned")}");
+        }
+
+        foreach (var skin in model.Skins)
+        {
+            Gui.Bullet($"skin {skin.Name}: {skin.Joints.Count} joints");
+        }
+
+        foreach (var animation in model.Animations)
+        {
+            Gui.Bullet($"animation {animation.Name}: {animation.Duration:0.##} s, {animation.Channels.Count} channels");
+        }
+    }
+
+    /// <summary>Runs a workflow step; failures are shown and logged, never thrown into the UI loop.</summary>
+    private void Run(string action, Action step)
+    {
+        try
+        {
+            step();
+            _modelHash = null; // reload after the reimport
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException or ArgumentException)
+        {
+            _report = [$"{action} failed: {ex.Message}"];
+            EditorLog.ActionFailed(context.Logger, ex, action);
+        }
+    }
+
+    private static Matrix4x4[] WorldMatrices(ModelData model)
+    {
+        var world = new Matrix4x4[model.Nodes.Count];
+        for (var i = 0; i < model.Nodes.Count; i++)
+        {
+            var n = model.Nodes[i];
+            var local = Matrix4x4.TRS(n.Position, n.Rotation, n.Scale);
+            world[i] = n.Parent < 0 ? local : world[n.Parent] * local;
+        }
+
+        return world;
+    }
+
+    private static (Vector3 Center, float Radius) Bounds(ModelData model)
+    {
+        var world = WorldMatrices(model);
+        var min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+        var max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+        for (var i = 0; i < model.Nodes.Count; i++)
+        {
+            if (model.Nodes[i].Mesh is var m && m < 0)
+            {
+                continue;
+            }
+
+            foreach (var p in model.Meshes[m].Mesh.Positions)
+            {
+                var w = world[i].MultiplyPoint(p);
+                min = Vector3.Min(min, w);
+                max = Vector3.Max(max, w);
+            }
+        }
+
+        return min.X > max.X ? (Vector3.Zero, 1f) : ((min + max) * 0.5f, MathF.Max((max - min).Magnitude * 0.5f, 0.001f));
+    }
+}

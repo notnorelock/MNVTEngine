@@ -29,7 +29,7 @@ public sealed class GltfModelReader : IModelReader
             if (source.FullPath is not null)
             {
                 root = ModelRoot.Load(source.FullPath, read);
-                RecordBuffers(root, source, dependencies);
+                RecordBuffers(source);
             }
             else if (source.Extension == ".glb")
             {
@@ -48,8 +48,8 @@ public sealed class GltfModelReader : IModelReader
         }
     }
 
-    /// <summary>External .bin files are dependencies: changing one reimports the model.</summary>
-    private static void RecordBuffers(ModelRoot root, ModelSource source, ISet<Guid> dependencies)
+    /// <summary>External .bin files are import inputs: changing one reimports the model.</summary>
+    private static void RecordBuffers(ModelSource source)
     {
         if (source.Extension != ".gltf" || source.AssetsDirectory is null)
         {
@@ -62,7 +62,7 @@ public sealed class GltfModelReader : IModelReader
             var relative = (folder.Length == 0 ? "" : folder + "/") + Path.GetFileName(file);
             if (source.ResolveAsset(relative) is { } guid)
             {
-                dependencies.Add(guid);
+                source.Inputs.Add(guid);
             }
         }
     }
@@ -70,7 +70,7 @@ public sealed class GltfModelReader : IModelReader
     private static ModelData Convert(ModelRoot root, ModelSource source, ModelImportSettings settings, ICollection<string> warnings, ISet<Guid> dependencies)
     {
         var model = new ModelData();
-        var textures = new TextureResolver(source, warnings, dependencies);
+        var textures = new TextureResolver(source, dependencies);
 
         if (settings.ImportMaterials)
         {

@@ -80,7 +80,7 @@ public sealed unsafe class AssimpModelReader : IModelReader
     private static ModelData Convert(Assimp api, AiScene* scene, ModelSource source, ModelImportSettings settings, ICollection<string> warnings, ISet<Guid> dependencies)
     {
         var model = new ModelData();
-        var textures = new TextureResolver(source, warnings, dependencies);
+        var textures = new TextureResolver(source, dependencies);
         var embeddedIndex = new Dictionary<int, int>();
 
         // Materials.

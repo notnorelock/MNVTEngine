@@ -119,6 +119,12 @@ public sealed class ModelMaterial(string name)
 
     /// <summary>How the source described the material (e.g. "glTF PBR", "FBX Phong"), for the inspector.</summary>
     public string SourceModel { get; set; } = "";
+
+    /// <summary>
+    /// A project material (<c>.mnvtmat</c>) used instead of this one: extracted from the model or remapped in its import
+    /// settings. Null draws the imported material.
+    /// </summary>
+    public Guid? Override { get; set; }
 }
 
 /// <summary>
@@ -127,7 +133,8 @@ public sealed class ModelMaterial(string name)
 /// </summary>
 public sealed class ModelTexture(string name)
 {
-    public string Name { get; } = name;
+    /// <summary>Unique within the model; the key for extraction and remapping.</summary>
+    public string Name { get; set; } = name;
 
     /// <summary>Encoded image (PNG/JPEG/...) when embedded in the model file.</summary>
     public byte[]? Embedded { get; set; }
@@ -139,6 +146,9 @@ public sealed class ModelTexture(string name)
     public string? SourcePath { get; set; }
 
     public bool IsResolved => Embedded is not null || ProjectAsset is not null;
+
+    /// <summary>Why an external texture could not be resolved (import time only; not stored in the artifact).</summary>
+    public string? Problem { get; set; }
 }
 
 /// <summary>A skeleton: joint nodes and their inverse bind matrices.</summary>
@@ -177,4 +187,14 @@ public sealed class ModelAnimation(string name)
     public List<AnimationChannel> Channels { get; } = [];
 
     public float Duration => Channels.Count == 0 ? 0f : Channels.Max(c => c.Times.Length == 0 ? 0f : c.Times[^1]);
+}
+
+/// <summary>Where model texture roles go on the Standard shader (runtime materials and extracted <c>.mnvtmat</c> files).</summary>
+public static class ModelMaterialSlots
+{
+    public static IReadOnlyList<(TextureRole Role, string Property)> Textures { get; } =
+    [
+        (TextureRole.BaseColor, "_BaseColorMap"), (TextureRole.MetallicRoughness, "_MetallicRoughnessMap"),
+        (TextureRole.Normal, "_NormalMap"), (TextureRole.Occlusion, "_OcclusionMap"), (TextureRole.Emission, "_EmissiveMap"),
+    ];
 }

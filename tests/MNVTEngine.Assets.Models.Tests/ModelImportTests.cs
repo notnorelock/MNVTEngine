@@ -203,6 +203,29 @@ public sealed class ModelImportTests : IDisposable
     }
 
     [Fact]
+    public void ChangingABuffer_ReimportsTheModel_ButChangingATexture_DoesNot()
+    {
+        CopyFixtureFolder("WoodenCrate/gltf", "Crate");
+        var db = Open();
+        Assert.True(db.TryGetGuid("Crate/wooden_crate_01_1k.gltf", out var guid));
+        var artifact = Path.Combine(LibraryDir, AssetDatabase.ArtifactEntry(guid, ModelArtifact.Name));
+        var imported = File.GetLastWriteTimeUtc(artifact);
+
+        // A texture's content is not read by the import (only its GUID is stored): no reimport.
+        File.AppendAllText(Path.Combine(AssetsDir, "Crate/textures/wooden_crate_01_diff_1k.jpg"), "trailing bytes decoders ignore");
+        db.Refresh();
+        Assert.Equal(imported, File.GetLastWriteTimeUtc(artifact));
+
+        // The .bin holds the geometry: the model imports again.
+        var bin = Path.Combine(AssetsDir, "Crate/wooden_crate_01.bin");
+        var bytes = File.ReadAllBytes(bin);
+        bytes[0] ^= 0x01; // the lowest bit of the first vertex coordinate
+        File.WriteAllBytes(bin, bytes);
+        db.Refresh();
+        Assert.NotEqual(imported, File.GetLastWriteTimeUtc(artifact));
+    }
+
+    [Fact]
     public void RemovedModel_DeletesArtifacts()
     {
         CopyFixture("Khronos/BoxAnimated.glb", "Box.glb");

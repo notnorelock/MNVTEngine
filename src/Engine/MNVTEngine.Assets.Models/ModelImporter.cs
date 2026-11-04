@@ -7,6 +7,8 @@ namespace MNVTEngine.Assets.Models;
 /// <summary>Import settings of a model (stored in its <c>.meta</c>). Only settings both readers honor are offered.</summary>
 public sealed record ModelImportSettings
 {
+    private const string AssetPrefix = "asset:";
+
     /// <summary>Uniform scale applied to the whole model after unit conversion (FBX files are converted to meters).</summary>
     public float Scale { get; init; } = 1f;
 
@@ -24,6 +26,12 @@ public sealed record ModelImportSettings
     public bool ImportAnimations { get; init; } = true;
 
     public bool ImportSkins { get; init; } = true;
+
+    /// <summary>Source material name to the project material used instead (Extract Materials, Remap).</summary>
+    public IReadOnlyDictionary<string, Guid> Materials { get; init; } = new SortedDictionary<string, Guid>(StringComparer.Ordinal);
+
+    /// <summary>Model texture name to the project texture used instead (Extract Textures, Remap).</summary>
+    public IReadOnlyDictionary<string, Guid> Textures { get; init; } = new SortedDictionary<string, Guid>(StringComparer.Ordinal);
 
     public static ModelImportSettings Read(JObject settings, ICollection<string>? problems = null)
     {
@@ -58,8 +66,40 @@ public sealed record ModelImportSettings
             }
         }
 
+        SortedDictionary<string, Guid> Remaps(string key)
+        {
+            var result = new SortedDictionary<string, Guid>(StringComparer.Ordinal);
+            if (settings[key] is null)
+            {
+                return result;
+            }
+
+            if (settings[key] is not JObject table)
+            {
+                problems?.Add($"'{key}' must be an object of name: \"asset:<guid>\"; reset.");
+                return result;
+            }
+
+            foreach (var property in table.Properties())
+            {
+                if (property.Value.Type == JTokenType.String && ((string)property.Value!) is var text && text.StartsWith(AssetPrefix, StringComparison.Ordinal)
+                    && Guid.TryParse(text.AsSpan(AssetPrefix.Length), out var guid) && guid != Guid.Empty)
+                {
+                    result[property.Name] = guid;
+                }
+                else
+                {
+                    problems?.Add($"'{key}.{property.Name}' is not an asset reference; removed.");
+                }
+            }
+
+            return result;
+        }
+
         return new ModelImportSettings
         {
+            Materials = Remaps("materials"),
+            Textures = Remaps("textures"),
             Scale = scale,
             GenerateMissingNormals = Bool("generateMissingNormals", defaults.GenerateMissingNormals),
             GenerateTangents = Bool("generateTangents", defaults.GenerateTangents),
@@ -79,12 +119,17 @@ public sealed record ModelImportSettings
         ["importMaterials"] = ImportMaterials,
         ["importAnimations"] = ImportAnimations,
         ["importSkins"] = ImportSkins,
+        ["materials"] = new JObject(Materials.Select(p => new JProperty(p.Key, AssetPrefix + p.Value.ToString("D")))),
+        ["textures"] = new JObject(Textures.Select(p => new JProperty(p.Key, AssetPrefix + p.Value.ToString("D")))),
     };
 }
 
 /// <summary>What a reader gets: the source and how to find files and assets next to it.</summary>
 public sealed record ModelSource(string RelativePath, byte[] Data, string? FullPath, string? AssetsDirectory, Func<string, Guid?> ResolveAsset)
 {
+    /// <summary>Assets whose content the reader used (external buffers); changing one reimports the model.</summary>
+    public ISet<Guid> Inputs { get; init; } = new HashSet<Guid>();
+
     public string Extension => Path.GetExtension(RelativePath).ToLowerInvariant();
 }
 
@@ -93,6 +138,7 @@ public interface IModelReader
 {
     IReadOnlyList<string> Extensions { get; }
 
+    /// <param name="dependencies">Assets the model references (textures) and, through <see cref="ModelSource.Inputs"/>, files it reads.</param>
     /// <exception cref="InvalidDataException">The file cannot be read as a model.</exception>
     ModelData Read(ModelSource source, ModelImportSettings settings, ICollection<string> warnings, ISet<Guid> dependencies);
 }
@@ -107,7 +153,7 @@ public sealed class ModelImporter(IReadOnlyList<IModelReader> readers) : IAssetI
     public string Name => "Model";
 
     /// <summary>Bump when the artifact or conversion changes, so models reimport.</summary>
-    public int Version => 1;
+    public int Version => 2;
 
     public string AssetType => AssetTypes.Model;
 
@@ -121,7 +167,7 @@ public sealed class ModelImporter(IReadOnlyList<IModelReader> readers) : IAssetI
     {
         ArgumentNullException.ThrowIfNull(context);
         var settings = ModelImportSettings.Read(context.Settings);
-        var source = new ModelSource(context.RelativePath, context.Data, context.SourceFullPath, context.AssetsDirectory, context.ResolveAsset);
+        var source = new ModelSource(context.RelativePath, context.Data, context.SourceFullPath, context.AssetsDirectory, context.ResolveAsset) { Inputs = context.ImportInputs };
         var reader = readers.First(r => r.Extensions.Contains(source.Extension));
         ModelData model;
         try
@@ -134,7 +180,7 @@ public sealed class ModelImporter(IReadOnlyList<IModelReader> readers) : IAssetI
             return;
         }
 
-        ModelProcessing.Finish(model, settings, context.Warnings);
+        ModelProcessing.Finish(model, settings, context.Warnings, context.Dependencies);
         if (model.Meshes.Count == 0)
         {
             context.Warnings.Add("The model has no meshes.");

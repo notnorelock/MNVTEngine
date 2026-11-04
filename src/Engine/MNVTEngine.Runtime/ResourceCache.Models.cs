@@ -58,9 +58,19 @@ public sealed partial class ResourceCache
         return null;
     }
 
-    /// <summary>The engine material of a model material (Standard shader), or null for an index out of range.</summary>
-    public Material? GetModelMaterial(Guid model, int index) =>
-        Load(model) is { } loaded && index >= 0 && index < loaded.Materials.Length ? loaded.Materials[index] : null;
+    /// <summary>
+    /// The material of a model material: its override (an extracted or remapped <c>.mnvtmat</c>) when it has one and it
+    /// loads, else the imported material on the Standard shader. Null for an index out of range.
+    /// </summary>
+    public Material? GetModelMaterial(Guid model, int index)
+    {
+        if (Load(model) is not { } loaded || index < 0 || index >= loaded.Materials.Length)
+        {
+            return null;
+        }
+
+        return loaded.Data.Materials[index].Override is { } replacement ? GetMaterial(new AssetRef(replacement)) ?? loaded.Materials[index] : loaded.Materials[index];
+    }
 
     private LoadedModel? Load(Guid guid)
     {
@@ -117,11 +127,7 @@ public sealed partial class ResourceCache
         material.SetFloat("_OcclusionStrength", source.OcclusionStrength);
         material.SetColor("_EmissiveColor", source.Emissive);
         material.SetFloat("_AlphaCutoff", source.AlphaMode == ModelAlphaMode.Mask ? source.AlphaCutoff : 0f);
-        foreach (var (role, property) in new[]
-        {
-            (TextureRole.BaseColor, "_BaseColorMap"), (TextureRole.MetallicRoughness, "_MetallicRoughnessMap"),
-            (TextureRole.Normal, "_NormalMap"), (TextureRole.Occlusion, "_OcclusionMap"), (TextureRole.Emission, "_EmissiveMap"),
-        })
+        foreach (var (role, property) in ModelMaterialSlots.Textures)
         {
             if (source.Textures.TryGetValue(role, out var index) && TextureOf(model, index) is { } texture)
             {

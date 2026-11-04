@@ -246,7 +246,8 @@ public static class ContentCompiler
             return null;
         }
 
-        var used = model.Textures.Where(t => t.ProjectAsset is not null).Select(t => t.ProjectAsset!.Value).ToHashSet();
+        var used = model.Textures.Where(t => t.ProjectAsset is not null).Select(t => t.ProjectAsset!.Value)
+            .Concat(model.Materials.Where(m => m.Override is not null).Select(m => m.Override!.Value)).ToHashSet();
         foreach (var missing in used.Where(d => assets.GetAssetType(d) is null).Order())
         {
             diagnostics.Add(BuildDiagnostic.Error("MNVB206", $"References asset {missing}, which is not in the project.", record.Path));

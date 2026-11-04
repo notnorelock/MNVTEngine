@@ -35,6 +35,12 @@ public sealed class AssetImportContext(string relativePath, byte[] data, JObject
 
     public HashSet<Guid> Dependencies { get; } = [];
 
+    /// <summary>
+    /// Assets whose content this import read (a glTF's .bin buffers): when one changes the asset is imported again
+    /// (importers with <see cref="IAssetImporter.ReimportWhenDependenciesChange"/>). Also listed in <see cref="Dependencies"/>.
+    /// </summary>
+    public HashSet<Guid> ImportInputs { get; } = [];
+
     public List<string> Errors { get; } = [];
 
     public List<string> Warnings { get; } = [];
@@ -60,7 +66,10 @@ public interface IAssetImporter
 
     void Import(AssetImportContext context);
 
-    /// <summary>Reimport when an asset this one depends on is added or changes (a model's buffers or textures).</summary>
+    /// <summary>
+    /// Reimport when one of the import's inputs (<see cref="AssetImportContext.ImportInputs"/>) is added or changes, and,
+    /// when files are added, when the last import reported problems (a missing texture may exist now).
+    /// </summary>
     bool ReimportWhenDependenciesChange => false;
 }
 
