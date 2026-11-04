@@ -77,7 +77,7 @@ public interface ITextAssetReader
 public static class Prefab
 {
     /// <summary>Creates a copy of the prefab in the current scene at <paramref name="position"/> (world space).</summary>
-    public static GameObject Instantiate(AssetRef prefab, Mathematics.Vector2 position, Transform? parent = null)
+    public static GameObject Instantiate(AssetRef prefab, Mathematics.Vector3 position, Transform? parent = null)
     {
         var instance = SceneContext.Current.Instantiate(prefab, parent);
         instance.Transform.Position = position;

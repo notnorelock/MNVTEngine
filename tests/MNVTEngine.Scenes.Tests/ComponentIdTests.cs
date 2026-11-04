@@ -41,7 +41,7 @@ public class ComponentIdTests
             """;
 
         var loaded = Serializer.Deserialize(json);
-        Assert.Empty(loaded.Diagnostics);
+        Assert.DoesNotContain(loaded.Diagnostics, d => d.Severity >= Serialization.DiagnosticSeverity.Warning); // only the schema 2 -> 3 migration note
         Assert.Equal(4f, loaded.Scene.Find("A")!.GetComponent<RenamedMover>()!.Speed);
         var resaved = Serializer.Serialize(loaded.Scene);
         Assert.Contains("\"MNVTEngine.Scenes.Tests.RenamedMover\"", resaved, StringComparison.Ordinal);

@@ -33,6 +33,10 @@ public static class Gui
 
     public static Vector2 ToEngine(this SysVector2 v) => new(v.X, v.Y);
 
+    public static System.Numerics.Vector3 ToSys(this Vector3 v) => new(v.X, v.Y, v.Z);
+
+    public static Vector3 ToEngine(this System.Numerics.Vector3 v) => new(v.X, v.Y, v.Z);
+
     public static SysVector4 ToSys(this Color c) => new(c.R, c.G, c.B, c.A);
 
     public static Color ToColor(this SysVector4 v) => new(v.X, v.Y, v.Z, v.W);

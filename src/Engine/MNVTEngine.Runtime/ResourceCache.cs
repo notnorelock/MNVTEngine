@@ -367,8 +367,8 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
         ArgumentNullException.ThrowIfNull(camera);
         return new Camera2D(width, height)
         {
-            Position = camera.Transform.Position,
-            Rotation = camera.Transform.Rotation,
+            Position = (Vector2)camera.Transform.Position,
+            Rotation = camera.Transform.Rotation2D,
             OrthographicSize = camera.OrthographicSize,
         };
     }
@@ -395,8 +395,8 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
 
             var transform = sprite.Transform;
             var scale = transform.LossyScale;
-            var size = Vector2.Scale(sprite.Size, Vector2.Abs(scale));
-            var position = transform.Position;
+            var size = Vector2.Scale(sprite.Size, Vector2.Abs((Vector2)scale));
+            var position = (Vector2)transform.Position;
 
             // Conservative bounding circle: covers any pivot and rotation.
             var radius = size.Magnitude;
@@ -419,7 +419,7 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
             }
 
             var source = sprite.SourceRect is { Width: > 0f, Height: > 0f } rect ? rect : (Rect?)null;
-            batch.Draw(resources.GetTexture(sprite.Texture), position, size, sprite.Color, transform.Rotation, sprite.Pivot, source, flip, -sprite.SortingOrder, resources.GetMaterial(sprite.Material));
+            batch.Draw(resources.GetTexture(sprite.Texture), position, size, sprite.Color, transform.Rotation2D, sprite.Pivot, source, flip, -sprite.SortingOrder, resources.GetMaterial(sprite.Material));
             SpritesDrawn++;
         }
 
@@ -503,7 +503,7 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
             var scale = light.Transform.LossyScale;
             var diameter = 2f * light.Radius * MathF.Max(MathF.Abs(scale.X), MathF.Abs(scale.Y));
             var color = light.Color * light.Intensity;
-            lightsBatch.Draw(_lightDisc, light.Transform.Position, new Vector2(diameter, diameter), new Color(color.R, color.G, color.B, 1f));
+            lightsBatch.Draw(_lightDisc, (Vector2)light.Transform.Position, new Vector2(diameter, diameter), new Color(color.R, color.G, color.B, 1f));
             LightsDrawn++;
         }
 
@@ -544,7 +544,7 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
         var material = resources.GetMaterial(tilemap.Material);
         var transform = tilemap.Transform;
         var scale = transform.LossyScale;
-        var size = Vector2.Scale(tilemap.CellSize, Vector2.Abs(scale));
+        var size = Vector2.Scale(tilemap.CellSize, Vector2.Abs((Vector2)scale));
         var radius = size.Magnitude;
         var flip = (scale.X < 0f ? SpriteFlip.Horizontal : SpriteFlip.None) | (scale.Y < 0f ? SpriteFlip.Vertical : SpriteFlip.None);
         foreach (var cell in tilemap.EnumerateTiles())
@@ -556,7 +556,7 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
                 continue;
             }
 
-            batch.Draw(texture, corner, size, tilemap.Color, transform.Rotation, Vector2.Zero, tilemap.SourceRect(cell.Tile), flip, -tilemap.SortingOrder, material);
+            batch.Draw(texture, corner, size, tilemap.Color, transform.Rotation2D, Vector2.Zero, tilemap.SourceRect(cell.Tile), flip, -tilemap.SortingOrder, material);
             SpritesDrawn++;
         }
     }

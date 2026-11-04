@@ -93,6 +93,80 @@ public struct Quaternion : IEquatable<Quaternion>, IFormattable
 
     public static Quaternion Euler(Vector3 degrees) => Euler(degrees.X, degrees.Y, degrees.Z);
 
+    /// <summary>
+    /// The rotation that makes an object's forward (-Z) point along <paramref name="forward"/>, with its up (+Y) as
+    /// close to <paramref name="up"/> as possible. Identity for a zero direction; a direction parallel to
+    /// <paramref name="up"/> uses another up axis.
+    /// </summary>
+    public static Quaternion LookRotation(Vector3 forward, Vector3 up)
+    {
+        var z = -forward.Normalized; // the object's +Z points backwards
+        if (z == Vector3.Zero)
+        {
+            return Identity;
+        }
+
+        var x = Vector3.Cross(up, z);
+        if (x.SqrMagnitude < 1e-12f)
+        {
+            x = Vector3.Cross(MathF.Abs(z.Y) < 0.99f ? Vector3.UnitY : Vector3.UnitX, z);
+        }
+
+        x = x.Normalized;
+        var y = Vector3.Cross(z, x);
+        return FromAxes(x, y, z);
+    }
+
+    public static Quaternion LookRotation(Vector3 forward) => LookRotation(forward, Vector3.Up);
+
+    /// <summary>The shortest rotation that turns <paramref name="from"/> into <paramref name="to"/>.</summary>
+    public static Quaternion FromToRotation(Vector3 from, Vector3 to)
+    {
+        var a = from.Normalized;
+        var b = to.Normalized;
+        var dot = Vector3.Dot(a, b);
+        if (dot > 0.999999f)
+        {
+            return Identity;
+        }
+
+        if (dot < -0.999999f)
+        {
+            var axis = Vector3.Cross(Vector3.UnitX, a);
+            return AngleAxis(180f, axis.SqrMagnitude < 1e-12f ? Vector3.Cross(Vector3.UnitY, a) : axis);
+        }
+
+        var c = Vector3.Cross(a, b);
+        return new Quaternion(c.X, c.Y, c.Z, 1f + dot).Normalized;
+    }
+
+    /// <summary>The rotation whose rotated X, Y and Z axes are the given orthonormal columns.</summary>
+    public static Quaternion FromAxes(Vector3 x, Vector3 y, Vector3 z)
+    {
+        // Shepperd's method on the rotation matrix [x y z] (columns).
+        var trace = x.X + y.Y + z.Z;
+        if (trace > 0f)
+        {
+            var s = MathF.Sqrt(trace + 1f) * 2f;
+            return new Quaternion((y.Z - z.Y) / s, (z.X - x.Z) / s, (x.Y - y.X) / s, 0.25f * s).Normalized;
+        }
+
+        if (x.X > y.Y && x.X > z.Z)
+        {
+            var s = MathF.Sqrt(1f + x.X - y.Y - z.Z) * 2f;
+            return new Quaternion(0.25f * s, (y.X + x.Y) / s, (z.X + x.Z) / s, (y.Z - z.Y) / s).Normalized;
+        }
+
+        if (y.Y > z.Z)
+        {
+            var s = MathF.Sqrt(1f + y.Y - x.X - z.Z) * 2f;
+            return new Quaternion((y.X + x.Y) / s, 0.25f * s, (z.Y + y.Z) / s, (z.X - x.Z) / s).Normalized;
+        }
+
+        var t = MathF.Sqrt(1f + z.Z - x.X - y.Y) * 2f;
+        return new Quaternion((z.X + x.Z) / t, (z.Y + y.Z) / t, 0.25f * t, (x.Y - y.X) / t).Normalized;
+    }
+
     public static float Dot(Quaternion a, Quaternion b) => (a.X * b.X) + (a.Y * b.Y) + (a.Z * b.Z) + (a.W * b.W);
 
     /// <summary>Smallest angle in degrees between two rotations, in [0, 180].</summary>

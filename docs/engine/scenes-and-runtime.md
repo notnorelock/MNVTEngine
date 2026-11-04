@@ -42,12 +42,21 @@ Callbacks run only while the scene is running (`scene.Start()`). In edit mode th
 
 ## Transform
 
-- 2D: `LocalPosition`, `LocalRotation` (degrees, counter-clockwise), `LocalScale`.
-- World values (`Position`, `Rotation`, `LossyScale`) are composed through the parent chain. `LocalToWorldMatrix` is cached and invalidated down the subtree.
+- 3D (Unity-style API):
+  - local values: `LocalPosition` (`Vector3`), `LocalRotation` (`Quaternion`), `LocalEulerAngles` (degrees), `LocalScale` (`Vector3`);
+  - world values: `Position`, `Rotation`, `EulerAngles`, `LossyScale`, composed through the parent chain;
+  - directions: `Forward` (local -Z), `Right`, `Up`;
+  - operations: `TransformPoint`/`InverseTransformPoint`, `TransformDirection`/`InverseTransformDirection`, `TransformVector`, `LookAt`, `Rotate`.
+- 2D helpers:
+  - `Rotation2D` and `LocalRotation2D` are the angle about Z in degrees, counter-clockwise; setting one replaces any X/Y rotation.
+  - Positions accept `Vector2` (z = 0).
+  - Scale: `Vector2` converts to `Vector3` with **z = 0**, which makes the transform non-invertible. Set scale with `SetLocalScale2D(v)` or a `Vector3`.
+- `LocalToWorldMatrix` and `WorldToLocalMatrix` are cached and invalidated down the subtree when a transform or an ancestor changes.
+- `LocalEulerAngles` returns the angles last set while the rotation is unchanged, so inspectors can edit one angle without the others jumping (and `LocalRotation2D += x` keeps accumulating).
 - `SetParent(parent, worldPositionStays = true)` rejects cycles and parenting across scenes.
-- With a rotated parent that also has non-uniform scale, the matrix is exact, but `Rotation` and `LossyScale` are approximations.
+- With a rotated parent that also has non-uniform scale, the matrix is exact, but `LossyScale` is an approximation.
 
-## Scene files (`.mnvt`, schema 2)
+## Scene files (`.mnvt`, schema 3)
 
 ```json
 {
@@ -55,11 +64,13 @@ Callbacks run only while the scene is running (`scene.Start()`). In edit mode th
   "name": "Main",
   "gameObjects": [
     { "id": "<guid>", "name": "Player", "active": true, "parent": null,
-      "transform": { "localPosition": { "x": 0, "y": 0 }, "localRotation": 0, "localScale": { "x": 1, "y": 1 } },
+      "transform": { "localPosition": { "x": 0, "y": 0, "z": 0 }, "localRotation": { "x": 0, "y": 0, "z": 0, "w": 1 }, "localScale": { "x": 1, "y": 1, "z": 1 } },
       "components": [ { "type": "MNVTEngine.SpriteRenderer", "id": "<guid>", "enabled": true, "data": { "texture": "asset:<guid>" } } ] }
   ]
 }
 ```
+
+Schema 2 files (2D transforms: `{x, y}` positions and scales, rotation in degrees about Z) are migrated on load: z = 0 for positions, z = 1 for scales, the angle becomes a quaternion. An Info diagnostic notes the migration; saving writes schema 3.
 
 - **Identity:** every GameObject and component has a stable GUID. A Transform shares its GameObject's id.
 - **Ordering:** objects are written parents-first in sibling order. On load, sibling order follows file order.

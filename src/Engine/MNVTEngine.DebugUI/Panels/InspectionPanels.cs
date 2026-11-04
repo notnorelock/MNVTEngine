@@ -243,11 +243,11 @@ public sealed class EcsPanel() : DebugPanel("ECS")
 
     private static void Inspect(GameObject gameObject)
     {
-        Debug.DrawCircle(gameObject.Transform.Position, 0.35f, Color.Cyan, thickness: 2f);
-        Debug.DrawLabel(gameObject.Name, gameObject.Transform.Position + new Vector2(0, 0.6f), Color.Cyan);
+        Debug.DrawCircle((Vector2)gameObject.Transform.Position, 0.35f, Color.Cyan, thickness: 2f);
+        Debug.DrawLabel(gameObject.Name, (Vector2)gameObject.Transform.Position + new Vector2(0, 0.6f), Color.Cyan);
         ImGui.TextUnformatted(gameObject.Name);
         Gui.TextColored(Dim, $"{gameObject.Id}  {(gameObject.ActiveInHierarchy ? "active" : "inactive")}");
-        ImGui.TextUnformatted(string.Create(CultureInfo.InvariantCulture, $"Position {gameObject.Transform.Position}  rotation {gameObject.Transform.Rotation:0.#}°  scale {gameObject.Transform.LossyScale}"));
+        ImGui.TextUnformatted(string.Create(CultureInfo.InvariantCulture, $"Position {gameObject.Transform.Position}  rotation {gameObject.Transform.EulerAngles}°  scale {gameObject.Transform.LossyScale}"));
         foreach (var component in gameObject.Components.Skip(1))
         {
             var type = component.GetType();
@@ -469,15 +469,15 @@ public sealed class PhysicsPanel() : DebugPanel("Physics")
                 : Color.Green;
             var transform = collider.Transform;
             var scale = transform.LossyScale;
-            var center = transform.Position + Rotate(Vector2.Scale(collider.Offset, scale), transform.Rotation);
+            var center = (Vector2)transform.Position + Rotate(Vector2.Scale(collider.Offset, (Vector2)scale), transform.Rotation2D);
             switch (collider)
             {
                 case BoxCollider2D box:
-                    var half = Vector2.Scale(box.Size, scale) * 0.5f;
+                    var half = Vector2.Scale(box.Size, (Vector2)scale) * 0.5f;
                     var corners = (Vector2[])[new(-half.X, -half.Y), new(half.X, -half.Y), new(half.X, half.Y), new(-half.X, half.Y)];
                     for (var i = 0; i < 4; i++)
                     {
-                        Debug.DrawLine(center + Rotate(corners[i], transform.Rotation), center + Rotate(corners[(i + 1) % 4], transform.Rotation), color);
+                        Debug.DrawLine(center + Rotate(corners[i], transform.Rotation2D), center + Rotate(corners[(i + 1) % 4], transform.Rotation2D), color);
                     }
 
                     break;

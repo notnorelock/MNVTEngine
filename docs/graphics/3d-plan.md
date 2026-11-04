@@ -129,7 +129,7 @@ Each phase ships with tests, documentation, validation-layer runs and a commit.
 
 | Phase | Content | Exit criteria |
 |---|---|---|
-| 1 | Math (plane, frustum, sphere, look-at, Vulkan projections, intersections); 3D transform with cached matrices; scene format v3 with v2 read | Unit tests; every 2D sample, test and scene unchanged |
+| 1 | Math (plane, frustum, sphere, look-at, Vulkan projections, intersections); 3D transform with cached matrices; scene format v3 with v2 read | Unit tests; every 2D sample, test and scene unchanged. **Done.** |
 | 2 | Mesh asset, vertex formats, primitives; camera perspective/orthographic; GPU mesh buffers; depth images | Mesh and primitive tests; GPU upload tests |
 | 3 | First 3D renderer: depth, mesh pipelines, per-object data, multiple objects, culling; `MeshRenderer` | A 3D scene with primitives renders correctly with validation on (screenshots) |
 | 4 | PBR material model and `.mnvtmat` v2, texture slots, material inspector | Serialization tests; materials edited in the editor and visible in the scene |

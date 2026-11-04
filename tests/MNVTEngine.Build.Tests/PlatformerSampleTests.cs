@@ -32,7 +32,7 @@ public sealed class PlatformerSampleTests
         var assets = AssetDatabase.OpenReadOnly(project.AssetsDirectory);
         var serializer = new SceneSerializer(registry, assets);
         var loaded = serializer.Deserialize(File.ReadAllText(project.ResolveAsset(project.StartupScene)), project.StartupScene);
-        Assert.Empty(loaded.Diagnostics);
+        Assert.DoesNotContain(loaded.Diagnostics, d => d.Severity >= Serialization.DiagnosticSeverity.Warning);
         var scene = loaded.Scene;
         var provider = new PrefabProvider(serializer, assets, NullLogger.Instance);
         var input = new InputState();

@@ -18,14 +18,16 @@ public sealed record PrefabInstance(GameObject Root, IReadOnlyList<Serialization
 /// still loads. Only unreadable documents throw.
 /// </summary>
 /// <remarks>
-/// Format (schema 2): <c>{ schemaVersion, name, gameObjects: [ { id, name, active, parent, transform: { localPosition,
+/// Format (schema 3): <c>{ schemaVersion, name, gameObjects: [ { id, name, active, parent, transform: { localPosition,
 /// localRotation, localScale }, components: [ { type, id, enabled, data } ] } ] }</c>. GameObjects are written
 /// parents-first in sibling order; on load, sibling order follows file order. Asset references are
-/// <c>"asset:&lt;guid&gt;"</c> strings. Schema 1 stored sprite textures as paths; they are converted on load.
+/// <c>"asset:&lt;guid&gt;"</c> strings. Transforms are 3D: position and scale {x, y, z}, rotation a quaternion {x, y, z, w}.
+/// Schema 1 stored sprite textures as paths; schema 2 stored 2D transforms (rotation in degrees about Z); both are
+/// converted on load.
 /// </remarks>
 public sealed class SceneSerializer
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     private static readonly HashSet<string> RootKeys = ["schemaVersion", "name", "gameObjects"];
     private static readonly HashSet<string> ObjectKeys = ["id", "name", "active", "parent", "transform", "components"];
@@ -39,6 +41,7 @@ public sealed class SceneSerializer
         ArgumentNullException.ThrowIfNull(registry);
         _registry = registry;
         Migrations.Add(1, (document, diagnostics) => MigrateTexturePaths(document, diagnostics, assets));
+        Migrations.Add(2, MigrateTransformsTo3D);
     }
 
     /// <summary>Register upgrades here when <see cref="CurrentSchemaVersion"/> increases.</summary>
@@ -294,7 +297,7 @@ public sealed class SceneSerializer
             ["transform"] = new JObject
             {
                 ["localPosition"] = JToken.FromObject(transform.LocalPosition, serializer),
-                ["localRotation"] = transform.LocalRotation,
+                ["localRotation"] = JToken.FromObject(transform.LocalRotation, serializer),
                 ["localScale"] = JToken.FromObject(transform.LocalScale, serializer),
             },
             ["components"] = components,
@@ -303,6 +306,37 @@ public sealed class SceneSerializer
         foreach (var child in transform.Children)
         {
             Write(child.GameObject, output, serializer);
+        }
+    }
+
+    /// <summary>
+    /// Schema 2 -> 3: transforms become 3D. Positions and scales gain z (0 and 1); a rotation in degrees about Z becomes
+    /// a quaternion. Applies to scenes and prefabs.
+    /// </summary>
+    private static void MigrateTransformsTo3D(JObject document)
+    {
+        if (document["gameObjects"] is not JArray objects)
+        {
+            return;
+        }
+
+        foreach (var transform in objects.OfType<JObject>().Select(o => o["transform"]).OfType<JObject>())
+        {
+            if (transform["localPosition"] is JObject position && position["z"] is null)
+            {
+                position["z"] = 0f;
+            }
+
+            if (transform["localScale"] is JObject scale && scale["z"] is null)
+            {
+                scale["z"] = 1f;
+            }
+
+            if (transform["localRotation"] is JValue { Type: JTokenType.Float or JTokenType.Integer } degrees)
+            {
+                var q = Quaternion.Euler(0f, 0f, degrees.Value<float>());
+                transform["localRotation"] = new JObject { ["x"] = q.X, ["y"] = q.Y, ["z"] = q.Z, ["w"] = q.W };
+            }
         }
     }
 
@@ -334,17 +368,17 @@ public sealed class SceneSerializer
         {
             if (data["localPosition"] is { } position)
             {
-                transform.LocalPosition = position.ToObject<Vector2>(serializer);
+                transform.LocalPosition = position.ToObject<Vector3>(serializer);
             }
 
             if (data["localRotation"] is { } rotation)
             {
-                transform.LocalRotation = rotation.ToObject<float>(serializer);
+                transform.LocalRotation = rotation.ToObject<Quaternion>(serializer);
             }
 
             if (data["localScale"] is { } scale)
             {
-                transform.LocalScale = scale.ToObject<Vector2>(serializer);
+                transform.LocalScale = scale.ToObject<Vector3>(serializer);
             }
         }
         catch (JsonException ex)

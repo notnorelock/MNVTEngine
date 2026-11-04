@@ -32,7 +32,7 @@ public static class SceneEditing
 
                 order = sprite.SortingOrder;
             }
-            else if (Vector2.Distance(gameObject.Transform.Position, world) <= pickRadius)
+            else if (Vector2.Distance((Vector2)gameObject.Transform.Position, world) <= pickRadius)
             {
                 order = int.MaxValue; // markers for empty objects sit above sprites
             }
@@ -58,7 +58,7 @@ public static class SceneEditing
         float x0 = -sprite.Pivot.X * sprite.Size.X, y0 = -sprite.Pivot.Y * sprite.Size.Y;
         float x1 = x0 + sprite.Size.X, y1 = y0 + sprite.Size.Y;
         var t = sprite.Transform;
-        return [t.TransformPoint(new Vector2(x0, y0)), t.TransformPoint(new Vector2(x1, y0)), t.TransformPoint(new Vector2(x1, y1)), t.TransformPoint(new Vector2(x0, y1))];
+        return [(Vector2)t.TransformPoint(new Vector2(x0, y0)), (Vector2)t.TransformPoint(new Vector2(x1, y0)), (Vector2)t.TransformPoint(new Vector2(x1, y1)), (Vector2)t.TransformPoint(new Vector2(x0, y1))];
     }
 
     public static bool SpriteContains(SpriteRenderer sprite, Vector2 world)

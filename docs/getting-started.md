@@ -60,7 +60,7 @@ public sealed class Spinner : Component
 {
     public float DegreesPerSecond = 90f;   // public fields and [SerializeField] properties are saved and shown in the Inspector
 
-    public override void Update() => Transform.Rotation += DegreesPerSecond * Time.DeltaTime;
+    public override void Update() => Transform.Rotation2D += DegreesPerSecond * Time.DeltaTime;
 }
 ```
 

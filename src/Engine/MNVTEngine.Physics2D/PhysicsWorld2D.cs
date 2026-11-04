@@ -202,8 +202,8 @@ public sealed class PhysicsWorld2D : GameSystem
             RigidbodyType2D.Kinematic => B2BodyType.b2_kinematicBody,
             _ => B2BodyType.b2_staticBody,
         };
-        definition.position = Rigidbody2D.Convert(transform.Position);
-        definition.rotation = b2MakeRot(transform.Rotation * Mathf.Deg2Rad);
+        definition.position = Rigidbody2D.Convert((Vector2)transform.Position);
+        definition.rotation = b2MakeRot(transform.Rotation2D * Mathf.Deg2Rad);
         if (rigidbody is not null)
         {
             definition.linearVelocity = Rigidbody2D.Convert(velocity ?? rigidbody.InitialVelocity);
@@ -216,8 +216,8 @@ public sealed class PhysicsWorld2D : GameSystem
         }
 
         var body = b2CreateBody(_world, in definition);
-        var scale = Vector2.Abs(transform.LossyScale);
-        var binding = new Binding(owner, body, rigidbody, colliders, transform.Position, transform.Rotation, transform.LossyScale);
+        var scale = Vector2.Abs((Vector2)transform.LossyScale);
+        var binding = new Binding(owner, body, rigidbody, colliders, (Vector2)transform.Position, transform.Rotation2D, (Vector2)transform.LossyScale);
         foreach (var collider in colliders)
         {
             foreach (var shape in collider.CreateShapes(body, collider.CreateDefinition(), scale))
@@ -327,15 +327,15 @@ public sealed class PhysicsWorld2D : GameSystem
         foreach (var binding in _bindings.Values.ToList())
         {
             var transform = binding.Owner.Transform;
-            if (transform.LossyScale != binding.Scale)
+            if ((Vector2)transform.LossyScale != binding.Scale)
             {
                 Rebuild(binding.Owner);
             }
-            else if (transform.Position != binding.Position || transform.Rotation != binding.Rotation)
+            else if ((Vector2)transform.Position != binding.Position || transform.Rotation2D != binding.Rotation)
             {
-                b2Body_SetTransform(binding.Body, Rigidbody2D.Convert(transform.Position), b2MakeRot(transform.Rotation * Mathf.Deg2Rad));
-                binding.Position = transform.Position;
-                binding.Rotation = transform.Rotation;
+                b2Body_SetTransform(binding.Body, Rigidbody2D.Convert((Vector2)transform.Position), b2MakeRot(transform.Rotation2D * Mathf.Deg2Rad));
+                binding.Position = (Vector2)transform.Position;
+                binding.Rotation = transform.Rotation2D;
             }
         }
     }
@@ -351,12 +351,12 @@ public sealed class PhysicsWorld2D : GameSystem
 
             var transform = binding.Owner.Transform;
             var rotation = b2Body_GetRotation(binding.Body);
-            transform.Position = Rigidbody2D.Convert(b2Body_GetPosition(binding.Body));
-            transform.Rotation = b2Rot_GetAngle(in rotation) * Mathf.Rad2Deg;
+            transform.Position = new Vector3(Rigidbody2D.Convert(b2Body_GetPosition(binding.Body)), transform.Position.Z); // 2D physics keeps depth
+            transform.Rotation2D = b2Rot_GetAngle(in rotation) * Mathf.Rad2Deg;
 
             // Store what the transform reports (after any parent conversion) so it is not mistaken for a teleport.
-            binding.Position = transform.Position;
-            binding.Rotation = transform.Rotation;
+            binding.Position = (Vector2)transform.Position;
+            binding.Rotation = transform.Rotation2D;
         }
     }
 

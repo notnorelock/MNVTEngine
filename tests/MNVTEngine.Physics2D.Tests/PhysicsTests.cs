@@ -223,7 +223,7 @@ public class PhysicsTests
     {
         var scene = NewScene();
         var floor = Box(scene, "Floor", new Vector2(0, -1), Vector2.One, body: null);
-        floor.Transform.LocalScale = new Vector2(10, 2); // 10 × 2, top at y = 0
+        floor.Transform.LocalScale = new Vector3(10, 2, 1); // 10 × 2, top at y = 0
         scene.Start();
 
         var hit = Assert.IsType<RaycastHit2D>(PhysicsWorld2D.For(scene).Raycast(new Vector2(4.9f, 5), Vector2.Down, 100f));

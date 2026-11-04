@@ -895,7 +895,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             var result = _context.Session.OpenScene(path);
             foreach (var diagnostic in result.Diagnostics)
             {
-                LogDiagnostic(_logger, diagnostic.Severity == DiagnosticSeverity.Error ? LogLevel.Error : LogLevel.Warning, path, diagnostic.Path, diagnostic.Message);
+                LogDiagnostic(_logger, diagnostic.Severity switch { DiagnosticSeverity.Error => LogLevel.Error, DiagnosticSeverity.Warning => LogLevel.Warning, _ => LogLevel.Information }, path, diagnostic.Path, diagnostic.Message);
             }
 
             LogOpened(_logger, path, result.Scene.GameObjects.Count);

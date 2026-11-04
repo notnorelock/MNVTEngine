@@ -33,8 +33,9 @@ public sealed class TransformGizmo
 
     private Vector2 _startMouse;
     private Vector2 _startPosition;
+    private float _startDepth;
     private float _startRotation;
-    private Vector2 _startScale;
+    private Vector3 _startScale;
     private float _handleLength = 1f;
 
     public GizmoTool Tool { get; set; } = GizmoTool.Move;
@@ -46,7 +47,7 @@ public sealed class TransformGizmo
     public GizmoHandle HitTest(Transform transform, Vector2 world, float unitsPerPixel)
     {
         ArgumentNullException.ThrowIfNull(transform);
-        var origin = transform.Position;
+        var origin = (Vector2)transform.Position;
         var tolerance = HitTolerancePixels * unitsPerPixel;
         var length = AxisLengthPixels * unitsPerPixel;
 
@@ -77,8 +78,9 @@ public sealed class TransformGizmo
         ActiveHandle = handle;
         _handleLength = AxisLengthPixels * unitsPerPixel;
         _startMouse = world;
-        _startPosition = transform.Position;
-        _startRotation = transform.Rotation;
+        _startPosition = (Vector2)transform.Position;
+        _startDepth = transform.Position.Z; // the 2D gizmo moves in the XY plane and keeps depth
+        _startRotation = transform.Rotation2D;
         _startScale = transform.LocalScale;
     }
 
@@ -94,25 +96,25 @@ public sealed class TransformGizmo
                 return false;
             case GizmoHandle.Ring:
                 var angle = Vector2.SignedAngle(_startMouse - _startPosition, world - _startPosition);
-                transform.Rotation = _startRotation + angle;
+                transform.Rotation2D = _startRotation + angle;
                 return true;
             case GizmoHandle.Free when Tool == GizmoTool.Scale:
                 transform.LocalScale = _startScale * ScaleFactor(Vector2.Dot(delta, (xAxis + yAxis).Normalized));
                 return true;
             case GizmoHandle.Free:
-                transform.Position = _startPosition + delta;
+                transform.Position = new Vector3(_startPosition + delta, _startDepth);
                 return true;
             case GizmoHandle.AxisX when Tool == GizmoTool.Scale:
-                transform.LocalScale = new Vector2(_startScale.X * ScaleFactor(Vector2.Dot(delta, xAxis)), _startScale.Y);
+                transform.LocalScale = new Vector3(_startScale.X * ScaleFactor(Vector2.Dot(delta, xAxis)), _startScale.Y, _startScale.Z);
                 return true;
             case GizmoHandle.AxisY when Tool == GizmoTool.Scale:
-                transform.LocalScale = new Vector2(_startScale.X, _startScale.Y * ScaleFactor(Vector2.Dot(delta, yAxis)));
+                transform.LocalScale = new Vector3(_startScale.X, _startScale.Y * ScaleFactor(Vector2.Dot(delta, yAxis)), _startScale.Z);
                 return true;
             case GizmoHandle.AxisX:
-                transform.Position = _startPosition + (xAxis * Vector2.Dot(delta, xAxis));
+                transform.Position = new Vector3(_startPosition + (xAxis * Vector2.Dot(delta, xAxis)), _startDepth);
                 return true;
             case GizmoHandle.AxisY:
-                transform.Position = _startPosition + (yAxis * Vector2.Dot(delta, yAxis));
+                transform.Position = new Vector3(_startPosition + (yAxis * Vector2.Dot(delta, yAxis)), _startDepth);
                 return true;
             default:
                 return false;
@@ -126,7 +128,7 @@ public sealed class TransformGizmo
     {
         ArgumentNullException.ThrowIfNull(batch);
         ArgumentNullException.ThrowIfNull(transform);
-        var origin = transform.Position;
+        var origin = (Vector2)transform.Position;
         var thickness = 2f * unitsPerPixel;
         Color Tint(GizmoHandle handle, Color baseColor) => handle == ActiveHandle || handle == hovered ? Color.Yellow : baseColor;
 
@@ -161,7 +163,7 @@ public sealed class TransformGizmo
     }
 
     private (Vector2 X, Vector2 Y) Axes(Transform transform) =>
-        Tool == GizmoTool.Scale ? (transform.Right, transform.Up) : (Vector2.Right, Vector2.Up);
+        Tool == GizmoTool.Scale ? ((Vector2)transform.Right, (Vector2)transform.Up) : (Vector2.Right, Vector2.Up);
 
     /// <summary>Dragging one handle length outward doubles the scale; inward approaches (never reaches) zero.</summary>
     private float ScaleFactor(float dragAlongAxis) => MathF.Max(0.01f, 1f + (dragAlongAxis / _handleLength));

@@ -29,7 +29,7 @@ public sealed class Player : Component
     private SpriteAnimator? _animator;
     private SpriteRenderer? _sprite;
     private AudioSource? _audio;
-    private Vector2 _spawn;
+    private Vector3 _spawn;
     private bool _jumpRequested;
 
     /// <summary>Standing on a solid collider (two short rays below the feet).</summary>
@@ -86,7 +86,7 @@ public sealed class Player : Component
     private bool Probe(float dx)
     {
         // The collider's bottom is 0.5 below the center; start just inside it and look a little further down.
-        var origin = Transform.Position + new Vector2(dx, -0.45f);
+        var origin = (Vector2)Transform.Position + new Vector2(dx, -0.45f);
         return Physics2D.Raycast(origin, Vector2.Down, 0.1f) is { } hit && hit.Collider.GameObject != GameObject;
     }
 }
@@ -141,7 +141,7 @@ public sealed class CameraFollow : Component
         }
 
         var goal = new Vector2(Math.Clamp(Target.Transform.Position.X, MinX, MaxX), MathF.Max(Target.Transform.Position.Y + 1f, MinY));
-        Transform.Position = Vector2.Lerp(Transform.Position, goal, 1f - MathF.Exp(-Sharpness * Time.DeltaTime));
+        Transform.Position = Vector3.Lerp(Transform.Position, new Vector3(goal, Transform.Position.Z), 1f - MathF.Exp(-Sharpness * Time.DeltaTime));
     }
 }
 

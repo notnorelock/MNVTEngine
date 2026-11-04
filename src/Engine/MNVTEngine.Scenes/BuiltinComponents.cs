@@ -73,7 +73,7 @@ public sealed class Camera : Component
     {
         var half = HalfExtents;
         var offset = new Vector2(((screen.X / ViewportSize.X) - 0.5f) * 2f * half.X, (0.5f - (screen.Y / ViewportSize.Y)) * 2f * half.Y);
-        return Transform.Position + Vector2.Rotate(offset, Transform.Rotation);
+        return (Vector2)Transform.Position + Vector2.Rotate(offset, Transform.Rotation2D);
     }
 }
 

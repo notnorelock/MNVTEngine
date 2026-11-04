@@ -67,7 +67,7 @@ public sealed class AudioSource : Component
 
         _voice ??= system.CreateVoice();
         Apply();
-        _voice.Position = Transform.Position;
+        _voice.Position = (Vector2)Transform.Position;
         _voice.Play(buffer);
     }
 
@@ -79,7 +79,7 @@ public sealed class AudioSource : Component
 
     /// <summary>Fire-and-forget sound (footsteps, hits) that may overlap this source's own playback.</summary>
     public void PlayOneShot(AssetRef clip, float volumeScale = 1f) =>
-        System?.PlayOneShot(clip, _volume * volumeScale, Group, _pitch, Spatial ? Transform.Position : null, ReferenceDistance, MaxDistance);
+        System?.PlayOneShot(clip, _volume * volumeScale, Group, _pitch, Spatial ? (Vector2)Transform.Position : null, ReferenceDistance, MaxDistance);
 
     public override void Start()
     {
@@ -111,7 +111,7 @@ public sealed class AudioSource : Component
         _voice.Volume = _volume * system.Mix(Group);
         if (Spatial)
         {
-            _voice.Position = Transform.Position;
+            _voice.Position = (Vector2)Transform.Position;
         }
     }
 
@@ -207,7 +207,7 @@ public sealed partial class AudioSystem : GameSystem
         Core.Diagnostics.Profiler.Count("Audio voices", _voices.Count);
         var listener = _scene.FindObjectsOfType<AudioListener>().FirstOrDefault(l => l.IsActiveAndEnabled)?.Transform
             ?? _scene.MainCamera?.Transform;
-        Device.ListenerPosition = listener?.Position ?? Vector2.Zero;
+        Device.ListenerPosition = listener is null ? Vector2.Zero : (Vector2)listener.Position;
         _mixer = _scene.FindObjectsOfType<AudioMixer>().FirstOrDefault(m => m.IsActiveAndEnabled);
         foreach (var source in world.Pool<AudioSource>().Components)
         {

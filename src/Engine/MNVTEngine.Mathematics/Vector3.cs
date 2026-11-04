@@ -36,6 +36,11 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     public static Vector3 Left => new(-1f, 0f, 0f);
     public static Vector3 Right => new(1f, 0f, 0f);
 
+    /// <summary>(0, 0, -1): the way cameras and objects face (right-handed, as in glTF).</summary>
+    public static Vector3 Forward => new(0f, 0f, -1f);
+
+    public static Vector3 Back => new(0f, 0f, 1f);
+
     public readonly float Magnitude => MathF.Sqrt(SqrMagnitude);
     public readonly float SqrMagnitude => (X * X) + (Y * Y) + (Z * Z);
 

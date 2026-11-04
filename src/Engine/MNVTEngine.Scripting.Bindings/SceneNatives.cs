@@ -22,11 +22,11 @@ public static class SceneNatives
 
         return
         [
-            new("player.position", _ => Position(Player().Transform.Position)),
-            new("player.distance_to", c => ScriptValue.FromNumber(Vector2.Distance(Player().Transform.Position, Find(c, 0).Transform.Position))),
+            new("player.position", _ => Position((Vector2)Player().Transform.Position)),
+            new("player.distance_to", c => ScriptValue.FromNumber(Vector2.Distance((Vector2)Player().Transform.Position, (Vector2)Find(c, 0).Transform.Position))),
             new("entity.exists", c => ScriptValue.FromBool(scene.Find(c.String(0)) is { IsDestroyed: false, ActiveInHierarchy: true })),
-            new("entity.position", c => Position(Find(c, 0).Transform.Position)),
-            new("entity.distance", c => ScriptValue.FromNumber(Vector2.Distance(Find(c, 0).Transform.Position, Find(c, 1).Transform.Position))),
+            new("entity.position", c => Position((Vector2)Find(c, 0).Transform.Position)),
+            new("entity.distance", c => ScriptValue.FromNumber(Vector2.Distance((Vector2)Find(c, 0).Transform.Position, (Vector2)Find(c, 1).Transform.Position))),
             new("entity.set_active", c => SetActive(Find(c, 0), c.Bool(1))),
             new("entity.destroy", c =>
             {

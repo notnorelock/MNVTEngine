@@ -189,8 +189,8 @@ public sealed class EditorServicesTests : IDisposable
         back.AddComponent<SpriteRenderer>().Size = new Vector2(10f, 10f);
         var front = scene.CreateGameObject("Front");
         front.Transform.Position = new Vector2(2f, 0f);
-        front.Transform.Rotation = 45f;
-        front.Transform.LocalScale = new Vector2(2f, 2f);
+        front.Transform.Rotation2D = 45f;
+        front.Transform.LocalScale = new Vector3(2f, 2f, 1f);
         front.AddComponent<SpriteRenderer>().SortingOrder = 5;
 
         Assert.Same(front, SceneEditing.Pick(scene, new Vector2(2f, 1.3f), 0.1f));   // inside the rotated 2x2 diamond
@@ -216,20 +216,20 @@ public sealed class EditorServicesTests : IDisposable
         gizmo.BeginDrag(t, GizmoHandle.AxisX, new Vector2(5f, 0f), Upp);
         gizmo.Drag(t, new Vector2(7f, 3f));
         gizmo.EndDrag();
-        Assert.Equal(new Vector2(2f, 0f), t.Position);
+        Assert.Equal(new Vector3(2f, 0f, 0f), t.Position);
 
         gizmo.Tool = GizmoTool.Rotate;
         Assert.Equal(GizmoHandle.Ring, gizmo.HitTest(t, new Vector2(9f, 0f), Upp));
         gizmo.BeginDrag(t, GizmoHandle.Ring, new Vector2(9f, 0f), Upp);
         gizmo.Drag(t, new Vector2(2f, 7f));
-        Assert.True(Mathf.Approximately(90f, t.Rotation, 1e-3f));
+        Assert.True(Mathf.Approximately(90f, t.Rotation2D, 1e-3f));
         gizmo.EndDrag();
 
         gizmo.Tool = GizmoTool.Scale;
-        t.Rotation = 0f;
+        t.Rotation2D = 0f;
         gizmo.BeginDrag(t, GizmoHandle.AxisY, new Vector2(2f, 8f), Upp);
         gizmo.Drag(t, new Vector2(2f, 16f)); // one handle length outward
-        Assert.Equal(new Vector2(1f, 2f), t.LocalScale);
+        Assert.Equal(new Vector3(1f, 2f, 1f), t.LocalScale);
     }
 
     public sealed class Mover : Component

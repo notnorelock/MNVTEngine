@@ -18,9 +18,9 @@ public class SceneSerializationTests
     {
         var scene = new Scene("Level");
         var player = scene.CreateGameObject("Player");
-        player.Transform.LocalPosition = new Vector2(1.5f, -2f);
-        player.Transform.LocalRotation = 30f;
-        player.Transform.LocalScale = new Vector2(2f, 3f);
+        player.Transform.LocalPosition = new Vector3(1.5f, -2f, 0.5f);
+        player.Transform.LocalRotation = Quaternion.Euler(10f, 20f, 30f);
+        player.Transform.LocalScale = new Vector3(2f, 3f, 4f);
         player.AddComponent<PlayerController>().Speed = 12.5f;
         var sprite = player.AddComponent<SpriteRenderer>();
         sprite.Texture = new AssetRef(PlayerTexture);
@@ -61,9 +61,9 @@ public class SceneSerializationTests
         Assert.Equal(original.GameObjects.Select(g => g.Id), scene.GameObjects.Select(g => g.Id));
 
         var player = scene.Find("Player")!;
-        Assert.Equal(new Vector2(1.5f, -2f), player.Transform.LocalPosition);
-        Assert.Equal(30f, player.Transform.LocalRotation);
-        Assert.Equal(new Vector2(2f, 3f), player.Transform.LocalScale);
+        Assert.Equal(new Vector3(1.5f, -2f, 0.5f), player.Transform.LocalPosition);
+        Assert.True(Quaternion.Approximately(Quaternion.Euler(10f, 20f, 30f), player.Transform.LocalRotation, 1e-3f));
+        Assert.Equal(new Vector3(2f, 3f, 4f), player.Transform.LocalScale);
         Assert.Equal(12.5f, player.GetComponent<PlayerController>()!.Speed);
         var sprite = player.GetComponent<SpriteRenderer>()!;
         Assert.Equal(new AssetRef(PlayerTexture), sprite.Texture);
@@ -97,10 +97,27 @@ public class SceneSerializationTests
     }
 
     [Fact]
+    public void Schema2Scenes_Migrate2DTransformsTo3D()
+    {
+        var json = """
+            { "schemaVersion": 2, "name": "Old", "gameObjects": [ { "id": "22222222-2222-2222-2222-222222222222", "name": "A", "active": true, "parent": null,
+              "transform": { "localPosition": { "x": 1.5, "y": -2.0 }, "localRotation": 90.0, "localScale": { "x": 2.0, "y": 3.0 } }, "components": [] } ] }
+            """;
+        var result = new SceneSerializer(ComponentRegistry.CreateDefault()).Deserialize(json);
+        var transform = result.Scene.Find("A")!.Transform;
+        Assert.Equal(new Vector3(1.5f, -2f, 0f), transform.LocalPosition);
+        Assert.Equal(90f, transform.LocalRotation2D, 3);
+        Assert.True(Quaternion.Approximately(Quaternion.Euler(0f, 0f, 90f), transform.LocalRotation, 1e-3f));
+        Assert.Equal(new Vector3(2f, 3f, 1f), transform.LocalScale); // z = 1, not 0: the transform stays invertible
+        Assert.Contains(result.Diagnostics, d => d.Severity == DiagnosticSeverity.Info && d.Message.Contains("schema version 2", StringComparison.Ordinal));
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity >= DiagnosticSeverity.Warning);
+    }
+
+    [Fact]
     public void Format_IsReadableAndUsesStableIds()
     {
         var json = JObject.Parse(Serializer.Serialize(BuildScene()));
-        Assert.Equal(2, json.Value<int>("schemaVersion"));
+        Assert.Equal(3, json.Value<int>("schemaVersion"));
         var player = (JObject)json["gameObjects"]![0]!;
         Assert.Equal("Player", player.Value<string>("name"));
         var controller = (JObject)player["components"]![0]!;

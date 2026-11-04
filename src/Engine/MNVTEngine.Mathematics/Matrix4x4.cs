@@ -117,6 +117,46 @@ public struct Matrix4x4 : IEquatable<Matrix4x4>, IFormattable
         };
     }
 
+    /// <summary>
+    /// Perspective projection with Vulkan's depth range: NDC z = 0 at <paramref name="near"/> and 1 at
+    /// <paramref name="far"/>; y up and looking down -Z like <see cref="Perspective"/>.
+    /// <paramref name="fieldOfViewDegrees"/> is vertical.
+    /// </summary>
+    public static Matrix4x4 PerspectiveZeroToOne(float fieldOfViewDegrees, float aspect, float near, float far)
+    {
+        var f = 1f / MathF.Tan(fieldOfViewDegrees * Mathf.Deg2Rad * 0.5f);
+        return new Matrix4x4
+        {
+            M00 = f / aspect,
+            M11 = f,
+            M22 = far / (near - far),
+            M23 = far * near / (near - far),
+            M32 = -1f,
+        };
+    }
+
+    /// <summary>Orthographic projection with Vulkan's depth range (z = 0 at <paramref name="near"/>, 1 at <paramref name="far"/>).</summary>
+    public static Matrix4x4 OrthoZeroToOne(float left, float right, float bottom, float top, float near, float far) => new()
+    {
+        M00 = 2f / (right - left),
+        M11 = 2f / (top - bottom),
+        M22 = -1f / (far - near),
+        M03 = -(right + left) / (right - left),
+        M13 = -(top + bottom) / (top - bottom),
+        M23 = -near / (far - near),
+        M33 = 1f,
+    };
+
+    /// <summary>
+    /// View (world-to-camera) matrix of a camera at <paramref name="eye"/> looking at <paramref name="target"/>; the
+    /// camera looks down its -Z with +Y as close to <paramref name="up"/> as possible.
+    /// </summary>
+    public static Matrix4x4 LookAt(Vector3 eye, Vector3 target, Vector3 up)
+    {
+        var rotation = Quaternion.LookRotation(target - eye, up);
+        return (Translate(eye) * Rotate(rotation)).Inverse;
+    }
+
     /// <summary>Transforms a point including the projective divide by w.</summary>
     public readonly Vector3 MultiplyPoint(Vector3 p)
     {

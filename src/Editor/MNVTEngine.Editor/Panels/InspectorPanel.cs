@@ -83,21 +83,22 @@ internal sealed partial class InspectorPanel(EditorContext context)
         }
 
         var position = transform.LocalPosition.ToSys();
-        if (ImGui.DragFloat2("Position", ref position, 0.05f))
+        if (ImGui.DragFloat3("Position", ref position, 0.05f))
         {
             transform.LocalPosition = position.ToEngine();
             context.Changed("Move");
         }
 
-        var rotation = transform.LocalRotation;
-        if (ImGui.DragFloat("Rotation", ref rotation, 0.5f))
+        // Euler angles in degrees; the transform remembers them, so editing one does not disturb the others.
+        var rotation = transform.LocalEulerAngles.ToSys();
+        if (ImGui.DragFloat3("Rotation", ref rotation, 0.5f))
         {
-            transform.LocalRotation = rotation;
+            transform.LocalEulerAngles = rotation.ToEngine();
             context.Changed("Rotate");
         }
 
         var scale = transform.LocalScale.ToSys();
-        if (ImGui.DragFloat2("Scale", ref scale, 0.01f))
+        if (ImGui.DragFloat3("Scale", ref scale, 0.01f))
         {
             transform.LocalScale = scale.ToEngine();
             context.Changed("Scale");

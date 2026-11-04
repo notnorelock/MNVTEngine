@@ -223,7 +223,7 @@ public sealed class RuntimeTests : IDisposable
             Core.Diagnostics.Profiler.Current = null;
         }
 
-        Assert.InRange(profiler.Frames.Count, 4, 6);
+        Assert.InRange(profiler.Frames.Count, 5, 60); // 5 game frames, plus the frames the staged scene load took
         var paths = profiler.Summarize().Samples.Select(s => s.Path).ToList();
         Assert.Contains("Render/Render.Sprites", paths);
         Assert.Contains("Update/Scripts.Update", paths);

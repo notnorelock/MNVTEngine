@@ -15,7 +15,7 @@ public sealed class PlayerController : Component
         Transform.Position += movement.Normalized * Speed * Time.DeltaTime;
         if (movement != Vector2.Zero)
         {
-            Transform.Rotation = Mathf.MoveTowardsAngle(Transform.Rotation, Vector2.SignedAngle(Vector2.Up, movement), 720f * Time.DeltaTime);
+            Transform.Rotation2D = Mathf.MoveTowardsAngle(Transform.Rotation2D, Vector2.SignedAngle(Vector2.Up, movement), 720f * Time.DeltaTime);
         }
     }
 }
@@ -25,7 +25,7 @@ public sealed class Spinner : Component
 {
     public float DegreesPerSecond = 45f;
 
-    public override void Update() => Transform.LocalRotation += DegreesPerSecond * Time.DeltaTime;
+    public override void Update() => Transform.LocalRotation2D += DegreesPerSecond * Time.DeltaTime;
 }
 
 /// <summary>Smoothly follows a target GameObject, assigned by reference in the scene file.</summary>
@@ -41,7 +41,7 @@ public sealed class CameraFollow : Component
             return;
         }
 
-        Transform.Position = Vector2.Lerp(Transform.Position, Target.Transform.Position, 1f - MathF.Exp(-Sharpness * Time.DeltaTime));
+        Transform.Position = Vector3.Lerp(Transform.Position, Target.Transform.Position, 1f - MathF.Exp(-Sharpness * Time.DeltaTime));
     }
 }
 
@@ -81,7 +81,7 @@ public sealed class Lifetime : Component
     {
         _age += Time.DeltaTime;
         var t = Mathf.Clamp01(_age / Seconds);
-        Transform.LocalScale = Vector2.One * (1f + t);
+        Transform.LocalScale = Vector3.One * (1f + t);
         if (GetComponent<SpriteRenderer>() is { } sprite)
         {
             sprite.Color = sprite.Color.WithAlpha(1f - t);

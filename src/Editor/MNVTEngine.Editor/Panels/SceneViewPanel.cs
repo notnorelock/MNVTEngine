@@ -69,7 +69,7 @@ internal sealed class SceneViewPanel : IDisposable
         {
             var half = camera.HalfExtents;
             DrawQuad(batch, [.. new[] { new Vector2(-half.X, -half.Y), new Vector2(half.X, -half.Y), new Vector2(half.X, half.Y), new Vector2(-half.X, half.Y) }
-                .Select(p => camera.Transform.Position + Vector2.Rotate(p, camera.Transform.Rotation))], new Color(1f, 1f, 1f, 0.35f), upp);
+                .Select(p => (Vector2)camera.Transform.Position + Vector2.Rotate(p, camera.Transform.Rotation2D))], new Color(1f, 1f, 1f, 0.35f), upp);
         }
 
         if (PaintTarget() is { } tilemap)
@@ -145,7 +145,7 @@ internal sealed class SceneViewPanel : IDisposable
 
             if (ImGui.IsKeyPressed(ImGuiKey.F, false) && selected is not null)
             {
-                _camera.Position = selected.Transform.Position;
+                _camera.Position = (Vector2)selected.Transform.Position;
             }
 
             if (ImGui.IsKeyPressed(ImGuiKey.Delete, false) && selected is not null)
