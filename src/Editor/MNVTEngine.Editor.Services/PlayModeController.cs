@@ -26,6 +26,7 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
     private GameClock _clock = new();
     private FixedTimestep _fixed = new(session.Project.FixedTimestep);
     private string? _pendingScene;
+    private bool _quitRequested;
     private bool _stepRequested;
 
     public PlayState State { get; private set; } = PlayState.Editing;
@@ -69,6 +70,8 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         _clock = new GameClock();
         _fixed = new FixedTimestep(session.Project.FixedTimestep);
         _pendingScene = null;
+        _quitRequested = false;
+        Application.QuitRequested += OnQuitRequested;
         Input.ReleaseAll();
         Diagnostics = CreateDiagnostics?.Invoke();
         Diagnostics?.Install(); // before the scene starts, so Start() can already draw and register commands
@@ -84,6 +87,7 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
             return;
         }
 
+        Application.QuitRequested -= OnQuitRequested;
         PlayScene?.Unload();
         PlayScene = null;
         Diagnostics?.Uninstall();
@@ -153,6 +157,11 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         }
 
         PlayScene.Update(time);
+        if (_quitRequested)
+        {
+            Stop(); // after the frame: game code asked to quit
+            return;
+        }
 
         if (_pendingScene is { } path)
         {
@@ -233,6 +242,8 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
             LogLoadFailed(_logger, ex, path);
         }
     }
+
+    private void OnQuitRequested() => _quitRequested = true;
 
     /// <summary>Audio output for Play Mode (owned by the editor); null plays nothing.</summary>
     public Audio.IAudioDevice? Audio { get; set; }

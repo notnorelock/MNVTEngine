@@ -126,8 +126,10 @@ public sealed class AssetWorkflowTests : IDisposable
         Assert.Same(button, context.Hovered);
         Assert.True(play.Input.MouseCaptured); // gameplay does not see the click meant for the UI
 
-        play.Stop();
-        Assert.Null(play.PlayScene);
+        Application.Quit(); // game code quitting ends Play Mode after the frame
+        Assert.NotNull(play.PlayScene);
+        play.Tick(0.016);
+        Assert.False(play.IsPlaying);
     }
 
     public sealed class Holder : Component

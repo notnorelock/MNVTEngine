@@ -87,16 +87,29 @@ public sealed class MainMenu : Component
         music.CheckedChanged += on => _status.Text = on ? "Music on" : "Music off";
         vsync.CheckedChanged += on =>
         {
-            Application.Window.VSync = on; // the swapchain is recreated with FIFO or MAILBOX/IMMEDIATE
+            if (Application.HasWindow) // no game window in editor Play Mode
+            {
+                Application.Window.VSync = on; // the swapchain is recreated with FIFO or MAILBOX/IMMEDIATE
+            }
+
             _status.Text = on ? "VSync on" : "VSync off";
         };
-        fullscreen.CheckedChanged += on => Application.Window.Mode = on ? WindowMode.BorderlessFullscreen : WindowMode.Windowed;
+        fullscreen.CheckedChanged += on =>
+        {
+            if (Application.HasWindow)
+            {
+                Application.Window.Mode = on ? WindowMode.BorderlessFullscreen : WindowMode.Windowed;
+            }
+        };
         easy.CheckedChanged += on => { if (on) { _status.Text = "Difficulty: easy"; } };
         hard.CheckedChanged += on => { if (on) { _status.Text = "Difficulty: hard"; } };
         name.TextChanged += text =>
         {
             _status.Text = text.Length == 0 ? "Ready." : $"Hello, {text}!";
-            Application.Window.Title = text.Length == 0 ? "UIShowcase" : $"UIShowcase - {text}"; // runtime title change
+            if (Application.HasWindow)
+            {
+                Application.Window.Title = text.Length == 0 ? "UIShowcase" : $"UIShowcase - {text}"; // runtime title change
+            }
         };
         name.Submitted += text => Log.Info($"Name submitted: {text}");
         notes.TextChanged += text => _status.Text = $"Notes: {text.Length} characters";

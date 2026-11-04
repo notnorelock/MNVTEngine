@@ -41,13 +41,13 @@ stb_truetype skips GPOS kerning inside extension lookups (type 9), which current
 |---|---|---|
 | 0 | Audit and plan | done |
 | 2 | Fonts (TTF and CFF OTF), fallback, GPOS kerning, glyph atlas with in-place updates, layout (wrapping, alignment, spacing, caret and hit testing), text drawing, built-in font | done |
-| 1 | UI project: elements, context, units, layout engine, input capture, hit testing, events, focus | |
-| 3 | Widgets and styling | |
-| 4 | UI renderer: cached geometry, CPU clipping, statistics | |
-| 5 | Window: title, icon, sizes, fullscreen modes, VSync, DPI, project settings, runtime API | |
-| 6 | Splash and loading screens, staged scene loading with real progress | |
-| 7 | Editor integration | |
-| 8 | Samples and documentation | |
+| 1 | UI project: elements, context, units, layout engine, input capture, hit testing, events, focus | done |
+| 3 | Widgets and styling | done |
+| 4 | UI renderer: cached geometry, CPU clipping, statistics | done |
+| 5 | Window: title, icon, sizes, fullscreen modes, VSync, DPI, project settings, runtime API | done |
+| 6 | Splash and loading screens, staged scene loading with real progress | done |
+| 7 | Editor integration (Play Mode), UI layouts (`.mnvtui`), diagnostics | done |
+| 8 | Samples and documentation | done (`samples/UIShowcase`) |
 
 Text came first because every widget depends on it.
 
@@ -69,3 +69,111 @@ Text came first because every widget depends on it.
   - No complex shaping (Arabic, Indic) and no ligatures.
   - Glyphs of one size are cached per quarter pixel.
   - Color emoji fonts are not supported (glyphs are monochrome coverage).
+
+## UI
+
+Game code creates a context in the current scene and builds a tree of elements:
+
+```csharp
+var ui = UI.CreateContext();
+var menu = ui.Root.AddChild(new Panel { Width = UIUnit.Percent(40), Layout = LayoutMode.Column, Gap = 8,
+    Anchor = new Vector2(0.5f, 0.5f), Pivot = new Vector2(0.5f, 0.5f), StyleClass = "panel" });
+menu.AddChild(new Button { Text = "Play", Action = "play" });
+ui.OnAction("play", _ => SceneManager.LoadScene("Scenes/Level1.mnvt"));
+```
+
+- **`UISystem`.** One per scene, attached by the runtime (and by the editor in Play Mode). It owns the contexts. Each frame, before gameplay, it updates them from top to bottom by `SortOrder` and takes the keyboard and mouse they use away from gameplay (`InputState.CaptureForUI`). The debug overlay still comes first.
+- **`UIContext`.**
+  - `Root` holds the tree; `Overlay` holds dropdown lists and tooltips.
+  - Coordinates are logical pixels: window pixels divided by `Scale`. High-DPI framebuffers are handled through `FramebufferScale`.
+  - The context tracks focus (Tab and Shift+Tab), hover and pressed state.
+  - It raises `ActionInvoked`; `OnAction(name, handler)` binds behaviour by name.
+- **Units.** `UIUnit`: pixels, percent of the parent and auto (`"120"`, `"50%"`, `"auto"`). `Thickness` is used for margin and padding.
+- **Layout (`LayoutEngine`).**
+  - Modes: `Absolute` (anchor, pivot and offsets), `Row`, `Column` and `Grid`.
+  - Flex grow and shrink, down to min/max sizes.
+  - Justify and align, gap, and a measure cache.
+  - Layout runs only when something changed; element counts are taken in the same pass.
+- **Events.** `PointerEntered`, `PointerExited`, `PointerPressed`, `PointerReleased` and `PointerClicked` bubble from the target to the root. `KeyPressed` and text input go to the focused element (`GotFocus`/`LostFocus`). The wheel scrolls the innermost `ScrollView` under the pointer.
+- **Widgets.**
+  - Display: `Panel`, `Label`, `Image`, `Separator`, `Tooltip`, `ProgressBar` (determinate or indeterminate).
+  - Toggles: `Button`, `Checkbox`, `Toggle`, `RadioButton` (grouped).
+  - Selection: `Slider`, `ScrollView` (wheel, drag, scrollbar), `Dropdown`.
+  - Text: `TextField` and `TextArea` with a caret, selection, clipboard, max length, validation, placeholder and password.
+- **Styling.**
+  - Precedence: an element's own `Style`, then `StateStyles` (hover, pressed, focused, disabled, checked), then the context's `UITheme`.
+  - Theme selectors: `"Button"`, `"Button:hover"`, `".panel"`, `".panel:focused"`.
+  - `UITheme.Dark` and `UITheme.Light` are built in.
+- **Fonts.**
+  - `UI.LoadFont(asset, loaded, failed)` loads on a worker and calls back on the game thread, so it is safe to touch elements in the callback. `UI.LoadFontAsync` returns a task; do not touch elements from its continuation.
+  - Elements without a font use the default font (`Font.LoadDefault()`).
+- **Rendering (`UIRenderer`).**
+  - Each context keeps its mesh cached. It is rebuilt only when something visible changed, the atlas was cleared, or the scale changed.
+  - Text and shapes share the glyph atlas. Clipping is done on the CPU, so a typical UI is one draw call.
+  - The UI draws after the scene and before the debug overlay.
+- **Layouts (`.mnvtui`).**
+  - `UILayoutSerializer` saves and loads trees as JSON (schema 1). It writes only values that differ from the defaults.
+  - Widget types come from an explicit registry: `UILayoutSerializer.Register<MyWidget>()`.
+  - Properties are public settable values of supported types. Fonts and images are `asset:<guid>` references.
+  - Unknown types, keys, properties, states and bad values are errors that give their JSON path. Newer schema versions are rejected.
+  - Delegates are never serialized: behaviour binds through `Action` names.
+  - `UI.LoadLayout(asset)` loads a layout asset. The importer records font and image dependencies, so exports pack them.
+
+## Window
+
+Settings in the project's `window` section:
+
+- `title`, `width`, `height`, `vsync`, `resizable`;
+- `mode`: `windowed`, `borderless`, `fullscreen` or `borderlessFullscreen`;
+- `icon`: a PNG asset path;
+- `minWidth`, `minHeight`, `maxWidth`, `maxHeight`, `x`, `y`, `topMost`.
+
+They are validated when the project loads. At runtime, `Application.Window` exposes:
+
+- `Title`, `Mode`, `VSync`, `Resizable`, `TopMost`, `Position`;
+- `Width`/`Height` and `FramebufferWidth`/`FramebufferHeight`;
+- `SetSize`, `Center` and `SetIcon(asset)`.
+
+`Application.Quit()` closes the game; in the editor, it stops Play Mode. Play Mode has no game window of its own (`Application.HasWindow` is false), so game code checks it before using `Application.Window`.
+
+## Splash and loading screens
+
+- **Staged loading.** Scenes load over several frames (`SceneLoadOperation`):
+  - Workers read the scene file and decode the textures it references.
+  - The game thread uploads the textures and deserializes the scene, within 6 ms per frame.
+  - Progress counts completed steps. It is indeterminate until the amount of work is known, and is never invented.
+- **While loading.** Gameplay is frozen and the window keeps presenting.
+- **Failures.** A failed startup load ends the game with exit code 2. A failed later load is logged and keeps the current scene. A newer `SceneManager.LoadScene` replaces a load in progress.
+- **`splashScreen`** (project file, off by default):
+  - `background`, `backgroundImage`, `logo`, `title`, `subtitle`;
+  - `minimumDuration`, `fadeIn`, `fadeOut`;
+  - `skippable` (click, Space, Enter or Escape, once loading is done), `showProgress`, `showEngineBranding`.
+- **`loadingScreen`** (project file, on by default):
+  - `title`, `background`, `foreground`, `accent`, `logo`, `font`;
+  - `showProgress`, `showPercentage`, `tips`, `tipSeconds`.
+  - It is shown for scene loads that are not hidden by the splash.
+- **Game code.**
+  - `LoadingScreen.Options` changes the defaults.
+  - `LoadingScreen.Show(options)` returns a handle for the game's own work: `Report(progress, task)`, then `Dispose()` to fade out.
+- Both screens are standalone UI contexts, so they draw before any scene exists.
+
+## Editor and diagnostics
+
+- **Play Mode.** Play scenes get a `UISystem` laid out to the Game view. The view draws the game UI over the scene, with the same input capture as the runtime.
+- **Metrics.** UI metrics are reported only when the scene has a UI; otherwise they are `Unavailable`:
+  - `ui.elements`, `ui.visible`, `ui.drawCalls`, `ui.quads`;
+  - `ui.layoutPasses`, `ui.rebuilds`, `ui.textLayouts`;
+  - `ui.glyphs`, `ui.atlasPages`.
+- **Debug overlay UI window** (`window ui on`, runtime and Play Mode). Per context, it shows:
+  - statistics, and the focused, hovered and pressed element;
+  - the element tree with bounds, state, layout and clip;
+  - outlines of all elements, the focused one, the hit-test target and the selected one;
+  - the glyph atlas pages.
+
+## Known limits
+
+- **Debug text.** `Debug.DrawText` still renders through the debug overlay (ImGui), not the engine text stack.
+- **Pointer modifiers.** Pointer events carry no keyboard modifiers, so there is no Shift-click selection in text fields.
+- **Undo.** Text fields have no undo.
+- **Editor tooling.** There is no visual UI layout editor in the editor. `.mnvtui` files are edited as JSON or saved from code.
+- **Samples.** `samples/UIShowcase` covers every widget, async fonts, the window API, the splash and the loading screen in one project. The separate samples listed in the specification were not created.
