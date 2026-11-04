@@ -267,6 +267,26 @@ public sealed class BuildPipelineTests : IDisposable
         Assert.Contains("undefined", error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Models_ShipAsTheirArtifact_AndFailTheBuildWhenNeverImported()
+    {
+        var project = NewProject();
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "Models", "Khronos", "BoxAnimated.glb"), Path.Combine(project.AssetsDirectory, "Box.glb"));
+        File.WriteAllText(Path.Combine(project.AssetsDirectory, "Box.glb.meta"), """{ "schemaVersion": 1, "guid": "44444444-4444-4444-8444-444444444444", "settings": {} }""");
+        var guid = Guid.Parse("44444444-4444-4444-8444-444444444444");
+
+        Assert.Single(ContentCompiler.Compile(project, Registry, output: null).Diagnostics, d => d.Code == "MNVB222");
+
+        Assert.False(ContentCompiler.ImportModels(project).HasErrors());
+        var (result, archives, key) = CompileInto(project);
+        Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
+        using var archive = Assets.ContentArchiveSet.Open(_root, archives.Select(a => a.File), key);
+        Assert.DoesNotContain(archive.Entries, e => e.EndsWith("Box.glb", StringComparison.Ordinal)); // the source file is not shipped
+        var model = Assets.AssetDatabase.OpenPackaged(archive).ReadArtifact(guid, Assets.Models.ModelArtifact.Name);
+        Assert.NotNull(model);
+        Assert.NotEmpty(Assets.Models.ModelArtifact.Read(model).Meshes);
+    }
+
     private (ContentResult Result, List<PackagedArchive> Archives, byte[] Key) CompileInto(GameProject project)
     {
         var key = Assets.ContentArchive.CreateKey();

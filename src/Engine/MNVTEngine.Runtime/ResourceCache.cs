@@ -240,6 +240,7 @@ public sealed partial class ResourceCache : IDisposable
     public void Dispose()
     {
         _assets.AssetsChanged -= Evict;
+        DisposeModels();
         foreach (var texture in _textures.Values.Distinct())
         {
             texture.Dispose();
@@ -290,6 +291,7 @@ public sealed partial class ResourceCache : IDisposable
             _materials.Remove(guid);
         }
 
+        EvictModels(changed);
         if (evicted.Count > 0)
         {
             TexturesEvicted?.Invoke(evicted);

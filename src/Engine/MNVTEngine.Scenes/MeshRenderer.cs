@@ -31,15 +31,21 @@ public enum PrimitiveMesh
 }
 
 /// <summary>
-/// Draws a mesh at the GameObject's transform in the 3D pass (before sprites), seen through the scene's main camera.
-/// Without a material it uses the built-in unlit shader: texture × <see cref="Color"/>; a color with alpha below 1 is
-/// drawn as transparent.
+/// Draws a mesh at the GameObject's transform in the 3D pass (before sprites), seen through the scene's main camera:
+/// a mesh of an imported model (<see cref="Mesh"/>) or a built-in <see cref="Primitive"/>. Model meshes use the model's
+/// materials, one per submesh. Without a material it uses the built-in Standard shader: texture × <see cref="Color"/>;
+/// a color with alpha below 1 is drawn as transparent.
 /// </summary>
 [ComponentId("MNVTEngine.MeshRenderer")]
 public sealed class MeshRenderer : Component
 {
     [SerializeField]
     public PrimitiveMesh Primitive { get; set; } = PrimitiveMesh.Cube;
+
+    /// <summary>A mesh of an imported model (<c>asset:&lt;guid&gt;#mesh/&lt;name&gt;</c>); when set it replaces <see cref="Primitive"/>.</summary>
+    [SerializeField]
+    [AssetType(AssetTypes.Model)]
+    public AssetRef Mesh { get; set; }
 
     /// <summary>Tint of the built-in material.</summary>
     [SerializeField]
@@ -52,7 +58,8 @@ public sealed class MeshRenderer : Component
 
     /// <summary>
     /// A custom material (<c>.mnvtmat</c>) whose shader reads the mesh vertex layout (locations 0 position, 1 normal,
-    /// 2 tangent, 3 uv0, 4 uv1, 5 color) and <c>uViewProjection</c>/<c>uModel</c>; none uses the built-in one.
+    /// 2 tangent, 3 uv0, 4 uv1, 5 color) and <c>uViewProjection</c>/<c>uModel</c>; none uses the model's materials
+    /// (model meshes) or the built-in one. Set, it draws every submesh.
     /// </summary>
     [SerializeField]
     [AssetType(AssetTypes.Material)]

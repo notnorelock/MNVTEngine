@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Model importers (FBX via Assimp, glTF/GLB via SharpGLTF). Edit-time only: the editor, Player and build use it to
+       produce model artifacts; exported games read the artifacts and never ship these libraries. -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Assets\MNVTEngine.Assets.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="SharpGLTF.Core" />
+    <PackageReference Include="Silk.NET.Assimp" />
+  </ItemGroup>
+</Project>

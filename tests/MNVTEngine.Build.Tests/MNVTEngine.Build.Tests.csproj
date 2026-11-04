@@ -4,4 +4,7 @@
     <ProjectReference Include="..\..\src\Tooling\MNVTEngine.Build\MNVTEngine.Build.csproj" />
     <ProjectReference Include="..\..\src\Tooling\MNVTEngine.CLI\MNVTEngine.CLI.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\TestAssets\Models\Khronos\BoxAnimated.glb" Link="Models\Khronos\BoxAnimated.glb" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

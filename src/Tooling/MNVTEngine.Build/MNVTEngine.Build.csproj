@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Development-time tooling: compiles game code with the .NET SDK. Never referenced by shipped game hosts. -->
   <ItemGroup>
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Assets.Models\MNVTEngine.Assets.Models.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.GameAssemblies\MNVTEngine.GameAssemblies.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" />

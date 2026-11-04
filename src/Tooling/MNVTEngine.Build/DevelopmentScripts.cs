@@ -82,8 +82,9 @@ public static partial class DevelopmentRun
         var logger = loggerFactory.CreateLogger("Player");
         return GameApplication.Run(args, createDevice, loggerFactory, (project, registry) =>
         {
+            var models = ContentCompiler.ImportModels(project);
             var result = DevelopmentScripts.LoadAsync(project, registry, file => LogCompiling(logger, file)).GetAwaiter().GetResult();
-            foreach (var diagnostic in result.Diagnostics)
+            foreach (var diagnostic in models.Concat(result.Diagnostics))
             {
                 LogDiagnostic(logger, diagnostic.Severity == BuildSeverity.Error ? LogLevel.Error : LogLevel.Warning, diagnostic);
             }

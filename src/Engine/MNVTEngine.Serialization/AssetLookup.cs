@@ -29,6 +29,9 @@ public static class AssetTypes
     public const string Material = "Material";
     public const string Text = "Text";
 
+    /// <summary>A 3D model (FBX, glTF, GLB); its processed form is the <c>model</c> artifact.</summary>
+    public const string Model = "Model";
+
     /// <summary>A saved UI tree (<c>.mnvtui</c>).</summary>
     public const string UILayout = "UILayout";
     public const string Unknown = "Unknown";

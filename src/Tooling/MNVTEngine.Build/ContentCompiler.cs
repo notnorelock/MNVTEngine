@@ -1,5 +1,6 @@
 using System.Text;
 using MNVTEngine.Assets;
+using MNVTEngine.Assets.Models;
 using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Vulkan.Shaders;
 using MNVTEngine.Runtime;
@@ -17,7 +18,8 @@ namespace MNVTEngine.Build;
 public sealed record ContentResult(IReadOnlyList<BuildDiagnostic> Diagnostics, int AssetCount, int ScriptCount, int Shaders = 0);
 
 /// <summary>
-/// Asset compilation for exported games. Opens the project's assets read-only (call <see cref="CreateMissingMetas"/> first), runs
+/// Asset compilation for exported games. Opens the project's assets read-only (call <see cref="CreateMissingMetas"/> and
+/// <see cref="ImportModels"/> first; models are packed as their imported artifact, not as the source file), runs
 /// every importer, compiles <c>.mnvts</c> scripts to verified bytecode against the full runtime API, loads every scene
 /// and prefab with the game's components, checks asset references, and compiles every shader the game uses to SPIR-V
 /// (shader errors fail the build). With an output it writes the game content split over archives
@@ -56,6 +58,38 @@ public static class ContentCompiler
             "MNVB209", "Created its .meta file (the asset's GUID); commit it together with the asset.", AssetPaths.ToRelative(project.AssetsDirectory, f)))];
     }
 
+    /// <summary>
+    /// Imports 3D models (FBX, glTF, GLB) into the project's <c>Library/Artifacts</c>, as the editor does, so the Player
+    /// and the build read up-to-date artifacts. Unchanged models are not reimported. Returns an error per model that failed
+    /// to import and a warning per import warning.
+    /// </summary>
+    public static IReadOnlyList<BuildDiagnostic> ImportModels(GameProject project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        var extensions = ModelImporters.Create().Extensions;
+        if (!Directory.Exists(project.AssetsDirectory)
+            || !Directory.EnumerateFiles(project.AssetsDirectory, "*", SearchOption.AllDirectories).Any(f => extensions.Contains(Path.GetExtension(f).ToLowerInvariant())))
+        {
+            return [];
+        }
+
+        var assets = AssetDatabase.OpenForEditing(project.AssetsDirectory, LibraryOf(project), ModelImporters.WithDefaults());
+        var diagnostics = new List<BuildDiagnostic>();
+        foreach (var record in assets.Assets.Where(r => r.Type == AssetTypes.Model).OrderBy(r => r.Path, StringComparer.Ordinal))
+        {
+            foreach (var message in record.Messages)
+            {
+                diagnostics.Add(message.StartsWith("error: ", StringComparison.Ordinal)
+                    ? BuildDiagnostic.Error("MNVB220", message["error: ".Length..], record.Path)
+                    : BuildDiagnostic.Warning("MNVB221", message.StartsWith("warning: ", StringComparison.Ordinal) ? message["warning: ".Length..] : message, record.Path));
+            }
+        }
+
+        return diagnostics;
+    }
+
+    private static string LibraryOf(GameProject project) => Path.Combine(project.RootDirectory, "Library");
+
     /// <param name="registry">Built-in and game components, used to load scenes and prefabs.</param>
     /// <param name="output">Content archives to write; null to validate only.</param>
     public static ContentResult Compile(GameProject project, ComponentRegistry registry, ContentArchiveWriter? output)
@@ -63,7 +97,7 @@ public static class ContentCompiler
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(registry);
         var diagnostics = new List<BuildDiagnostic>();
-        var assets = AssetDatabase.OpenReadOnly(project.AssetsDirectory);
+        var assets = AssetDatabase.OpenReadOnly(project.AssetsDirectory, artifactsLibrary: LibraryOf(project));
         diagnostics.AddRange(assets.Diagnostics.Select(d => BuildDiagnostic.FromSerialization("MNVB201", d)));
 
         var importers = AssetImporters.CreateDefault()
@@ -72,6 +106,7 @@ public static class ContentCompiler
         var serializer = new SceneSerializer(registry, assets);
         var dependencies = new Dictionary<Guid, IReadOnlyCollection<Guid>>();
         var bytecodes = new Dictionary<Guid, byte[]>();
+        var models = new Dictionary<Guid, byte[]>();
         var readable = new List<AssetRecord>();
         var scripts = 0;
 
@@ -91,7 +126,15 @@ public static class ContentCompiler
             }
 
             readable.Add(record);
-            if (importers.GetValueOrDefault(Path.GetExtension(record.Path)) is { } importer)
+            if (record.Type == AssetTypes.Model)
+            {
+                if (ModelDependencies(assets, record, diagnostics) is { } model)
+                {
+                    models[record.Guid] = model.Artifact;
+                    dependencies[record.Guid] = model.Dependencies;
+                }
+            }
+            else if (importers.GetValueOrDefault(Path.GetExtension(record.Path)) is { } importer)
             {
                 dependencies[record.Guid] = Import(importer, record, data, assets, diagnostics);
             }
@@ -118,6 +161,12 @@ public static class ContentCompiler
             foreach (var record in readable)
             {
                 var archive = output.For(layout.ArchiveOf(record.Guid));
+                if (models.TryGetValue(record.Guid, out var model))
+                {
+                    archive.Add(AssetDatabase.ArtifactEntry(record.Guid, ModelArtifact.Name), model); // the source file is not shipped
+                    continue;
+                }
+
                 archive.Add(AssetDatabase.AssetsEntryFolder + record.Path, File.ReadAllBytes(assets.FullPath(record.Guid)));
                 if (bytecodes.TryGetValue(record.Guid, out var bytecode))
                 {
@@ -177,6 +226,35 @@ public static class ContentCompiler
     }
 
     /// <returns>The assets this one references.</returns>
+    /// <summary>A model's artifact and the project textures it uses; an error when it was never imported or is unreadable.</summary>
+    private static (byte[] Artifact, IReadOnlyCollection<Guid> Dependencies)? ModelDependencies(AssetDatabase assets, AssetRecord record, List<BuildDiagnostic> diagnostics)
+    {
+        if (assets.ReadArtifact(record.Guid, ModelArtifact.Name) is not { } artifact)
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB222", "The model has no imported artifact (it never imported successfully); fix the import errors in the editor.", record.Path));
+            return null;
+        }
+
+        ModelData model;
+        try
+        {
+            model = ModelArtifact.Read(artifact);
+        }
+        catch (InvalidDataException ex)
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB222", $"The model's artifact is unreadable ({ex.Message}); reimport it.", record.Path));
+            return null;
+        }
+
+        var used = model.Textures.Where(t => t.ProjectAsset is not null).Select(t => t.ProjectAsset!.Value).ToHashSet();
+        foreach (var missing in used.Where(d => assets.GetAssetType(d) is null).Order())
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB206", $"References asset {missing}, which is not in the project.", record.Path));
+        }
+
+        return (artifact, used);
+    }
+
     private static IReadOnlyCollection<Guid> Import(IAssetImporter importer, AssetRecord record, byte[] data, AssetDatabase assets, List<BuildDiagnostic> diagnostics)
     {
         var problems = new List<string>();

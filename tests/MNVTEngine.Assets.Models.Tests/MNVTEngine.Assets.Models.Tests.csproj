@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Assets.Models\MNVTEngine.Assets.Models.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\TestAssets\Models\**\*" LinkBase="Models" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

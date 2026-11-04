@@ -165,6 +165,6 @@ public sealed partial class SceneLoadOperation : IDisposable
         return json;
     }
 
-    [GeneratedRegex("\"asset:([0-9a-fA-F-]{36})\"")]
+    [GeneratedRegex("\"asset:([0-9a-fA-F-]{36})(?:#[^\"]*)?\"")]
     private static partial Regex AssetReference();
 }

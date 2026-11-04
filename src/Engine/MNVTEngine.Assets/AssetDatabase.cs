@@ -27,6 +27,7 @@ public sealed class AssetDatabase : IAssetLookup
 
     private readonly string _assetsDirectory;
     private readonly string? _cachePath;
+    private readonly string? _libraryDirectory;
     private readonly Dictionary<string, IAssetImporter> _importers = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<Guid, AssetRecord> _records = [];
     private Dictionary<Guid, JObject> _settings = [];
@@ -38,6 +39,7 @@ public sealed class AssetDatabase : IAssetLookup
     {
         _assetsDirectory = assetsDirectory.Length > 0 ? Path.GetFullPath(assetsDirectory) : "";
         _cachePath = libraryDirectory is null ? null : Path.Combine(libraryDirectory, "AssetDatabase.json");
+        _libraryDirectory = libraryDirectory is null ? null : Path.GetFullPath(libraryDirectory);
         foreach (var importer in importers)
         {
             foreach (var extension in importer.Extensions)
@@ -70,11 +72,39 @@ public sealed class AssetDatabase : IAssetLookup
     }
 
     /// <summary>Read-only mode for standalone games: indexes GUIDs and settings from metas, writes nothing.</summary>
-    public static AssetDatabase OpenReadOnly(string assetsDirectory, IEnumerable<IAssetImporter>? importers = null)
+    /// <param name="artifactsLibrary">A library folder whose artifacts (imported models) may be read; nothing is written.</param>
+    public static AssetDatabase OpenReadOnly(string assetsDirectory, IEnumerable<IAssetImporter>? importers = null, string? artifactsLibrary = null)
     {
-        var database = new AssetDatabase(assetsDirectory, null, importers ?? AssetImporters.CreateDefault());
+        var database = new AssetDatabase(assetsDirectory, null, importers ?? AssetImporters.CreateDefault()) { _readOnlyLibrary = artifactsLibrary is null ? null : Path.GetFullPath(artifactsLibrary) };
         database.Refresh();
         return database;
+    }
+
+    private string? _readOnlyLibrary;
+
+    /// <summary>Archive entry (and library-relative path) of an asset's artifact.</summary>
+    public static string ArtifactEntry(Guid guid, string name) => $"Artifacts/{guid:D}/{name}";
+
+    /// <summary>
+    /// An artifact the asset's importer produced (e.g. <c>model</c>): from the archive in exported games, from the library
+    /// in development. Null when there is none (not imported yet, or the last import failed before ever succeeding).
+    /// </summary>
+    public byte[]? ReadArtifact(Guid guid, string name)
+    {
+        if (_archive is not null)
+        {
+            var entry = ArtifactEntry(guid, name);
+            return _archive.Contains(entry) ? _archive.Read(entry) : null;
+        }
+
+        var library = _libraryDirectory ?? _readOnlyLibrary;
+        if (library is null)
+        {
+            return null;
+        }
+
+        var file = Path.Combine(library, ArtifactEntry(guid, name));
+        return File.Exists(file) ? File.ReadAllBytes(file) : null;
     }
 
     /// <summary>Packaged mode: the asset index and data come from <paramref name="archive"/> (written by <c>mnvt build</c>).</summary>
@@ -239,6 +269,26 @@ public sealed class AssetDatabase : IAssetLookup
         var reimported = new List<Guid>();
         var moved = new List<Guid>();
 
+        Guid? Resolve(string relativePath)
+        {
+            if (records.Values.FirstOrDefault(r => AssetPaths.Comparer.Equals(r.Path, relativePath)) is { } known)
+            {
+                return known.Guid;
+            }
+
+            string full;
+            try
+            {
+                full = AssetPaths.Resolve(_assetsDirectory, relativePath);
+            }
+            catch (ArgumentException)
+            {
+                return null;
+            }
+
+            return File.Exists(full) && ReadOrCreateMeta(full, relativePath, _importers.GetValueOrDefault(Path.GetExtension(full)), diagnostics) is (var guid, _) ? guid : null;
+        }
+
         foreach (var file in EnumerateAssetFiles())
         {
             var relative = AssetPaths.ToRelative(_assetsDirectory, file);
@@ -289,7 +339,7 @@ public sealed class AssetDatabase : IAssetLookup
                 }
                 else
                 {
-                    record = Import(guid, relative, importer, data, settings, settingsHash, sourceHash, info);
+                    record = Import(guid, relative, importer, data, settings, settingsHash, sourceHash, info, file, Resolve);
                     if (!added.Contains(guid))
                     {
                         reimported.Add(guid);
@@ -300,6 +350,30 @@ public sealed class AssetDatabase : IAssetLookup
             record.Path = relative;
             records[guid] = record;
             settingsByGuid[guid] = settings;
+        }
+
+        // Assets whose dependencies were added or reimported (a model's .bin or textures) import again, and so do
+        // assets whose last import reported problems when files were added (a texture that was missing may exist now).
+        if (!IsReadOnly)
+        {
+            var changed = added.Concat(reimported).ToHashSet();
+            foreach (var record in records.Values.ToList())
+            {
+                if (_importers.GetValueOrDefault(Path.GetExtension(record.Path)) is { ReimportWhenDependenciesChange: true } importer
+                    && !changed.Contains(record.Guid) && (record.Dependencies.Any(changed.Contains) || (added.Count > 0 && record.Messages.Count > 0)))
+                {
+                    var file = AssetPaths.Resolve(_assetsDirectory, record.Path);
+                    var data = File.ReadAllBytes(file);
+                    var settings = settingsByGuid[record.Guid];
+                    records[record.Guid] = Import(record.Guid, record.Path, importer, data, settings, Hash(settings.ToString(Formatting.None)), Hash(data), new FileInfo(file), file, Resolve);
+                    reimported.Add(record.Guid);
+                }
+            }
+
+            foreach (var removed in previous.Keys.Where(g => !records.ContainsKey(g)))
+            {
+                DeleteArtifacts(removed);
+            }
         }
 
         _records = records;
@@ -465,7 +539,7 @@ public sealed class AssetDatabase : IAssetLookup
         record.Size == info.Length && record.LastWriteUtc == info.LastWriteTimeUtc && record.SettingsHash == settingsHash
         && record.Importer == importer?.Name && record.ImporterVersion == (importer?.Version ?? 0);
 
-    private static AssetRecord Import(Guid guid, string relative, IAssetImporter? importer, byte[] data, JObject settings, string settingsHash, string sourceHash, FileInfo info)
+    private AssetRecord Import(Guid guid, string relative, IAssetImporter? importer, byte[] data, JObject settings, string settingsHash, string sourceHash, FileInfo info, string file, Func<string, Guid?> resolve)
     {
         var record = new AssetRecord
         {
@@ -486,13 +560,43 @@ public sealed class AssetDatabase : IAssetLookup
             return record;
         }
 
-        var context = new AssetImportContext(relative, data, settings);
+        var context = new AssetImportContext(relative, data, settings) { SourceFullPath = file, AssetsDirectory = _assetsDirectory, ResolveAsset = resolve };
         importer.Import(context);
         record.Status = context.Errors.Count == 0 ? AssetImportStatus.Imported : AssetImportStatus.Failed;
+        if (record.Status == AssetImportStatus.Imported && !IsReadOnly)
+        {
+            WriteArtifacts(guid, context.Artifacts);
+        }
         record.Messages = [.. context.Errors.Select(e => "error: " + e), .. context.Warnings.Select(w => "warning: " + w)];
         record.Dependencies = [.. context.Dependencies.Where(d => d != guid)];
         record.Properties = context.Properties;
         return record;
+    }
+
+    /// <summary>Replaces an asset's artifacts: each file is written next to its target and moved over it.</summary>
+    private void WriteArtifacts(Guid guid, Dictionary<string, byte[]> artifacts)
+    {
+        if (_libraryDirectory is null || artifacts.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var (name, bytes) in artifacts)
+        {
+            var path = Path.Combine(_libraryDirectory, ArtifactEntry(guid, name));
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var staging = path + ".staging";
+            File.WriteAllBytes(staging, bytes);
+            File.Move(staging, path, overwrite: true);
+        }
+    }
+
+    private void DeleteArtifacts(Guid guid)
+    {
+        if (_libraryDirectory is not null && Path.Combine(_libraryDirectory, "Artifacts", guid.ToString("D")) is var folder && Directory.Exists(folder))
+        {
+            Directory.Delete(folder, recursive: true);
+        }
     }
 
     private void ReportProblems(List<SerializationDiagnostic> diagnostics)

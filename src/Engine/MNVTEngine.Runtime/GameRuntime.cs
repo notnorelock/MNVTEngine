@@ -88,7 +88,8 @@ public sealed partial class GameRuntime(
         _uiFont = Graphics.Text.Font.LoadDefault();
         Application.QuitRequested += OnQuitRequested;
         _ui = new UI.UIRenderer(_device, _renderer.DefaultMaterial);
-        _assets = _options.Archive is { } archive ? AssetDatabase.OpenPackaged(archive) : AssetDatabase.OpenReadOnly(project.AssetsDirectory);
+        _assets = _options.Archive is { } archive ? AssetDatabase.OpenPackaged(archive)
+            : AssetDatabase.OpenReadOnly(project.AssetsDirectory, artifactsLibrary: Path.Combine(project.RootDirectory, "Library"));
         foreach (var diagnostic in _assets.Diagnostics)
         {
             LogAssetDiagnostic(_logger, diagnostic.Path, diagnostic.Message);

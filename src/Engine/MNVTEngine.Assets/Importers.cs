@@ -11,6 +11,21 @@ public sealed class AssetImportContext(string relativePath, byte[] data, JObject
 {
     public string RelativePath { get; } = relativePath;
 
+    /// <summary>The source file on disk (for formats that reference other files), or null when importing from memory.</summary>
+    public string? SourceFullPath { get; init; }
+
+    /// <summary>Full path of the project's <c>Assets/</c> folder, or null when importing from memory.</summary>
+    public string? AssetsDirectory { get; init; }
+
+    /// <summary>The GUID of another asset by project-relative path (its meta is read or created on demand); null if there is none.</summary>
+    public Func<string, Guid?> ResolveAsset { get; init; } = _ => null;
+
+    /// <summary>
+    /// Derived data to keep (e.g. a processed model), by name. Written to the library only when the import succeeds,
+    /// so a failed reimport keeps the last good artifacts.
+    /// </summary>
+    public Dictionary<string, byte[]> Artifacts { get; } = new(StringComparer.Ordinal);
+
     public byte[] Data { get; } = data;
 
     /// <summary>Normalized settings (defaults filled in).</summary>
@@ -44,6 +59,9 @@ public interface IAssetImporter
     JObject NormalizeSettings(JObject settings, ICollection<string> problems);
 
     void Import(AssetImportContext context);
+
+    /// <summary>Reimport when an asset this one depends on is added or changes (a model's buffers or textures).</summary>
+    bool ReimportWhenDependenciesChange => false;
 }
 
 public static class AssetImporters
@@ -54,6 +72,7 @@ public static class AssetImporters
         new SceneImporter(AssetTypes.Scene, ".mnvt"),
         new SceneImporter(AssetTypes.Prefab, ".mnvtprefab"),
         new UILayoutImporter(),
+        new ModelPlaceholderImporter(),
         new JsonImporter(),
         new AnimationImporter(),
         new MaterialImporter(),
@@ -72,7 +91,7 @@ public static class AssetImporters
         }),
     ];
 
-    /// <summary>Collects every <c>"asset:&lt;guid&gt;"</c> string in a JSON document.</summary>
+    /// <summary>Collects every <c>"asset:&lt;guid&gt;"</c> string (with or without a <c>#part</c>) in a JSON document.</summary>
     public static void CollectReferences(JToken token, ISet<Guid> into)
     {
         ArgumentNullException.ThrowIfNull(token);
@@ -81,7 +100,7 @@ public static class AssetImporters
         foreach (var value in tokens.OfType<JValue>())
         {
             if (value.Type == JTokenType.String && ((string)value.Value!).StartsWith("asset:", StringComparison.Ordinal)
-                && Guid.TryParse(((string)value.Value!).AsSpan(6), out var guid))
+                && Guid.TryParse(((string)value.Value!).AsSpan(6).Length >= 36 ? ((string)value.Value!).AsSpan(6, 36) : [], out var guid))
             {
                 into.Add(guid);
             }
@@ -275,6 +294,31 @@ public sealed class MaterialImporter() : SimpleImporter("Material", AssetTypes.M
             context.Errors.Add($"Not valid UTF-8 text: {ex.Message}");
         }
     }
+}
+
+/// <summary>
+/// Gives FBX/glTF/GLB files the Model type where the model importer (MNVTEngine.Assets.Models, with Assimp) is not
+/// loaded: the runtime's read-only database and exported games. It processes nothing; the model is read from the
+/// artifact the real importer wrote (editor, Player and build), and a missing artifact is reported when the model loads.
+/// </summary>
+public sealed class ModelPlaceholderImporter : IAssetImporter
+{
+    public string Name => "ModelPlaceholder";
+
+    public int Version => 1;
+
+    public string AssetType => AssetTypes.Model;
+
+    public IReadOnlyList<string> Extensions { get; } = [".fbx", ".gltf", ".glb"];
+
+    /// <summary>Keeps the settings as they are: they belong to the model importer, which validates them.</summary>
+    public JObject NormalizeSettings(JObject settings, ICollection<string> problems)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        return (JObject)settings.DeepClone();
+    }
+
+    public void Import(AssetImportContext context) => ArgumentNullException.ThrowIfNull(context);
 }
 
 /// <summary>UI layouts: JSON with a schema version and a root element; references (fonts, images) become dependencies.</summary>

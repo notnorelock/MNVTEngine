@@ -31,10 +31,14 @@ var editing  = AssetDatabase.OpenForEditing(assetsDir, libraryDir); // editor: w
 var readOnly = AssetDatabase.OpenReadOnly(assetsDir);               // standalone games: reads metas only, writes nothing
 ```
 
+Pass `ModelImporters.WithDefaults()` (from `MNVTEngine.Assets.Models`) to import 3D models; the editor, Player and build
+do. `OpenReadOnly(assetsDir, artifactsLibrary: libraryDir)` reads imported model artifacts without importing anything.
+
 - **Refresh** rescans the folder. A file is reimported only when its size or modification time changed *and* its SHA-256, normalized settings or importer version differs. A file that was touched but is identical only updates the cache.
 - **Import cache:** `Library/AssetDatabase.json` stores each asset's type, status, messages, facts (e.g. texture width and height) and dependencies. It is derived data: if it is corrupt it is rebuilt.
 - **Editing operations:** `Move`, `Delete`, `WriteText` (atomic), `UpdateSettings` (rewrites the meta, then reimports) and `Reimport`. `AssetsChanged` fires after any change; the texture cache and prefab provider use it to evict stale entries.
 - **Dependencies:** importers collect every `"asset:<guid>"` string. `GetDependents` lists the assets that reference a given asset (the editor warns about them before a delete). `CollectDependencies` returns the transitive closure of a set of roots. `mnvt build` currently packages every asset (scripts can load scenes by path, so reachability is not provable) and fails on references to assets that do not exist.
+- **Artifacts:** an importer can produce derived files (`AssetImportContext.Artifacts`). They are written to `Library/Artifacts/<guid>/<name>` only when the import succeeds, so a failed reimport keeps the last good one; they are deleted with the asset. `ReadArtifact(guid, name)` reads them, from the archive in exported games. Importers that opt in (`ReimportWhenDependenciesChange`) reimport when a dependency is added or reimported, and, when files are added, when their last import reported problems.
 - **Diagnostics:** missing, orphaned or corrupt metas, duplicate GUIDs, failed imports, and references to missing assets.
 - **Asset paths** are a trust boundary: `AssetPaths.Resolve` rejects absolute paths and anything that leaves `Assets/`.
 
@@ -48,6 +52,7 @@ var readOnly = AssetDatabase.OpenReadOnly(assetsDir);               // standalon
 | Shader / Script / Text | .glsl .vert .frag / .mnvts / .txt .md | Shader / Script / Text | Valid UTF-8; line count. Script compilation arrives with the `.mnvts` compiler (Milestone 6). |
 | Audio | .wav .ogg | Audio | RIFF/WAVE or OggS signature. Decoding arrives with the audio subsystem. |
 | Font | .ttf .otf | Font | TrueType/OpenType signature |
+| Model | .fbx .gltf .glb | Model | Assimp (FBX) or SharpGLTF (glTF); writes the `model` artifact. See [models](models.md). Without the model importer (runtime), model files only get the Model type. |
 
 Any other extension still gets a GUID, with type `Unknown`.
 
@@ -57,6 +62,9 @@ Any other extension still gets a GUID, with type `Unknown`.
 [AssetType(AssetTypes.Prefab)]
 public AssetRef OrbPrefab;   // persisted as "asset:<guid>", or null when empty
 ```
+
+A reference can name a part of an asset, a **sub-asset**: `"asset:<guid>#mesh/Body"` is the mesh `Body` of a model
+(`AssetRef.SubAsset`). Dependencies and the scene preloader read the GUID part.
 
 - **Built-in uses:** `SpriteRenderer.Texture` is an `AssetRef`.
 - **Gameplay API:** `Prefab.Instantiate(prefab, position)` and `SceneManager.LoadScene(AssetRef)`.

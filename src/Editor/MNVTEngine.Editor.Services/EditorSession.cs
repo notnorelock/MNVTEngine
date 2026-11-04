@@ -19,7 +19,7 @@ public sealed class EditorSession
         ArgumentNullException.ThrowIfNull(registry);
         Project = project;
         Registry = registry;
-        Assets = AssetDatabase.OpenForEditing(project.AssetsDirectory, Path.Combine(project.RootDirectory, "Library"));
+        Assets = AssetDatabase.OpenForEditing(project.AssetsDirectory, Path.Combine(project.RootDirectory, "Library"), MNVTEngine.Assets.Models.ModelImporters.WithDefaults());
         Serializer = new SceneSerializer(registry, Assets);
         Prefabs = new PrefabProvider(Serializer, Assets, logger ?? NullLogger.Instance);
         Scene = CreateDefaultScene("Untitled");

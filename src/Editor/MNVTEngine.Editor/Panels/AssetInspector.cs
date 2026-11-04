@@ -54,6 +54,10 @@ internal sealed class AssetInspector(EditorContext context) : IDisposable
         {
             context.InstantiatePrefab(guid, null);
         }
+        else if (record.Type == AssetTypes.Model && ImGui.Button("Add to scene"))
+        {
+            context.InstantiateModel(guid, null);
+        }
         else if (record.Type == AssetTypes.Scene && ImGui.Button("Open scene"))
         {
             context.OpenSceneRequest = record.Path;

@@ -102,6 +102,41 @@ internal sealed class EditorContext
         }
     }
 
+    /// <summary>
+    /// Instantiates an imported model (FBX, glTF, GLB) into the active scene as a GameObject hierarchy whose mesh
+    /// renderers reference the model's meshes, and selects its root. A model that has not imported is logged.
+    /// </summary>
+    public GameObject? InstantiateModel(Guid model, Transform? parent, Mathematics.Vector3? position = null)
+    {
+        var path = Session.Assets.Get(model)?.Path ?? model.ToString();
+        if (Session.Assets.ReadArtifact(model, Assets.Models.ModelArtifact.Name) is not { } artifact)
+        {
+            EditorLog.Warning(Logger, $"Model '{path}' has not imported; fix its import errors (see the asset inspector) and try again.");
+            return null;
+        }
+
+        Assets.Models.ModelData data;
+        try
+        {
+            data = Assets.Models.ModelArtifact.Read(artifact);
+        }
+        catch (InvalidDataException ex)
+        {
+            EditorLog.ActionFailed(Logger, ex, "Instantiate model");
+            return null;
+        }
+
+        var instance = Runtime.ModelInstantiation.Instantiate(ActiveScene, model, data, Path.GetFileNameWithoutExtension(path), parent);
+        if (position is { } p)
+        {
+            instance.Transform.Position = p;
+        }
+
+        Session.Selection.Select(instance);
+        Changed("Instantiate Model");
+        return instance;
+    }
+
     /// <summary>Resolves a dragged asset path to its GUID and type.</summary>
     public (Guid Guid, string Type)? ResolveAsset(string relativePath) =>
         Session.Assets.TryGetGuid(relativePath, out var guid) && Session.Assets.GetAssetType(guid) is { } type ? (guid, type) : null;

@@ -432,6 +432,320 @@
           }
         }
       ]
+    },
+    {
+      "id": "2d344773-41b2-4914-8d0c-ac2a5d22d72f",
+      "name": "Crate (glTF)",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": -1.5,
+          "y": 0.0,
+          "z": 2.5
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.25881907,
+          "z": 0.0,
+          "w": 0.9659259
+        },
+        "localScale": {
+          "x": 2.0,
+          "y": 2.0,
+          "z": 2.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "46d2c39e-5097-47c6-9a9e-699c14eb90eb",
+      "name": "wooden_crate_01_lid",
+      "active": true,
+      "parent": "2d344773-41b2-4914-8d0c-ac2a5d22d72f",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "id": "b663e29a-3f85-4ec7-b8de-c9ea0f52c3eb",
+          "enabled": true,
+          "data": {
+            "primitive": "none",
+            "mesh": "asset:d3000000-0000-4000-8000-000000000031#mesh/Cube.005",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "texture": null,
+            "material": null,
+            "doubleSided": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "a029827a-7c82-4855-a825-196a2a2138d2",
+      "name": "wooden_crate_01",
+      "active": true,
+      "parent": "2d344773-41b2-4914-8d0c-ac2a5d22d72f",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "id": "239163dc-49c3-4b07-9a90-f13662a289dd",
+          "enabled": true,
+          "data": {
+            "primitive": "none",
+            "mesh": "asset:d3000000-0000-4000-8000-000000000031#mesh/Cube.020",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "texture": null,
+            "material": null,
+            "doubleSided": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "cafc5e84-1522-4956-bcdd-3f486159338c",
+      "name": "wooden_crate_01_latch",
+      "active": true,
+      "parent": "2d344773-41b2-4914-8d0c-ac2a5d22d72f",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "id": "60da766f-d3b0-49b9-bd0e-37785ea8ea46",
+          "enabled": true,
+          "data": {
+            "primitive": "none",
+            "mesh": "asset:d3000000-0000-4000-8000-000000000031#mesh/Cube.001",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "texture": null,
+            "material": null,
+            "doubleSided": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "891e8c80-049a-4585-a51a-b32919898fa4",
+      "name": "Crate (FBX)",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 1.5,
+          "y": 0.0,
+          "z": 2.5
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.25881907,
+          "z": 0.0,
+          "w": 0.9659259
+        },
+        "localScale": {
+          "x": 2.0,
+          "y": 2.0,
+          "z": 2.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "44da1fd6-7528-499d-965d-6fe454a55f28",
+      "name": "wooden_crate_01_lid",
+      "active": true,
+      "parent": "891e8c80-049a-4585-a51a-b32919898fa4",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": -0.7071067,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.7071068
+        },
+        "localScale": {
+          "x": 100.0,
+          "y": 99.99999,
+          "z": 99.99999
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "id": "2cdc4736-8214-4cfb-8ef2-b11d6e171730",
+          "enabled": true,
+          "data": {
+            "primitive": "none",
+            "mesh": "asset:d3000000-0000-4000-8000-000000000032#mesh/Cube.002",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "texture": null,
+            "material": null,
+            "doubleSided": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "5ed92154-3be1-4633-baa2-25fe04be82c1",
+      "name": "wooden_crate_01",
+      "active": true,
+      "parent": "891e8c80-049a-4585-a51a-b32919898fa4",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": -0.7071067,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.7071068
+        },
+        "localScale": {
+          "x": 100.0,
+          "y": 99.99999,
+          "z": 99.99999
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "id": "b379580d-c137-470f-a968-0950b32e2ba4",
+          "enabled": true,
+          "data": {
+            "primitive": "none",
+            "mesh": "asset:d3000000-0000-4000-8000-000000000032#mesh/Cube.003",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "texture": null,
+            "material": null,
+            "doubleSided": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "e40deda6-b1dc-4a73-b362-60b02bcb36f0",
+      "name": "wooden_crate_01_latch",
+      "active": true,
+      "parent": "891e8c80-049a-4585-a51a-b32919898fa4",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": -0.7071067,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.7071068
+        },
+        "localScale": {
+          "x": 100.0,
+          "y": 99.99999,
+          "z": 99.99999
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "id": "a7a7ad23-7a9a-4356-b1a3-1983e46265e4",
+          "enabled": true,
+          "data": {
+            "primitive": "none",
+            "mesh": "asset:d3000000-0000-4000-8000-000000000032#mesh/Cube.004",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "texture": null,
+            "material": null,
+            "doubleSided": false
+          }
+        }
+      ]
     }
   ]
 }

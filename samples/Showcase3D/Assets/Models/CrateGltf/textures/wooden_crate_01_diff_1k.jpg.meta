@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "guid": "fabc5928-1d5f-4d7b-9ee6-9a328752cb71",
+  "settings": {
+    "filter": "linear",
+    "wrap": "clamp",
+    "generateMipmaps": false,
+    "pixelsPerUnit": 100.0
+  }
+}

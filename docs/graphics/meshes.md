@@ -76,12 +76,12 @@ half of a rotated mesh (the GPU mesh test covers this case). Every engine render
 
 `MeshRenderer` draws a mesh at its GameObject's transform, through the scene's main camera, in a 3D pass before sprites:
 
-- **Mesh.** `Primitive` is one of cube, sphere, capsule, cylinder, cone, plane or quad. Imported meshes arrive with the model pipeline.
+- **Mesh.** `Mesh` is a mesh of an imported model (`"asset:<guid>#mesh/<name>"`, see [models](../engine/models.md)); it draws one item per submesh, with the model's material of each submesh. Otherwise `Primitive` is one of cube, sphere, capsule, cylinder, cone, plane or quad.
 - **Built-in material.** `Color` and an optional `Texture` use the unlit material; a color with alpha below 1 is drawn as transparent.
 - **Custom material.** `Material` (`.mnvtmat`) takes a custom shader instead. The shader must read the mesh layout and `uViewProjection`/`uModel`; its blend mode decides transparency.
 - **`DoubleSided`.** Turns culling off.
-- **Sharing.** Primitive meshes are generated once and uploaded once per renderer.
+- **Sharing.** Primitive meshes are generated once and uploaded once per renderer. Model meshes are uploaded on first use and released when the model is reimported.
 - **Statistics.** The runtime's `--frames` exit log reports meshes drawn and culled; profiler counters are "Meshes drawn" and "Meshes culled".
 - **Editor.** Play Mode's Game view shows the 3D pass. The editor's Scene view is still 2D: the 3D scene view and gizmos are Phase 9.
 
-Sample: `samples/Showcase3D`, a perspective camera over a checkered floor with every primitive, spinning objects (`Scripts/Spinner.cs`), a transparent cube and a cube behind the camera that is culled.
+Sample: `samples/Showcase3D`, a perspective camera over a checkered floor with every primitive, spinning objects (`Scripts/Spinner.cs`), a transparent cube, a cube behind the camera that is culled, and the same wooden crate imported from glTF and from FBX (Poly Haven, CC0).

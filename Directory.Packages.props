@@ -9,6 +9,9 @@
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageVersion Include="Silk.NET.Input.Glfw" Version="2.23.0" />
     <PackageVersion Include="NVorbis" Version="0.10.5" />
+    <!-- Model import (edit time only; exported games read artifacts): Assimp 6 for FBX (BSD-3, natives via Ultz.Native.Assimp), SharpGLTF for glTF (MIT) -->
+    <PackageVersion Include="SharpGLTF.Core" Version="1.0.7" />
+    <PackageVersion Include="Silk.NET.Assimp" Version="2.23.0" />
     <PackageVersion Include="Silk.NET.OpenAL" Version="2.23.0" />
     <PackageVersion Include="Silk.NET.OpenAL.Soft.Native" Version="1.23.1" />
     <PackageVersion Include="Silk.NET.Shaderc" Version="2.23.0" />

@@ -13,6 +13,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
 {
     private readonly Dictionary<Type, IReadOnlyList<InspectableMember>> _members = [];
     private readonly AssetInspector _assetInspector = new(context);
+    private readonly Dictionary<Guid, (string SourceHash, IReadOnlyList<string> Names)> _modelMeshes = [];
     private Component? _pendingRemove;
 
     /// <summary>Render phase: asset previews (material spheres).</summary>
@@ -444,11 +445,36 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
         return result;
     }
 
+    /// <summary>Mesh names of an imported model, read from its artifact once per import (none when it never imported).</summary>
+    private IReadOnlyList<string> ModelMeshNames(Assets.AssetRecord model)
+    {
+        if (_modelMeshes.TryGetValue(model.Guid, out var cached) && cached.SourceHash == model.SourceHash)
+        {
+            return cached.Names;
+        }
+
+        IReadOnlyList<string> names = [];
+        if (context.Session.Assets.ReadArtifact(model.Guid, Assets.Models.ModelArtifact.Name) is { } artifact)
+        {
+            try
+            {
+                names = [.. Assets.Models.ModelArtifact.Read(artifact).Meshes.Select(m => m.Name)];
+            }
+            catch (InvalidDataException ex)
+            {
+                EditorLog.ActionFailed(context.Logger, ex, $"Read model {model.Path}");
+            }
+        }
+
+        _modelMeshes[model.Guid] = (model.SourceHash, names);
+        return names;
+    }
+
     private (bool Changed, object? Value) DrawAssetReference(InspectableMember member, AssetRef value)
     {
         var assets = context.Session.Assets;
         var record = value.IsNone ? null : assets.Get(value.Guid);
-        var text = value.IsNone ? $"None ({member.AssetType ?? "Asset"})" : record?.Name ?? $"Missing ({value.Guid})";
+        var text = value.IsNone ? $"None ({member.AssetType ?? "Asset"})" : (record?.Name ?? $"Missing ({value.Guid})") + (value.SubAsset is { } sub ? $" #{sub}" : "");
         using (Gui.StyleColor(ImGuiCol.Text, new System.Numerics.Vector4(1f, 0.45f, 0.45f, 1f), record is null && !value.IsNone))
         {
             ImGui.Button($"{text}##asset", new SysVector2(ImGui.CalcItemWidth(), 0f));
@@ -456,7 +482,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
 
         if (record is not null && ImGui.IsItemHovered())
         {
-            Gui.Tooltip(record.Path);
+            Gui.Tooltip(value.SubAsset is { } tip ? $"{record.Path}#{tip}" : record.Path);
         }
 
         var result = (false, (object?)value);
@@ -487,7 +513,24 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
             ImGui.Separator();
             foreach (var candidate in assets.Assets.Where(a => member.AcceptsAssetType(a.Type)).OrderBy(a => a.Path, StringComparer.OrdinalIgnoreCase))
             {
-                if (ImGui.MenuItem(candidate.Path, null, candidate.Guid == value.Guid))
+                if (candidate.Type == Serialization.AssetTypes.Model)
+                {
+                    // A model's meshes are sub-assets: "asset:<guid>#mesh/<name>".
+                    if (ImGui.BeginMenu(candidate.Path))
+                    {
+                        foreach (var mesh in ModelMeshNames(candidate))
+                        {
+                            var part = Runtime.ResourceCache.MeshSubAssetPrefix + mesh;
+                            if (ImGui.MenuItem(mesh, null, candidate.Guid == value.Guid && value.SubAsset == part))
+                            {
+                                result = (true, new AssetRef(candidate.Guid, part));
+                            }
+                        }
+
+                        ImGui.EndMenu();
+                    }
+                }
+                else if (ImGui.MenuItem(candidate.Path, null, candidate.Guid == value.Guid))
                 {
                     result = (true, new AssetRef(candidate.Guid));
                 }

@@ -146,9 +146,16 @@ internal sealed class HierarchyPanel(EditorContext context)
 
     private void AcceptPrefabDrop(Transform? parent)
     {
-        if (Gui.AcceptStringPayload(Gui.AssetPayload) is { } path && context.ResolveAsset(path) is { Type: Serialization.AssetTypes.Prefab } asset)
+        if (Gui.AcceptStringPayload(Gui.AssetPayload) is { } path && context.ResolveAsset(path) is { } asset)
         {
-            context.InstantiatePrefab(asset.Guid, parent);
+            if (asset.Type == Serialization.AssetTypes.Prefab)
+            {
+                context.InstantiatePrefab(asset.Guid, parent);
+            }
+            else if (asset.Type == Serialization.AssetTypes.Model)
+            {
+                context.InstantiateModel(asset.Guid, parent);
+            }
         }
     }
 

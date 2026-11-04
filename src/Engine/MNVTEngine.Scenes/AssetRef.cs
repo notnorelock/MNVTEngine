@@ -4,25 +4,45 @@ using Newtonsoft.Json;
 namespace MNVTEngine;
 
 /// <summary>
-/// Persistent reference to a project asset by its GUID, so references survive renames and moves.
-/// Persisted as <c>"asset:&lt;guid&gt;"</c>, or null for <see cref="None"/>.
+/// Persistent reference to a project asset by its GUID, so references survive renames and moves. Persisted as
+/// <c>"asset:&lt;guid&gt;"</c>, or null for <see cref="None"/>. A <see cref="SubAsset"/> names a part of the asset, such
+/// as a mesh or material inside an imported model: <c>"asset:&lt;guid&gt;#mesh/Body"</c>.
 /// </summary>
-public readonly record struct AssetRef(Guid Guid)
+public readonly record struct AssetRef(Guid Guid, string? SubAsset = null)
 {
     public const string Prefix = "asset:";
+    public const char SubAssetSeparator = '#';
 
     public static AssetRef None => default;
 
     public bool IsNone => Guid == Guid.Empty;
 
+    /// <summary>The whole asset (without the sub-asset part).</summary>
+    public AssetRef Asset => new(Guid);
+
     public static bool TryParse(string? text, out AssetRef value)
     {
         value = None;
-        return text is not null && text.StartsWith(Prefix, StringComparison.Ordinal) && Guid.TryParse(text.AsSpan(Prefix.Length), out var guid)
-            && (value = new AssetRef(guid)) != None;
+        if (text is null || !text.StartsWith(Prefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var rest = text.AsSpan(Prefix.Length);
+        var separator = rest.IndexOf(SubAssetSeparator);
+        var guidText = separator < 0 ? rest : rest[..separator];
+        string? sub = separator < 0 ? null : rest[(separator + 1)..].ToString();
+        if (!Guid.TryParse(guidText, out var guid) || guid == Guid.Empty || sub is { Length: 0 })
+        {
+            return false;
+        }
+
+        value = new AssetRef(guid, sub);
+        return true;
     }
 
-    public override string ToString() => IsNone ? "None" : Prefix + Guid.ToString("D", CultureInfo.InvariantCulture);
+    public override string ToString() => IsNone ? "None"
+        : Prefix + Guid.ToString("D", CultureInfo.InvariantCulture) + (SubAsset is null ? "" : SubAssetSeparator + SubAsset);
 }
 
 /// <summary>Restricts an <see cref="AssetRef"/> member to one asset type (see <c>MNVTEngine.Serialization.AssetTypes</c>).</summary>
@@ -51,7 +71,7 @@ internal sealed class AssetRefConverter : JsonConverter<AssetRef>
         {
             JsonToken.Null => AssetRef.None,
             JsonToken.String when AssetRef.TryParse((string?)reader.Value, out var value) => value,
-            _ => throw new JsonSerializationException($"Expected \"{AssetRef.Prefix}<guid>\" or null for an asset reference at '{reader.Path}', got {reader.TokenType} '{reader.Value}'."),
+            _ => throw new JsonSerializationException($"Expected \"{AssetRef.Prefix}<guid>\" (optionally \"#<part>\") or null for an asset reference at '{reader.Path}', got {reader.TokenType} '{reader.Value}'."),
         };
 }
 

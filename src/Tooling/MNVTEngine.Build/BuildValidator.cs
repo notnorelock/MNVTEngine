@@ -286,7 +286,10 @@ public static class BuildValidator
                 return;
             }
 
-            foreach (var record in assets.Assets.Where(r => !archive.Contains(AssetDatabase.AssetsEntryFolder + r.Path)))
+            // Models ship as their imported artifact, not as the source file.
+            foreach (var record in assets.Assets.Where(r => !archive.Contains(r.Type == AssetTypes.Model
+                ? AssetDatabase.ArtifactEntry(r.Guid, Assets.Models.ModelArtifact.Name)
+                : AssetDatabase.AssetsEntryFolder + r.Path)))
             {
                 diagnostics.Add(BuildDiagnostic.Error("MNVB512", "Asset listed in the index is not in the content.", record.Path));
             }

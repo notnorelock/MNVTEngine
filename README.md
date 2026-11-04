@@ -79,7 +79,7 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 - [3D engine and model pipeline: audit, library choices, plan](docs/graphics/3d-plan.md); [meshes, 3D cameras and 3D rendering](docs/graphics/meshes.md)
 - [Scenes, ECS, lifecycle, scene format, standalone runtime](docs/engine/scenes-and-runtime.md)
 - [Editor: panels, Play Mode, ImGui integration](docs/editor/editor.md)
-- [Assets: metas, GUIDs, importers, prefabs](docs/engine/assets.md)
+- [Assets: metas, GUIDs, importers, prefabs](docs/engine/assets.md); [models: FBX, glTF and GLB import](docs/engine/models.md)
 - [C# scripting: game assemblies, hot reload, unloading](docs/engine/csharp-scripting.md)
 - [.mnvts language reference: grammar, semantics, VM limits, errors](docs/scripting/language.md)
 - [Missions: lifecycle, script API, persistence](docs/scripting/missions.md)

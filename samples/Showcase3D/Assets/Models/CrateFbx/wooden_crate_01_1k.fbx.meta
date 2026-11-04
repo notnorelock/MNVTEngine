@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "guid": "d3000000-0000-4000-8000-000000000032",
+  "settings": {
+    "scale": 1.0,
+    "generateMissingNormals": true,
+    "generateTangents": true,
+    "optimizeMeshes": true,
+    "importMaterials": true,
+    "importAnimations": true,
+    "importSkins": true
+  }
+}

@@ -242,6 +242,10 @@ internal sealed class SceneViewPanel : IDisposable
             {
                 _context.InstantiatePrefab(asset.Guid, null, world);
             }
+            else if (asset.Type == Serialization.AssetTypes.Model)
+            {
+                _context.InstantiateModel(asset.Guid, null, new Mathematics.Vector3(world.X, world.Y, 0f));
+            }
             else if (asset.Type == Serialization.AssetTypes.Texture)
             {
                 CreateSprite(path, asset.Guid, world);
