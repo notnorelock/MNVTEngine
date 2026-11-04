@@ -6,6 +6,17 @@ namespace MNVTEngine.Graphics.Tests;
 public class CameraTests
 {
     [Fact]
+    public void Content_AtZ0_SitsInTheMiddleOfVulkansDepthRange()
+    {
+        // GL-style projections put z = 0 exactly on depth 0, where float noise (e.g. a rotated mesh) gets clipped.
+        var camera = new Camera2D(800, 600) { Position = new Vector2(5f, 5f), Rotation = 37f, Zoom = 3f };
+        var vp = camera.ViewProjection;
+        Assert.Equal(0.5f, vp.MultiplyPoint(new Vector3(5f, 5f, 0f)).Z, 5);
+        Assert.InRange(vp.MultiplyPoint(new Vector3(5f, 5f, 1e-3f)).Z, 0f, 1f);
+        Assert.InRange(vp.MultiplyPoint(new Vector3(5f, 5f, -1e-3f)).Z, 0f, 1f);
+    }
+
+    [Fact]
     public void ScreenCenter_IsCameraPosition()
     {
         var camera = new Camera2D(800, 600) { Position = new Vector2(10f, -20f), Zoom = 2f, Rotation = 30f };

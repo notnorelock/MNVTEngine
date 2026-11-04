@@ -116,7 +116,7 @@ public sealed unsafe class ImGuiRenderer : IDisposable
 
         var left = data.DisplayPos.X;
         var top = data.DisplayPos.Y;
-        var projection = Matrix4x4.Ortho(left, left + data.DisplaySize.X, top + data.DisplaySize.Y, top, -1f, 1f);
+        var projection = Matrix4x4.OrthoZeroToOne(left, left + data.DisplaySize.X, top + data.DisplaySize.Y, top, -1f, 1f); // z = 0 at depth 0.5, inside Vulkan's range
         var scale = data.FramebufferScale;
 
         for (var n = 0; n < data.CmdListsCount; n++)

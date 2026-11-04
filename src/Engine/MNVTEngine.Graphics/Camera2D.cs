@@ -70,7 +70,7 @@ public sealed class Camera2D
         get
         {
             var half = HalfExtents;
-            return Matrix4x4.Ortho(-half.X, half.X, -half.Y, half.Y, -1f, 1f);
+            return Matrix4x4.OrthoZeroToOne(-half.X, half.X, -half.Y, half.Y, -1f, 1f); // z = 0 at depth 0.5: depth noise cannot clip 2D content
         }
     }
 

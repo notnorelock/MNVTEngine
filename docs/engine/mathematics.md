@@ -34,8 +34,8 @@ Convert with `Mathf.Deg2Rad` and `Mathf.Rad2Deg`.
 - `TRS(t, r, s) == Translate(t) * Rotate(r) * Scale(s)`: scale, then rotate, then translate.
 - Field `Mrc` is row r, column c. Memory layout is **column-major** (`M00, M10, M20, M30, M01, ...`). Upload with `transpose: false`.
 - Translation lives in `M03, M13, M23`.
-- `Ortho` and `Perspective` produce GL-style clip space (y up, NDC z in [-1, 1]); the camera looks down -Z. The Vulkan device flips its viewport so this stays y-up, and 2D content at z = 0 lies inside Vulkan's depth range.
-- `PerspectiveZeroToOne` and `OrthoZeroToOne` produce Vulkan's depth range (NDC z = 0 at near, 1 at far), still y up. The 3D renderer uses these.
+- `Ortho` and `Perspective` produce GL-style clip space (y up, NDC z in [-1, 1]); the camera looks down -Z. They put z = 0 (for `Ortho(..., -1, 1)`) exactly on Vulkan's depth 0, the edge of the clip range, so the engine's renderers do not use them.
+- `PerspectiveZeroToOne` and `OrthoZeroToOne` produce Vulkan's depth range (NDC z = 0 at near, 1 at far), still y up; the Vulkan device flips its viewport so clip space stays y-up. Every engine renderer uses them: `Camera2D`, the UI and the debug overlay map z = 0 to depth 0.5, and the 3D camera maps its near plane to 0.
 - `LookAt(eye, target, up)` returns a **view** (world-to-camera) matrix.
 - `MultiplyPoint` performs the w divide; `MultiplyPoint3x4` assumes an affine matrix; `MultiplyVector` ignores translation.
 

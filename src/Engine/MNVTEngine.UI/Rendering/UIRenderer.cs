@@ -62,7 +62,7 @@ public sealed class UIRenderer : IDisposable
         stats.DrawCalls = 0;
         stats.TextureSwitches = 0;
         _device.SetViewport(0, 0, framebufferWidth, framebufferHeight);
-        var projection = Matrix4x4.Ortho(0f, framebufferWidth, framebufferHeight, 0f, -1f, 1f);
+        var projection = Matrix4x4.OrthoZeroToOne(0f, framebufferWidth, framebufferHeight, 0f, -1f, 1f);
         Texture2D? last = null;
         for (var start = 0; start < mesh.Quads; start += QuadsPerDraw)
         {

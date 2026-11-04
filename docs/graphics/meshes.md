@@ -48,6 +48,6 @@ front faces (as in glTF; see [mathematics](../engine/mathematics.md)).
 - **Picking.** `ScreenPointToRay(pixel)` starts on the near plane. `WorldToScreenPoint(world)` returns pixels (origin top-left) and the distance in front of the camera.
 - **2D.** 2D rendering still uses the orthographic size and the camera's XY position and angle (`ScreenToWorld`).
 
-The GL-style `Matrix4x4.Ortho`/`Perspective` put z = 0 exactly on the edge of Vulkan's depth range. That is fine for flat 2D
-content, but any z noise clips half of a rotated mesh, which is why 3D uses the ZeroToOne projections. The GPU mesh test covers
-this case.
+The GL-style `Matrix4x4.Ortho`/`Perspective` put z = 0 exactly on the edge of Vulkan's depth range, where any z noise clips
+half of a rotated mesh (the GPU mesh test covers this case). Every engine renderer therefore uses the ZeroToOne projections:
+2D, UI and the debug overlay put z = 0 at depth 0.5.
