@@ -3,7 +3,7 @@ using ImGuiNET;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Core.Logging;
 using MNVTEngine.Core.Timing;
-using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Editor.Panels;
 using MNVTEngine.Editor.Services;
 using MNVTEngine.Graphics;
@@ -44,6 +44,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private BuildController _build = null!;
     private ScriptEditorPanel _scriptEditor = null!;
     private bool _showBuildSettings;
+    private DiagnosticsSettingsWindow _diagnosticsWindow = null!;
     private int _focusSceneFrames;
     private readonly Core.Diagnostics.FrameProfiler _profiler = new();
     private ScriptReloadController _scripts = null!;
@@ -83,8 +84,18 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             Session = session,
             PlayMode = new PlayModeController(session, loggerFactory) { Audio = AudioDevices.CreateOrSilent(Audio.OpenAL.OpenALAudioDevice.Create, loggerFactory.CreateLogger("Audio")) },
             Logs = logs,
+            DiagnosticsSettings = project.Diagnostics.Clone(),
             LogHub = logHub,
             Logger = _logger,
+        };
+
+        // Play sessions get the same diagnostics as a development build; they share the editor's profiler.
+        _context.PlayMode.CreateDiagnostics = () =>
+        {
+            var diagnostics = new RuntimeDiagnostics(_context.DiagnosticsSettings.Clone(), loggerFactory.CreateLogger("Diagnostics"),
+                Path.Combine(project.RootDirectory, "Library", "Diagnostics", "Profiles"), _profiler, ownsProfilerFrames: false);
+            diagnostics.Attach(new DiagnosticsTarget(device, () => _context.PlayMode.PlayScene, resources, session.Assets, _context.SceneRenderer));
+            return diagnostics;
         };
 
         Gui.ApplyDarkTheme();
@@ -104,6 +115,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _scriptDebugger = new ScriptDebuggerPanel(_context);
         _build = new BuildController(project, loggerFactory);
         _showBuildSettings = options.FocusWindow == "Build Settings";
+        _diagnosticsWindow = new DiagnosticsSettingsWindow(_context) { Open = options.FocusWindow == "Diagnostics" };
         foreach (var breakpoint in options.Breakpoints ?? [])
         {
             var separator = breakpoint.LastIndexOf(':');
@@ -198,6 +210,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _profilerPanel.Draw();
         _build.Update();
         DrawBuildSettings();
+        _diagnosticsWindow.Draw();
         _scriptDebugger.Draw();
         if (_context.OpenScriptRequest is { } script)
         {
@@ -257,6 +270,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         {
             _gameView.Render();
         }
+
+        _gameView.EndDiagnosticsFrame();
 
         _context.Device.SetRenderTarget(null);
         _context.Device.Clear(new Color(0.08f, 0.08f, 0.09f));
@@ -508,6 +523,11 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
         if (ImGui.BeginMenu("Window"))
         {
+            if (ImGui.MenuItem("Diagnostics Settings", null, _diagnosticsWindow.Open))
+            {
+                _diagnosticsWindow.Open = !_diagnosticsWindow.Open;
+            }
+
             if (ImGui.MenuItem("Reset Layout"))
             {
                 _resetLayout = true;
@@ -566,11 +586,11 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         };
         if (_build.Status is { } building)
         {
-            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0.4f, 1f), building);
+            Gui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0.4f, 1f), building);
             ImGui.SameLine();
         }
 
-        ImGui.TextColored(color, _scripts.StatusText);
+        Gui.TextColored(color, _scripts.StatusText);
         if (_scripts.State != ScriptState.None)
         {
             ImGui.SameLine();
@@ -890,13 +910,13 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
             if (_build.Status is { } status)
             {
-                ImGui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0.4f, 1f), status + " - progress in the Console");
+                Gui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0.4f, 1f), status + " - progress in the Console");
             }
             else if (_build.LastBuild is { } last)
             {
                 var errors = last.Diagnostics.Count(d => d.Severity == Build.BuildSeverity.Error);
                 var warnings = last.Diagnostics.Count(d => d.Severity == Build.BuildSeverity.Warning);
-                ImGui.TextColored(
+                Gui.TextColored(
                     last.Succeeded ? new System.Numerics.Vector4(0.5f, 0.9f, 0.5f, 1f) : new System.Numerics.Vector4(1f, 0.45f, 0.45f, 1f),
                     last.Succeeded ? $"Last build succeeded in {last.Duration.TotalSeconds:0.0} s ({warnings} warnings)" : $"Last build failed: {errors} errors, {warnings} warnings (see the Console)");
             }

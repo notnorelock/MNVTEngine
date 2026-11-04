@@ -60,6 +60,12 @@ public sealed class PhysicsWorld2D : GameSystem
     /// <summary>GameObjects with a physics body.</summary>
     public int BodyCount => _bindings.Count;
 
+    /// <summary>Collider pairs touching (non-trigger contacts).</summary>
+    public int ContactCount => _touching.Count;
+
+    /// <summary>Collider pairs overlapping a trigger.</summary>
+    public int TriggerOverlapCount => _overlapping.Count;
+
     public static PhysicsWorld2D For(Scene scene)
     {
         ArgumentNullException.ThrowIfNull(scene);

@@ -173,6 +173,15 @@ public sealed partial class AudioSystem : GameSystem
     /// <summary>Voices alive in this scene (sources plus one-shots still playing).</summary>
     public int VoiceCount => _voices.Count;
 
+    /// <summary>Decoded PCM held by this scene's audio buffers.</summary>
+    public long BufferBytes { get; private set; }
+
+    /// <summary>Clips uploaded (or attempted) by this scene.</summary>
+    public int ClipCount => _buffers.Count;
+
+    /// <summary>Clips that could not be loaded (they never play).</summary>
+    public int FailedClipCount => _buffers.Values.Count(b => b is null);
+
     /// <param name="readClip">Bytes of an audio asset (from the project folder or the game's content archive).</param>
     /// <exception cref="InvalidOperationException">The scene already has an audio system.</exception>
     public static AudioSystem Attach(Scene scene, IAudioDevice device, Func<AssetRef, byte[]> readClip)
@@ -258,7 +267,9 @@ public sealed partial class AudioSystem : GameSystem
         IAudioBuffer? buffer = null;
         try
         {
-            buffer = Device.CreateBuffer(AudioDecoder.Decode(_readClip(clip), clip.ToString()));
+            var data = AudioDecoder.Decode(_readClip(clip), clip.ToString());
+            buffer = Device.CreateBuffer(data);
+            BufferBytes += data.Samples.Length * (long)sizeof(short);
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or InvalidOperationException or KeyNotFoundException or ArgumentException)
         {
@@ -299,6 +310,7 @@ public sealed partial class AudioSystem : GameSystem
         }
 
         _buffers.Clear();
+        BufferBytes = 0;
         scene.Systems.Remove(this);
     }
 

@@ -9,7 +9,8 @@ public sealed class ProjectGraph
 
     private ProjectGraph(Dictionary<string, Node> nodes) => _nodes = nodes;
 
-    public sealed record Node(string Name, string Area, IReadOnlyList<string> ProjectReferences, IReadOnlyList<string> Packages);
+    /// <param name="DevelopmentReferences">References only present in development builds (Condition on MnvtDevTools); not part of the release graph.</param>
+    public sealed record Node(string Name, string Area, IReadOnlyList<string> ProjectReferences, IReadOnlyList<string> Packages, IReadOnlyList<string> DevelopmentReferences);
 
     public IEnumerable<Node> Projects => _nodes.Values;
 
@@ -26,14 +27,15 @@ public sealed class ProjectGraph
             var name = Path.GetFileNameWithoutExtension(path);
             var area = Path.GetRelativePath(src, path).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)[0];
 
-            var references = xml.Descendants("ProjectReference")
-                .Select(e => Path.GetFileNameWithoutExtension((string)e.Attribute("Include")!.Value.Replace('\\', '/')))
-                .ToList();
+            static bool DevelopmentOnly(XElement e) => ((string?)e.Attribute("Condition"))?.Contains("MnvtDevTools", StringComparison.Ordinal) == true;
+            static string ReferenceName(XElement e) => Path.GetFileNameWithoutExtension((string)e.Attribute("Include")!.Value.Replace('\\', '/'));
+            var references = xml.Descendants("ProjectReference").Where(e => !DevelopmentOnly(e)).Select(ReferenceName).ToList();
+            var development = xml.Descendants("ProjectReference").Where(DevelopmentOnly).Select(ReferenceName).ToList();
             var packages = xml.Descendants("PackageReference")
                 .Select(e => (string?)e.Attribute("Include") ?? (string)e.Attribute("Update")!)
                 .ToList();
 
-            nodes.Add(name, new Node(name, area, references, packages));
+            nodes.Add(name, new Node(name, area, references, packages, development));
         }
 
         return new ProjectGraph(nodes);

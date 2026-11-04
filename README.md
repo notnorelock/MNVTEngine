@@ -86,6 +86,7 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 - [Sprite animation](docs/engine/animation.md) and [tilemaps](docs/engine/tilemaps.md)
 - [Materials and 2D lighting](docs/graphics/materials-and-lighting.md)
 - [Logging: named loggers, levels per namespace/class, call sites](docs/engine/logging.md)
+- [Runtime diagnostics: in-game debug UI, HUD, profiler, console, budgets, debug drawing](docs/engine/diagnostics.md)
 - [Profiling](docs/engine/profiling.md)
 
 ## Roadmap

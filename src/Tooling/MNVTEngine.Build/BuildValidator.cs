@@ -25,7 +25,10 @@ public static class BuildValidator
 
     /// <summary>Assembly name prefixes that must never ship: the editor, build tooling, compilers.</summary>
     public static readonly IReadOnlyList<string> DevelopmentOnlyPrefixes =
-        ["MNVTEngine.Editor", "MNVTEngine.Build", "MNVTEngine.Player", "MNVTEngine.CLI", "mnvt.", "ImGui", "cimgui", "Microsoft.Build", "Microsoft.CodeAnalysis"];
+        ["MNVTEngine.Editor", "MNVTEngine.Build", "MNVTEngine.Player", "MNVTEngine.CLI", "mnvt.", "Microsoft.Build", "Microsoft.CodeAnalysis"];
+
+    /// <summary>The in-game debug UI: allowed only in games whose manifest says <see cref="GamePackage.DevTools"/>.</summary>
+    public static readonly IReadOnlyList<string> DevToolsPrefixes = ["MNVTEngine.DebugUI", "ImGui", "cimgui"];
 
     private static readonly string[] RuntimeFiles = ["System.Private.CoreLib.dll", "coreclr.dll", "hostpolicy.dll", "Microsoft.NETCore.App.deps.json"];
 
@@ -156,7 +159,7 @@ public static class BuildValidator
             }
         }
 
-        foreach (var native in RequiredNativeLibraries.GetValueOrDefault(package.Target, []))
+        foreach (var native in RequiredNativeLibraries.GetValueOrDefault(package.Target, []).Concat(package.DevTools ? ["cimgui.dll"] : []))
         {
             if (!File.Exists(Path.Combine(gameDirectory, GamePackage.NativeFolder, native)))
             {
@@ -170,6 +173,10 @@ public static class BuildValidator
             if (DevelopmentOnlyPrefixes.Any(p => fileName.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
             {
                 diagnostics.Add(BuildDiagnostic.Error("MNVB507", $"Development-only assembly in the game: {fileName}", Path.GetRelativePath(gameDirectory, file)));
+            }
+            else if (!package.DevTools && DevToolsPrefixes.Any(p => fileName.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
+            {
+                diagnostics.Add(BuildDiagnostic.Error("MNVB508", $"Debug UI in a build without dev tools (Release): {fileName}", Path.GetRelativePath(gameDirectory, file)));
             }
         }
     }

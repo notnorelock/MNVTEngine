@@ -20,9 +20,14 @@ public static class GamePackager
     public static string EngineVersion =>
         typeof(GameProject).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0";
 
+    /// <summary>Debug builds include the in-game debug UI; Release only when the project sets diagnostics.includeInRelease.</summary>
+    public static bool IncludesDevTools(BuildProfile profile, GameProject project) =>
+        (profile ?? throw new ArgumentNullException(nameof(profile))).Configuration != "Release" || (project ?? throw new ArgumentNullException(nameof(project))).Diagnostics.IncludeInRelease;
+
     /// <param name="workDirectory">Per-profile build cache (<c>Library/Build/&lt;profile&gt;</c>); holds the intermediate output of the engine build.</param>
+    /// <param name="devTools">Compile the debug UI into the game host (MnvtDevTools).</param>
     public static async Task<IReadOnlyList<BuildDiagnostic>> PublishHostAsync(
-        string engineRoot, BuildProfile profile, string executableName, byte[] contentKey, string workDirectory, string packageDirectory, CancellationToken cancellationToken = default)
+        string engineRoot, BuildProfile profile, string executableName, byte[] contentKey, string workDirectory, string packageDirectory, bool devTools, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
         var hostProject = EngineLocation.GameHostProject(engineRoot);
@@ -43,6 +48,7 @@ public static class GamePackager
             $"-p:MnvtGameName={executableName}",
             $"-p:MnvtConsole={(profile.ShowsConsole ? "true" : "false")}",
             $"-p:MnvtContentKey={Convert.ToHexString(contentKey)}",
+            $"-p:MnvtDevTools={(devTools ? "true" : "false")}",
             "-p:Deterministic=true",
             "-p:ContinuousIntegrationBuild=true",
         ];

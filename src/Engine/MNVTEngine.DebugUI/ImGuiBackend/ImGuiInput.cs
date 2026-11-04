@@ -2,10 +2,10 @@ using ImGuiNET;
 using MNVTEngine.Mathematics;
 using MNVTEngine.Platform;
 
-namespace MNVTEngine.Editor.ImGuiBackend;
+namespace MNVTEngine.DebugUI.ImGuiBackend;
 
 /// <summary>Feeds the engine's per-frame input edges into ImGui's event queue.</summary>
-internal static class ImGuiInput
+public static class ImGuiInput
 {
     private static readonly (Key Key, ImGuiKey ImGui)[] KeyMap = BuildKeyMap();
 
@@ -14,12 +14,17 @@ internal static class ImGuiInput
 
     public static void NewFrame(GameWindow window, float deltaTime)
     {
+        ArgumentNullException.ThrowIfNull(window);
+        NewFrame(window.Input, window.WindowWidth, window.WindowHeight, window.WindowWidth > 0 ? (float)window.FramebufferWidth / window.WindowWidth : 1f, deltaTime);
+    }
+
+    /// <summary>Feeds input for a view of <paramref name="width"/> × <paramref name="height"/> logical pixels (mouse coordinates relative to it).</summary>
+    public static void NewFrame(InputState input, int width, int height, float framebufferScale, float deltaTime)
+    {
+        ArgumentNullException.ThrowIfNull(input);
         var io = ImGui.GetIO();
-        var input = window.Input;
-        io.DisplaySize = new System.Numerics.Vector2(window.WindowWidth, window.WindowHeight);
-        io.DisplayFramebufferScale = window.WindowWidth > 0
-            ? new System.Numerics.Vector2((float)window.FramebufferWidth / window.WindowWidth, (float)window.FramebufferHeight / window.WindowHeight)
-            : System.Numerics.Vector2.One;
+        io.DisplaySize = new System.Numerics.Vector2(width, height);
+        io.DisplayFramebufferScale = new System.Numerics.Vector2(framebufferScale, framebufferScale);
         io.DeltaTime = MathF.Max(deltaTime, 1e-4f);
 
         io.AddMousePosEvent(input.MousePosition.X, input.MousePosition.Y);

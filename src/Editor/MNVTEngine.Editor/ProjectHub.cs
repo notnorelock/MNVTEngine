@@ -3,7 +3,7 @@ using ImGuiNET;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Build;
 using MNVTEngine.Core.Timing;
-using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Editor.Services;
 using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.OpenGL;
@@ -94,7 +94,7 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
         if (_error is not null)
         {
             ImGui.Spacing();
-            ImGui.TextColored(ErrorColor, _error);
+            Gui.TextColored(ErrorColor, _error);
         }
 
         ImGui.End();

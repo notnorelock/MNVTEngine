@@ -27,6 +27,24 @@ public sealed record GameRuntimeOptions
 
     /// <summary>Content of an exported game: assets, index and compiled scripts come from it instead of the project folder.</summary>
     public ContentArchive? Archive { get; init; }
+
+    /// <summary>Metrics, budgets, debug drawing and console commands; null in Release builds without diagnostics.</summary>
+    public RuntimeDiagnostics? Diagnostics { get; init; }
+
+    /// <summary>In-game debug UI (development builds); requires <see cref="Diagnostics"/>.</summary>
+    public IRuntimeOverlay? Overlay { get; init; }
+
+    /// <summary>TrueType font of the debug UI; null for the built-in one.</summary>
+    public string? DebugFontPath { get; init; }
+
+    /// <summary>Log entries shown in the debug console.</summary>
+    public Core.Logging.InMemoryLoggerProvider? DebugLogs { get; init; }
+
+    /// <summary>Debug UI window layout file.</summary>
+    public string? DebugLayoutFile { get; init; }
+
+    /// <summary>Console commands run once the debug UI is loaded (automation, e.g. "window profiler on").</summary>
+    public IReadOnlyList<string> DebugCommands { get; init; } = [];
 }
 
 /// <summary>
@@ -53,6 +71,7 @@ public sealed partial class GameRuntime(
     private PrefabProvider _prefabs = null!;
     private string? _pendingScene;
     private int _frames;
+    private bool _frameStarted;
 
     public Scene? CurrentScene { get; private set; }
 
@@ -76,7 +95,27 @@ public sealed partial class GameRuntime(
         _sceneRenderer = new SceneRenderer(_renderer, _resources, _logger);
         LogStarting(_logger, project.Name, project.StartupScene);
 
-        _options.Profiler?.BeginFrame();
+        if (_options.Diagnostics is { } diagnostics)
+        {
+            diagnostics.Attach(new DiagnosticsTarget(_device, () => CurrentScene, _resources, _assets, _sceneRenderer));
+            diagnostics.Install();
+            _options.Overlay?.Load(new RuntimeOverlayContext(
+                _device, _renderer, diagnostics, window.Input,
+                () => new OverlayDisplay(window.WindowWidth, window.WindowHeight, window.WindowWidth > 0 ? (float)window.FramebufferWidth / window.WindowWidth : 1f),
+                () => CurrentScene,
+                _options.DebugFontPath,
+                _options.DebugLogs,
+                _options.DebugLayoutFile));
+            foreach (var line in _options.DebugCommands)
+            {
+                var result = diagnostics.Commands.Execute(line);
+                LogDebugCommand(_logger, result.Success ? LogLevel.Information : LogLevel.Warning, line, result.Output);
+            }
+        }
+        else
+        {
+            _options.Profiler?.BeginFrame();
+        }
 
         // A broken startup scene is fatal; later scene switches fall back to the current scene.
         SwitchTo(LoadScene(project.StartupScene));
@@ -84,12 +123,14 @@ public sealed partial class GameRuntime(
 
     public void FixedUpdate(float fixedDeltaTime)
     {
+        StartFrame();
         using var sample = Core.Diagnostics.Profiler.Sample("FixedUpdate");
         CurrentScene?.FixedUpdate(fixedDeltaTime);
     }
 
     public void Update(FrameTime time)
     {
+        StartFrame();
         using var sample = Core.Diagnostics.Profiler.Sample("Update");
         CurrentScene?.Update(time);
         if (_pendingScene is { } path)
@@ -108,15 +149,34 @@ public sealed partial class GameRuntime(
 
     public void Render(FrameTime time, float interpolation)
     {
+        StartFrame();
+        var gpu = _options.Diagnostics?.GpuTimer;
         if (CurrentScene is not null)
         {
             using var sample = Core.Diagnostics.Profiler.Sample("Render");
+            using var gpuScope = new GpuScope(gpu, "Scene");
             _sceneRenderer.Render(CurrentScene, _window.FramebufferWidth, _window.FramebufferHeight);
         }
 
         // Frames run FixedUpdate* → Update → Render: a frame ends after rendering.
-        _options.Profiler?.EndFrame();
-        _options.Profiler?.BeginFrame();
+        if (_options.Diagnostics is { } diagnostics)
+        {
+            diagnostics.SceneRendered();
+            if (_options.Overlay is { } overlay)
+            {
+                using var sample = Core.Diagnostics.Profiler.Sample("Debug Overlay");
+                using var gpuScope = new GpuScope(gpu, "Debug Overlay");
+                overlay.Render(CurrentScene?.MainCamera is { } camera ? SceneRenderer.CreateView(camera, _window.FramebufferWidth, _window.FramebufferHeight) : null, null);
+            }
+
+            diagnostics.EndFrame(time);
+            _frameStarted = false;
+        }
+        else
+        {
+            _options.Profiler?.EndFrame();
+            _options.Profiler?.BeginFrame();
+        }
 
         _frames++;
         if (_options.ExitAfterFrames is { } limit && _frames >= limit)
@@ -135,6 +195,8 @@ public sealed partial class GameRuntime(
 
     public void Unload()
     {
+        _options.Overlay?.Dispose();
+        _options.Diagnostics?.Uninstall();
         CurrentScene?.Unload();
         _sceneRenderer.Dispose();
         _resources.Dispose();
@@ -161,6 +223,19 @@ public sealed partial class GameRuntime(
         RequestLoad(_assets.GetAssetType(scene.Guid) == AssetTypes.Scene && _assets.TryGetPath(scene.Guid, out var path)
             ? path
             : throw new ArgumentException($"{scene} is not a scene asset in this project.", nameof(scene)));
+
+    /// <summary>The first callback of a frame starts diagnostics and lets the overlay take its input before gameplay reads it.</summary>
+    private void StartFrame()
+    {
+        if (_frameStarted || _options.Diagnostics is null)
+        {
+            return;
+        }
+
+        _frameStarted = true;
+        _options.Diagnostics.BeginFrame();
+        _options.Overlay?.BeginFrame();
+    }
 
     private Scene LoadScene(string path)
     {
@@ -215,6 +290,9 @@ public sealed partial class GameRuntime(
         using var stream = File.Create(path);
         new StbImageWriteSharp.ImageWriter().WritePng(pixels, _device.BackBufferWidth, _device.BackBufferHeight, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, stream);
     }
+
+    [LoggerMessage(EventId = 3107, Message = "> {Command}: {Output}")]
+    private static partial void LogDebugCommand(ILogger logger, LogLevel level, string command, string output);
 
     [LoggerMessage(EventId = 3106, Level = LogLevel.Warning, Message = "Asset {Path}: {Message}")]
     private static partial void LogAssetDiagnostic(ILogger logger, string path, string message);

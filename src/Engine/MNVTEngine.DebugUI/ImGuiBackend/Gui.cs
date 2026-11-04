@@ -6,10 +6,10 @@ using MNVTEngine.Mathematics;
 using SysVector2 = System.Numerics.Vector2;
 using SysVector4 = System.Numerics.Vector4;
 
-namespace MNVTEngine.Editor.ImGuiBackend;
+namespace MNVTEngine.DebugUI.ImGuiBackend;
 
 /// <summary>Small helpers between engine types and ImGui.NET (which uses System.Numerics).</summary>
-internal static class Gui
+public static class Gui
 {
     public const string GameObjectPayload = "MNVT_GAMEOBJECT";
 
@@ -80,8 +80,77 @@ internal static class Gui
         return payload.NativePtr is not null ? Marshal.PtrToStringUTF8(payload.Data, payload.DataSize) : null;
     }
 
-    /// <summary>Right-aligned help text marker shown in muted color.</summary>
-    public static void Muted(string text) => ImGui.TextColored(new SysVector4(0.55f, 0.57f, 0.62f, 1f), text);
+    /// <summary>Help text in a muted color.</summary>
+    public static void Muted(string text) => TextColored(new SysVector4(0.55f, 0.57f, 0.62f, 1f), text);
+
+    // ImGui.NET passes the text of TextColored/BulletText/SetTooltip/TextWrapped/TextDisabled to Dear ImGui as a printf
+    // format: a '%' in it ("85%", a log message) reads arguments that do not exist (garbage, hangs, crashes). These
+    // helpers draw the text verbatim with TextUnformatted. Use them for anything that is not a constant without '%'.
+
+    public static void TextColored(SysVector4 color, string text)
+    {
+        ImGui.PushStyleColor(ImGuiCol.Text, color);
+        ImGui.TextUnformatted(text);
+        ImGui.PopStyleColor();
+    }
+
+    public static void TextDisabled(string text) => TextColored(ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled], text);
+
+    public static void Bullet(string text)
+    {
+        ImGui.Bullet();
+        ImGui.TextUnformatted(text);
+    }
+
+    public static void Tooltip(string text)
+    {
+        if (ImGui.BeginTooltip())
+        {
+            ImGui.PushTextWrapPos(ImGui.GetFontSize() * 45f);
+            ImGui.TextUnformatted(text);
+            ImGui.PopTextWrapPos();
+            ImGui.EndTooltip();
+        }
+    }
+
+    /// <summary>
+    /// A number field built on InputText (parsed with the invariant culture when Enter is pressed or focus leaves).
+    /// Used instead of ImGui.InputDouble, which hung inside Dear ImGui in debug windows of large views.
+    /// </summary>
+    public static bool InputNumber(string label, ref double value, string format = "0.##")
+    {
+        var id = ImGui.GetID(label);
+        var text = Edits.TryGetValue(id, out var editing) ? editing : value.ToString(format, System.Globalization.CultureInfo.InvariantCulture);
+        var entered = ImGui.InputText(label, ref text, 32, ImGuiInputTextFlags.CharsScientific | ImGuiInputTextFlags.EnterReturnsTrue);
+        if (ImGui.IsItemActive())
+        {
+            Edits[id] = text;
+        }
+
+        var done = entered || ImGui.IsItemDeactivated();
+        if (!done)
+        {
+            return false;
+        }
+
+        Edits.Remove(id);
+        if (double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var parsed) && double.IsFinite(parsed) && parsed != value)
+        {
+            value = parsed;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static readonly Dictionary<uint, string> Edits = [];
+
+    public static void TextWrapped(string text)
+    {
+        ImGui.PushTextWrapPos(0f);
+        ImGui.TextUnformatted(text);
+        ImGui.PopTextWrapPos();
+    }
 
     public static void ApplyDarkTheme()
     {
@@ -127,7 +196,7 @@ internal static class Gui
 }
 
 /// <summary>Pops the style color pushed by <see cref="Gui.StyleColor"/>, if it pushed one.</summary>
-internal readonly struct StyleColorScope(bool pushed) : IDisposable
+public readonly struct StyleColorScope(bool pushed) : IDisposable
 {
     public void Dispose()
     {

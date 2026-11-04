@@ -46,6 +46,9 @@ public sealed class OverlaySettings
 
     /// <summary>Title line ("DEVELOPMENT BUILD"); empty for none.</summary>
     public string Title { get; set; } = "DEVELOPMENT BUILD";
+
+    /// <summary>"dark", "light" or "classic".</summary>
+    public string Theme { get; set; } = "dark";
 }
 
 /// <summary>
@@ -129,8 +132,15 @@ public sealed class DiagnosticsSettings
 
     public int MaxDebugDrawCommands { get; set; } = 20_000;
 
+    /// <summary>Frames after start (loading, JIT warm-up) during which budgets are not evaluated.</summary>
+    public int WarmupFrames { get; set; } = 60;
+
     /// <summary>Seconds before the same budget warning repeats while it persists.</summary>
     public double WarningRepeatSeconds { get; set; } = 10;
+
+    /// <summary>Debug windows not offered at all (e.g. "Physics", "Assets").</summary>
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public List<string> DisabledPanels { get; set; } = [];
 
     /// <summary>Metric providers to skip (e.g. "Scripting", "Physics").</summary>
     [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
@@ -153,6 +163,12 @@ public sealed class DiagnosticsSettings
         {
             problems.Add(string.Create(CultureInfo.InvariantCulture, $"diagnostics.maxDebugDrawCommands {MaxDebugDrawCommands} is out of range 1..1000000; using {defaults.MaxDebugDrawCommands}."));
             MaxDebugDrawCommands = defaults.MaxDebugDrawCommands;
+        }
+
+        if (WarmupFrames is < 0 or > 100_000)
+        {
+            problems.Add(string.Create(CultureInfo.InvariantCulture, $"diagnostics.warmupFrames {WarmupFrames} is out of range 0..100000; using {defaults.WarmupFrames}."));
+            WarmupFrames = defaults.WarmupFrames;
         }
 
         if (!(WarningRepeatSeconds >= 0.5))
@@ -198,15 +214,18 @@ public sealed class DiagnosticsSettings
     {
         var b = Budgets;
         var list = new List<PerformanceBudget>();
-        void Add(string id, double? limit, string metric, string subsystem, string hint, double scale = 1)
+        void Add(string id, double? limit, string metric, string subsystem, string hint, double scale = 1, BudgetThresholds? thresholds = null)
         {
             if (limit is { } value)
             {
-                list.Add(new PerformanceBudget(id, metric, value * scale, subsystem, hint));
+                list.Add(new PerformanceBudget(id, metric, value * scale, subsystem, hint, thresholds));
             }
         }
 
-        Add("frameTime", b.FrameTimeMs, Metrics.FrameTime, "Frame", "Open the profiler (F2) and look for the slowest sample.");
+        // With VSync the frame time equals the refresh period, so a 16.67 ms limit at 60 Hz is always "at 100 %": the
+        // frame budget looks at the 30-frame average and only warns once it is clearly above the limit.
+        Add("frameTime", b.FrameTimeMs, Metrics.FrameTimeAverage, "Frame", "Open the profiler (F2) and look for the slowest sample.",
+            thresholds: new BudgetThresholds(0.95, 1.03, 1.10, 1.5));
         Add("cpuFrameTime", b.CpuFrameTimeMs, Metrics.CpuTime, "Frame", "CPU-bound: check Update/FixedUpdate samples, scripts and physics.");
         Add("gpuFrameTime", b.GpuFrameTimeMs, Metrics.GpuTime, "Renderer", "GPU-bound: large sprites, overdraw, lights, post effects.");
         Add("drawCalls", b.MaxDrawCalls, Metrics.DrawCalls, "Renderer", "Use texture atlases and fewer materials so sprites batch.");

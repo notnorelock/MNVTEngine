@@ -43,6 +43,15 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
     /// <summary>Time of the running game (starts at zero on Play).</summary>
     public FrameTime Time => _clock.Current;
 
+    /// <summary>Creates the diagnostics of a play session (set by the editor; null runs without diagnostics).</summary>
+    public Func<Runtime.RuntimeDiagnostics>? CreateDiagnostics { get; set; }
+
+    /// <summary>Metrics, budgets, debug drawing and console commands of the running game; null while editing.</summary>
+    public Runtime.RuntimeDiagnostics? Diagnostics { get; private set; }
+
+    /// <summary>True when the last <see cref="Tick"/> advanced the game (not paused); the host then ends the diagnostics frame after rendering.</summary>
+    public bool AdvancedThisFrame { get; private set; }
+
     /// <exception cref="InvalidOperationException">Already playing.</exception>
     public void Play()
     {
@@ -61,6 +70,8 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         _fixed = new FixedTimestep(session.Project.FixedTimestep);
         _pendingScene = null;
         Input.ReleaseAll();
+        Diagnostics = CreateDiagnostics?.Invoke();
+        Diagnostics?.Install(); // before the scene starts, so Start() can already draw and register commands
         Start(copy.Scene);
         State = PlayState.Playing;
         LogEntered(_logger, copy.Scene.Name);
@@ -75,6 +86,9 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
 
         PlayScene?.Unload();
         PlayScene = null;
+        Diagnostics?.Uninstall();
+        Diagnostics = null;
+        AdvancedThisFrame = false;
         State = PlayState.Editing;
         LogExited(_logger);
     }
@@ -99,6 +113,7 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
     /// <summary>Advances the running game by measured real time. Call once per editor frame.</summary>
     public void Tick(double elapsedSeconds)
     {
+        AdvancedThisFrame = false;
         if (PlayScene is null)
         {
             return;
@@ -109,6 +124,8 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
             return;
         }
 
+        AdvancedThisFrame = true;
+        Diagnostics?.BeginFrame();
         using var sample = Core.Diagnostics.Profiler.Sample("PlayMode");
         FrameTime time;
         int steps;

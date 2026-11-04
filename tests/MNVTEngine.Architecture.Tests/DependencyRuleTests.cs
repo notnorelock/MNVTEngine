@@ -82,11 +82,14 @@ public class DependencyRuleTests
         Assert.Empty(violations);
     }
 
+    /// <summary>The in-game debug UI and the development host that includes it unconditionally.</summary>
+    private static readonly string[] DebugUiProjects = ["MNVTEngine.DebugUI", "MNVTEngine.Player"];
+
     [Fact]
-    public void OnlyEditorProjects_UseImGui()
+    public void OnlyEditorAndDebugUi_UseImGui()
     {
         var violations = Graph.Projects
-            .Where(p => p.Area != "Editor")
+            .Where(p => p.Area != "Editor" && !DebugUiProjects.Contains(p.Name))
             .Where(p => Graph.TransitivePackages(p.Name).Any(pkg => EditorUiPackages.Any(ui => pkg.StartsWith(ui, StringComparison.OrdinalIgnoreCase))))
             .Select(p => p.Name)
             .ToList();
@@ -161,6 +164,15 @@ public class DependencyRuleTests
             .Select(p => p.Name)
             .ToList();
         Assert.Empty(violations);
+    }
+
+    [Fact]
+    public void DebugUi_IsReferencedOnlyByDevelopmentHosts_AndByTheGameHostOnlyInDevelopmentBuilds()
+    {
+        var unconditional = Graph.Projects.Where(p => p.ProjectReferences.Contains("MNVTEngine.DebugUI")).Select(p => p.Name).Order(StringComparer.Ordinal).ToList();
+        Assert.Equal(["MNVTEngine.Editor", "MNVTEngine.Player"], unconditional);
+        Assert.Contains("MNVTEngine.DebugUI", Graph["MNVTEngine.GameHost"].DevelopmentReferences);
+        Assert.DoesNotContain("MNVTEngine.DebugUI", Graph.TransitiveReferences("MNVTEngine.Runtime"));
     }
 
     [Fact]

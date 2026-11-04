@@ -1,5 +1,5 @@
 using ImGuiNET;
-using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.DebugUI.ImGuiBackend;
 
 namespace MNVTEngine.Editor.Panels;
 

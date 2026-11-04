@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Core.Logging;
-using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Editor.Services;
 using MNVTEngine.Graphics;
 using MNVTEngine.Platform;
@@ -28,6 +28,9 @@ internal sealed class EditorContext
     public required PlayModeController PlayMode { get; init; }
 
     public required InMemoryLoggerProvider Logs { get; init; }
+
+    /// <summary>Diagnostics settings of this editor session: the project's, plus overrides made in the Diagnostics window (used from the next Play).</summary>
+    public required Diagnostics.DiagnosticsSettings DiagnosticsSettings { get; set; }
 
     /// <summary>Per-logger levels and call-site capture (edited from the Console's Levels popup).</summary>
     public required LogHub LogHub { get; init; }

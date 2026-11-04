@@ -1,12 +1,16 @@
 using ImGuiNET;
-using MNVTEngine.Editor.ImGuiBackend;
+using Microsoft.Extensions.Logging;
+using MNVTEngine.DebugUI;
+using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Mathematics;
+using MNVTEngine.Runtime;
 
 namespace MNVTEngine.Editor.Panels;
 
 /// <summary>
 /// The active scene through its main camera, as the player would see it. While playing, keyboard and mouse are
 /// forwarded to the game only when this panel has focus; mouse coordinates are relative to the view.
+/// In Play Mode the game's debug overlay (its own ImGui context) draws into the view: F1-F6 while the view has focus.
 /// </summary>
 internal sealed class GameViewPanel : IDisposable
 {
@@ -17,6 +21,7 @@ internal sealed class GameViewPanel : IDisposable
     private bool _hovered;
     private bool _visible;
     private int _focusFrames;
+    private DebugOverlay? _overlay;
 
     public GameViewPanel(EditorContext context)
     {
@@ -48,17 +53,48 @@ internal sealed class GameViewPanel : IDisposable
         ImGui.End();
     }
 
-    /// <summary>Copies window input into the game's input state. Call before ticking Play Mode.</summary>
+    /// <summary>Copies window input into the game's input state, then lets the debug overlay take its share. Call before ticking Play Mode.</summary>
     public void FeedInput()
     {
         var game = _context.PlayMode.Input;
         game.BeginFrame();
+        UpdateOverlay();
         if (!_context.PlayMode.IsPlaying || !_focused)
         {
             game.ReleaseAll();
+            _overlay?.BeginFrame();
             return;
         }
 
+        CopyInput(game);
+        _overlay?.BeginFrame();
+    }
+
+    /// <summary>The overlay lives exactly as long as a play session with diagnostics.</summary>
+    private void UpdateOverlay()
+    {
+        var diagnostics = _context.PlayMode.Diagnostics;
+        if (_overlay is not null && (diagnostics is null || !ReferenceEquals(_overlay.Diagnostics, diagnostics)))
+        {
+            _overlay.Dispose();
+            _overlay = null;
+        }
+
+        if (_overlay is null && diagnostics is not null)
+        {
+            _overlay = new DebugOverlay(_context.Logger);
+            _overlay.Load(new RuntimeOverlayContext(
+                _context.Device, _context.Renderer, diagnostics, _context.PlayMode.Input,
+                () => new OverlayDisplay(Math.Max(1, _view.Target.Width), Math.Max(1, _view.Target.Height), 1f),
+                () => _context.PlayMode.PlayScene,
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "segoeui.ttf"),
+                _context.Logs,
+                Path.Combine(_context.Session.Project.RootDirectory, "Library", "Editor", "game-debug-ui.ini")));
+        }
+    }
+
+    private void CopyInput(InputState game)
+    {
         var window = _context.Window.Input;
         foreach (var key in Enum.GetValues<Key>())
         {
@@ -90,7 +126,31 @@ internal sealed class GameViewPanel : IDisposable
         }
 
         _view.EnsureSize();
-        _context.SceneRenderer.Render(_context.ActiveScene, _view.Target.Width, _view.Target.Height, _view.Target);
+        var diagnostics = _context.PlayMode.Diagnostics;
+        var gpu = diagnostics?.GpuTimer;
+        diagnostics?.SceneRendering();
+        using (new Graphics.GpuScope(gpu, "Scene"))
+        {
+            _context.SceneRenderer.Render(_context.ActiveScene, _view.Target.Width, _view.Target.Height, _view.Target);
+        }
+
+        diagnostics?.SceneRendered();
+        if (_overlay is not null)
+        {
+            using var sample = Core.Diagnostics.Profiler.Sample("Debug Overlay");
+            using var gpuScope = new Graphics.GpuScope(gpu, "Debug Overlay");
+            var camera = _context.ActiveScene.MainCamera is { } main ? SceneRenderer.CreateView(main, _view.Target.Width, _view.Target.Height) : null;
+            _overlay.Render(camera, _view.Target);
+        }
+    }
+
+    /// <summary>Ends the play session's diagnostics frame (after the Game view rendered, even when it is hidden).</summary>
+    public void EndDiagnosticsFrame()
+    {
+        if (_context.PlayMode is { Diagnostics: { } diagnostics, AdvancedThisFrame: true } play)
+        {
+            diagnostics.EndFrame(play.Time);
+        }
     }
 
     /// <summary>Brings the Game tab to front on its next draw (works even before the window first exists).</summary>
@@ -109,5 +169,9 @@ internal sealed class GameViewPanel : IDisposable
         }
     }
 
-    public void Dispose() => _view.Dispose();
+    public void Dispose()
+    {
+        _overlay?.Dispose();
+        _view.Dispose();
+    }
 }

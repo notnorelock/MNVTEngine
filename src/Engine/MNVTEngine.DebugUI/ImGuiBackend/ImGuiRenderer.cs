@@ -3,7 +3,7 @@ using ImGuiNET;
 using MNVTEngine.Graphics;
 using MNVTEngine.Mathematics;
 
-namespace MNVTEngine.Editor.ImGuiBackend;
+namespace MNVTEngine.DebugUI.ImGuiBackend;
 
 /// <summary>
 /// Draws ImGui through <see cref="IGraphicsDevice"/>. ImDrawVert (pos, uv, packed RGBA) has exactly the
@@ -21,7 +21,8 @@ public sealed unsafe class ImGuiRenderer : IDisposable
     private IndexBuffer _indices;
     private nint _nextId = 1;
 
-    public ImGuiRenderer(IGraphicsDevice device, Material material, string? fontPath, float fontSize)
+    /// <param name="fontScale">Framebuffer pixels per logical pixel: the font is rasterized that much larger and drawn scaled down, so text stays sharp on high-DPI displays.</param>
+    public ImGuiRenderer(IGraphicsDevice device, Material material, string? fontPath, float fontSize, float fontScale = 1f)
     {
         _device = device;
         _material = material;
@@ -33,14 +34,20 @@ public sealed unsafe class ImGuiRenderer : IDisposable
         io.BackendFlags |= ImGuiBackendFlags.HasMouseCursors;
         io.NativePtr->IniFilename = null; // layout persistence is handled by EditorApp per project
 
+        fontScale = Math.Clamp(fontScale, 1f, 4f);
         if (fontPath is not null && File.Exists(fontPath))
         {
-            io.Fonts.AddFontFromFileTTF(fontPath, fontSize);
+            io.Fonts.AddFontFromFileTTF(fontPath, fontSize * fontScale);
         }
         else
         {
-            io.Fonts.AddFontDefault();
+            var config = ImGuiNative.ImFontConfig_ImFontConfig();
+            config->SizePixels = 13f * fontScale;
+            io.Fonts.AddFontDefault(config);
+            ImGuiNative.ImFontConfig_destroy(config);
         }
+
+        io.FontGlobalScale = 1f / fontScale;
 
         io.Fonts.GetTexDataAsRGBA32(out byte* pixels, out var width, out var height, out _);
         _fontTexture = device.CreateTexture(width, height, new ReadOnlySpan<byte>(pixels, width * height * 4), SamplerState.LinearClamp, "ImGui.Font");
@@ -96,14 +103,15 @@ public sealed unsafe class ImGuiRenderer : IDisposable
         }
     }
 
-    public void Render(ImDrawDataPtr data, int framebufferWidth, int framebufferHeight)
+    /// <param name="target">Where to draw; null for the back buffer.</param>
+    public void Render(ImDrawDataPtr data, int framebufferWidth, int framebufferHeight, RenderTarget2D? target = null)
     {
         if (data.CmdListsCount == 0 || framebufferWidth <= 0 || framebufferHeight <= 0)
         {
             return;
         }
 
-        _device.SetRenderTarget(null);
+        _device.SetRenderTarget(target);
         _device.SetViewport(0, 0, framebufferWidth, framebufferHeight);
 
         var left = data.DisplayPos.X;
@@ -170,40 +178,4 @@ public sealed unsafe class ImGuiRenderer : IDisposable
             _indices = _device.CreateDynamicIndexBuffer((int)System.Numerics.BitOperations.RoundUpToPowerOf2((uint)indexCount), "ImGui.Indices");
         }
     }
-}
-
-/// <summary>Docking layout construction. ImGui.NET does not wrap the DockBuilder API, so it is bound from cimgui directly.</summary>
-internal static partial class DockBuilder
-{
-    public const int DockSpaceFlag = 1 << 10; // ImGuiDockNodeFlags_DockSpace (internal)
-
-    public enum Direction
-    {
-        Left = 0,
-        Right = 1,
-        Up = 2,
-        Down = 3,
-    }
-
-    [LibraryImport("cimgui", EntryPoint = "igDockBuilderGetNode")]
-    public static partial nint GetNode(uint nodeId);
-
-    [LibraryImport("cimgui", EntryPoint = "igDockBuilderAddNode")]
-    public static partial uint AddNode(uint nodeId, int flags);
-
-    [LibraryImport("cimgui", EntryPoint = "igDockBuilderRemoveNode")]
-    public static partial void RemoveNode(uint nodeId);
-
-    // ImVec2 is passed by value; LibraryImport cannot marshal structs without disabling runtime marshalling assembly-wide.
-    [DllImport("cimgui", EntryPoint = "igDockBuilderSetNodeSize")]
-    public static extern void SetNodeSize(uint nodeId, System.Numerics.Vector2 size);
-
-    [LibraryImport("cimgui", EntryPoint = "igDockBuilderSplitNode")]
-    public static partial uint SplitNode(uint nodeId, Direction direction, float ratio, out uint idAtDirection, out uint idAtOpposite);
-
-    [LibraryImport("cimgui", EntryPoint = "igDockBuilderDockWindow", StringMarshalling = StringMarshalling.Utf8)]
-    public static partial void DockWindow(string windowName, uint nodeId);
-
-    [LibraryImport("cimgui", EntryPoint = "igDockBuilderFinish")]
-    public static partial void Finish(uint nodeId);
 }

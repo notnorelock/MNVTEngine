@@ -108,3 +108,69 @@ public sealed class ProfilerTests : IDisposable
         Assert.Equal(0, profiler.Summarize().Frames);
     }
 }
+
+public sealed class ProfilerDetailTests
+{
+    [Fact]
+    public void Summary_HasPercentiles_AndBeginSampleIsSample()
+    {
+        var profiler = new FrameProfiler();
+        var previous = Profiler.Current;
+        Profiler.Current = profiler;
+        try
+        {
+            for (var i = 0; i < 100; i++)
+            {
+                profiler.BeginFrame();
+                using (Profiler.BeginSample("Work"))
+                {
+                    Thread.SpinWait(i < 99 ? 10 : 2_000_000); // one slow frame
+                }
+
+                profiler.EndFrame();
+            }
+        }
+        finally
+        {
+            Profiler.Current = previous;
+        }
+
+        var summary = profiler.Summarize();
+        Assert.Equal("Work", Assert.Single(summary.Samples).Path);
+        Assert.True(summary.MinFrameMilliseconds <= summary.P50FrameMilliseconds);
+        Assert.True(summary.P50FrameMilliseconds <= summary.P99FrameMilliseconds);
+        Assert.Equal(summary.MaxFrameMilliseconds, summary.P99FrameMilliseconds); // the slow frame is the 99th percentile of 100
+    }
+
+    [Fact]
+    public void FrameDetail_RecordsNoSamples_AndKeepsNestingIntact()
+    {
+        var profiler = new FrameProfiler();
+        var (previous, detail) = (Profiler.Current, Profiler.Detail);
+        Profiler.Current = profiler;
+        try
+        {
+            profiler.BeginFrame();
+            Profiler.Detail = ProfilerDetail.Frame;
+            using (Profiler.Sample("Skipped"))
+            {
+            }
+
+            Profiler.Detail = ProfilerDetail.Systems;
+            using (Profiler.Sample("Outer"))
+            {
+                using (Profiler.Sample("Inner"))
+                {
+                }
+            }
+
+            profiler.EndFrame();
+        }
+        finally
+        {
+            (Profiler.Current, Profiler.Detail) = (previous, detail);
+        }
+
+        Assert.Equal(["Outer", "Outer/Inner"], profiler.LastFrame!.Samples.Select(s => s.Path).Order(StringComparer.Ordinal));
+    }
+}

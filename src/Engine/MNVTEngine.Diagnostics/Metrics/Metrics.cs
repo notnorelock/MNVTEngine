@@ -45,6 +45,7 @@ public static class Metrics
 {
     public const string Fps = "time.fps";
     public const string FrameTime = "time.frame";
+    public const string FrameTimeAverage = "time.frameAverage";
     public const string CpuTime = "time.cpu";
     public const string GpuTime = "time.gpu";
     public const string Uptime = "time.uptime";
@@ -95,6 +96,7 @@ public static class Metrics
     [
         new(Fps, "FPS", "Time", MetricUnit.Count, "Frames per second (from the frame time)."),
         new(FrameTime, "Frame time", "Time", MetricUnit.Milliseconds, "Wall time between frames."),
+        new(FrameTimeAverage, "Frame time (avg)", "Time", MetricUnit.Milliseconds, "Frame time averaged over the last 30 frames."),
         new(CpuTime, "CPU time", "Time", MetricUnit.Milliseconds, "CPU time spent updating and submitting the frame."),
         new(GpuTime, "GPU time", "Time", MetricUnit.Milliseconds, "GPU time of the frame, from timer queries (a few frames late)."),
         new(Uptime, "Uptime", "Time", MetricUnit.Seconds, "Time since the game started."),
@@ -245,6 +247,7 @@ public sealed class MetricsCollector
         {
             if (!_disabled.Contains(provider.Name))
             {
+                using var sample = Core.Diagnostics.Profiler.Sample(provider.Name); // diagnostics cost is itself profiled
                 provider.Collect(metrics);
             }
         }

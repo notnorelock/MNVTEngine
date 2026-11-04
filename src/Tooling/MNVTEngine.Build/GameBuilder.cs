@@ -137,7 +137,7 @@ public sealed partial class GameBuilder(ILogger logger)
 
             // 3. Host with its private runtime; dependencies into Dependencies/Managed and Dependencies/Native.
             LogPublishing(logger, executableName, profile.Target);
-            diagnostics.AddRange(await GamePackager.PublishHostAsync(engineRoot, profile, executableName, key, work, stage, cancellationToken).ConfigureAwait(false));
+            diagnostics.AddRange(await GamePackager.PublishHostAsync(engineRoot, profile, executableName, key, work, stage, GamePackager.IncludesDevTools(profile, project), cancellationToken).ConfigureAwait(false));
             if (diagnostics.HasErrors())
             {
                 return Fail(profile);
@@ -159,6 +159,7 @@ public sealed partial class GameBuilder(ILogger logger)
             ExecutableName = executableName,
             Profile = profile.Name,
             Configuration = profile.Configuration,
+            DevTools = GamePackager.IncludesDevTools(profile, project),
             Target = profile.Target,
             EngineVersion = GamePackager.EngineVersion,
             ScriptsAssembly = scriptsAssembly,

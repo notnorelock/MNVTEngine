@@ -18,6 +18,9 @@
     <SelfContained>false</SelfContained>
     <AppHostDotNetSearch>AppRelative</AppHostDotNetSearch>
     <AppHostRelativeDotNet>Dependencies/Runtime</AppHostRelativeDotNet>
+    <!-- In-game debug UI: on for Debug, off for Release unless the build passes MnvtDevTools=true (diagnostics.includeInRelease). -->
+    <MnvtDevTools Condition="'$(MnvtDevTools)' == '' and '$(Configuration)' != 'Release'">true</MnvtDevTools>
+    <DefineConstants Condition="'$(MnvtDevTools)' == 'true'">$(DefineConstants);MNVT_DEVTOOLS</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <AssemblyMetadata Include="MNVTEngine.ContentKey" Value="$(MnvtContentKey)" Condition="'$(MnvtContentKey)' != ''" />
@@ -27,10 +30,11 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Game settings only concern this executable; engine libraries build the same for every game. -->
-    <ProjectReference Include="..\MNVTEngine.Audio.OpenAL\MNVTEngine.Audio.OpenAL.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey" />
-    <ProjectReference Include="..\MNVTEngine.GameAssemblies\MNVTEngine.GameAssemblies.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey" />
-    <ProjectReference Include="..\MNVTEngine.Graphics.OpenGL\MNVTEngine.Graphics.OpenGL.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey" />
-    <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey" />
+    <ProjectReference Include="..\MNVTEngine.Audio.OpenAL\MNVTEngine.Audio.OpenAL.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
+    <ProjectReference Include="..\MNVTEngine.GameAssemblies\MNVTEngine.GameAssemblies.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
+    <ProjectReference Include="..\MNVTEngine.Graphics.OpenGL\MNVTEngine.Graphics.OpenGL.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
+    <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
+    <ProjectReference Include="..\MNVTEngine.DebugUI\MNVTEngine.DebugUI.csproj" Condition="'$(MnvtDevTools)' == 'true'" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
   </ItemGroup>
 
   <!-- Private runtime in the layout of a .NET install (host/fxr + shared/Microsoft.NETCore.App), as hostfxr requires.

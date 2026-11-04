@@ -1,6 +1,6 @@
 using ImGuiNET;
 using MNVTEngine.Assets;
-using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Serialization;
 using SysVector2 = System.Numerics.Vector2;
 using SysVector4 = System.Numerics.Vector4;
@@ -166,7 +166,7 @@ internal sealed class ProjectPanel(EditorContext context)
             {
                 if (ImGui.IsItemHovered())
                 {
-                    ImGui.SetTooltip(string.Join('\n', record!.Messages));
+                    Gui.Tooltip(string.Join('\n', record!.Messages));
                 }
             }
 
@@ -292,7 +292,7 @@ internal sealed class ProjectPanel(EditorContext context)
                 var dependents = Assets.GetDependents(guid);
                 if (dependents.Count > 0)
                 {
-                    ImGui.TextColored(new SysVector4(1f, 0.7f, 0.3f, 1f), $"Referenced by {dependents.Count} asset(s); those references will break:");
+                    Gui.TextColored(new SysVector4(1f, 0.7f, 0.3f, 1f), $"Referenced by {dependents.Count} asset(s); those references will break:");
                     foreach (var dependent in dependents)
                     {
                         Gui.Muted("  " + dependent.Path);

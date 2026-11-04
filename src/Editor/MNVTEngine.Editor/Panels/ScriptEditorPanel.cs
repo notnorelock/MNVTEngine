@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 using ImGuiNET;
-using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Editor.Services;
 using MNVTEngine.Scripting.Syntax;
 using SysVector2 = System.Numerics.Vector2;
@@ -114,7 +114,7 @@ internal sealed unsafe class ScriptEditorPanel(EditorContext context, ScriptRelo
         DrawToolbar();
         if (_error is not null)
         {
-            ImGui.TextColored(ErrorColor, _error);
+            Gui.TextColored(ErrorColor, _error);
         }
 
         if (_documents.Count == 0)

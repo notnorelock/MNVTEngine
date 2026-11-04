@@ -2,7 +2,7 @@ using System.Globalization;
 using ImGuiNET;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Core.Diagnostics;
-using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.DebugUI.ImGuiBackend;
 using SysVector2 = System.Numerics.Vector2;
 
 namespace MNVTEngine.Editor.Panels;

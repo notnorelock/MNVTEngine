@@ -52,6 +52,9 @@ public sealed partial class GamePackage
 
     public string EngineVersion { get; set; } = "";
 
+    /// <summary>True when the in-game debug UI (and Dear ImGui) ships: Debug builds, or Release when the project opts in.</summary>
+    public bool DevTools { get; set; }
+
     /// <summary>The game's C# code: archive entry such as "Scripts/MyGame.Scripts.dll"; null without C# scripts.</summary>
     public string? ScriptsAssembly { get; set; }
 

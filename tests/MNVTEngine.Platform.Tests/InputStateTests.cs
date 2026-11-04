@@ -127,5 +127,51 @@ public class InputStateTests
     }
 
     [Fact]
+    public void Capture_HidesKeyboardAndMouseFromGameplay_UntilReleased()
+    {
+        var input = new InputState();
+        input.BeginFrame();
+        input.SetKey(Key.A, true);
+        input.SetMouseButton(MouseButton.Left, true);
+        input.AddScroll(new Vector2(0, 1));
+        input.AddText('a');
+
+        input.Capture(keyboard: true, mouse: false);
+        Assert.False(input.IsKeyDown(Key.A));
+        Assert.False(input.WasKeyPressed(Key.A));
+        Assert.Equal("", input.TextInput);
+        Assert.Equal(0f, input.GetAxis("Horizontal") + (input.IsKeyDown(Key.D) ? 1 : 0));
+        Assert.True(input.IsMouseButtonDown(MouseButton.Left));
+
+        input.Capture(keyboard: false, mouse: true);
+        Assert.True(input.IsKeyDown(Key.A));
+        Assert.False(input.IsMouseButtonDown(MouseButton.Left));
+        Assert.Equal(Vector2.Zero, input.ScrollDelta);
+
+        input.ReleaseCapture();
+        Assert.True(input.WasKeyPressed(Key.A) && input.IsMouseButtonDown(MouseButton.Left));
+        Assert.Equal(new Vector2(0, 1), input.ScrollDelta);
+    }
+
+    [Fact]
+    public void SuppressedKey_StaysHiddenUntilReleased()
+    {
+        var input = new InputState();
+        input.BeginFrame();
+        input.SetKey(Key.F1, true);
+        input.SetKey(Key.A, true);
+        input.Suppress(Key.F1);
+        Assert.False(input.WasKeyPressed(Key.F1));
+        Assert.True(input.IsKeyDown(Key.A));
+
+        input.BeginFrame(); // still held
+        Assert.False(input.IsKeyDown(Key.F1));
+        input.SetKey(Key.F1, false);
+        input.BeginFrame();
+        input.SetKey(Key.F1, true); // a new press is visible again
+        Assert.True(input.WasKeyPressed(Key.F1));
+    }
+
+    [Fact]
     public void EveryEngineKey_MapsToASilkKey() => Assert.Empty(SilkInputBridge.UnmappedKeys);
 }

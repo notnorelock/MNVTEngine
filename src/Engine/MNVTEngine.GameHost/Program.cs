@@ -30,6 +30,13 @@ internal static class Game
         var host = typeof(Game).Assembly;
         var data = Path.Combine(AppContext.BaseDirectory, GamePackage.DataFolder(host.GetName().Name!));
         using var hub = new LogHub().AddSink(new ConsoleLogSink());
+#if MNVT_DEVTOOLS
+        var debugLogs = new InMemoryLoggerProvider(capacity: 5000);
+        hub.AddSink(debugLogs);
+        var tools = new DevelopmentTools(log => new MNVTEngine.DebugUI.DebugOverlay(log), debugLogs);
+#else
+        DevelopmentTools? tools = null; // Release: no debug UI, no diagnostics
+#endif
         var fileLog = FileLogSink.TryCreate(Path.Combine(AppContext.BaseDirectory, "Logs", "game.log"), out var fileLogError);
         if (fileLog is not null)
         {
@@ -76,7 +83,8 @@ internal static class Game
                 loggerFactory,
                 (_, registry) => LoadScripts(package, archive, registry, logger),
                 archive,
-                Audio.OpenAL.OpenALAudioDevice.Create);
+                Audio.OpenAL.OpenALAudioDevice.Create,
+                tools);
         }
     }
 

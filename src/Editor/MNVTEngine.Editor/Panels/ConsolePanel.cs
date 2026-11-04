@@ -2,7 +2,7 @@ using System.Globalization;
 using ImGuiNET;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Core.Logging;
-using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Runtime;
 using SysVector4 = System.Numerics.Vector4;
 
@@ -83,7 +83,7 @@ internal sealed class ConsolePanel(EditorContext context)
 
                 if (ImGui.IsItemHovered())
                 {
-                    ImGui.SetTooltip(Details(entry));
+                    Gui.Tooltip(Details(entry));
                 }
             }
 
@@ -236,7 +236,7 @@ internal sealed class ConsolePanel(EditorContext context)
 
         if (_levelsError is not null)
         {
-            ImGui.TextColored(new SysVector4(1f, 0.42f, 0.42f, 1f), _levelsError);
+            Gui.TextColored(new SysVector4(1f, 0.42f, 0.42f, 1f), _levelsError);
         }
 
         ImGui.EndPopup();

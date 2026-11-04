@@ -1,6 +1,6 @@
 using ImGuiNET;
 using Microsoft.Extensions.Logging;
-using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Editor.Services;
 using MNVTEngine.Mathematics;
 using MNVTEngine.Scenes;
@@ -113,7 +113,7 @@ internal sealed partial class InspectorPanel(EditorContext context)
             DrawComponentContextMenu(component);
             if (open)
             {
-                ImGui.TextColored(new System.Numerics.Vector4(1f, 0.7f, 0.3f, 1f), "Type is not registered. Data is kept and saved unchanged.");
+                Gui.TextColored(new System.Numerics.Vector4(1f, 0.7f, 0.3f, 1f), "Type is not registered. Data is kept and saved unchanged.");
                 Gui.Muted(missing.Data.ToString(Newtonsoft.Json.Formatting.None));
             }
 
@@ -286,7 +286,7 @@ internal sealed partial class InspectorPanel(EditorContext context)
 
             if (ImGui.IsItemHovered())
             {
-                ImGui.SetTooltip($"Tile {tile}");
+                Gui.Tooltip($"Tile {tile}");
             }
         }
     }
@@ -376,7 +376,7 @@ internal sealed partial class InspectorPanel(EditorContext context)
                 (changed, updated) = DrawReference(member, value);
                 break;
             default:
-                ImGui.TextDisabled(value is System.Collections.ICollection items
+                Gui.TextDisabled(value is System.Collections.ICollection items
                     ? $"{label}: {items.Count} items"
                     : $"{label}: {value?.ToString() ?? "none"} (not editable)");
                 break;
@@ -450,7 +450,7 @@ internal sealed partial class InspectorPanel(EditorContext context)
 
         if (record is not null && ImGui.IsItemHovered())
         {
-            ImGui.SetTooltip(record.Path);
+            Gui.Tooltip(record.Path);
         }
 
         var result = (false, (object?)value);

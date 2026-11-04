@@ -59,6 +59,12 @@ This replaces the nine Editor projects in the original proposal. They would have
 - **When it is cleared:** opening or creating a scene clears the history.
 - **Play Mode:** undo is off while playing, because Play Mode edits are discarded on Stop anyway.
 
+## Runtime diagnostics in Play Mode
+
+The game's debug interface runs inside the Game view during Play Mode, with its own ImGui context: the HUD (F1), profiler (F2), console (F3), debug drawing (F4), warnings (F5) and all windows (F6). The Game view must have focus for these keys. Its draw counts are the game's own; the Scene view and the editor UI are not included. The editor's Profiler panel and the game's diagnostics share one profiler.
+
+**Window → Diagnostics Settings** edits the project's `diagnostics` section: debug UI toggles, keys, the HUD's look, budgets and thresholds, and which windows and metric providers exist. Changes apply from the next Play. **Save to project** writes them into the `.mnvtproj`, so exported Debug builds use them too. See [Runtime diagnostics](../engine/diagnostics.md).
+
 ## Script Editor
 
 The Script Editor is docked next to the Scene and Game views.

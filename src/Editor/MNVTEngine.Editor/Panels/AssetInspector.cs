@@ -1,6 +1,6 @@
 using ImGuiNET;
 using MNVTEngine.Assets;
-using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Graphics;
 using MNVTEngine.Serialization;
 using Newtonsoft.Json.Linq;
@@ -33,10 +33,10 @@ internal sealed class AssetInspector(EditorContext context)
         Gui.Muted(record.Path);
         Gui.Muted($"{record.Type} - guid {record.Guid}");
         var statusColor = record.Status == AssetImportStatus.Failed ? new SysVector4(1f, 0.45f, 0.45f, 1f) : new SysVector4(0.55f, 0.85f, 0.55f, 1f);
-        ImGui.TextColored(statusColor, record.Status.ToString());
+        Gui.TextColored(statusColor, record.Status.ToString());
         foreach (var message in record.Messages)
         {
-            ImGui.TextWrapped(message);
+            Gui.TextWrapped(message);
         }
 
         foreach (var (key, value) in record.Properties.OrderBy(p => p.Key, StringComparer.Ordinal))
@@ -149,7 +149,7 @@ internal sealed class AssetInspector(EditorContext context)
         {
             if (record is null)
             {
-                ImGui.TextColored(new SysVector4(1f, 0.45f, 0.45f, 1f), "(missing asset)");
+                Gui.TextColored(new SysVector4(1f, 0.45f, 0.45f, 1f), "(missing asset)");
             }
             else if (ImGui.Selectable(record.Path))
             {

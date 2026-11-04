@@ -172,6 +172,18 @@ public sealed class GameProject
         return project;
     }
 
+    /// <summary>Writes the "diagnostics" section of the project file, leaving the rest of the file as it is.</summary>
+    /// <exception cref="IOException">The project file cannot be read or written.</exception>
+    /// <exception cref="JsonException">The project file is no longer valid JSON.</exception>
+    public void SaveDiagnostics(Diagnostics.DiagnosticsSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        var document = JObject.Parse(File.ReadAllText(ProjectFile));
+        document["diagnostics"] = JObject.FromObject(settings, MnvtJson.CreateSerializer());
+        File.WriteAllText(ProjectFile, document.ToString(Formatting.Indented) + Environment.NewLine);
+        Diagnostics = settings.Clone();
+    }
+
     /// <exception cref="FileNotFoundException">No project file, or several in the directory.</exception>
     public static string FindProjectFile(string path)
     {

@@ -1,5 +1,5 @@
 using ImGuiNET;
-using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Editor.Services;
 using SysVector4 = System.Numerics.Vector4;
 
@@ -34,7 +34,7 @@ internal sealed class ScriptDebuggerPanel(EditorContext context)
         if (debugger.Break is { } current)
         {
             var asset = context.Session.Assets.Get(current.Script)?.Path ?? current.Script.ToString();
-            ImGui.TextColored(StopColor, $"Stopped at {asset}:{current.Line} in '{current.Fiber.Name}'");
+            Gui.TextColored(StopColor, $"Stopped at {asset}:{current.Line} in '{current.Fiber.Name}'");
             if (ImGui.Button("Continue (F5)"))
             {
                 debugger.Continue();
@@ -50,7 +50,7 @@ internal sealed class ScriptDebuggerPanel(EditorContext context)
             {
                 foreach (var frame in current.Fiber.GetStackTrace())
                 {
-                    ImGui.BulletText($"at {frame.Function} ({PathOf(frame.Source)}:{frame.Line})");
+                    Gui.Bullet($"at {frame.Function} ({PathOf(frame.Source)}:{frame.Line})");
                 }
             }
 
@@ -71,7 +71,7 @@ internal sealed class ScriptDebuggerPanel(EditorContext context)
             Gui.Muted("Enter Play Mode to debug scripts. Breakpoints:");
             foreach (var (script, line) in debugger.Breakpoints.OrderBy(b => b.Line))
             {
-                ImGui.BulletText($"{context.Session.Assets.Get(script)?.Path ?? script.ToString()}:{line}");
+                Gui.Bullet($"{context.Session.Assets.Get(script)?.Path ?? script.ToString()}:{line}");
             }
         }
 
@@ -126,7 +126,7 @@ internal sealed class ScriptDebuggerPanel(EditorContext context)
                 {
                     foreach (var (objective, state) in mission.Objectives)
                     {
-                        ImGui.BulletText($"{objective}: {state.State}");
+                        Gui.Bullet($"{objective}: {state.State}");
                     }
 
                     ImGui.TreePop();
@@ -142,7 +142,7 @@ internal sealed class ScriptDebuggerPanel(EditorContext context)
             {
                 var stack = fiber.GetStackTrace();
                 var top = stack.Count > 0 ? stack[0] : null;
-                ImGui.BulletText($"{fiber.Name}: {fiber.State}{(top is null ? "" : $" at line {top.Line}")}");
+                Gui.Bullet($"{fiber.Name}: {fiber.State}{(top is null ? "" : $" at line {top.Line}")}");
             }
 
             ImGui.TreePop();

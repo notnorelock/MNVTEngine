@@ -1,5 +1,5 @@
 using ImGuiNET;
-using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Editor.Services;
 using MNVTEngine.Scripting.Compiler;
 using MNVTEngine.Scripting.Missions;
@@ -39,7 +39,7 @@ internal sealed class ScriptView
                 {
                     foreach (var objective in objectives)
                     {
-                        ImGui.BulletText(objective);
+                        Gui.Bullet(objective);
                     }
 
                     ImGui.TreePop();
@@ -69,7 +69,7 @@ internal sealed class ScriptView
 
                 if (ImGui.IsItemHovered())
                 {
-                    ImGui.SetTooltip(hasBreakpoint ? "Remove breakpoint" : "Set breakpoint");
+                    Gui.Tooltip(hasBreakpoint ? "Remove breakpoint" : "Set breakpoint");
                 }
 
                 ImGui.PopID();
@@ -77,19 +77,19 @@ internal sealed class ScriptView
                 var text = $"{line,4}  {_lines[i]}";
                 if (line == stoppedHere)
                 {
-                    ImGui.TextColored(StopColor, "> " + text.TrimStart());
+                    Gui.TextColored(StopColor, "> " + text.TrimStart());
                 }
                 else if (hasBreakpoint)
                 {
-                    ImGui.TextColored(BreakpointColor, text);
+                    Gui.TextColored(BreakpointColor, text);
                 }
                 else if (_diagnostics.TryGetValue(line, out var problems))
                 {
                     var color = problems.Any(p => p.Severity == DiagnosticSeverity.Error) ? ErrorColor : WarningColor;
-                    ImGui.TextColored(color, text);
+                    Gui.TextColored(color, text);
                     if (ImGui.IsItemHovered())
                     {
-                        ImGui.SetTooltip(string.Join("\n", problems.Select(p => $"{p.Code}: {p.Message}")));
+                        Gui.Tooltip(string.Join("\n", problems.Select(p => $"{p.Code}: {p.Message}")));
                     }
                 }
                 else if (_lines[i].TrimStart().StartsWith("//", StringComparison.Ordinal))

@@ -1,4 +1,4 @@
-using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.DebugUI.ImGuiBackend;
 
 namespace MNVTEngine.Editor.Tests;
 

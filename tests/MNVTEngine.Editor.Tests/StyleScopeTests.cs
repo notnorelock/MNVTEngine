@@ -1,5 +1,5 @@
 using ImGuiNET;
-using MNVTEngine.Editor.ImGuiBackend;
+using MNVTEngine.DebugUI.ImGuiBackend;
 using SysVector2 = System.Numerics.Vector2;
 using SysVector4 = System.Numerics.Vector4;
 

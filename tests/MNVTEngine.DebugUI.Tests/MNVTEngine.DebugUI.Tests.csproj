@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Integration tests: need a GPU with OpenGL 4.5. Skipped (not passed) when no context can be created. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.DebugUI\MNVTEngine.DebugUI.csproj" />
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics.OpenGL\MNVTEngine.Graphics.OpenGL.csproj" />
+  </ItemGroup>
+</Project>

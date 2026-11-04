@@ -25,6 +25,12 @@ public sealed record SampleSummary(string Path, double AverageMilliseconds, doub
 
 public sealed record ProfileSummary(int Frames, double AverageFrameMilliseconds, double P95FrameMilliseconds, double MaxFrameMilliseconds, double AverageAllocatedKilobytes, int Gen0Collections, int Gen1Collections, int Gen2Collections, IReadOnlyList<SampleSummary> Samples, IReadOnlyDictionary<string, double> AverageCounters)
 {
+    public double MinFrameMilliseconds { get; init; }
+
+    public double P50FrameMilliseconds { get; init; }
+
+    public double P99FrameMilliseconds { get; init; }
+
     public double AverageFps => AverageFrameMilliseconds > 0 ? 1000.0 / AverageFrameMilliseconds : 0;
 }
 
@@ -136,6 +142,7 @@ public sealed class FrameProfiler(int history = 300)
         }
 
         var times = recent.Select(f => f.Milliseconds).Order().ToList();
+        double Percentile(double p) => times[Math.Min(times.Count - 1, (int)(times.Count * p))];
         var samples = recent.SelectMany(f => f.Samples)
             .GroupBy(s => s.Path, StringComparer.Ordinal)
             .Select(g => new SampleSummary(g.Key, g.Sum(s => s.Milliseconds) / recent.Count, g.Max(s => s.Milliseconds), (double)g.Sum(s => s.Calls) / recent.Count))
@@ -153,7 +160,12 @@ public sealed class FrameProfiler(int history = 300)
             recent.Sum(f => f.Gen1Collections),
             recent.Sum(f => f.Gen2Collections),
             samples,
-            counters);
+            counters)
+        {
+            MinFrameMilliseconds = times[0],
+            P50FrameMilliseconds = Percentile(0.5),
+            P99FrameMilliseconds = Percentile(0.99),
+        };
     }
 
     /// <summary>Plain-text report of <see cref="Summarize"/>.</summary>
@@ -163,7 +175,7 @@ public sealed class FrameProfiler(int history = 300)
         var text = new StringBuilder();
         var c = CultureInfo.InvariantCulture;
         text.AppendLine(c, $"MNVTEngine profile: {summary.Frames} frames");
-        text.AppendLine(c, $"Frame time: avg {summary.AverageFrameMilliseconds:0.000} ms ({summary.AverageFps:0} fps), p95 {summary.P95FrameMilliseconds:0.000} ms, max {summary.MaxFrameMilliseconds:0.000} ms");
+        text.AppendLine(c, $"Frame time: avg {summary.AverageFrameMilliseconds:0.000} ms ({summary.AverageFps:0} fps), min {summary.MinFrameMilliseconds:0.000}, p50 {summary.P50FrameMilliseconds:0.000}, p95 {summary.P95FrameMilliseconds:0.000}, p99 {summary.P99FrameMilliseconds:0.000}, max {summary.MaxFrameMilliseconds:0.000} ms");
         text.AppendLine(c, $"Allocated: {summary.AverageAllocatedKilobytes:0.0} KB/frame; GC gen0 {summary.Gen0Collections}, gen1 {summary.Gen1Collections}, gen2 {summary.Gen2Collections}");
         text.AppendLine();
         text.AppendLine(c, $"{"Sample",-40} {"avg ms",9} {"max ms",9} {"calls",7}");
@@ -194,6 +206,18 @@ public static class Profiler
     [ThreadStatic]
     private static FrameProfiler? _current;
 
+    /// <summary>
+    /// Instrumentation level: <see cref="ProfilerDetail.Systems"/> times engine phases and systems; <see cref="ProfilerDetail.Scripts"/>
+    /// also times every component callback per type ("Player.Update"), which costs a dictionary lookup per call.
+    /// </summary>
+    public static ProfilerDetail Detail { get; set; } = ProfilerDetail.Systems;
+
+    /// <summary>True when per-component timing is on and a profiler records on this thread.</summary>
+    public static bool TimesComponents => Detail >= ProfilerDetail.Scripts && _current is not null;
+
+    /// <summary>Same as <see cref="Sample"/>: <c>using (Profiler.BeginSample("PlayerController.Update")) { ... }</c>.</summary>
+    public static ProfileScope BeginSample(string name) => Sample(name);
+
     public static FrameProfiler? Current
     {
         get => _current;
@@ -203,12 +227,24 @@ public static class Profiler
     /// <summary>Times a region until the returned scope is disposed: <c>using var _ = Profiler.Sample("AI");</c>. Use constant names.</summary>
     public static ProfileScope Sample(string name)
     {
-        var profiler = _current;
+        var profiler = Detail > ProfilerDetail.Frame ? _current : null; // begin and end are skipped together
         profiler?.Begin(name);
         return new ProfileScope(profiler);
     }
 
     public static void Count(string name, long value) => _current?.SetCounter(name, value);
+}
+
+public enum ProfilerDetail
+{
+    /// <summary>Frame totals only.</summary>
+    Frame,
+
+    /// <summary>Engine phases and systems (default).</summary>
+    Systems,
+
+    /// <summary>Also every component callback, per component type.</summary>
+    Scripts,
 }
 
 public readonly struct ProfileScope(FrameProfiler? profiler) : IDisposable

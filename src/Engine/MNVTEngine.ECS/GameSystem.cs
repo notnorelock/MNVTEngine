@@ -53,6 +53,11 @@ public sealed class SystemScheduler
 
     public bool Remove(GameSystem system) => _systems.Remove(system);
 
+    public int Count => _systems.Count;
+
+    /// <summary>Registered systems in execution order.</summary>
+    public IReadOnlyList<GameSystem> All => _systems;
+
     public T? Get<T>()
         where T : GameSystem => _systems.OfType<T>().FirstOrDefault();
 

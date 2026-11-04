@@ -439,15 +439,34 @@ public sealed partial class Scene
 
     private void Invoke(Component component, Action<Component> callback, string name)
     {
+        using var sample = Core.Diagnostics.Profiler.TimesComponents ? Core.Diagnostics.Profiler.Sample(SampleName(component.GetType(), name)) : default;
         try
         {
             callback(component);
         }
         catch (Exception ex) when (!RethrowScriptExceptions)
         {
+            ScriptExceptionCount++;
+            _recentErrors.Enqueue(new ScriptError(DateTimeOffset.UtcNow, component.GetType().Name, name, component.GameObject.Name, ex));
+            while (_recentErrors.Count > 32)
+            {
+                _recentErrors.Dequeue();
+            }
+
             LogScriptException(Logger, ex, component.GetType().Name, name, component.GameObject.Name);
         }
     }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(Type, string), string> SampleNames = new();
+    private readonly Queue<ScriptError> _recentErrors = new();
+
+    /// <summary>Component callbacks that threw since the scene started.</summary>
+    public int ScriptExceptionCount { get; private set; }
+
+    /// <summary>The last 32 of them, oldest first.</summary>
+    public IReadOnlyCollection<ScriptError> RecentScriptErrors => _recentErrors;
+
+    private static string SampleName(Type type, string callback) => SampleNames.GetOrAdd((type, callback), static key => $"{key.Item1.Name}.{key.Item2}");
 
     private void FlushDestroyQueue()
     {
@@ -551,3 +570,6 @@ public sealed partial class Scene
     [LoggerMessage(EventId = 2000, Level = LogLevel.Error, Message = "{Component}.{Callback} on '{GameObject}' threw; continuing")]
     private static partial void LogScriptException(ILogger logger, Exception exception, string component, string callback, string gameObject);
 }
+
+/// <summary>A component callback that threw (the scene logged it and continued).</summary>
+public sealed record ScriptError(DateTimeOffset Time, string Component, string Callback, string GameObject, Exception Exception);

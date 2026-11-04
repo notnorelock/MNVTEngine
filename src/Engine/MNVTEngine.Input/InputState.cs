@@ -23,8 +23,11 @@ public sealed class InputState
         ["Vertical"] = new InputAxis([Key.S, Key.Down], [Key.W, Key.Up]),
     };
 
+    private readonly bool[] _keySuppressed = new bool[KeyCount];
     private readonly System.Text.StringBuilder _text = new();
     private Vector2 _previousMousePosition;
+    private bool _keyboardCaptured;
+    private bool _mouseCaptured;
 
     /// <summary>Cursor position in window pixels, origin top-left.</summary>
     public Vector2 MousePosition { get; private set; }
@@ -33,22 +36,49 @@ public sealed class InputState
     public Vector2 MouseDelta { get; private set; }
 
     /// <summary>Wheel movement this frame; positive Y is away from the user.</summary>
-    public Vector2 ScrollDelta { get; private set; }
+    public Vector2 ScrollDelta => _mouseCaptured ? Vector2.Zero : _scroll;
 
     /// <summary>Characters typed this frame (layout- and IME-aware), for text fields.</summary>
-    public string TextInput => _text.ToString();
+    public string TextInput => _keyboardCaptured ? "" : _text.ToString();
 
-    public bool IsKeyDown(Key key) => _keyDown[(int)key];
+    /// <summary>True while a debug UI owns the keyboard: key queries read as released.</summary>
+    public bool KeyboardCaptured => _keyboardCaptured;
 
-    public bool WasKeyPressed(Key key) => _keyPressed[(int)key];
+    /// <summary>True while a debug UI owns the mouse: button and wheel queries read as idle (the position stays visible).</summary>
+    public bool MouseCaptured => _mouseCaptured;
 
-    public bool WasKeyReleased(Key key) => _keyReleased[(int)key];
+    private Vector2 _scroll;
 
-    public bool IsMouseButtonDown(MouseButton button) => _buttonDown[(int)button];
+    public bool IsKeyDown(Key key) => Visible(key) && _keyDown[(int)key];
 
-    public bool WasMouseButtonPressed(MouseButton button) => _buttonPressed[(int)button];
+    public bool WasKeyPressed(Key key) => Visible(key) && _keyPressed[(int)key];
 
-    public bool WasMouseButtonReleased(MouseButton button) => _buttonReleased[(int)button];
+    public bool WasKeyReleased(Key key) => Visible(key) && _keyReleased[(int)key];
+
+    public bool IsMouseButtonDown(MouseButton button) => !_mouseCaptured && _buttonDown[(int)button];
+
+    public bool WasMouseButtonPressed(MouseButton button) => !_mouseCaptured && _buttonPressed[(int)button];
+
+    public bool WasMouseButtonReleased(MouseButton button) => !_mouseCaptured && _buttonReleased[(int)button];
+
+    /// <summary>
+    /// Hides keyboard and/or mouse from gameplay until <see cref="ReleaseCapture"/> (used by the runtime debug UI while it
+    /// has focus). The debug UI reads input after releasing the capture at the start of its frame.
+    /// </summary>
+    public void Capture(bool keyboard, bool mouse) => (_keyboardCaptured, _mouseCaptured) = (keyboard, mouse);
+
+    public void ReleaseCapture() => (_keyboardCaptured, _mouseCaptured) = (false, false);
+
+    /// <summary>Hides one key from gameplay until it is released (debug shortcuts).</summary>
+    public void Suppress(Key key)
+    {
+        if (key != Key.Unknown)
+        {
+            _keySuppressed[(int)key] = true;
+        }
+    }
+
+    private bool Visible(Key key) => !_keyboardCaptured && !_keySuppressed[(int)key];
 
     /// <summary>Digital axis value in [-1, 1]. Built-in axes: "Horizontal" (A/D, arrows) and "Vertical" (S/W, arrows).</summary>
     /// <exception cref="KeyNotFoundException">No axis with this name is defined.</exception>
@@ -87,8 +117,13 @@ public sealed class InputState
         Array.Clear(_keyReleased);
         Array.Clear(_buttonPressed);
         Array.Clear(_buttonReleased);
-        ScrollDelta = Vector2.Zero;
+        _scroll = Vector2.Zero;
         _text.Clear();
+        for (var i = 0; i < _keySuppressed.Length; i++)
+        {
+            _keySuppressed[i] &= _keyDown[i]; // a suppressed key stays hidden until released
+        }
+
         MouseDelta = MousePosition - _previousMousePosition;
         _previousMousePosition = MousePosition;
     }
@@ -108,7 +143,7 @@ public sealed class InputState
 
     public void SetMousePosition(Vector2 position) => MousePosition = position;
 
-    public void AddScroll(Vector2 delta) => ScrollDelta += delta;
+    public void AddScroll(Vector2 delta) => _scroll += delta;
 
     public void AddText(char character) => _text.Append(character);
 

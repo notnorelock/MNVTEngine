@@ -32,6 +32,12 @@ public sealed partial class ResourceCache : IDisposable
 
     public int LoadedTextureCount => _textures.Values.Count(t => t != _missing);
 
+    /// <summary>Textures that failed to load and show the missing-texture placeholder.</summary>
+    public int FailedTextureCount => _missing is null ? 0 : _textures.Values.Count(t => t == _missing);
+
+    /// <summary>Loaded textures with their asset ids (for the asset inspector; walks the cache).</summary>
+    public IEnumerable<(Guid Asset, Texture2D Texture)> LoadedTextures => _textures.Where(p => p.Value != _missing).Select(p => (p.Key, p.Value));
+
     /// <summary>Raised after cached textures were released because their assets changed (e.g. new import settings).</summary>
     public event Action<IReadOnlyCollection<Guid>>? TexturesEvicted;
 
@@ -311,6 +317,9 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
 
     public int SpritesCulled { get; private set; }
 
+    /// <summary>Sprite batch flushes (draw calls) of the last <see cref="RenderView"/>.</summary>
+    public int BatchesDrawn { get; private set; }
+
     /// <summary>Renders through the scene's main camera into <paramref name="target"/> (or the back buffer).</summary>
     public void Render(Scene scene, int width, int height, RenderTarget2D? target = null)
     {
@@ -413,7 +422,8 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
         Core.Diagnostics.Profiler.Count("Sprites drawn", SpritesDrawn);
         Core.Diagnostics.Profiler.Count("Sprites culled", SpritesCulled);
         Core.Diagnostics.Profiler.Count("Lights", LightsDrawn);
-        Core.Diagnostics.Profiler.Count("Draw calls", renderer.Batch.DrawCallCount - drawCalls);
+        BatchesDrawn = renderer.Batch.DrawCallCount - drawCalls;
+        Core.Diagnostics.Profiler.Count("Draw calls", BatchesDrawn);
     }
 
     public int LightsDrawn { get; private set; }

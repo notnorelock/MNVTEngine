@@ -7,18 +7,28 @@ using MNVTEngine.Serialization;
 
 namespace MNVTEngine.Runtime;
 
+/// <summary>
+/// Development-only parts a host adds (Player, development exports). Without them the game runs with diagnostics off:
+/// no debug UI, debug draws are no-ops, budgets are not monitored.
+/// </summary>
+/// <param name="CreateOverlay">The in-game debug UI; null runs diagnostics without UI (budget warnings still log).</param>
+/// <param name="Logs">Ring buffer of recent log entries for the debug console (add it to the host's LogHub).</param>
+public sealed record DevelopmentTools(Func<ILogger, IRuntimeOverlay>? CreateOverlay, Core.Logging.InMemoryLoggerProvider? Logs);
+
 /// <summary>Entry point for standalone games.</summary>
 public static partial class GameApplication
 {
     /// <summary>
-    /// Runs a project. Arguments: <c>[project path] [--frames N] [--screenshot file.png] [--debug-gl] [--profile report.txt]</c>.
+    /// Runs a project. Arguments: <c>[project path] [--frames N] [--screenshot file.png] [--debug-gl] [--profile report.txt]
+    /// [--overlay] [--no-diagnostics]</c> (<c>--overlay</c> shows the debug HUD from the start).
     /// Without a path, the single .mnvtproj next to the executable is used.
     /// </summary>
     /// <param name="prepareComponents">Registers game components (e.g. loads compiled scripts); returning false aborts startup.</param>
     /// <param name="archive">Content of an exported game; the project is read from it and a path argument is ignored.</param>
     /// <param name="createAudio">Audio backend; without one (or without an output device) the game runs silently.</param>
+    /// <param name="tools">Development builds: diagnostics and the debug UI.</param>
     /// <returns>Process exit code: 0 ok, 1 resource leaks, 2 project or startup scene could not be loaded, 3 game code failed to load.</returns>
-    public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, Func<GameProject, ComponentRegistry, bool>? prepareComponents = null, ContentArchive? archive = null, AudioDeviceFactory? createAudio = null)
+    public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, Func<GameProject, ComponentRegistry, bool>? prepareComponents = null, ContentArchive? archive = null, AudioDeviceFactory? createAudio = null, DevelopmentTools? tools = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(createDevice);
@@ -59,6 +69,19 @@ public static partial class GameApplication
         var profileReport = Option(args, "--profile");
         var profiler = profileReport is null ? null : new Core.Diagnostics.FrameProfiler(history: 100_000);
         Core.Diagnostics.Profiler.Current = profiler;
+
+        // Diagnostics data lives next to the game (exports) or in the project's Library folder (Player).
+        var diagnosticsFolder = archive is not null ? Path.Combine(AppContext.BaseDirectory, "Logs") : Path.Combine(project.RootDirectory, "Library", "Diagnostics");
+        RuntimeDiagnostics? diagnostics = null;
+        IRuntimeOverlay? overlay = null;
+        if (tools is not null && project.Diagnostics.Enabled && !args.Contains("--no-diagnostics"))
+        {
+            var settings = project.Diagnostics.Clone();
+            settings.ShowOverlayByDefault |= args.Contains("--overlay");
+            diagnostics = new RuntimeDiagnostics(settings, loggerFactory.CreateLogger("Diagnostics"), Path.Combine(diagnosticsFolder, "Profiles"), profiler);
+            overlay = tools.CreateOverlay?.Invoke(loggerFactory.CreateLogger("DebugUI"));
+        }
+
         var runtime = new GameRuntime(project, registry, createDevice, loggerFactory, new GameRuntimeOptions
         {
             ExitAfterFrames = Option(args, "--frames") is { } frames ? int.Parse(frames, CultureInfo.InvariantCulture) : null,
@@ -66,6 +89,12 @@ public static partial class GameApplication
             Archive = archive,
             Audio = audio,
             Profiler = profiler,
+            Diagnostics = diagnostics,
+            Overlay = overlay,
+            DebugLogs = tools?.Logs,
+            DebugLayoutFile = Path.Combine(diagnosticsFolder, "debug-ui.ini"),
+            DebugFontPath = DebugFont(),
+            DebugCommands = [.. args.Select((a, i) => (a, i)).Where(p => p.a == "--debug-command" && p.i + 1 < args.Length).Select(p => args[p.i + 1])],
         });
 
         try
@@ -90,6 +119,10 @@ public static partial class GameApplication
         return runtime.ExitCode;
     }
 
+    /// <summary>Segoe UI on Windows when present; otherwise the debug UI's built-in font.</summary>
+    private static string? DebugFont() =>
+        OperatingSystem.IsWindows() && Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "segoeui.ttf") is var path && File.Exists(path) ? path : null;
+
     private static string? Option(string[] args, string name)
     {
         var i = Array.IndexOf(args, name);
@@ -99,7 +132,7 @@ public static partial class GameApplication
     private static bool IsOptionValue(string[] args, string value)
     {
         var i = Array.IndexOf(args, value);
-        return i > 0 && args[i - 1] is "--frames" or "--screenshot" or "--profile";
+        return i > 0 && args[i - 1] is "--frames" or "--screenshot" or "--profile" or "--debug-command";
     }
 
     [LoggerMessage(EventId = 3201, Level = LogLevel.Information, Message = "Profile written to {Path}: {Frames} frames, avg {Average:0.00} ms, p95 {P95:0.00} ms")]
