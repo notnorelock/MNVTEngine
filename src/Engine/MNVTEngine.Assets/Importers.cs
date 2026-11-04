@@ -53,6 +53,7 @@ public static class AssetImporters
         new TextureImporter(),
         new SceneImporter(AssetTypes.Scene, ".mnvt"),
         new SceneImporter(AssetTypes.Prefab, ".mnvtprefab"),
+        new UILayoutImporter(),
         new JsonImporter(),
         new AnimationImporter(),
         new MaterialImporter(),
@@ -272,6 +273,30 @@ public sealed class MaterialImporter() : SimpleImporter("Material", AssetTypes.M
         catch (DecoderFallbackException ex)
         {
             context.Errors.Add($"Not valid UTF-8 text: {ex.Message}");
+        }
+    }
+}
+
+/// <summary>UI layouts: JSON with a schema version and a root element; references (fonts, images) become dependencies.</summary>
+public sealed class UILayoutImporter() : SimpleImporter("UILayout", AssetTypes.UILayout, ".mnvtui")
+{
+    public override void Import(AssetImportContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        try
+        {
+            var root = AssetImporters.ParseJson(context.Data);
+            if (root is not JObject document || document.Value<int?>("schemaVersion") is null || document["root"] is not JObject)
+            {
+                context.Errors.Add("A UI layout needs \"schemaVersion\" and a \"root\" element.");
+                return;
+            }
+
+            AssetImporters.CollectReferences(root, context.Dependencies);
+        }
+        catch (Exception ex) when (ex is JsonException or DecoderFallbackException)
+        {
+            context.Errors.Add($"Invalid JSON: {ex.Message}");
         }
     }
 }

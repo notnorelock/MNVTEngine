@@ -28,5 +28,8 @@ public static class AssetTypes
     public const string Animation = "Animation";
     public const string Material = "Material";
     public const string Text = "Text";
+
+    /// <summary>A saved UI tree (<c>.mnvtui</c>).</summary>
+    public const string UILayout = "UILayout";
     public const string Unknown = "Unknown";
 }

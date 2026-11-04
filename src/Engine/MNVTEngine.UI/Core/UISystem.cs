@@ -82,6 +82,14 @@ public sealed class UISystem : GameSystem
         _pending.Add((LoadFontAsync(font), loaded, failed));
     }
 
+    /// <summary>Loads a UI layout asset (<c>.mnvtui</c>) as a new element tree; its fonts load through this system's cache.</summary>
+    /// <exception cref="SerializationException">The layout is invalid (with every problem and its path).</exception>
+    public UIElement LoadLayout(AssetRef layout)
+    {
+        var read = Services.ReadAsset ?? throw new InvalidOperationException("This UI system cannot read assets.");
+        return UILayoutSerializer.Load(System.Text.Encoding.UTF8.GetString(read(layout)), layout.ToString(), LoadFont);
+    }
+
     /// <summary>Loads a font asset now (blocking); prefer <see cref="LoadFont(AssetRef, Action{Font}, Action{Exception})"/> during gameplay.</summary>
     public Font LoadFont(AssetRef font) => LoadFontAsync(font).GetAwaiter().GetResult();
 
@@ -168,6 +176,9 @@ public static class UI
 
     /// <summary>Loads a font asset (TTF or OTF) without blocking the frame. Await it only where continuing on a worker thread is fine.</summary>
     public static Task<Font> LoadFontAsync(AssetRef font) => System.LoadFontAsync(font);
+
+    /// <summary>Loads a saved UI layout asset as a new element tree (add it to a context's root); bind behaviour with actions.</summary>
+    public static UIElement LoadLayout(AssetRef layout) => System.LoadLayout(layout);
 
     /// <summary>Loads a font asset on a worker and calls <paramref name="loaded"/> on the game thread: the safe way to apply it to UI.</summary>
     public static void LoadFont(AssetRef font, Action<Font> loaded, Action<Exception>? failed = null) => System.LoadFont(font, loaded, failed);
