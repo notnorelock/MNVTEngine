@@ -64,7 +64,7 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 | `src/Tooling` | `mnvt` CLI, build pipeline and packaging (`Build`), development runner (`Player`) |
 | `templates` | Project templates for `mnvt new` |
 | `scripts` | `mnvt.cmd` wrapper |
-| `samples` | `Platformer` (complete level), `SceneDemo` (feature tour), `HelloWorld` (renderer only) |
+| `samples` | `Platformer` (complete level), `SceneDemo` (feature tour), `UIShowcase` (game UI), `Showcase3D` (3D meshes), `HelloWorld` (renderer only) |
 | `tests` | xUnit v3 tests, including architecture dependency rules and GPU integration tests |
 | `docs` | Architecture and subsystem documentation |
 
@@ -76,7 +76,7 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 - [JSON serialization](docs/serialization/json.md)
 - [2D rendering, frame loop, resource ownership](docs/graphics/rendering.md)
 - [Vulkan 1.4 backend: audit, decisions, synchronization model](docs/graphics/vulkan-migration.md)
-- [3D engine and model pipeline: audit, library choices, plan](docs/graphics/3d-plan.md); [meshes and 3D cameras](docs/graphics/meshes.md)
+- [3D engine and model pipeline: audit, library choices, plan](docs/graphics/3d-plan.md); [meshes, 3D cameras and 3D rendering](docs/graphics/meshes.md)
 - [Scenes, ECS, lifecycle, scene format, standalone runtime](docs/engine/scenes-and-runtime.md)
 - [Editor: panels, Play Mode, ImGui integration](docs/editor/editor.md)
 - [Assets: metas, GUIDs, importers, prefabs](docs/engine/assets.md)

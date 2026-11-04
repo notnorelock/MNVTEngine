@@ -66,4 +66,45 @@ public static class BuiltinShaders
             fragColor = texture(uTexture, vTexCoord) * vColor;
         }
         """);
+
+    /// <summary>
+    /// Unlit 3D mesh shader for <see cref="Meshes.MeshVertex"/>: texture (UV0) × vertex color × <c>uColor</c>. No
+    /// lighting: lit (PBR) shading arrives with the light system.
+    /// </summary>
+    public static ShaderSource Unlit3D { get; } = new(
+        "Builtin/Unlit3D",
+        """
+        #version 450 core
+        layout(location = 0) in vec3 aPosition;
+        layout(location = 3) in vec2 aTexCoord;
+        layout(location = 5) in vec4 aColor;
+
+        uniform mat4 uViewProjection;
+        uniform mat4 uModel;
+
+        out vec2 vTexCoord;
+        out vec4 vColor;
+
+        void main()
+        {
+            vTexCoord = aTexCoord;
+            vColor = aColor;
+            gl_Position = uViewProjection * uModel * vec4(aPosition, 1.0);
+        }
+        """,
+        """
+        #version 450 core
+        in vec2 vTexCoord;
+        in vec4 vColor;
+
+        layout(binding = 0) uniform sampler2D uTexture;
+        uniform vec4 uColor;
+
+        out vec4 fragColor;
+
+        void main()
+        {
+            fragColor = texture(uTexture, vTexCoord) * vColor * uColor;
+        }
+        """);
 }

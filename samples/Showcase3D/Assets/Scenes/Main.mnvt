@@ -1,0 +1,407 @@
+{
+  "schemaVersion": 3,
+  "name": "Main",
+  "gameObjects": [
+    {
+      "id": "d3000000-0000-0000-0000-000000000001",
+      "name": "Main Camera",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 4.0,
+          "z": 10.0
+        },
+        "localRotation": {
+          "x": -0.16754349231465632,
+          "y": -0.0,
+          "z": -0.0,
+          "w": 0.9858646855339777
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.Camera",
+          "data": {
+            "projection": "Perspective",
+            "fieldOfView": 60.0,
+            "nearClip": 0.1,
+            "farClip": 200.0,
+            "backgroundColor": {
+              "r": 0.08,
+              "g": 0.09,
+              "b": 0.12,
+              "a": 1.0
+            }
+          },
+          "id": "d3100000-0000-0000-0001-000000000000",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000002",
+      "name": "Floor",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "data": {
+            "primitive": "Plane",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "texture": "asset:d3000000-0000-4000-8000-000000000001"
+          },
+          "id": "d3100000-0000-0000-0002-000000000000",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000003",
+      "name": "Cube",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": -3.0,
+          "y": 0.5,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "data": {
+            "primitive": "Cube",
+            "color": {
+              "r": 0.9,
+              "g": 0.25,
+              "b": 0.25,
+              "a": 1
+            }
+          },
+          "id": "d3100000-0000-0000-0003-000000000000",
+          "enabled": true
+        },
+        {
+          "type": "Showcase3D.Spinner",
+          "data": {
+            "degreesPerSecond": {
+              "x": 0,
+              "y": 45,
+              "z": 0
+            }
+          },
+          "id": "d3100000-0000-0000-0003-000000000001",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000004",
+      "name": "Sphere",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": -1.0,
+          "y": 0.5,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "data": {
+            "primitive": "Sphere",
+            "color": {
+              "r": 0.3,
+              "g": 0.85,
+              "b": 0.35,
+              "a": 1
+            },
+            "texture": "asset:d3000000-0000-4000-8000-000000000001"
+          },
+          "id": "d3100000-0000-0000-0004-000000000000",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000005",
+      "name": "Cylinder",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "data": {
+            "primitive": "Cylinder",
+            "color": {
+              "r": 0.3,
+              "g": 0.5,
+              "b": 0.95,
+              "a": 1
+            }
+          },
+          "id": "d3100000-0000-0000-0005-000000000000",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000006",
+      "name": "Capsule",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 3.0,
+          "y": 1.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "data": {
+            "primitive": "Capsule",
+            "color": {
+              "r": 0.95,
+              "g": 0.85,
+              "b": 0.3,
+              "a": 1
+            }
+          },
+          "id": "d3100000-0000-0000-0006-000000000000",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000007",
+      "name": "Cone",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.5,
+          "z": -3.0
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "data": {
+            "primitive": "Cone",
+            "color": {
+              "r": 0.95,
+              "g": 0.55,
+              "b": 0.2,
+              "a": 1
+            }
+          },
+          "id": "d3100000-0000-0000-0007-000000000000",
+          "enabled": true
+        },
+        {
+          "type": "Showcase3D.Spinner",
+          "data": {
+            "degreesPerSecond": {
+              "x": 0,
+              "y": -30,
+              "z": 0
+            }
+          },
+          "id": "d3100000-0000-0000-0007-000000000001",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000008",
+      "name": "Glass Cube",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 1.0,
+          "z": 2.5
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1.2,
+          "y": 1.2,
+          "z": 1.2
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "data": {
+            "primitive": "Cube",
+            "color": {
+              "r": 0.4,
+              "g": 0.9,
+              "b": 1.0,
+              "a": 0.45
+            }
+          },
+          "id": "d3100000-0000-0000-0008-000000000000",
+          "enabled": true
+        },
+        {
+          "type": "Showcase3D.Spinner",
+          "data": {
+            "degreesPerSecond": {
+              "x": 20,
+              "y": 35,
+              "z": 0
+            }
+          },
+          "id": "d3100000-0000-0000-0008-000000000001",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000009",
+      "name": "Behind Camera",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.5,
+          "z": 30.0
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "data": {
+            "primitive": "Cube",
+            "color": {
+              "r": 1,
+              "g": 0,
+              "b": 1,
+              "a": 1
+            }
+          },
+          "id": "d3100000-0000-0000-0009-000000000000",
+          "enabled": true
+        }
+      ]
+    }
+  ]
+}

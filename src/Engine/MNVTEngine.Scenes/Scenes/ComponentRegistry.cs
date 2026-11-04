@@ -25,6 +25,7 @@ public sealed class ComponentRegistry
         registry.Register<Tilemap>();
         registry.Register<Light2D>();
         registry.Register<GlobalLight2D>();
+        registry.Register<MeshRenderer>();
         return registry;
     }
 

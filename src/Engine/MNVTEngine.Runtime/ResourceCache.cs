@@ -359,7 +359,7 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
         }
 
         camera.ViewportSize = new Vector2(width, height);
-        RenderView(scene, CreateView(camera, width, height), camera.BackgroundColor, target);
+        RenderView(scene, CreateView(camera, width, height), camera.BackgroundColor, target, camera);
     }
 
     public static Camera2D CreateView(Camera camera, int width, int height)
@@ -373,8 +373,11 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
         };
     }
 
-    /// <summary>Renders the scene's sprites through an arbitrary view (e.g. the editor's scene camera).</summary>
-    public void RenderView(Scene scene, Camera2D view, Color background, RenderTarget2D? target = null)
+    /// <summary>
+    /// Renders the scene through an arbitrary 2D view (e.g. the editor's scene camera): with <paramref name="camera3D"/>,
+    /// first its meshes (3D pass, with depth), then sprites, tilemaps and 2D lighting on top.
+    /// </summary>
+    public void RenderView(Scene scene, Camera2D view, Color background, RenderTarget2D? target = null, Camera? camera3D = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(view);
@@ -386,6 +389,10 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
         var sprites = Core.Diagnostics.Profiler.Sample("Render.Sprites");
         var batch = renderer.Begin(view, SpriteSortMode.BackToFront, target: target);
         renderer.Device.Clear(background);
+        if (camera3D is not null)
+        {
+            Render3D(scene, camera3D, target); // sprites are drawn when the batch ends, on top
+        }
         foreach (var sprite in scene.World.Pool<SpriteRenderer>().Components)
         {
             if (sprite.Texture.IsNone || !sprite.IsActiveAndEnabled)
@@ -457,6 +464,7 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
         _lightBuffers.Clear();
         _lightDisc?.Dispose();
         _lightDisc = null;
+        Dispose3D();
     }
 
     private void ApplyLighting(Scene scene, Camera2D view, RenderTarget2D? target)

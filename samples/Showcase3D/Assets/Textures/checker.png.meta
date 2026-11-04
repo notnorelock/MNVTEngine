@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "guid": "d3000000-0000-4000-8000-000000000001",
+  "settings": {
+    "filter": "point",
+    "wrap": "repeat",
+    "generateMipmaps": false,
+    "pixelsPerUnit": 64.0
+  }
+}

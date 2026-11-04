@@ -25,6 +25,7 @@ internal sealed unsafe class VulkanShader : Shader
         VertexBlock = vertex.UniformBlocks.Count > 0 ? vertex.UniformBlocks[0] : null;
         FragmentBlock = fragment.UniformBlocks.Count > 0 ? fragment.UniformBlocks[0] : null;
         UsesTexture = vertex.Samplers.Count + fragment.Samplers.Count > 0;
+        VertexInputs = [.. vertex.Inputs.Select(i => (int)i.Location)];
         AddUniforms(ShaderStage.Vertex, VertexBlock);
         AddUniforms(ShaderStage.Fragment, FragmentBlock);
         try
@@ -51,6 +52,9 @@ internal sealed unsafe class VulkanShader : Shader
     public SpirvUniformBlock? FragmentBlock { get; }
 
     public bool UsesTexture { get; }
+
+    /// <summary>Attribute locations the vertex stage reads; pipelines feed only these from a (possibly wider) vertex layout.</summary>
+    public HashSet<int> VertexInputs { get; }
 
     public Dictionary<PipelineKey, Pipeline> Pipelines { get; } = [];
 
@@ -230,10 +234,13 @@ internal sealed unsafe partial class PipelineFactory : IDisposable
 
             var vertexBinding = new VertexInputBindingDescription(0, (uint)key.Layout.Stride, VertexInputRate.Vertex);
             var attributes = stackalloc VertexInputAttributeDescription[key.Layout.Elements.Count];
-            for (var i = 0; i < key.Layout.Elements.Count; i++)
+            var attributeCount = 0;
+            foreach (var e in key.Layout.Elements)
             {
-                var e = key.Layout.Elements[i];
-                attributes[i] = new VertexInputAttributeDescription((uint)e.Location, 0, AttributeFormat(e), (uint)e.Offset);
+                if (shader.VertexInputs.Contains(e.Location)) // e.g. an unlit shader ignores the mesh's normals and tangents
+                {
+                    attributes[attributeCount++] = new VertexInputAttributeDescription((uint)e.Location, 0, AttributeFormat(e), (uint)e.Offset);
+                }
             }
 
             var vertexInput = new PipelineVertexInputStateCreateInfo
@@ -241,7 +248,7 @@ internal sealed unsafe partial class PipelineFactory : IDisposable
                 SType = StructureType.PipelineVertexInputStateCreateInfo,
                 VertexBindingDescriptionCount = 1,
                 PVertexBindingDescriptions = &vertexBinding,
-                VertexAttributeDescriptionCount = (uint)key.Layout.Elements.Count,
+                VertexAttributeDescriptionCount = (uint)attributeCount,
                 PVertexAttributeDescriptions = attributes,
             };
             var assembly = new PipelineInputAssemblyStateCreateInfo

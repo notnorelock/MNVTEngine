@@ -209,6 +209,33 @@ public sealed class RuntimeTests : IDisposable
     }
 
     [Fact]
+    public void MeshRenderers_RenderIn3D_WithDepth_BeforeSprites_AndCulling()
+    {
+        string Object(string name, string position, string components, string scale = "{ \"x\": 1, \"y\": 1, \"z\": 1 }") =>
+            $$"""{ "id": "{{Guid.NewGuid()}}", "name": "{{name}}", "transform": { "localPosition": {{position}}, "localRotation": { "x": 0, "y": 0, "z": 0, "w": 1 }, "localScale": {{scale}} }, "components": [ {{components}} ] }""";
+        string Mesh(string primitive, string color) => $$"""{ "type": "MNVTEngine.MeshRenderer", "data": { "primitive": "{{primitive}}", "color": {{color}} } }""";
+        const string Red = """{ "r": 1, "g": 0, "b": 0, "a": 1 }""", Green = """{ "r": 0, "g": 1, "b": 0, "a": 1 }""", Blue = """{ "r": 0, "g": 0, "b": 1, "a": 1 }""";
+        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt"), $$"""
+            { "schemaVersion": 3, "name": "3D", "gameObjects": [
+              {{Object("Camera", """{ "x": 0, "y": 0, "z": 6 }""", """{ "type": "MNVTEngine.Camera", "data": { "projection": "Perspective", "fieldOfView": 60.0, "backgroundColor": { "r": 0, "g": 0, "b": 0, "a": 1 } } }""")}},
+              {{Object("Near", """{ "x": 0, "y": 0, "z": 0 }""", Mesh("Cube", Red), """{ "x": 2, "y": 2, "z": 2 }""")}},
+              {{Object("Far", """{ "x": 0, "y": 0, "z": -10 }""", Mesh("Quad", Green), """{ "x": 40, "y": 40, "z": 1 }""")}},
+              {{Object("Behind", """{ "x": 0, "y": 0, "z": 20 }""", Mesh("Sphere", Blue))}} ] }
+            """);
+        var screenshot = Path.Combine(_root, "3d.png");
+        using var logs = new InMemoryLoggerProvider(minimumLevel: LogLevel.Debug);
+        using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
+        var runtime = RunHidden(GameProject.Load(WriteProject()), EngineComponents.CreateRegistry(), factory, frames: 3, screenshot);
+
+        Assert.Equal(0, runtime.ExitCode); // no GPU resources leaked
+        Assert.Contains(logs.Snapshot(), e => e.Message.Contains("2 meshes drawn, 1 culled", StringComparison.Ordinal));
+        var image = Graphics.Image.Load(screenshot);
+        Mathematics.Color At(int x, int y) => Mathematics.Color.FromBytes(image.Pixels[((y * image.Width) + x) * 4], image.Pixels[(((y * image.Width) + x) * 4) + 1], image.Pixels[(((y * image.Width) + x) * 4) + 2], 255);
+        Assert.Equal(Mathematics.Color.Red, At(image.Width / 2, image.Height / 2));   // the near cube hides the far quad...
+        Assert.Equal(Mathematics.Color.Green, At(2, 2));                              // ...which fills the rest of the view
+    }
+
+    [Fact]
     public void Profiler_RecordsRealFrames_WithRendererCounters()
     {
         WriteScene("First", """{ "type": "MNVTEngine.SpriteRenderer", "data": {} }""");

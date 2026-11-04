@@ -131,7 +131,7 @@ Each phase ships with tests, documentation, validation-layer runs and a commit.
 |---|---|---|
 | 1 | Math (plane, frustum, sphere, look-at, Vulkan projections, intersections); 3D transform with cached matrices; scene format v3 with v2 read | Unit tests; every 2D sample, test and scene unchanged. **Done.** |
 | 2 | Mesh asset, vertex formats, primitives; camera perspective/orthographic; GPU mesh buffers ([meshes](meshes.md)) | Mesh and primitive tests; GPU upload tests. **Done.** Depth images moved to Phase 3: with dynamic rendering, every pipeline in a pass with a depth attachment must declare its format, so depth belongs with the pipeline changes. |
-| 3 | First 3D renderer: depth images and attachments, mesh pipelines (depth/cull state), per-object data, multiple objects, culling; `MeshRenderer` | A 3D scene with primitives renders correctly with validation on (screenshots) |
+| 3 | First 3D renderer: depth images and attachments, mesh pipelines (depth/cull state), per-object data, multiple objects, culling; `MeshRenderer` | A 3D scene with primitives renders correctly with validation on (screenshots). **Done** (`samples/Showcase3D`; [meshes and 3D rendering](meshes.md)). |
 | 4 | PBR material model and `.mnvtmat` v2, texture slots, material inspector | Serialization tests; materials edited in the editor and visible in the scene |
 | 5 | Sub-assets, artifacts, staged imports; FBX and glTF readers; meshes, hierarchy, materials, textures; diagnostics | Real CC0/CC-BY fixtures (FBX binary + ASCII, GLB) import and render |
 | 6 | Model import inspector, extraction, remapping, reimport, model preview, drag into scene | Spec workflow end to end in the editor |

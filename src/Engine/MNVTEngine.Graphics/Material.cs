@@ -86,7 +86,7 @@ public sealed class Material
     private Material Set(string name, UniformValue value)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
-        if (name is "uViewProjection" or "uTexture")
+        if (name is "uViewProjection" or "uTexture" or "uModel" or "uNormalMatrix")
         {
             throw new ArgumentException($"'{name}' is set by the renderer and cannot be a material uniform.", nameof(name));
         }

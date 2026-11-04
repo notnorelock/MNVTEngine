@@ -220,7 +220,7 @@ public sealed partial class GameRuntime(
         _device.Present();
         if (exiting)
         {
-            LogAutoExit(_logger, _frames, _sceneRenderer.SpritesDrawn, _sceneRenderer.SpritesCulled);
+            LogAutoExit(_logger, _frames, _sceneRenderer.SpritesDrawn, _sceneRenderer.SpritesCulled, _sceneRenderer.MeshesDrawn, _sceneRenderer.MeshesCulled);
             _window.Close();
         }
     }
@@ -331,8 +331,8 @@ public sealed partial class GameRuntime(
     [LoggerMessage(EventId = 3103, Level = LogLevel.Error, Message = "Could not load scene '{Scene}'; staying in the current scene")]
     private static partial void LogSceneSwitchFailed(ILogger logger, Exception exception, string scene);
 
-    [LoggerMessage(EventId = 3104, Level = LogLevel.Information, Message = "Exiting after {Frames} frames ({Drawn} sprites drawn, {Culled} culled)")]
-    private static partial void LogAutoExit(ILogger logger, int frames, int drawn, int culled);
+    [LoggerMessage(EventId = 3104, Level = LogLevel.Information, Message = "Exiting after {Frames} frames ({Drawn} sprites drawn, {Culled} culled; {Meshes} meshes drawn, {MeshesCulled} culled)")]
+    private static partial void LogAutoExit(ILogger logger, int frames, int drawn, int culled, int meshes, int meshesCulled);
 
     [LoggerMessage(EventId = 3105, Level = LogLevel.Error, Message = "{Count} GPU resources leaked")]
     private static partial void LogLeaks(ILogger logger, int count);

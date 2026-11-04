@@ -51,3 +51,37 @@ front faces (as in glTF; see [mathematics](../engine/mathematics.md)).
 The GL-style `Matrix4x4.Ortho`/`Perspective` put z = 0 exactly on the edge of Vulkan's depth range, where any z noise clips
 half of a rotated mesh (the GPU mesh test covers this case). Every engine renderer therefore uses the ZeroToOne projections:
 2D, UI and the debug overlay put z = 0 at depth 0.5.
+
+## 3D rendering
+
+- **Depth buffers.**
+  - The back buffer always has one, sized with it. Render targets get one with `CreateRenderTarget(..., depth: true)`; the editor's views have one.
+  - The format is D32_SFLOAT, or the first supported of D32_SFLOAT_S8 and D24_S8.
+  - `ClearDepth()` clears to 1, the farthest value.
+  - Every pass that uses a depth buffer starts with a barrier on it, so a depth buffer reused by frames in flight is correctly ordered (clean under synchronization validation).
+- **Draw state.**
+  - `DrawCommand.State` (`RenderState`) holds the depth test (less-or-equal), the depth write and the cull mode. The default, everything off, is what 2D drawing uses.
+  - `RenderState.Opaque3D` tests and writes depth and culls back faces; `Transparent3D` tests depth without writing it.
+  - Front faces are counter-clockwise on screen.
+  - Drawing with depth state into a target without depth throws.
+- **Per-draw data.** `DrawCommand.World` reaches shaders as `uModel`, and its inverse transpose as `uNormalMatrix`; both are names reserved for the renderer. Pipelines feed only the vertex attributes a shader reads.
+- **`Renderer3D`** (backend-independent):
+  - frustum-culls each `MeshDrawItem` by its world-space bounds;
+  - draws opaque items front to back;
+  - then draws transparent items back to front.
+  - It returns statistics: visible, culled, draw calls and triangles.
+- **Built-in shader.** `BuiltinShaders.Unlit3D` draws texture (UV0) × vertex color × `uColor`. Lit PBR shading comes with lights (Phase 7).
+
+### MeshRenderer
+
+`MeshRenderer` draws a mesh at its GameObject's transform, through the scene's main camera, in a 3D pass before sprites:
+
+- **Mesh.** `Primitive` is one of cube, sphere, capsule, cylinder, cone, plane or quad. Imported meshes arrive with the model pipeline.
+- **Built-in material.** `Color` and an optional `Texture` use the unlit material; a color with alpha below 1 is drawn as transparent.
+- **Custom material.** `Material` (`.mnvtmat`) takes a custom shader instead. The shader must read the mesh layout and `uViewProjection`/`uModel`; its blend mode decides transparency.
+- **`DoubleSided`.** Turns culling off.
+- **Sharing.** Primitive meshes are generated once and uploaded once per renderer.
+- **Statistics.** The runtime's `--frames` exit log reports meshes drawn and culled; profiler counters are "Meshes drawn" and "Meshes culled".
+- **Editor.** Play Mode's Game view shows the 3D pass. The editor's Scene view is still 2D: the 3D scene view and gizmos are Phase 9.
+
+Sample: `samples/Showcase3D`, a perspective camera over a checkered floor with every primitive, spinning objects (`Scripts/Spinner.cs`), a transparent cube and a cube behind the camera that is culled.

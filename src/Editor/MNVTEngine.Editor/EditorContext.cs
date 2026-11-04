@@ -130,7 +130,7 @@ internal sealed class ViewTarget : IDisposable
     {
         _context = context;
         _name = name;
-        Target = context.Device.CreateRenderTarget(1, 1, SamplerState.PointClamp, name);
+        Target = context.Device.CreateRenderTarget(1, 1, SamplerState.PointClamp, name, depth: true);
         Id = context.ImGui.Register(Target);
     }
 
@@ -153,7 +153,7 @@ internal sealed class ViewTarget : IDisposable
         }
 
         var old = Target;
-        Target = _context.Device.CreateRenderTarget(_requestedWidth, _requestedHeight, SamplerState.PointClamp, _name);
+        Target = _context.Device.CreateRenderTarget(_requestedWidth, _requestedHeight, SamplerState.PointClamp, _name, depth: true); // 3D views depth-test
         _context.ImGui.Rebind(Id, Target);
         old.Dispose();
     }
