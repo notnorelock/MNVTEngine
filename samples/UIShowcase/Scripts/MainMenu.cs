@@ -47,6 +47,8 @@ public sealed class MainMenu : Component
         var buttons = _menu.AddChild(new Panel { Layout = LayoutMode.Row, Gap = 8, Justify = Justify.Center });
         var play = buttons.AddChild(new Button { Text = "Play", StyleClass = "primary", Width = 140, Height = 40, Tooltip = "Hide the menu and move with WASD" });
         var reset = buttons.AddChild(new Button { Text = "Start timer", Width = 140, Height = 40 });
+        var quit = buttons.AddChild(new Button { Text = "Quit", Width = 100, Height = 40 });
+        quit.Clicked += Application.Quit;
         play.Clicked += () =>
         {
             _menu.Visible = false;
@@ -62,7 +64,9 @@ public sealed class MainMenu : Component
         quality.Options.AddRange(["Low", "Medium", "High", "Ultra"]);
         quality.SelectedIndex = 2;
         var music = settings.AddChild(new Checkbox { Text = "Music", Checked = true });
-        var vsync = settings.AddChild(new Toggle { Text = "Show grid" });
+        var vsync = settings.AddChild(new Toggle { Text = "VSync", Checked = !Application.HasWindow || Application.Window.VSync });
+        var fullscreen = settings.AddChild(new Toggle { Text = "Borderless fullscreen" });
+        settings.AddChild(new Label { Text = "" });
         var easy = settings.AddChild(new RadioButton { Text = "Easy", Group = "difficulty", Checked = true });
         var hard = settings.AddChild(new RadioButton { Text = "Hard", Group = "difficulty" });
 
@@ -81,10 +85,19 @@ public sealed class MainMenu : Component
         volume.ValueChanged += v => _status.Text = $"Volume {v:0}";
         quality.SelectionChanged += i => _status.Text = $"Quality: {quality.SelectedOption}";
         music.CheckedChanged += on => _status.Text = on ? "Music on" : "Music off";
-        vsync.CheckedChanged += on => _status.Text = on ? "Grid shown" : "Grid hidden";
+        vsync.CheckedChanged += on =>
+        {
+            Application.Window.VSync = on; // the swapchain is recreated with FIFO or MAILBOX/IMMEDIATE
+            _status.Text = on ? "VSync on" : "VSync off";
+        };
+        fullscreen.CheckedChanged += on => Application.Window.Mode = on ? WindowMode.BorderlessFullscreen : WindowMode.Windowed;
         easy.CheckedChanged += on => { if (on) { _status.Text = "Difficulty: easy"; } };
         hard.CheckedChanged += on => { if (on) { _status.Text = "Difficulty: hard"; } };
-        name.TextChanged += text => _status.Text = text.Length == 0 ? "Ready." : $"Hello, {text}!";
+        name.TextChanged += text =>
+        {
+            _status.Text = text.Length == 0 ? "Ready." : $"Hello, {text}!";
+            Application.Window.Title = text.Length == 0 ? "UIShowcase" : $"UIShowcase - {text}"; // runtime title change
+        };
         name.Submitted += text => Log.Info($"Name submitted: {text}");
         notes.TextChanged += text => _status.Text = $"Notes: {text.Length} characters";
 

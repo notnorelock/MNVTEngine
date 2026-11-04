@@ -54,6 +54,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
     private bool _swapchainDirty;
     private bool _surfaceLost;
     private bool _disposed;
+    private bool _vsync;
 
     // Frame state
     private bool _recording;
@@ -86,6 +87,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         _surfaceSource = surfaceSource;
         BackBufferWidth = width;
         BackBufferHeight = height;
+        _vsync = options.VSync;
 
         Vk vk;
         try
@@ -166,6 +168,19 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
     public GraphicsResourceTracker Resources { get; } = new();
 
     public string Description { get; }
+
+    public bool VSync
+    {
+        get => _vsync;
+        set
+        {
+            if (value != _vsync)
+            {
+                _vsync = value;
+                _swapchainDirty = _surfaceSource is not null; // present mode is fixed per swapchain
+            }
+        }
+    }
 
     public int BackBufferWidth { get; private set; }
 
@@ -875,7 +890,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         // Rare (resize, display change): wait for the GPU so the old images and semaphores are idle.
         Context.Vk.DeviceWaitIdle(Context.Device);
         var old = _swapchain;
-        _swapchain = VulkanSwapchain.Create(Context, _surface, BackBufferWidth, BackBufferHeight, _options.VSync, old, _logger);
+        _swapchain = VulkanSwapchain.Create(Context, _surface, BackBufferWidth, BackBufferHeight, _vsync, old, _logger);
         old?.Dispose();
         _swapchainDirty = false;
         if (_swapchain is not null)

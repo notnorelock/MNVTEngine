@@ -20,6 +20,26 @@ public sealed record GameWindowOptions
     /// <summary>Asks the graphics device for API validation (the Vulkan validation layer) so driver errors are logged. Costs performance.</summary>
     public bool GraphicsValidation { get; init; }
 
+    public WindowMode Mode { get; init; } = WindowMode.Windowed;
+
+    /// <summary>Size limits in screen coordinates while resizable (0 = no limit).</summary>
+    public int MinWidth { get; init; }
+
+    public int MinHeight { get; init; }
+
+    public int MaxWidth { get; init; }
+
+    public int MaxHeight { get; init; }
+
+    /// <summary>Top-left position in screen coordinates; null centers the window on its monitor.</summary>
+    public (int X, int Y)? Position { get; init; }
+
+    /// <summary>Keeps the window above others (where the platform supports it).</summary>
+    public bool TopMost { get; init; }
+
+    /// <summary>Window and taskbar icon at one or more resolutions (the platform picks the closest); empty for the default.</summary>
+    public IReadOnlyList<WindowIcon> Icon { get; init; } = [];
+
     /// <summary>Starts hidden; for automated runs that only read back pixels.</summary>
     public bool Hidden { get; init; }
 
@@ -52,7 +72,7 @@ public interface IGameLoop
 /// <see cref="Clock"/>, run fixed steps, update, render. The window has no graphics context: the graphics device creates
 /// its surface from <see cref="VulkanSurface"/> and presents at the end of <see cref="IGameLoop.Render"/>.
 /// </summary>
-public sealed class GameWindow : IDisposable
+public sealed partial class GameWindow : IDisposable
 {
     private readonly IWindow _window;
     private readonly GameWindowOptions _options;
@@ -74,7 +94,8 @@ public sealed class GameWindow : IDisposable
             Title = options.Title,
             Size = new Vector2D<int>(options.Width, options.Height),
             VSync = options.VSync,
-            WindowBorder = options.Resizable ? WindowBorder.Resizable : WindowBorder.Fixed,
+            WindowBorder = options.Mode is WindowMode.Borderless or WindowMode.BorderlessFullscreen ? WindowBorder.Hidden : options.Resizable ? WindowBorder.Resizable : WindowBorder.Fixed,
+            TopMost = options.TopMost,
             IsVisible = !options.Hidden,
             API = GraphicsAPI.DefaultVulkan, // no GL context; VSync is the graphics device's present mode
             ShouldSwapAutomatically = false,
@@ -151,6 +172,7 @@ public sealed class GameWindow : IDisposable
 
         _running = true;
         _window.Initialize();
+        ApplyInitialState();
         _input = new SilkInputBridge(_window.CreateInput(), Input);
         _window.FocusChanged += focused =>
         {

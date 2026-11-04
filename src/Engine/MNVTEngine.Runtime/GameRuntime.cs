@@ -86,6 +86,7 @@ public sealed partial class GameRuntime(
         _device = createDevice(window, loggerFactory.CreateLogger("Graphics"));
         _renderer = new Renderer2D(_device);
         _uiFont = Graphics.Text.Font.LoadDefault();
+        Application.QuitRequested += OnQuitRequested;
         _ui = new UI.UIRenderer(_device, _renderer.DefaultMaterial);
         _assets = _options.Archive is { } archive ? AssetDatabase.OpenPackaged(archive) : AssetDatabase.OpenReadOnly(project.AssetsDirectory);
         foreach (var diagnostic in _assets.Diagnostics)
@@ -97,6 +98,7 @@ public sealed partial class GameRuntime(
         _prefabs = new PrefabProvider(_serializer, _assets, loggerFactory.CreateLogger("Prefabs"));
         _resources = new ResourceCache(_device, _assets, loggerFactory.CreateLogger("Resources"));
         _sceneRenderer = new SceneRenderer(_renderer, _resources, _logger);
+        Application.SetHostWindow(new RuntimeWindow(window, _device, _assets));
         LogStarting(_logger, project.Name, project.StartupScene);
 
         if (_options.Diagnostics is { } diagnostics)
@@ -220,6 +222,9 @@ public sealed partial class GameRuntime(
             return; // the graphics device could not be created; Load created nothing else
         }
 
+        Application.QuitRequested -= OnQuitRequested;
+        Application.SetHostWindow(null);
+
         _options.Overlay?.Dispose();
         _options.Diagnostics?.Uninstall();
         CurrentScene?.Unload();
@@ -236,6 +241,8 @@ public sealed partial class GameRuntime(
 
         _device.Dispose();
     }
+
+    private void OnQuitRequested() => _window.Close();
 
     /// <summary>Queues a scene switch for the end of the current frame.</summary>
     /// <exception cref="ArgumentException">The path escapes the Assets folder.</exception>

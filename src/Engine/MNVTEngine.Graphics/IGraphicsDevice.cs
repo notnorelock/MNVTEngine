@@ -93,6 +93,14 @@ public interface IGraphicsDevice : IDisposable
     /// <summary>Video memory from a vendor extension; <see cref="GpuMemoryInfo.Unsupported"/> without one. May cost a driver call: sample, don't poll.</summary>
     GpuMemoryInfo QueryGpuMemory() => GpuMemoryInfo.Unsupported;
 
+    /// <summary>Waits for vertical blank when presenting. Changing it takes effect from the next frame (the swapchain is recreated).</summary>
+    /// <exception cref="NotSupportedException">Setting it on a backend without presentation control.</exception>
+    bool VSync
+    {
+        get => true;
+        set => throw new NotSupportedException("This graphics backend cannot change VSync.");
+    }
+
     /// <summary>The engine's own GPU allocations (exact, cheap to read); null when the backend has no allocator.</summary>
     GpuAllocationStatistics? AllocationStatistics => null;
 

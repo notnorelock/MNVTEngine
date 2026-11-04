@@ -61,6 +61,14 @@ public static partial class GameApplication
             Height = project.Window.Height,
             VSync = project.Window.VSync,
             Resizable = project.Window.Resizable,
+            Mode = project.Window.Mode,
+            MinWidth = project.Window.MinWidth,
+            MinHeight = project.Window.MinHeight,
+            MaxWidth = project.Window.MaxWidth,
+            MaxHeight = project.Window.MaxHeight,
+            Position = project.Window.X is { } x && project.Window.Y is { } y ? (x, y) : null,
+            TopMost = project.Window.TopMost,
+            Icon = WindowIcons(project, archive, logger),
             FixedTimestep = project.FixedTimestep,
             GraphicsValidation = args.Contains("--gpu-validation"),
         });
@@ -123,6 +131,31 @@ public static partial class GameApplication
 
         return runtime.ExitCode;
     }
+
+    /// <summary>The project's window icon at the standard sizes; none (with a warning) when it cannot be read.</summary>
+    private static IReadOnlyList<WindowIcon> WindowIcons(GameProject project, ContentArchiveSet? archive, ILogger logger)
+    {
+        if (project.Window.Icon is not { Length: > 0 } icon)
+        {
+            return [];
+        }
+
+        try
+        {
+            var bytes = archive is not null
+                ? archive.Read(AssetDatabase.AssetsEntryFolder + AssetPaths.Canonical(icon))
+                : File.ReadAllBytes(project.ResolveAsset(icon));
+            return RuntimeWindow.IconsFrom(Graphics.Image.Decode(bytes, icon));
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException)
+        {
+            LogIconFailed(logger, ex, icon);
+            return [];
+        }
+    }
+
+    [LoggerMessage(EventId = 3203, Level = LogLevel.Warning, Message = "Window icon {Icon} could not be loaded; using the default")]
+    private static partial void LogIconFailed(ILogger logger, Exception exception, string icon);
 
     /// <summary>Segoe UI on Windows when present; otherwise the debug UI's built-in font.</summary>
     private static string? DebugFont() =>

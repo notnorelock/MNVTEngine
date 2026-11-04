@@ -23,6 +23,28 @@ public sealed class WindowSettings
     public bool VSync { get; set; } = true;
 
     public bool Resizable { get; set; } = true;
+
+    /// <summary>"windowed", "borderless", "fullscreen" or "borderlessFullscreen".</summary>
+    public WindowMode Mode { get; set; } = WindowMode.Windowed;
+
+    /// <summary>Texture asset (path under Assets, e.g. "Icons/game.png") for the window and taskbar icon; null for the default.</summary>
+    public string? Icon { get; set; }
+
+    /// <summary>Size limits while resizable (0 = none).</summary>
+    public int MinWidth { get; set; }
+
+    public int MinHeight { get; set; }
+
+    public int MaxWidth { get; set; }
+
+    public int MaxHeight { get; set; }
+
+    /// <summary>Initial top-left position in screen coordinates; both null centers the window.</summary>
+    public int? X { get; set; }
+
+    public int? Y { get; set; }
+
+    public bool TopMost { get; set; }
 }
 
 /// <summary>A named export configuration (<c>"buildProfiles"</c> in the .mnvtproj), used by <c>mnvt build</c>.</summary>
@@ -238,6 +260,37 @@ public sealed class GameProject
         if (Window.Width <= 0 || Window.Height <= 0)
         {
             Error("window", "Window size must be positive.");
+        }
+
+        if (Window.MinWidth < 0 || Window.MinHeight < 0 || Window.MaxWidth < 0 || Window.MaxHeight < 0
+            || (Window.MaxWidth > 0 && Window.MaxWidth < Window.MinWidth) || (Window.MaxHeight > 0 && Window.MaxHeight < Window.MinHeight))
+        {
+            Error("window", "Window size limits must be non-negative, and each maximum at least its minimum.");
+        }
+
+        if (Window.X.HasValue != Window.Y.HasValue)
+        {
+            Error("window", "Set both window.x and window.y, or neither (centered).");
+        }
+
+        if (!Enum.IsDefined(Window.Mode))
+        {
+            Error("window.mode", $"Unknown window mode {(int)Window.Mode}.");
+        }
+
+        if (Window.Icon is { Length: > 0 } icon)
+        {
+            try
+            {
+                if (!assetExists(icon))
+                {
+                    Error("window.icon", $"Window icon '{icon}' not found under Assets.");
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                Error("window.icon", ex.Message);
+            }
         }
 
         if (Scripts?.Project is { Length: > 0 } scripts)

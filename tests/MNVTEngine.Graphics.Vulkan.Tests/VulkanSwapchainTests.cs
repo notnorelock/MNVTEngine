@@ -37,6 +37,43 @@ public class VulkanSwapchainTests
         Assert.Equal(2, logs.Count(e => e.Message.StartsWith("Swapchain ", StringComparison.Ordinal)));
     }
 
+    [Fact]
+    public void WindowProperties_AndVSync_ChangeAtRunTime()
+    {
+        var logs = RunWindow(320, 200, (window, device) =>
+        {
+            window.Title = "Runtime title ąę";
+            Assert.Equal("Runtime title ąę", window.Title);
+            var icon = new byte[16 * 16 * 4];
+            Array.Fill(icon, (byte)200);
+            window.SetIcon([new WindowIcon(16, 16, icon)]);
+            window.SetSizeLimits(100, 100, 0, 0);
+            window.Position = (40, 50);
+            window.Center();
+
+            Assert.False(device.VSync); // created with VSync off
+            device.SetRenderTarget(null);
+            device.Clear(Color.Black);
+            device.Present();
+            var before = device.SwapchainDescription;
+            device.VSync = true;
+            device.SetRenderTarget(null);
+            device.Clear(Color.Black);
+            device.Present();
+            Assert.Contains("Fifo", device.SwapchainDescription, StringComparison.Ordinal);
+            Assert.NotEqual(before, device.SwapchainDescription);
+
+            window.Mode = WindowMode.BorderlessFullscreen;
+            Assert.Equal(WindowMode.BorderlessFullscreen, window.Mode);
+            window.Mode = WindowMode.Windowed;
+            Assert.Equal(WindowMode.Windowed, window.Mode);
+            device.SetRenderTarget(null);
+            device.Clear(Color.Black);
+            device.Present();
+        });
+        Assert.True(logs.Count(e => e.Message.StartsWith("Swapchain ", StringComparison.Ordinal)) >= 2);
+    }
+
     private static IReadOnlyList<LogEntry> RunWindow(int width, int height, Action<GameWindow, VulkanGraphicsDevice> body)
     {
         using var logs = new InMemoryLoggerProvider(minimumLevel: LogLevel.Debug);

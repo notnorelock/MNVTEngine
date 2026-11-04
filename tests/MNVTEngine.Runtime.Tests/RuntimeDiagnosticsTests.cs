@@ -191,6 +191,45 @@ public sealed class RuntimeDiagnosticsTests : IDisposable
         Assert.Equal(2048, reloaded.Diagnostics.Budgets.GpuMemoryMb);
     }
 
+    [Fact]
+    public void WindowSettings_LoadModesIconAndLimits_AndRejectBadValues()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "Assets", "Scenes"));
+        Directory.CreateDirectory(Path.Combine(_root, "Assets", "Icons"));
+        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "Main.mnvt"), """{ "schemaVersion": 2, "gameObjects": [] }""");
+        File.WriteAllBytes(Path.Combine(_root, "Assets", "Icons", "game.png"), [1]);
+        var file = Path.Combine(_root, "Game.mnvtproj");
+        File.WriteAllText(file, """
+            { "schemaVersion": 1, "name": "Game", "startupScene": "Scenes/Main.mnvt",
+              "window": { "mode": "borderlessFullscreen", "icon": "Icons/game.png", "minWidth": 640, "minHeight": 360, "x": 10, "y": 20, "topMost": true } }
+            """);
+        var window = GameProject.Load(file).Window;
+        Assert.Equal((WindowMode.BorderlessFullscreen, "Icons/game.png", 640, 360, 10, 20, true), (window.Mode, window.Icon, window.MinWidth, window.MinHeight, window.X, window.Y, window.TopMost));
+
+        File.WriteAllText(file, """{ "schemaVersion": 1, "name": "Game", "startupScene": "Scenes/Main.mnvt", "window": { "icon": "Icons/missing.png", "minWidth": 900, "maxWidth": 800, "x": 5 } }""");
+        var ex = Assert.Throws<Serialization.SerializationException>(() => GameProject.Load(file));
+        Assert.Contains("window.icon", ex.Diagnostics.Select(d => d.Path));
+        Assert.Contains("Icons/missing.png", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("maximum", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("window.y", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WindowIcons_AreScaledToStandardSizes_WithAlphaWeightedFiltering()
+    {
+        var pixels = new byte[64 * 64 * 4];
+        for (var i = 0; i < pixels.Length; i += 4)
+        {
+            (pixels[i], pixels[i + 3]) = (255, (byte)(i / 4 % 2 == 0 ? 255 : 0)); // red, every other pixel transparent
+        }
+
+        var icons = RuntimeWindow.IconsFrom(new Graphics.Image(64, 64, pixels));
+        Assert.Equal([64, 16, 24, 32, 48], icons.Select(i => i.Width));
+        var small = icons.Single(i => i.Width == 16);
+        Assert.Equal(255, small.Rgba[0]);   // transparent neighbours do not darken the color
+        Assert.InRange(small.Rgba[3], 120, 135); // half coverage
+    }
+
     /// <summary>Just enough device for diagnostics: real resource tracking and statistics, no GPU.</summary>
     private sealed class StubDevice : IGraphicsDevice
     {

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "name": "UIShowcase",
   "startupScene": "Scenes/Main.mnvt",
-  "window": { "title": "UIShowcase", "width": 1280, "height": 720, "vSync": true, "resizable": true },
+  "window": { "title": "UIShowcase", "width": 1280, "height": 720, "vSync": true, "resizable": true, "mode": "windowed", "icon": "Textures/goal.png", "minWidth": 640, "minHeight": 480 },
   "fixedTimestep": 0.016666668,
   "scripts": { "project": "Scripts/UIShowcase.Scripts.csproj" },
   "buildProfiles": [
