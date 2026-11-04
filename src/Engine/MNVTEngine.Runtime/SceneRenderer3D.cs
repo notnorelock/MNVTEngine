@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
+using MNVTEngine.Assets.Models;
 using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Meshes;
 using MNVTEngine.Graphics.Materials;
@@ -22,6 +23,8 @@ public sealed partial class SceneRenderer
     private Renderer3D? _renderer3D;
     private GpuMeshCache? _meshes;
     private ShadowMap? _shadowMap;
+    private readonly Dictionary<MeshRenderer, SkinState> _skins = new(ReferenceEqualityComparer.Instance);
+    private int _frame;
     private bool _warnedNoDepth;
     private bool _warnedTooManyLights;
 
@@ -72,6 +75,7 @@ public sealed partial class SceneRenderer
     {
         MeshesDrawn = MeshesCulled = MeshTriangles = 0;
         _items.Clear();
+        _frame++;
         foreach (var meshRenderer in scene.World.Pool<MeshRenderer>().Components)
         {
             if (meshRenderer.IsActiveAndEnabled && !meshRenderer.Mesh.IsNone)
@@ -117,6 +121,7 @@ public sealed partial class SceneRenderer
             }
         }
 
+        PruneSkins();
         (LightsUsed, ShadowsRendered) = (lighting.Lights.Count, shadow is not null);
         device.ClearDepth();
         var stats = _renderer3D.Render(view, _items, lighting, shadow);
@@ -133,10 +138,11 @@ public sealed partial class SceneRenderer
             return;
         }
 
-        var mesh = Meshes().Get(modelMesh.Mesh);
+        var (mesh, world) = modelMesh.Joints is not null && Skin(meshRenderer, modelMesh) is { } skinned
+            ? (skinned, Matrix4x4.Identity) // skinned vertices are already in world space
+            : (Meshes().Get(modelMesh.Mesh), meshRenderer.Transform.LocalToWorldMatrix);
         var white = resources.GetDefaultTexture(DefaultTexture.White);
         CullMode? cull = meshRenderer.DoubleSided ? CullMode.None : null;
-        var world = meshRenderer.Transform.LocalToWorldMatrix;
         var custom = resources.GetMaterial(meshRenderer.Material);
         for (var i = 0; i < mesh.SubMeshes.Count; i++)
         {
@@ -144,6 +150,123 @@ public sealed partial class SceneRenderer
             var material = custom ?? resources.GetModelMaterial(meshRenderer.Mesh.Guid, index) ?? BuiltinMaterial(meshRenderer);
             _items.Add(new MeshDrawItem(mesh, i, material, white, world, cull));
         }
+    }
+
+    /// <summary>
+    /// Deforms a skinned model mesh with the current pose of its joints (the GameObjects of the model's joint nodes, by
+    /// name under the model's root) into the renderer's own dynamic mesh. Null when the mesh has no skin in its model or
+    /// the root cannot be found; the mesh then draws in its bind pose.
+    /// </summary>
+    private GpuMesh? Skin(MeshRenderer meshRenderer, ModelMesh modelMesh)
+    {
+        if (!_skins.TryGetValue(meshRenderer, out var state) || !ReferenceEquals(state.Source, modelMesh) || state.Joints.Any(j => j is null || j.GameObject.IsDestroyed))
+        {
+            state?.Dispose();
+            _skins.Remove(meshRenderer);
+            if (BindSkin(meshRenderer, modelMesh) is not { } bound)
+            {
+                return null;
+            }
+
+            state = bound;
+            _skins[meshRenderer] = state;
+        }
+
+        state.LastFrame = _frame;
+        if (state.SkinnedFrame != _frame)
+        {
+            for (var j = 0; j < state.Joints.Length; j++)
+            {
+                state.Matrices[j] = state.Joints[j]!.LocalToWorldMatrix * state.Skin.InverseBindMatrices[j];
+            }
+
+            var bounds = Skinning.Apply(state.BindPose, modelMesh.Joints, modelMesh.Weights, state.Matrices, state.Output);
+            state.Gpu.UpdateVertices(state.Output, bounds);
+            state.SkinnedFrame = _frame;
+        }
+
+        return state.Gpu;
+    }
+
+    private SkinState? BindSkin(MeshRenderer meshRenderer, ModelMesh modelMesh)
+    {
+        if (resources.GetModel(meshRenderer.Mesh.Guid) is not { } model || modelMesh.Weights is null)
+        {
+            return null;
+        }
+
+        var meshIndex = model.Meshes.IndexOf(modelMesh);
+        var nodeIndex = model.Nodes.FindIndex(n => n.Mesh == meshIndex && n.Skin >= 0);
+        if (nodeIndex < 0)
+        {
+            return null;
+        }
+
+        // The model's root is as many parents up as the mesh node is deep in the model.
+        var root = meshRenderer.Transform;
+        for (var n = nodeIndex; model.Nodes[n].Parent >= 0; n = model.Nodes[n].Parent)
+        {
+            if (root.Parent is null)
+            {
+                return null;
+            }
+
+            root = root.Parent;
+        }
+
+        var byName = new Dictionary<string, Transform>(StringComparer.Ordinal);
+        Collect(root, byName);
+        var skin = model.Skins[model.Nodes[nodeIndex].Skin];
+        var joints = skin.Joints.Select(j => j == 0 ? root : byName.GetValueOrDefault(model.Nodes[j].Name)).ToArray();
+        if (joints.Any(j => j is null))
+        {
+            return null;
+        }
+
+        var bindPose = GpuMesh.Interleave(modelMesh.Mesh);
+        return new SkinState(modelMesh, skin, joints, GpuMesh.CreateDynamic(renderer.Device, modelMesh.Mesh), bindPose, new MeshVertex[bindPose.Length], new Matrix4x4[joints.Length]);
+
+        static void Collect(Transform node, Dictionary<string, Transform> into)
+        {
+            foreach (var child in node.Children)
+            {
+                into.TryAdd(child.GameObject.Name, child);
+                Collect(child, into);
+            }
+        }
+    }
+
+    /// <summary>Releases the skinned meshes of renderers that were not drawn this frame (destroyed, disabled, changed).</summary>
+    private void PruneSkins()
+    {
+        foreach (var (renderer, state) in _skins.Where(p => p.Value.LastFrame != _frame).ToList())
+        {
+            state.Dispose();
+            _skins.Remove(renderer);
+        }
+    }
+
+    private sealed class SkinState(ModelMesh source, ModelSkin skin, Transform?[] joints, GpuMesh gpu, MeshVertex[] bindPose, MeshVertex[] output, Matrix4x4[] matrices) : IDisposable
+    {
+        public ModelMesh Source { get; } = source;
+
+        public ModelSkin Skin { get; } = skin;
+
+        public Transform?[] Joints { get; } = joints;
+
+        public GpuMesh Gpu { get; } = gpu;
+
+        public MeshVertex[] BindPose { get; } = bindPose;
+
+        public MeshVertex[] Output { get; } = output;
+
+        public Matrix4x4[] Matrices { get; } = matrices;
+
+        public int LastFrame { get; set; }
+
+        public int SkinnedFrame { get; set; } = -1;
+
+        public void Dispose() => Gpu.Dispose();
     }
 
     private GpuMeshCache Meshes()
@@ -230,6 +353,12 @@ public sealed partial class SceneRenderer
 
     private void Dispose3D()
     {
+        foreach (var state in _skins.Values)
+        {
+            state.Dispose();
+        }
+
+        _skins.Clear();
         _shadowMap?.Dispose();
         _shadowMap = null;
         if (_meshes is not null)

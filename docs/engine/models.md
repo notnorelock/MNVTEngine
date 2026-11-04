@@ -18,7 +18,7 @@ project so the runtime can read it without the importer):
 - **Meshes,** with positions, normals, tangents, two UV sets, vertex colors, submeshes, a material per submesh, and joints/weights for skinned meshes.
 - **Materials,** metallic-roughness: base color, metallic, roughness, emission, normal scale, occlusion strength, alpha mode (opaque, mask, blend), double-sided, and textures by role.
 - **Textures:** a project texture (by GUID), an image embedded in the file, or an unresolved source path.
-- **Skins** (joints and inverse bind matrices) and **animations** (translation, rotation and scale channels; step, linear or cubic spline). They are imported now and played in Phase 8.
+- **Skins** (joints and inverse bind matrices) and **animations** (translation, rotation and scale channels; step, linear or cubic spline). They play with [`ModelAnimator`](#animation-and-skinning).
 
 Names are made unique (`Body`, `Body_1`, ...) and stripped of `#`, `/`, `\` and `"`, so they are safe in references.
 
@@ -104,9 +104,22 @@ Who imports:
   - A missing model or mesh logs one warning and draws nothing.
 - **At runtime.** `ResourceCache.GetModel`, `GetModelMesh` and `GetModelMaterial` read the artifact on first use. Reimports evict the model, its materials, its embedded textures and its GPU meshes.
 
+## Animation and skinning
+
+- **`ModelAnimator`** plays a model's animation clips on its GameObject hierarchy. Adding a model with clips to a scene puts one on the root, playing the first clip on start and looping.
+  - Settings: `Model`, `Clip` (empty = first), `Speed` (negative plays backwards), `Loop`, `PlayOnStart`.
+  - Game code: `Play(clip, restart)`, `Pause`, `Resume`, `Stop`, `Sample(seconds)`, `PlaybackTime`, `Duration`, `ClipNames` and the `Finished` event for clips that do not loop.
+  - Each animated node is the descendant GameObject of the same name (node names are unique within a model), and the model's root node is the animator's own GameObject. Its local position, rotation and scale follow the clip. Nodes the clip animates but that are missing (renamed or deleted) stay still, with one warning.
+- **Sampling** follows glTF: values hold before the first key and after the last. Step holds the previous key; linear interpolates, with rotations by shortest-path slerp. Cubic splines are Hermite curves whose tangents are scaled by the key interval.
+- **Skinning.** A `MeshRenderer` whose mesh is skinned deforms with the joints of its skin. The joints are the GameObjects of the joint nodes, found by name under the model's root, so animating or moving them by hand both work.
+  - Skinning is linear blend skinning on the CPU (up to four joints per vertex) into a dynamic vertex buffer per renderer. It runs once per frame and is shared by the shadow and main passes. Bounds follow the deformed mesh for culling.
+  - Per frame it costs about the vertex count times four matrix blends. GPU skinning is a later optimization.
+- **Hosts** give scenes the clips through `Scene.ModelAnimations` (`ModelAnimationProvider`, which reads model artifacts), like `Scene.TextAssets`. The runtime and editor Play Mode set it.
+- **Tested** with the Khronos CesiumMan (GLB, and as FBX written by Assimp's exporter) and BoxAnimated. Assimp's FBX exporter tags meter data as centimeters, so such files need `"scale": 100`; FBX files from Blender or Maya carry their real units.
+
 ## Not yet
 
-- **Skinned meshes** draw in their bind pose; skinning and animation playback come in Phase 8.
+- **Animation blending, layers, state machines and root motion.** One clip plays at a time.
 - **Morph targets** (blend shapes) are reported and skipped.
 - **Lights and cameras** in model files are reported and skipped.
 - **Metallic and roughness maps** are used only as a combined glTF-style map; separate FBX maps are not combined.

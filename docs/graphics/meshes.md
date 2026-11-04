@@ -84,4 +84,4 @@ half of a rotated mesh (the GPU mesh test covers this case). Every engine render
 - **Statistics.** The runtime's `--frames` exit log reports meshes drawn and culled; profiler counters are "Meshes drawn" and "Meshes culled".
 - **Editor.** Play Mode's Game view shows the 3D pass. The editor's Scene view is still 2D: the 3D scene view and gizmos are Phase 9.
 
-Sample: `samples/Showcase3D`, a perspective camera over a checkered floor with every primitive, spinning objects (`Scripts/Spinner.cs`), a transparent cube, a cube behind the camera that is culled, and the same wooden crate imported from glTF and from FBX (Poly Haven, CC0).
+Sample: `samples/Showcase3D`, a perspective camera over a checkered floor with every primitive, spinning objects (`Scripts/Spinner.cs`), a transparent cube, a cube behind the camera that is culled, the same wooden crate imported from glTF and from FBX (Poly Haven, CC0), and two animated Khronos models: the skinned CesiumMan walking and BoxAnimated (CC-BY).

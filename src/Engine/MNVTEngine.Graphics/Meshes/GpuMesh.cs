@@ -32,6 +32,7 @@ public struct MeshVertex
 /// <summary>
 /// A mesh in GPU memory: one static vertex buffer and one index buffer (16-bit when the vertex count allows), shared by
 /// every renderer that draws the mesh. Owned by whoever uploaded it (normally a <see cref="GpuMeshCache"/>).
+/// <see cref="CreateDynamic"/> makes one whose vertices are rewritten by the CPU (skinned meshes).
 /// </summary>
 public sealed class GpuMesh : IDisposable
 {
@@ -54,7 +55,8 @@ public sealed class GpuMesh : IDisposable
 
     public IReadOnlyList<SubMesh> SubMeshes { get; }
 
-    public Bounds Bounds { get; }
+    /// <summary>Box around the vertices (updated with them for dynamic meshes).</summary>
+    public Bounds Bounds { get; private set; }
 
     /// <summary>The <see cref="Mesh.Version"/> that was uploaded.</summary>
     public int SourceVersion { get; }
@@ -105,6 +107,46 @@ public sealed class GpuMesh : IDisposable
             vertexBuffer.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    /// A mesh whose vertices are replaced each frame with <see cref="UpdateVertices"/> (indices stay static). Starts with
+    /// the mesh's own vertices. Owned by the caller.
+    /// </summary>
+    /// <exception cref="InvalidDataException">The mesh is invalid.</exception>
+    public static GpuMesh CreateDynamic(IGraphicsDevice device, Mesh mesh)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+        ArgumentNullException.ThrowIfNull(mesh);
+        if (mesh.Validate() is { Count: > 0 } problems)
+        {
+            throw new InvalidDataException($"Mesh '{mesh.Name}' cannot be uploaded: {string.Join(" ", problems)}");
+        }
+
+        var vertexBuffer = device.CreateVertexBuffer(MeshVertex.Layout, mesh.VertexCount, mesh.Name + " skinned vertices");
+        try
+        {
+            var vertices = Interleave(mesh);
+            vertexBuffer.SetData<MeshVertex>(vertices);
+            var indexBuffer = mesh.IndexFormat == IndexFormat.UInt16
+                ? device.CreateIndexBuffer([.. mesh.IndexSpan.ToArray().Select(i => (ushort)i)], mesh.Name + " indices")
+                : device.CreateIndexBuffer(mesh.IndexSpan, mesh.Name + " indices");
+            return new GpuMesh(mesh.Name, vertexBuffer, indexBuffer, [.. mesh.SubMeshes], mesh.Bounds, mesh.Version,
+                (vertices.Length * MeshVertex.Layout.Stride) + (mesh.IndexSpan.Length * (mesh.IndexFormat == IndexFormat.UInt16 ? 2 : 4)));
+        }
+        catch
+        {
+            vertexBuffer.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>Replaces the vertices of a dynamic mesh (<see cref="CreateDynamic"/>) and its bounds.</summary>
+    /// <exception cref="InvalidOperationException">The mesh is static.</exception>
+    public void UpdateVertices(ReadOnlySpan<MeshVertex> vertices, Bounds bounds)
+    {
+        Vertices.SetData(vertices);
+        Bounds = bounds;
     }
 
     /// <summary>The upload format of a mesh's vertices.</summary>

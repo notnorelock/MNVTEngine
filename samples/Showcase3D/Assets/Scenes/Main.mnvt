@@ -916,6 +916,789 @@
           "enabled": true
         }
       ]
+    },
+    {
+      "id": "5d307640-4021-473e-a24d-946655cd85d9",
+      "name": "CesiumMan",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": -4.5,
+          "y": 0.0,
+          "z": 3.0
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "localScale": {
+          "x": 1.5,
+          "y": 1.5,
+          "z": 1.5
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.ModelAnimator",
+          "id": "470ed7c0-4b12-4de7-adc3-b41c1652e9ef",
+          "enabled": true,
+          "data": {
+            "model": "asset:d3000000-0000-4000-8000-000000000051",
+            "clip": "",
+            "speed": 1.0,
+            "loop": true,
+            "playOnStart": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "1b3587ff-ccb4-4cfd-bc2a-450c2ebcb1a5",
+      "name": "Z_UP",
+      "active": true,
+      "parent": "5d307640-4021-473e-a24d-946655cd85d9",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": -0.7071068,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.7071068
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "2debff8a-aba3-4f0a-9076-7f905738fad2",
+      "name": "Armature",
+      "active": true,
+      "parent": "1b3587ff-ccb4-4cfd-bc2a-450c2ebcb1a5",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": -0.7071068,
+          "w": 0.7071068
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "95f17969-0b5e-4315-a5bb-be33b56429e0",
+      "name": "Skeleton_torso_joint_1",
+      "active": true,
+      "parent": "2debff8a-aba3-4f0a-9076-7f905738fad2",
+      "transform": {
+        "localPosition": {
+          "x": 1.57554e-08,
+          "y": 0.004999837,
+          "z": 0.6789999
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": -0.037803534,
+          "z": 0.0,
+          "w": -0.9992852
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "e1acc933-31ee-4a80-9eae-7732916f79b5",
+      "name": "Skeleton_torso_joint_2",
+      "active": true,
+      "parent": "95f17969-0b5e-4315-a5bb-be33b56429e0",
+      "transform": {
+        "localPosition": {
+          "x": 1.33617e-05,
+          "y": -1.33738e-05,
+          "z": 0.1454169
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": -0.6573965,
+          "z": 0.0,
+          "w": -0.7535449
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "df553a84-13a7-4309-981d-dd65aab0c36c",
+      "name": "torso_joint_3",
+      "active": true,
+      "parent": "e1acc933-31ee-4a80-9eae-7732916f79b5",
+      "transform": {
+        "localPosition": {
+          "x": -0.2505169,
+          "y": 6.07222e-07,
+          "z": -7.29081e-05
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.6227029,
+          "z": 0.0,
+          "w": -0.78245836
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "ff4ad358-48fe-4910-a146-28973a124a94",
+      "name": "Skeleton_neck_joint_1",
+      "active": true,
+      "parent": "df553a84-13a7-4309-981d-dd65aab0c36c",
+      "transform": {
+        "localPosition": {
+          "x": -2.36603e-06,
+          "y": 2.41399e-06,
+          "z": 0.06483621
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": -0.66063446,
+          "z": 0.0,
+          "w": -0.75070775
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "e2b6e2c3-11df-4a8d-9f00-1a1aa44f89e1",
+      "name": "Skeleton_neck_joint_2",
+      "active": true,
+      "parent": "ff4ad358-48fe-4910-a146-28973a124a94",
+      "transform": {
+        "localPosition": {
+          "x": -0.05204017,
+          "y": -3.39933e-08,
+          "z": -2.66079e-06
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.9996905,
+          "z": 0.0,
+          "w": 0.02487923
+        },
+        "localScale": {
+          "x": 1.0000001,
+          "y": 1.0,
+          "z": 1.0000001
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "8f8e23ed-8d6e-4766-a022-fb1c2a126161",
+      "name": "Skeleton_arm_joint_L__4_",
+      "active": true,
+      "parent": "df553a84-13a7-4309-981d-dd65aab0c36c",
+      "transform": {
+        "localPosition": {
+          "x": -3.83747e-05,
+          "y": 0.0910136,
+          "z": -6.14334e-05
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.99597687,
+          "z": 0.0,
+          "w": 0.08961082
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "dba61f5a-4078-4339-bb21-d033b27e3e99",
+      "name": "Skeleton_arm_joint_L__3_",
+      "active": true,
+      "parent": "8f8e23ed-8d6e-4766-a022-fb1c2a126161",
+      "transform": {
+        "localPosition": {
+          "x": 0.01322162,
+          "y": 0.2154995,
+          "z": 0.1093321
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": -0.07116943,
+          "z": 0.0,
+          "w": -0.99746424
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "2f8a5550-6118-4c0a-908d-31f2e7a328e6",
+      "name": "Skeleton_arm_joint_L__2_",
+      "active": true,
+      "parent": "dba61f5a-4078-4339-bb21-d033b27e3e99",
+      "transform": {
+        "localPosition": {
+          "x": -0.09332462,
+          "y": 0.1430001,
+          "z": 0.07814791
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": -0.022542227,
+          "z": 0.0,
+          "w": -0.9997459
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "1272d43b-3440-46c4-84ff-c93667846f2e",
+      "name": "Skeleton_arm_joint_R",
+      "active": true,
+      "parent": "df553a84-13a7-4309-981d-dd65aab0c36c",
+      "transform": {
+        "localPosition": {
+          "x": -3.83025e-05,
+          "y": -0.09098775,
+          "z": -6.2032304e-05
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.9909319,
+          "z": 0.0,
+          "w": -0.13436489
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "05e74540-b80c-46b6-9f27-1f3b6846e4f6",
+      "name": "Skeleton_arm_joint_R__2_",
+      "active": true,
+      "parent": "1272d43b-3440-46c4-84ff-c93667846f2e",
+      "transform": {
+        "localPosition": {
+          "x": -0.03554634,
+          "y": -0.215499,
+          "z": 0.1042329
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.896148,
+          "z": 0.0,
+          "w": 0.44375536
+        },
+        "localScale": {
+          "x": 0.99999994,
+          "y": 1.0,
+          "z": 0.99999994
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "9d52cf77-572c-4aca-84dc-d4ca12704418",
+      "name": "Skeleton_arm_joint_R__3_",
+      "active": true,
+      "parent": "05e74540-b80c-46b6-9f27-1f3b6846e4f6",
+      "transform": {
+        "localPosition": {
+          "x": 0.03137022,
+          "y": -0.143001,
+          "z": -0.1176117
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.37921706,
+          "z": 0.0,
+          "w": -0.9253077
+        },
+        "localScale": {
+          "x": 1.0000001,
+          "y": 1.0,
+          "z": 1.0000001
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "6f9922cf-9f86-48a7-a181-0d30dc7fc035",
+      "name": "leg_joint_L_1",
+      "active": true,
+      "parent": "95f17969-0b5e-4315-a5bb-be33b56429e0",
+      "transform": {
+        "localPosition": {
+          "x": 0.02852,
+          "y": 0.06803945,
+          "z": -0.06295936
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": -0.32463354,
+          "z": 0.0,
+          "w": -0.9458399
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "743704c7-bce8-4368-bb3e-ab3112500c53",
+      "name": "leg_joint_L_2",
+      "active": true,
+      "parent": "6f9922cf-9f86-48a7-a181-0d30dc7fc035",
+      "transform": {
+        "localPosition": {
+          "x": 0.2091639,
+          "y": 0.009055503,
+          "z": -0.1642695
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": -0.52943695,
+          "z": 0.0,
+          "w": -0.84834933
+        },
+        "localScale": {
+          "x": 1.0000001,
+          "y": 1.0,
+          "z": 1.0000001
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "0a8c637d-bd89-4d6d-aa41-99fd38c5a540",
+      "name": "leg_joint_L_3",
+      "active": true,
+      "parent": "743704c7-bce8-4368-bb3e-ab3112500c53",
+      "transform": {
+        "localPosition": {
+          "x": 0.2757901,
+          "y": 0.001397252,
+          "z": 0.00412248
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": -0.83776474,
+          "z": 0.0,
+          "w": -0.5460315
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 0.99999994,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "7d4078bf-e21d-4e5c-a7cd-192c4efd6bdc",
+      "name": "leg_joint_L_5",
+      "active": true,
+      "parent": "0a8c637d-bd89-4d6d-aa41-99fd38c5a540",
+      "transform": {
+        "localPosition": {
+          "x": -0.06558381,
+          "y": 0.001090653,
+          "z": 0.02929146
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.3130459,
+          "z": 0.0,
+          "w": -0.949738
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "d0057264-9235-44b7-ba75-eae4edc453ef",
+      "name": "leg_joint_R_1",
+      "active": true,
+      "parent": "95f17969-0b5e-4315-a5bb-be33b56429e0",
+      "transform": {
+        "localPosition": {
+          "x": 0.02855719,
+          "y": -0.06803914,
+          "z": -0.06295864
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": -0.6898292,
+          "z": 0.0,
+          "w": -0.7239722
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "2b08d085-bacf-432e-af4f-67f01670cda8",
+      "name": "leg_joint_R_2",
+      "active": true,
+      "parent": "d0057264-9235-44b7-ba75-eae4edc453ef",
+      "transform": {
+        "localPosition": {
+          "x": 0.2608908,
+          "y": -0.009026051,
+          "z": 0.05167089
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": -0.094113775,
+          "z": 0.0,
+          "w": -0.9955615
+        },
+        "localScale": {
+          "x": 1.0000001,
+          "y": 1.0,
+          "z": 1.0000001
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "a2f9da90-e1cc-41b6-ac26-697047ec53fc",
+      "name": "leg_joint_R_3",
+      "active": true,
+      "parent": "2b08d085-bacf-432e-af4f-67f01670cda8",
+      "transform": {
+        "localPosition": {
+          "x": 0.2754603,
+          "y": -0.0014317259,
+          "z": -0.01410483
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.8666408,
+          "z": 0.0,
+          "w": 0.49893257
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "0fd7d5e9-a18a-42de-9ee8-5af26a95a075",
+      "name": "leg_joint_R_5",
+      "active": true,
+      "parent": "a2f9da90-e1cc-41b6-ac26-697047ec53fc",
+      "transform": {
+        "localPosition": {
+          "x": -0.06681963,
+          "y": -0.001072265,
+          "z": 0.02635131
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.32691476,
+          "z": 0.0,
+          "w": -0.9450538
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "4fdc4050-b658-47c4-9054-62f890483832",
+      "name": "Cesium_Man",
+      "active": true,
+      "parent": "2debff8a-aba3-4f0a-9076-7f905738fad2",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "id": "cecffc86-b6c4-4a76-b9fc-7e46cc724300",
+          "enabled": true,
+          "data": {
+            "primitive": "none",
+            "mesh": "asset:d3000000-0000-4000-8000-000000000051#mesh/Cesium_Man",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "texture": null,
+            "material": null,
+            "doubleSided": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "cc0c6f60-70ec-471c-a957-79e299925b2a",
+      "name": "BoxAnimated",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 4.5,
+          "y": 0.6,
+          "z": 3.0
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "localScale": {
+          "x": 0.6,
+          "y": 0.6,
+          "z": 0.6
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.ModelAnimator",
+          "id": "798c7f3c-36c9-4d14-aebe-f113ba0cdb32",
+          "enabled": true,
+          "data": {
+            "model": "asset:d3000000-0000-4000-8000-000000000052",
+            "clip": "",
+            "speed": 1.0,
+            "loop": true,
+            "playOnStart": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "14701a95-ca7f-4b54-848a-ce53b44a6982",
+      "name": "Node",
+      "active": true,
+      "parent": "cc0c6f60-70ec-471c-a957-79e299925b2a",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "id": "412cab63-9e82-4175-9d36-a6fe81cd8044",
+          "enabled": true,
+          "data": {
+            "primitive": "none",
+            "mesh": "asset:d3000000-0000-4000-8000-000000000052#mesh/outer_box",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "texture": null,
+            "material": null,
+            "doubleSided": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "9482e8b7-0a98-49d0-80d4-4b5bd7e8ee4d",
+      "name": "Node_1",
+      "active": true,
+      "parent": "cc0c6f60-70ec-471c-a957-79e299925b2a",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": -0.0,
+          "y": -0.0,
+          "z": -0.0,
+          "w": -1.0
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "56a273f9-e39f-4c9e-9b10-9b78b716aa1e",
+      "name": "Node_2",
+      "active": true,
+      "parent": "9482e8b7-0a98-49d0-80d4-4b5bd7e8ee4d",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": []
+    },
+    {
+      "id": "3dd794c4-a16f-4739-b47b-ea6424067c6d",
+      "name": "Node_3",
+      "active": true,
+      "parent": "56a273f9-e39f-4c9e-9b10-9b78b716aa1e",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": -0.0,
+          "y": -0.0,
+          "z": -0.0,
+          "w": -1.0
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "id": "6e3f56b3-08d3-40f4-b32e-3c2e7afeb87e",
+          "enabled": true,
+          "data": {
+            "primitive": "none",
+            "mesh": "asset:d3000000-0000-4000-8000-000000000052#mesh/inner_box",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "texture": null,
+            "material": null,
+            "doubleSided": false
+          }
+        }
+      ]
     }
   ]
 }

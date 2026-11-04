@@ -35,6 +35,30 @@ public sealed class ModelRuntimeTests : IDisposable
         return guid;
     }
 
+    private Guid ImportExisting(string file, out ModelData model)
+    {
+        var db = AssetDatabase.OpenForEditing(Path.Combine(_root, "Assets"), Path.Combine(_root, "Library"), ModelImporters.WithDefaults());
+        Assert.True(db.TryGetGuid("Models/" + file, out var guid));
+        Assert.True(db.Get(guid)!.Status == AssetImportStatus.Imported, string.Join("\n", db.Get(guid)!.Messages));
+        model = ModelArtifact.Read(db.ReadArtifact(guid, ModelArtifact.Name)!);
+        return guid;
+    }
+
+    private static unsafe void ExportFbx(string source, string destination)
+    {
+        var api = Silk.NET.Assimp.Assimp.GetApi();
+        var scene = api.ImportFile(source, 0);
+        Assert.True(scene is not null, api.GetErrorStringS());
+        try
+        {
+            Assert.Equal(Silk.NET.Assimp.Return.Success, api.ExportScene(scene, "fbx", destination, 0));
+        }
+        finally
+        {
+            api.ReleaseImport(scene);
+        }
+    }
+
     [Fact]
     public void Instantiate_BuildsHierarchy_WithMeshReferences_ThatSurviveSerialization()
     {
@@ -83,6 +107,63 @@ public sealed class ModelRuntimeTests : IDisposable
         var image = Graphics.Image.Load(screenshot);
         var center = ((image.Height / 2 * image.Width) + (image.Width / 2)) * 4;
         Assert.True(image.Pixels[center] + image.Pixels[center + 1] + image.Pixels[center + 2] > 30, "the crate covers the center of the view");
+    }
+
+    [Fact]
+    public void ModelAnimator_PlaysTheModelsClip_OnTheInstantiatedHierarchy()
+    {
+        var guid = ImportFixture("Khronos", "BoxAnimated.glb", out var model);
+        var assets = AssetDatabase.OpenForEditing(Path.Combine(_root, "Assets"), Path.Combine(_root, "Library"), ModelImporters.WithDefaults());
+        using var provider = new ModelAnimationProvider(assets, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        var scene = new Scene { ModelAnimations = provider, RethrowScriptExceptions = true };
+        var root = ModelInstantiation.Instantiate(scene, guid, model, "Box");
+        var animator = root.GetComponent<ModelAnimator>()!;
+        Assert.Equal(model.Animations[0].Name, Assert.Single(animator.ClipNames));
+
+        var channel = model.Animations[0].Channels.First(c => c.Path == AnimationPath.Translation && c.Node != 0);
+        var node = model.Nodes[channel.Node].Name;
+        var animated = scene.GameObjects.First(g => g.Name == node).Transform;
+        scene.Start();
+        scene.Update(new Core.Timing.FrameTime(1.5f, 1.5f, 1.5, 1.5, 1));
+
+        Assert.True(animator.IsPlaying);
+        Assert.True(Mathematics.Vector3.Distance(AnimationSampling.SampleVector3(channel, 1.5f), animated.LocalPosition) < 1e-4f, "the node follows its channel");
+    }
+
+    [Theory]
+    [InlineData("CesiumMan.glb")]
+    [InlineData("CesiumMan.fbx")] // written by Assimp's FBX exporter from the glTF character
+    public void SkinnedCharacter_RendersWithItsJoints_AndReleasesItsSkinnedMesh(string file)
+    {
+        if (file.EndsWith(".fbx", StringComparison.Ordinal))
+        {
+            Directory.CreateDirectory(Path.Combine(_root, "Assets", "Models"));
+            ExportFbx(Fixture("Khronos/CesiumMan.glb"), Path.Combine(_root, "Assets", "Models", file));
+            File.WriteAllText(Path.Combine(_root, "Assets", "Models", file + ".meta"), """{ "schemaVersion": 1, "guid": "e8000000-0000-4000-8000-000000000002", "settings": { "scale": 100 } }"""); // the exporter writes centimeter units
+        }
+
+        var guid = file.EndsWith(".fbx", StringComparison.Ordinal) ? ImportExisting(file, out var model) : ImportFixture("Khronos", file, out model);
+        var scene = new Scene { Name = "Walk" };
+        var camera = scene.CreateGameObject("Camera");
+        camera.Transform.LocalPosition = new Mathematics.Vector3(0f, 0.8f, 3f);
+        var view = camera.AddComponent<Camera>();
+        (view.Projection, view.BackgroundColor) = (CameraProjection.Perspective, new Mathematics.Color(0f, 0f, 0f, 1f));
+        ModelInstantiation.Instantiate(scene, guid, model, "Cesium Man");
+        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt"), new SceneSerializer(EngineComponents.CreateRegistry()).Serialize(scene));
+        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt.meta"), $$"""{ "schemaVersion": 1, "guid": "{{Guid.NewGuid()}}", "settings": {} }""");
+        File.WriteAllText(Path.Combine(_root, "Test.mnvtproj"), """{ "schemaVersion": 1, "name": "Test", "startupScene": "Scenes/First.mnvt", "loadingScreen": { "enabled": false } }""");
+
+        using var logs = new InMemoryLoggerProvider(minimumLevel: LogLevel.Debug);
+        using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
+        var screenshot = Path.Combine(_root, "walk.png");
+        var runtime = RunHidden(GameProject.Load(_root), factory, screenshot);
+        
+        Assert.Equal(0, runtime.ExitCode); // the skinned dynamic mesh is released
+        var warnings = logs.Snapshot().Where(e => e.Level >= LogLevel.Warning && e.Category != "Graphics").Select(e => $"{e.Category}: {e.Message}").ToList();
+        Assert.True(warnings.Count == 0, string.Join("\n", warnings));
+        Assert.Contains(logs.Snapshot(), e => e.Message.Contains("1 meshes drawn", StringComparison.Ordinal));
+        var image = Graphics.Image.Load(screenshot);
+        Assert.Contains(Enumerable.Range(0, image.Width * image.Height), i => image.Pixels[i * 4] + image.Pixels[(i * 4) + 1] + image.Pixels[(i * 4) + 2] > 60); // the character is on screen
     }
 
     [Fact]

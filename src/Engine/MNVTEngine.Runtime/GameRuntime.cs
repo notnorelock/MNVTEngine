@@ -71,6 +71,7 @@ public sealed partial class GameRuntime(
     private AssetDatabase _assets = null!;
     private SceneSerializer _serializer = null!;
     private PrefabProvider _prefabs = null!;
+    private ModelAnimationProvider? _animations;
     private string? _pendingScene;
     private int _frames;
     private bool _frameStarted;
@@ -97,6 +98,7 @@ public sealed partial class GameRuntime(
 
         _serializer = new SceneSerializer(registry, _assets);
         _prefabs = new PrefabProvider(_serializer, _assets, loggerFactory.CreateLogger("Prefabs"));
+        _animations = new ModelAnimationProvider(_assets, loggerFactory.CreateLogger("Animation"));
         _resources = new ResourceCache(_device, _assets, loggerFactory.CreateLogger("Resources"));
         _sceneRenderer = new SceneRenderer(_renderer, _resources, _logger);
         Application.SetHostWindow(new RuntimeWindow(window, _device, _assets));
@@ -246,6 +248,7 @@ public sealed partial class GameRuntime(
         _ui?.Dispose();
         _uiFont?.Dispose();
         _resources?.Dispose();
+        _animations?.Dispose();
         _renderer?.Dispose();
         if (_device.Resources.LiveCount > 0)
         {
@@ -293,6 +296,7 @@ public sealed partial class GameRuntime(
         next.Loader = this;
         next.Prefabs = _prefabs;
         next.TextAssets = _prefabs;
+        next.ModelAnimations = _animations;
         if (_options.Audio is { } audio)
         {
             AudioSystem.Attach(next, audio, clip => _assets.ReadAllBytes(clip.Guid));

@@ -101,6 +101,56 @@ public sealed class ModelImportTests : IDisposable
     }
 
     [Fact]
+    public unsafe void SkinnedAnimatedFbx_ImportsItsSkeletonSkinAndClip()
+    {
+        // The FBX is written by Assimp's exporter from the Khronos CesiumMan character (CC-BY).
+        var fbx = Path.Combine(AssetsDir, "CesiumMan.fbx");
+        var api = Silk.NET.Assimp.Assimp.GetApi();
+        var scene = api.ImportFile(Fixture("Khronos/CesiumMan.glb"), 0);
+        Assert.True(scene is not null, api.GetErrorStringS());
+        try
+        {
+            Assert.Equal(Silk.NET.Assimp.Return.Success, api.ExportScene(scene, "fbx", fbx, 0));
+        }
+        finally
+        {
+            api.ReleaseImport(scene);
+        }
+
+        // Assimp's exporter tags its (meter) data as centimeters, so this file needs the import scale that undoes it.
+        File.WriteAllText(fbx + ".meta", """{ "schemaVersion": 1, "guid": "e8000000-0000-4000-8000-000000000001", "settings": { "scale": 100 } }""");
+        File.Copy(Fixture("Khronos/CesiumMan.glb"), Path.Combine(AssetsDir, "CesiumMan.glb"));
+        var db = Open();
+        var (_, model) = Imported(db, "CesiumMan.fbx");
+        var gltf = Imported(db, "CesiumMan.glb").Model;
+        Assert.InRange(WorldSize(model), WorldSize(gltf) * 0.98f, WorldSize(gltf) * 1.02f); // same size as the source: units converted once
+        var skin = Assert.Single(model.Skins);
+        Assert.True(skin.Joints.Count >= 19, $"{skin.Joints.Count} joints");
+        var mesh = model.Meshes.Single(m => m.Joints is not null);
+        Assert.Equal(mesh.Mesh.VertexCount * 4, mesh.Weights!.Length);
+        Assert.All(Enumerable.Range(0, mesh.Mesh.VertexCount), v => Assert.InRange(mesh.Weights.Skip(v * 4).Take(4).Sum(), 0.999f, 1.001f));
+        Assert.Contains(model.Nodes, n => n.Skin == 0 && n.Mesh >= 0);
+        var clip = Assert.Single(model.Animations);
+        Assert.InRange(clip.Duration, 1f, 3f); // CesiumMan's walk cycle is about 2 s
+        Assert.Contains(clip.Channels, c => c.Path == AnimationPath.Rotation && skin.Joints.Contains(c.Node));
+
+        // In the bind pose the skinned mesh is where the unskinned one is: joint world x inverse bind = identity.
+        var world = new Matrix4x4[model.Nodes.Count];
+        for (var i = 0; i < model.Nodes.Count; i++)
+        {
+            var n = model.Nodes[i];
+            world[i] = n.Parent < 0 ? Matrix4x4.TRS(n.Position, n.Rotation, n.Scale) : world[n.Parent] * Matrix4x4.TRS(n.Position, n.Rotation, n.Scale);
+        }
+
+        var meshNode = model.Nodes.FindIndex(n => n.Skin == 0);
+        var joint = skin.Joints[mesh.Joints![0]];
+        var bindMatrix = world[joint] * skin.InverseBindMatrices[mesh.Joints[0]];
+        var skinned = bindMatrix.MultiplyPoint3x4(mesh.Mesh.Positions[0]);
+        var unskinned = world[meshNode].MultiplyPoint3x4(mesh.Mesh.Positions[0]);
+        Assert.True(Vector3.Distance(skinned, unskinned) < 0.01f, $"bind pose {skinned} vs {unskinned}");
+    }
+
+    [Fact]
     public void Gltf_Imports_PbrMaterial_WithBufferAndTextureDependencies()
     {
         CopyFixtureFolder("WoodenCrate/gltf", "Crate");

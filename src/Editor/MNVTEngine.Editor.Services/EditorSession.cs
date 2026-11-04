@@ -22,6 +22,7 @@ public sealed class EditorSession
         Assets = AssetDatabase.OpenForEditing(project.AssetsDirectory, Path.Combine(project.RootDirectory, "Library"), MNVTEngine.Assets.Models.ModelImporters.WithDefaults());
         Serializer = new SceneSerializer(registry, Assets);
         Prefabs = new PrefabProvider(Serializer, Assets, logger ?? NullLogger.Instance);
+        ModelAnimations = new ModelAnimationProvider(Assets, logger ?? NullLogger.Instance);
         Scene = CreateDefaultScene("Untitled");
         History = new UndoHistory(() => Serializer.Serialize(Scene), Restore);
         History.Reset();
@@ -31,6 +32,9 @@ public sealed class EditorSession
     public AssetDatabase Assets { get; }
 
     public PrefabProvider Prefabs { get; }
+
+    /// <summary>Animation clips of imported models for scenes (lives as long as the session's asset database).</summary>
+    public ModelAnimationProvider ModelAnimations { get; }
 
     public GameProject Project { get; }
 
@@ -117,6 +121,7 @@ public sealed class EditorSession
         ArgumentNullException.ThrowIfNull(scene);
         scene.Prefabs = Prefabs;
         scene.TextAssets = Prefabs;
+        scene.ModelAnimations = ModelAnimations;
         Scene = scene;
         SceneReplaced?.Invoke();
     }
@@ -132,6 +137,7 @@ public sealed class EditorSession
     {
         scene.Prefabs = Prefabs;
         scene.TextAssets = Prefabs;
+        scene.ModelAnimations = ModelAnimations;
         Scene = scene;
         ScenePath = path;
         IsDirty = false;
@@ -147,6 +153,7 @@ public sealed class EditorSession
         var restored = Serializer.Deserialize(snapshot, ScenePath ?? Scene.Name).Scene;
         restored.Prefabs = Prefabs;
         restored.TextAssets = Prefabs;
+        restored.ModelAnimations = ModelAnimations;
         Scene = restored;
         IsDirty = snapshot != _savedSnapshot;
         if (Selection.Id is { } id && restored.FindById(id) is null)
@@ -163,6 +170,7 @@ public sealed class EditorSession
         scene.CreateGameObject("Main Camera").AddComponent<Camera>();
         scene.Prefabs = Prefabs;
         scene.TextAssets = Prefabs;
+        scene.ModelAnimations = ModelAnimations;
         return scene;
     }
 }

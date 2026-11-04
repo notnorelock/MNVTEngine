@@ -28,6 +28,7 @@ public sealed class ComponentRegistry
         registry.Register<MeshRenderer>();
         registry.Register<Light>();
         registry.Register<AmbientLight>();
+        registry.Register<ModelAnimator>();
         return registry;
     }
 

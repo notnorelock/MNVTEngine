@@ -5,7 +5,8 @@ namespace MNVTEngine.Runtime;
 /// <summary>
 /// Creates the GameObject hierarchy of an imported model: one GameObject per node with its local transform, and a
 /// <see cref="MeshRenderer"/> referencing the node's mesh (<c>asset:&lt;guid&gt;#mesh/&lt;name&gt;</c>), so the scene keeps
-/// referencing the model and picks up reimports. Skinned meshes are drawn in their bind pose (skinning comes later).
+/// referencing the model and picks up reimports. A model with animation clips gets a <see cref="ModelAnimator"/> on its
+/// root; skinned meshes follow their joint GameObjects.
 /// </summary>
 public static class ModelInstantiation
 {
@@ -37,6 +38,11 @@ public static class ModelInstantiation
             }
 
             objects[i] = gameObject;
+        }
+
+        if (data.Animations.Count > 0)
+        {
+            objects[0].AddComponent<ModelAnimator>().Model = new AssetRef(model); // plays the first clip on start
         }
 
         return objects[0];
