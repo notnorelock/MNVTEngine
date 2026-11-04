@@ -18,28 +18,49 @@ public readonly record struct VertexElement(int Location, int Components, Vertex
 
 public sealed record VertexLayout(int Stride, IReadOnlyList<VertexElement> Elements);
 
-/// <summary>Dynamic vertex buffer with a fixed capacity, re-uploaded by the CPU each use.</summary>
+/// <summary>Size of one index.</summary>
+public enum IndexFormat
+{
+    UInt16,
+    UInt32,
+}
+
+/// <summary>
+/// Vertex buffer. Dynamic buffers have a fixed capacity and are re-uploaded by the CPU each frame they are drawn
+/// (sprites, UI). Static buffers (<see cref="IGraphicsDevice.CreateStaticVertexBuffer"/>) are uploaded once to GPU
+/// memory and drawn any number of frames (meshes).
+/// </summary>
 public abstract class VertexBuffer : GraphicsResource
 {
-    protected VertexBuffer(GraphicsResourceTracker? tracker, string debugName, VertexLayout layout, int capacity)
+    protected VertexBuffer(GraphicsResourceTracker? tracker, string debugName, VertexLayout layout, int capacity, bool isStatic = false)
         : base(tracker, debugName)
     {
         ArgumentNullException.ThrowIfNull(layout);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         Layout = layout;
         Capacity = capacity;
+        IsStatic = isStatic;
     }
 
     public VertexLayout Layout { get; }
 
-    /// <summary>Maximum number of vertices.</summary>
+    /// <summary>Maximum number of vertices (the vertex count, for static buffers).</summary>
     public int Capacity { get; }
 
-    /// <summary>Replaces the buffer contents from offset 0.</summary>
+    /// <summary>Uploaded once at creation; <see cref="SetData{T}"/> is not allowed.</summary>
+    public bool IsStatic { get; }
+
+    /// <summary>Replaces the buffer contents from offset 0. Only valid for dynamic buffers.</summary>
+    /// <exception cref="InvalidOperationException">The buffer is static.</exception>
     public void SetData<T>(ReadOnlySpan<T> vertices)
         where T : unmanaged
     {
         ThrowIfDisposed();
+        if (IsStatic)
+        {
+            throw new InvalidOperationException($"Vertex buffer '{DebugName}' is static.");
+        }
+
         if (Unsafe.SizeOf<T>() != Layout.Stride)
         {
             throw new ArgumentException($"Vertex type {typeof(T).Name} is {Unsafe.SizeOf<T>()} bytes but the layout stride is {Layout.Stride}.", nameof(vertices));
@@ -53,16 +74,27 @@ public abstract class VertexBuffer : GraphicsResource
     protected abstract void SetDataCore(ReadOnlySpan<byte> data);
 }
 
-/// <summary>16-bit index buffer: immutable, or dynamic (re-uploaded by the CPU, e.g. for UI geometry).</summary>
+/// <summary>
+/// Index buffer: immutable (16- or 32-bit, in GPU memory), or dynamic 16-bit (re-uploaded by the CPU, e.g. for UI
+/// geometry).
+/// </summary>
 public abstract class IndexBuffer : GraphicsResource
 {
-    protected IndexBuffer(GraphicsResourceTracker? tracker, string debugName, int count, bool isDynamic = false)
+    protected IndexBuffer(GraphicsResourceTracker? tracker, string debugName, int count, bool isDynamic = false, IndexFormat format = IndexFormat.UInt16)
         : base(tracker, debugName)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
+        if (isDynamic && format != IndexFormat.UInt16)
+        {
+            throw new ArgumentException("Dynamic index buffers are 16-bit.", nameof(format));
+        }
+
         Count = count;
         IsDynamic = isDynamic;
+        Format = format;
     }
+
+    public IndexFormat Format { get; }
 
     /// <summary>Number of indices (the capacity, for dynamic buffers).</summary>
     public int Count { get; }

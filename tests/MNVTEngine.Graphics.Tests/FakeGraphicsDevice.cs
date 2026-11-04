@@ -37,6 +37,12 @@ internal sealed class FakeGraphicsDevice : IGraphicsDevice
     public IndexBuffer CreateIndexBuffer(ReadOnlySpan<ushort> indices, string debugName = "IndexBuffer") =>
         new FakeIndexBuffer(Resources, debugName, indices.Length);
 
+    public VertexBuffer CreateStaticVertexBuffer(VertexLayout layout, ReadOnlySpan<byte> vertices, string debugName = "StaticVertexBuffer") =>
+        new FakeVertexBuffer(Resources, debugName, layout, vertices.Length / layout.Stride, isStatic: true);
+
+    public IndexBuffer CreateIndexBuffer(ReadOnlySpan<uint> indices, string debugName = "IndexBuffer") =>
+        new FakeIndexBuffer(Resources, debugName, indices.Length, IndexFormat.UInt32);
+
     public IndexBuffer CreateDynamicIndexBuffer(int capacity, string debugName = "DynamicIndexBuffer") =>
         new FakeIndexBuffer(Resources, debugName, capacity);
 
@@ -83,7 +89,7 @@ internal sealed class FakeGraphicsDevice : IGraphicsDevice
         }
     }
 
-    public sealed class FakeVertexBuffer(GraphicsResourceTracker t, string n, VertexLayout l, int c) : VertexBuffer(t, n, l, c)
+    public sealed class FakeVertexBuffer(GraphicsResourceTracker t, string n, VertexLayout l, int c, bool isStatic = false) : VertexBuffer(t, n, l, c, isStatic)
     {
         public SpriteVertex[] Data { get; private set; } = [];
 
@@ -94,7 +100,7 @@ internal sealed class FakeGraphicsDevice : IGraphicsDevice
         }
     }
 
-    public sealed class FakeIndexBuffer(GraphicsResourceTracker t, string n, int c) : IndexBuffer(t, n, c)
+    public sealed class FakeIndexBuffer(GraphicsResourceTracker t, string n, int c, IndexFormat format = IndexFormat.UInt16) : IndexBuffer(t, n, c, format: format)
     {
         protected override void ReleaseCore()
         {

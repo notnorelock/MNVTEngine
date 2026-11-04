@@ -59,9 +59,23 @@ internal sealed class VulkanRenderTarget : RenderTarget2D, IVulkanTexture
 /// "Replace the contents" vertex buffer: each <see cref="VertexBuffer.SetData{T}"/> writes into the current frame's
 /// streaming memory and later draws read from there, so data still read by frames in flight is never overwritten.
 /// </summary>
-internal sealed unsafe class VulkanVertexBuffer(VulkanGraphicsDevice device, string debugName, VertexLayout layout, int capacity)
-    : VertexBuffer(device.Resources, debugName, layout, capacity)
+internal sealed unsafe class VulkanVertexBuffer : VertexBuffer
 {
+    private readonly VulkanGraphicsDevice _device;
+    private readonly GpuBuffer? _static;
+
+    public VulkanVertexBuffer(VulkanGraphicsDevice device, string debugName, VertexLayout layout, int capacity)
+        : base(device.Resources, debugName, layout, capacity) => _device = device;
+
+    /// <summary>Static: device-local memory filled through a staging copy, drawn any number of frames.</summary>
+    public VulkanVertexBuffer(VulkanGraphicsDevice device, string debugName, VertexLayout layout, ReadOnlySpan<byte> vertices)
+        : base(device.Resources, debugName, layout, vertices.Length / layout.Stride, isStatic: true)
+    {
+        _device = device;
+        _static = device.CreateStaticBuffer(vertices, BufferUsageFlags.VertexBufferBit, debugName);
+        Current = new StreamAllocation(_static.Handle, 0, null);
+    }
+
     public StreamAllocation Current { get; private set; }
 
     /// <summary>Frame the data was written in; drawing it in a later frame would read reused memory.</summary>
@@ -69,13 +83,17 @@ internal sealed unsafe class VulkanVertexBuffer(VulkanGraphicsDevice device, str
 
     protected override void SetDataCore(ReadOnlySpan<byte> data)
     {
-        Current = device.Stream(data, (ulong)Layout.Stride);
-        Frame = device.FrameNumber;
+        Current = _device.Stream(data, (ulong)Layout.Stride);
+        Frame = _device.FrameNumber;
     }
 
     protected override void ReleaseCore()
     {
-        // Streaming memory belongs to the frame slots; nothing to free.
+        // Streaming memory belongs to the frame slots; static memory waits for the frames that may still read it.
+        if (_static is not null)
+        {
+            _device.DestroyLater(_static);
+        }
     }
 }
 
@@ -87,6 +105,14 @@ internal sealed unsafe class VulkanIndexBuffer : IndexBuffer
 
     public VulkanIndexBuffer(VulkanGraphicsDevice device, string debugName, ReadOnlySpan<ushort> indices)
         : base(device.Resources, debugName, indices.Length)
+    {
+        _device = device;
+        _static = device.CreateStaticBuffer(System.Runtime.InteropServices.MemoryMarshal.AsBytes(indices), BufferUsageFlags.IndexBufferBit, debugName);
+        Current = new StreamAllocation(_static.Handle, 0, null);
+    }
+
+    public VulkanIndexBuffer(VulkanGraphicsDevice device, string debugName, ReadOnlySpan<uint> indices)
+        : base(device.Resources, debugName, indices.Length, format: IndexFormat.UInt32)
     {
         _device = device;
         _static = device.CreateStaticBuffer(System.Runtime.InteropServices.MemoryMarshal.AsBytes(indices), BufferUsageFlags.IndexBufferBit, debugName);

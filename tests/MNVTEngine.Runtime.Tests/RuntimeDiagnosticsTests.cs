@@ -278,6 +278,10 @@ public sealed class RuntimeDiagnosticsTests : IDisposable
 
         public IndexBuffer CreateDynamicIndexBuffer(int capacity, string debugName = "DynamicIndexBuffer") => throw new NotSupportedException();
 
+        public VertexBuffer CreateStaticVertexBuffer(VertexLayout layout, ReadOnlySpan<byte> vertices, string debugName = "StaticVertexBuffer") => throw new NotSupportedException();
+
+        public IndexBuffer CreateIndexBuffer(ReadOnlySpan<uint> indices, string debugName = "IndexBuffer") => throw new NotSupportedException();
+
         public void SetRenderTarget(RenderTarget2D? target)
         {
         }

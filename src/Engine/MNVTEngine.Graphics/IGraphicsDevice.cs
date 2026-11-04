@@ -58,7 +58,14 @@ public interface IGraphicsDevice : IDisposable
 
     VertexBuffer CreateVertexBuffer(VertexLayout layout, int capacity, string debugName = "VertexBuffer");
 
+    /// <summary>Vertex data uploaded once to GPU memory (meshes); drawn any number of frames, never rewritten.</summary>
+    /// <param name="vertices">Interleaved vertices: a multiple of <see cref="VertexLayout.Stride"/> bytes.</param>
+    VertexBuffer CreateStaticVertexBuffer(VertexLayout layout, ReadOnlySpan<byte> vertices, string debugName = "StaticVertexBuffer");
+
     IndexBuffer CreateIndexBuffer(ReadOnlySpan<ushort> indices, string debugName = "IndexBuffer");
+
+    /// <summary>Immutable 32-bit indices, for meshes with more than 65,536 vertices.</summary>
+    IndexBuffer CreateIndexBuffer(ReadOnlySpan<uint> indices, string debugName = "IndexBuffer");
 
     /// <summary>Index buffer updated with <see cref="IndexBuffer.SetData"/>.</summary>
     IndexBuffer CreateDynamicIndexBuffer(int capacity, string debugName = "DynamicIndexBuffer");

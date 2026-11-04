@@ -419,6 +419,31 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         return new VulkanIndexBuffer(this, debugName, indices);
     }
 
+    public VertexBuffer CreateStaticVertexBuffer(VertexLayout layout, ReadOnlySpan<byte> vertices, string debugName = "StaticVertexBuffer")
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(layout);
+        if (vertices.IsEmpty || vertices.Length % layout.Stride != 0)
+        {
+            throw new ArgumentException($"Vertex data for '{debugName}' must be a non-empty multiple of the {layout.Stride}-byte stride (got {vertices.Length} bytes).", nameof(vertices));
+        }
+
+        var buffer = new VulkanVertexBuffer(this, debugName, layout, vertices);
+        Statistics.RecordVertexUpload(buffer.Capacity);
+        return buffer;
+    }
+
+    public IndexBuffer CreateIndexBuffer(ReadOnlySpan<uint> indices, string debugName = "IndexBuffer")
+    {
+        ThrowIfDisposed();
+        if (indices.IsEmpty)
+        {
+            throw new ArgumentException($"Index buffer '{debugName}' needs at least one index.", nameof(indices));
+        }
+
+        return new VulkanIndexBuffer(this, debugName, indices);
+    }
+
     public IndexBuffer CreateDynamicIndexBuffer(int capacity, string debugName = "DynamicIndexBuffer")
     {
         ThrowIfDisposed();
@@ -499,9 +524,10 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         }
 
         BeginRecording();
-        if (vertices.Frame != FrameNumber || (indices.IsDynamic && indices.Frame != FrameNumber))
+        var staleVertices = !vertices.IsStatic && vertices.Frame != FrameNumber;
+        if (staleVertices || (indices.IsDynamic && indices.Frame != FrameNumber))
         {
-            throw new InvalidOperationException($"Dynamic buffer '{(vertices.Frame != FrameNumber ? vertices.DebugName : indices.DebugName)}' must be filled with SetData in the frame it is drawn.");
+            throw new InvalidOperationException($"Dynamic buffer '{(staleVertices ? vertices.DebugName : indices.DebugName)}' must be filled with SetData in the frame it is drawn.");
         }
 
         if (CurrentImage() is not { } target)
@@ -557,7 +583,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         var ib = indices.Current;
         if (ib.Buffer.Handle != _boundIndices.Buffer.Handle || ib.Offset != _boundIndices.Offset)
         {
-            vk.CmdBindIndexBuffer(_cmd, ib.Buffer, ib.Offset, IndexType.Uint16);
+            vk.CmdBindIndexBuffer(_cmd, ib.Buffer, ib.Offset, indices.Format == IndexFormat.UInt32 ? IndexType.Uint32 : IndexType.Uint16);
             _boundIndices = (ib.Buffer, ib.Offset);
         }
 
