@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using MNVTEngine.Assets;
 using MNVTEngine.Core.Logging;
 using MNVTEngine.GameAssemblies;
-using MNVTEngine.Graphics.OpenGL;
+using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Runtime;
 using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
@@ -12,7 +12,7 @@ using MNVTEngine.Serialization;
 namespace MNVTEngine.GameHost;
 
 // Exported game: runs <Game>_Data/content.mnvtpak next to the executable.
-// Usage: <Game>.exe [--frames N] [--screenshot out.png] [--debug-gl]
+// Usage: <Game>.exe [--frames N] [--screenshot out.png] [--gpu-validation]
 internal static class Program
 {
     private static int Main(string[] args)
@@ -79,7 +79,7 @@ internal static class Game
             HostLog.Starting(logger, package.Name, package.Profile, package.EngineVersion);
             return GameApplication.Run(
                 args,
-                (window, log) => GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, log),
+                (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface!, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication(package.Name, window.Options.VSync, window.Options.DebugContext)),
                 loggerFactory,
                 (_, registry) => LoadScripts(package, archive, registry, logger),
                 archive,

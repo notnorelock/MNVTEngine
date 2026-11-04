@@ -83,6 +83,12 @@ public interface IGraphicsDevice : IDisposable
 
     /// <summary>Video memory from a vendor extension; <see cref="GpuMemoryInfo.Unsupported"/> without one. May cost a driver call: sample, don't poll.</summary>
     GpuMemoryInfo QueryGpuMemory() => GpuMemoryInfo.Unsupported;
+
+    /// <summary>The engine's own GPU allocations (exact, cheap to read); null when the backend has no allocator.</summary>
+    GpuAllocationStatistics? AllocationStatistics => null;
+
+    /// <summary>Backend facts for diagnostics panels: API and driver, swapchain, validation, caches... in display order.</summary>
+    IReadOnlyList<KeyValuePair<string, string>> DescribeBackend() => [];
 }
 
 public static class GraphicsDeviceExtensions

@@ -130,6 +130,27 @@ public readonly struct GpuScope : IDisposable
     public void Dispose() => _timer?.EndScope();
 }
 
+/// <summary>
+/// GPU memory the engine allocated through the backend's allocator (exact), plus the driver's budget for this process.
+/// </summary>
+/// <param name="BlockBytes">Device memory reserved from the driver (allocator blocks).</param>
+/// <param name="AllocatedBytes">Bytes of live allocations placed in those blocks.</param>
+/// <param name="DeviceLocalBudgetBytes">Device-local memory this process may use; null when unknown.</param>
+/// <param name="DeviceLocalUsageBytes">Device-local memory this process uses (all its allocations); null when unknown.</param>
+/// <param name="BudgetMeasured">True when the budget comes from the driver; otherwise it is the allocator's estimate.</param>
+public readonly record struct GpuAllocationStatistics(
+    long BlockBytes,
+    long AllocatedBytes,
+    int BlockCount,
+    int AllocationCount,
+    long TextureBytes,
+    long RenderTargetBytes,
+    long BufferBytes,
+    int FailedAllocations,
+    long? DeviceLocalBudgetBytes,
+    long? DeviceLocalUsageBytes,
+    bool BudgetMeasured);
+
 /// <summary>Video memory reported by a vendor extension; values the driver does not expose are null.</summary>
 /// <param name="Source">Where the numbers come from, e.g. "GL_NVX_gpu_memory_info".</param>
 public readonly record struct GpuMemoryInfo(bool Supported, long? TotalBytes, long? AvailableBytes, string Source)

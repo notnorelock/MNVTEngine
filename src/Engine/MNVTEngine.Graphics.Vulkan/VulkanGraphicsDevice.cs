@@ -179,7 +179,30 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
     public VulkanValidationCounters Validation => _instance.Validation;
 
     /// <summary>The engine's GPU allocations and, with VK_EXT_memory_budget, the driver's budget. Cheap: no GPU sync.</summary>
-    public VulkanMemoryStatistics MemoryStatistics => _allocator.Statistics();
+    public GpuAllocationStatistics MemoryStatistics => _allocator.Statistics();
+
+    public GpuAllocationStatistics? AllocationStatistics => _allocator.Statistics();
+
+    public IReadOnlyList<KeyValuePair<string, string>> DescribeBackend()
+    {
+        var validation = _instance.Validation;
+        var budget = Context.MemoryBudgetSupported ? "VK_EXT_memory_budget (measured)" : "not exposed: VMA estimates 80 % of each heap";
+        return
+        [
+            new("API", $"Vulkan {VulkanVersion.Format(Context.Properties.ApiVersion)} (instance {VulkanVersion.Format(_instance.InstanceVersion)})"),
+            new("GPU", $"{Context.DeviceName} ({Context.Properties.DeviceType})"),
+            new("Driver", Context.DriverDescription),
+            new("Back buffer", SwapchainDescription),
+            new("Frames in flight", FramesInFlight.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            new("Validation", validation.Enabled
+                ? $"on: {validation.Errors} errors, {validation.Warnings} warnings" + (validation.LastError is { } last ? $"; last: {last}" : string.Empty)
+                : "off (Khronos layer not requested or not installed)"),
+            new("Pipelines", $"{_pipelines.Created} created; driver cache {(_options.PipelineCachePath is null ? "in memory" : $"{_pipelines.LoadedBytes / 1024} KB loaded from disk")}"),
+            new("Streaming memory", $"{_slots[FrameSlot].Stream.BytesUsed / 1024} KB used of {_slots[FrameSlot].Stream.Capacity / 1024} KB this frame"),
+            new("Memory budget", budget),
+            new("GPU timer", _timer is null ? "unsupported: the graphics queue has no timestamps" : $"timestamps, {Context.TimestampValidBits} bits, {Context.Limits.TimestampPeriod:0.##} ns/tick"),
+        ];
+    }
 
     /// <summary>Back buffer: swapchain size, format, present mode and image count, or "headless".</summary>
     public string SwapchainDescription => _swapchain is { } s
@@ -587,6 +610,11 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         _recording = false;
         _imageIndex = -1;
         FrameNumber++;
+
+        // Throttle here, like a GL buffer swap: wait until the next frame's slot is free (the frame FramesInFlight back).
+        // Waiting at the start of the next frame instead would count VSync and GPU time as that frame's CPU time.
+        var next = _slots[FrameSlot].Fence;
+        VulkanInstance.Check(Context.Vk.WaitForFences(Context.Device, 1, &next, true, ulong.MaxValue), "vkWaitForFences");
     }
 
     public void Dispose()

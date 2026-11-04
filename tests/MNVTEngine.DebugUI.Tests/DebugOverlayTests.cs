@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using MNVTEngine.Core.Timing;
 using MNVTEngine.Diagnostics;
 using MNVTEngine.Graphics;
-using MNVTEngine.Graphics.OpenGL;
+using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Mathematics;
 using MNVTEngine.Platform;
 using MNVTEngine.Runtime;
@@ -12,42 +12,55 @@ using Debug = MNVTEngine.Diagnostics.Debug;
 
 namespace MNVTEngine.DebugUI.Tests;
 
-/// <summary>The in-game overlay on a real GL context: ImGui context isolation, shortcuts, input capture, rendering.</summary>
+/// <summary>The in-game overlay on a real Vulkan device: ImGui context isolation, shortcuts, input capture, rendering.</summary>
 [Collection(nameof(OverlayGroup))]
 public sealed class DebugOverlayTests
 {
     private const int Width = 320;
     private const int Height = 200;
 
-    /// <summary>A hidden window with the overlay of a tiny scene; the body drives frames itself.</summary>
-    /// <param name="view">Logical size the overlay lays out for (defaults to the window); larger than the window is fine.</param>
+    /// <summary>A headless device with the overlay of a tiny scene; the body drives frames itself. Fails on Vulkan validation errors.</summary>
+    /// <param name="view">Logical size the overlay lays out for (defaults to the back buffer); larger than it is fine.</param>
     private static void Run(Action<Harness> body, Action<DiagnosticsSettings>? configure = null, (int Width, int Height)? view = null)
     {
-        GameWindow window;
+        VulkanGraphicsDevice device;
         try
         {
-            window = new GameWindow(new GameWindowOptions { Hidden = true, Width = Width, Height = Height, VSync = false });
+            device = VulkanGraphicsDevice.CreateHeadless(Width, Height, NullLogger.Instance, new VulkanDeviceOptions { Validation = true });
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (GraphicsInitializationException ex)
         {
-            Assert.Skip($"No window system available: {ex.Message}");
+            Assert.Skip($"No Vulkan 1.4 device available: {ex.Message}");
             throw;
         }
 
-        using (window)
+        var (width, height) = view ?? (Width, Height);
+        var renderer = new Renderer2D(device);
+        var settings = new DiagnosticsSettings { WarmupFrames = 0 };
+        configure?.Invoke(settings);
+        var scene = new Scene("Test");
+        scene.Start();
+        var input = new InputState();
+        var diagnostics = new RuntimeDiagnostics(settings, NullLogger.Instance, Path.GetTempPath());
+        diagnostics.Attach(new DiagnosticsTarget(device, () => scene));
+        diagnostics.Install();
+        var overlay = new DebugOverlay(NullLogger.Instance);
+        try
         {
-            var loop = new Loop(body, configure, view ?? (Width, Height));
-            try
-            {
-                window.Run(loop);
-            }
-            catch (Exception ex) when (!loop.Loaded && ex is not OutOfMemoryException)
-            {
-                Assert.Skip($"No OpenGL 4.5 context available: {ex.Message}");
-            }
+            overlay.Load(new RuntimeOverlayContext(device, renderer, diagnostics, input, () => new OverlayDisplay(width, height, 1f), () => scene));
+            body(new Harness(device, renderer, diagnostics, overlay, input, scene));
         }
-    }
+        finally
+        {
+            overlay.Dispose();
+            diagnostics.Uninstall();
+            scene.Unload();
+            renderer.Dispose();
+            device.Dispose();
+        }
 
+        Assert.True(device.Validation.Errors == 0, $"{device.Validation.Errors} Vulkan validation error(s); last: {device.Validation.LastError}");
+    }
     [Fact]
     public void Overlay_KeepsItsOwnImGuiContext_AndRestoresTheCallers()
     {
@@ -215,11 +228,11 @@ public sealed class DebugOverlayTests
         return Color.FromBytes(rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3]);
     }
 
-    public sealed class Harness(GLGraphicsDevice device, Renderer2D renderer, RuntimeDiagnostics diagnostics, DebugOverlay overlay, InputState input, Scene scene)
+    public sealed class Harness(VulkanGraphicsDevice device, Renderer2D renderer, RuntimeDiagnostics diagnostics, DebugOverlay overlay, InputState input, Scene scene)
     {
         private long _frame;
 
-        public GLGraphicsDevice Device => device;
+        public VulkanGraphicsDevice Device => device;
 
         public Renderer2D Renderer => renderer;
 
@@ -250,6 +263,7 @@ public sealed class DebugOverlayTests
             overlay.Render(Camera, null);
             var pixels = Read();
             diagnostics.EndFrame(time);
+            device.Present();
             return pixels;
         }
 
@@ -266,61 +280,6 @@ public sealed class DebugOverlayTests
             var camera = new Camera2D(Width, Height);
             camera.UsePixelUnits();
             return camera;
-        }
-    }
-
-    private sealed class Loop(Action<Harness> body, Action<DiagnosticsSettings>? configure, (int Width, int Height) view) : IGameLoop
-    {
-        public bool Loaded { get; private set; }
-
-        public void Load(GameWindow window)
-        {
-            var device = GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, NullLogger.Instance);
-            Loaded = true;
-            var renderer = new Renderer2D(device);
-            var settings = new DiagnosticsSettings { WarmupFrames = 0 };
-            configure?.Invoke(settings);
-            var scene = new Scene("Test");
-            scene.Start();
-            var input = new InputState();
-            var diagnostics = new RuntimeDiagnostics(settings, NullLogger.Instance, Path.GetTempPath());
-            diagnostics.Attach(new DiagnosticsTarget(device, () => scene));
-            diagnostics.Install();
-            var overlay = new DebugOverlay(NullLogger.Instance);
-            try
-            {
-                overlay.Load(new RuntimeOverlayContext(device, renderer, diagnostics, input, () => new OverlayDisplay(view.Width, view.Height, 1f), () => scene));
-                body(new Harness(device, renderer, diagnostics, overlay, input, scene));
-            }
-            finally
-            {
-                overlay.Dispose();
-                diagnostics.Uninstall();
-                scene.Unload();
-                renderer.Dispose();
-                device.Dispose();
-                window.Close();
-            }
-        }
-
-        public void FixedUpdate(float fixedDeltaTime)
-        {
-        }
-
-        public void Update(FrameTime time)
-        {
-        }
-
-        public void Render(FrameTime time, float interpolation)
-        {
-        }
-
-        public void Resize(int width, int height)
-        {
-        }
-
-        public void Unload()
-        {
         }
     }
 }

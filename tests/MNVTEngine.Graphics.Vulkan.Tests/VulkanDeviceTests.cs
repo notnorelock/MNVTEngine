@@ -25,6 +25,13 @@ public class VulkanDeviceTests
         {
             Assert.StartsWith("Vulkan 1.4", device.Description, StringComparison.Ordinal);
             Assert.StartsWith("headless 64x64", device.SwapchainDescription, StringComparison.Ordinal);
+
+            IGraphicsDevice abstraction = device; // diagnostics see the backend only through the interface
+            var details = abstraction.DescribeBackend().ToDictionary(e => e.Key, e => e.Value);
+            Assert.StartsWith("Vulkan 1.4", details["API"], StringComparison.Ordinal);
+            Assert.StartsWith(device.Validation.Enabled ? "on: 0 errors" : "off", details["Validation"], StringComparison.Ordinal);
+            Assert.Contains("Frames in flight", details.Keys);
+            Assert.NotNull(abstraction.AllocationStatistics);
         });
     }
 

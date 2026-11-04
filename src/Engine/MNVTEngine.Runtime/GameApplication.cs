@@ -19,7 +19,7 @@ public sealed record DevelopmentTools(Func<ILogger, IRuntimeOverlay>? CreateOver
 public static partial class GameApplication
 {
     /// <summary>
-    /// Runs a project. Arguments: <c>[project path] [--frames N] [--screenshot file.png] [--debug-gl] [--profile report.txt]
+    /// Runs a project. Arguments: <c>[project path] [--frames N] [--screenshot file.png] [--gpu-validation] [--profile report.txt]
     /// [--overlay] [--no-diagnostics]</c> (<c>--overlay</c> shows the debug HUD from the start).
     /// Without a path, the single .mnvtproj next to the executable is used.
     /// </summary>
@@ -27,7 +27,7 @@ public static partial class GameApplication
     /// <param name="archive">Content of an exported game; the project is read from it and a path argument is ignored.</param>
     /// <param name="createAudio">Audio backend; without one (or without an output device) the game runs silently.</param>
     /// <param name="tools">Development builds: diagnostics and the debug UI.</param>
-    /// <returns>Process exit code: 0 ok, 1 resource leaks, 2 project or startup scene could not be loaded, 3 game code failed to load.</returns>
+    /// <returns>Process exit code: 0 ok, 1 resource leaks, 2 project or startup scene could not be loaded, 3 game code failed to load, 4 graphics could not start (no Vulkan 1.4 GPU or driver).</returns>
     public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, Func<GameProject, ComponentRegistry, bool>? prepareComponents = null, ContentArchive? archive = null, AudioDeviceFactory? createAudio = null, DevelopmentTools? tools = null)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -62,7 +62,8 @@ public static partial class GameApplication
             VSync = project.Window.VSync,
             Resizable = project.Window.Resizable,
             FixedTimestep = project.FixedTimestep,
-            DebugContext = args.Contains("--debug-gl"),
+            DebugContext = args.Contains("--gpu-validation"),
+            OpenGL = false,
         });
 
         using var audio = AudioDevices.CreateOrSilent(createAudio, loggerFactory.CreateLogger("Audio"));
@@ -106,6 +107,11 @@ public static partial class GameApplication
             LogLoadFailed(logger, ex);
             return 2;
         }
+        catch (Graphics.GraphicsInitializationException ex)
+        {
+            LogGraphicsFailed(logger, ex.Message);
+            return 4;
+        }
 
         if (profiler is not null)
         {
@@ -137,6 +143,9 @@ public static partial class GameApplication
 
     [LoggerMessage(EventId = 3201, Level = LogLevel.Information, Message = "Profile written to {Path}: {Frames} frames, avg {Average:0.00} ms, p95 {P95:0.00} ms")]
     private static partial void LogProfile(ILogger logger, string path, int frames, double average, double p95);
+
+    [LoggerMessage(EventId = 3202, Level = LogLevel.Critical, Message = "Graphics could not start: {Reason}")]
+    private static partial void LogGraphicsFailed(ILogger logger, string reason);
 
     [LoggerMessage(EventId = 3200, Level = LogLevel.Critical, Message = "Game could not start")]
     private static partial void LogLoadFailed(ILogger logger, Exception exception);

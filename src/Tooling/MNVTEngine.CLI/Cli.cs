@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Build;
-using MNVTEngine.Graphics.OpenGL;
+using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Runtime;
 
 namespace MNVTEngine.CLI;
@@ -58,7 +58,7 @@ public static class Cli
             {
                 "new" => CommandLine.Parse(args, ["--template", "--path"], ["--list"]),
                 "editor" => CommandLine.Parse(args, ["--frames"], []),
-                "run" => CommandLine.Parse(args, ["--frames", "--screenshot", "--profile"], ["--debug-gl"]),
+                "run" => CommandLine.Parse(args, ["--frames", "--screenshot", "--profile"], ["--gpu-validation"]),
                 "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output"], [], optionalValues: ["--run"]),
                 "validate" => CommandLine.Parse(args, [], [], optionalValues: ["--run"]),
                 _ => throw new FormatException($"Unknown command '{args[0]}'."),
@@ -139,9 +139,9 @@ public static class Cli
     {
         var project = command.Single("project");
         return DevelopmentRun.Run(
-            [project, .. command.Passthrough("--frames", "--screenshot", "--profile", "--debug-gl")],
+            [project, .. command.Passthrough("--frames", "--screenshot", "--profile", "--gpu-validation")],
             loggerFactory,
-            (window, log) => GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, log),
+            (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface!, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication("Player", window.Options.VSync, window.Options.DebugContext)),
             Audio.OpenAL.OpenALAudioDevice.Create) == 0 ? Ok : Failed;
     }
 

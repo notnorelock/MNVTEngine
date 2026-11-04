@@ -6,7 +6,7 @@ using MNVTEngine.Core.Timing;
 using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Editor.Services;
 using MNVTEngine.Graphics;
-using MNVTEngine.Graphics.OpenGL;
+using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Mathematics;
 using MNVTEngine.Platform;
 using MNVTEngine.Runtime;
@@ -25,7 +25,7 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
 {
     private static readonly SysVector4 ErrorColor = new(1f, 0.45f, 0.45f, 1f);
     private GameWindow _window = null!;
-    private GLGraphicsDevice _device = null!;
+    private VulkanGraphicsDevice _device = null!;
     private Renderer2D _renderer = null!;
     private ImGuiRenderer _imgui = null!;
     private IReadOnlyList<string> _recent = [];
@@ -44,7 +44,7 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
     public void Load(GameWindow window)
     {
         _window = window;
-        _device = GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"));
+        _device = VulkanGraphicsDevice.Create(window.VulkanSurface!, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"), VulkanDeviceOptions.ForApplication("Editor", window.Options.VSync, window.Options.DebugContext));
         _renderer = new Renderer2D(_device);
         _imgui = new ImGuiRenderer(_device, _renderer.DefaultMaterial, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "segoeui.ttf"), 17f);
         Gui.ApplyDarkTheme();
@@ -106,13 +106,15 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
         _device.SetRenderTarget(null);
         _device.Clear(new Color(0.08f, 0.08f, 0.09f));
         _imgui.Render(ImGui.GetDrawData(), _window.FramebufferWidth, _window.FramebufferHeight);
-        if (++_frames == exitAfterFrames)
+        var exiting = ++_frames == exitAfterFrames;
+        if (exiting && screenshot is not null)
         {
-            if (screenshot is not null)
-            {
-                Screenshot.Save(_device, screenshot);
-            }
+            Screenshot.Save(_device, screenshot); // before presenting: the back buffer is gone afterwards
+        }
 
+        _device.Present();
+        if (exiting)
+        {
             _window.Close();
         }
     }
@@ -121,8 +123,13 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
 
     public void Unload()
     {
-        _imgui.Dispose();
-        _renderer.Dispose();
+        if (_device is null)
+        {
+            return; // the graphics device could not be created
+        }
+
+        _imgui?.Dispose();
+        _renderer?.Dispose();
         _device.Dispose();
     }
 

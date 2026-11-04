@@ -58,7 +58,7 @@ It records the decisions and is kept up to date as the phases land.
 | Pipelines | Created on first use per (shader, blend mode, topology, vertex layout, color format) and cached; viewport and scissor are dynamic state | Five blend modes and two formats keep the count small |
 | Frames in flight | 2. Each frame slot has a command pool, a fence, an acquire semaphore, a streaming buffer, timestamp queries and a deferred-destruction list | No per-frame CPU/GPU wait beyond the fence of the frame two back |
 | Present semaphores | One "render finished" semaphore per swapchain image | Required to reuse semaphores safely with `vkQueuePresentKHR` |
-| Frame boundary | New `IGraphicsDevice.Present()`, called by hosts at the end of `Render`. The frame begins implicitly with the first command | GL swapped in `GameWindow`; with Vulkan the device owns presentation |
+| Frame boundary | New `IGraphicsDevice.Present()`, called by hosts at the end of `Render`. The frame begins implicitly with the first command. `Present` then waits for the next frame slot (the frame two back), like a GL buffer swap blocked | GL swapped in `GameWindow`; with Vulkan the device owns presentation. Waiting at the start of the next frame instead would count VSync and GPU time as CPU time in diagnostics |
 | Coordinate conventions | Negative-height viewport, so clip space stays y-up like GL. Render targets are no longer flipped (`IsFlippedVertically = false`). Viewport and scissor stay bottom-left in the public API and are converted internally. Clip z of `Matrix4x4.Ortho` at z = 0 is inside Vulkan's [0, 1] | Engine-facing API and math unchanged |
 | Uploads | Staging buffers recorded into the frame's upload command buffer, submitted before the frame's draws; staging freed by deferred destruction | Correct ordering without extra queue waits. A transfer queue is not used: uploads are small and rare in a 2D engine |
 | Readback | `ReadPixels` submits the work so far, waits for that submission only and continues the frame in a new command buffer | Used by tests and screenshots, never in the normal frame loop |
@@ -88,8 +88,8 @@ It records the decisions and is kept up to date as the phases land.
 | 1 | Instance, validation, device selection, queues, surface, swapchain, frame slots: a window that clears and presents | done |
 | 2 | VMA, buffers, textures, samplers, mipmaps, deferred destruction, readback | done |
 | 3 | shaderc and reflection, pipelines and cache, push descriptors, streaming buffers, full `IGraphicsDevice`; GL rendering tests ported | done (`tests/MNVTEngine.Graphics.Vulkan.Tests`, 32 tests, no validation errors) |
-| 4 | Hosts on Vulkan: GameHost, Player, CLI, editor, Project Hub, HelloWorld; ImGui and the debug overlay verified | |
-| 5 | GPU timestamps, memory budget and allocator statistics, validation counts, pipeline and descriptor statistics in diagnostics | |
+| 4 | Hosts on Vulkan: GameHost, Player, CLI, editor, Project Hub, HelloWorld; ImGui and the debug overlay verified | done: Platformer, SceneDemo, HelloWorld, the editor in Play Mode and Debug/Release exports run without validation messages |
+| 5 | GPU timestamps, memory budget and allocator statistics, validation counts, pipeline and descriptor statistics in diagnostics | done |
 | 6 | OpenGL backend, package and docs removed | |
 
 ## Risks
@@ -102,3 +102,17 @@ It records the decisions and is kept up to date as the phases land.
 | Swapchain behaviour on hidden windows (tests) | GPU tests use the headless device; window tests only check presentation |
 | Native size of exported games grows (`shaderc_shared.dll` 7 MB, `vma.dll`) | Accepted. Shaders could later be precompiled at export time to drop shaderc from Release builds |
 | Driver differences in present modes and formats | Chosen from what the surface reports; FIFO (always available) when VSync is on |
+
+## Diagnostics (Phase 5)
+
+| Data | Source | Status in diagnostics |
+|---|---|---|
+| GPU frame and scope time | Timestamp queries per frame slot, read after the slot's fence, without WAIT | Measured; dropped frames counted. Unsupported when the graphics queue has no timestamp bits |
+| GPU memory used / total | `VK_EXT_memory_budget`: device-local heap sizes, and this process's budget minus its usage | Measured; Unsupported without the extension. No GPU stall (unlike the GL vendor queries) |
+| GPU allocated, allocations, failures, buffer memory | VMA statistics, counted by the engine | Measured (exact). Unsupported on backends without an allocator |
+| Texture memory | Allocation sizes of textures and render targets | Measured on Vulkan; `Estimated` (shown as `~1.2 MB`) from width x height x 4 when the device has no allocator |
+| Pipeline switches, descriptor writes, barriers, submits | Counted by the device per frame (`GraphicsStatistics`) | Measured |
+| Backend facts | `IGraphicsDevice.DescribeBackend()`: API and instance version, GPU, driver, swapchain, frames in flight, validation counts and last error, pipelines created and cache, streaming memory, memory budget source, timer | Shown in the Renderer window and the `renderer` console command |
+| Validation messages | Debug messenger to `ILogger` (event 1102), counted. Loader messages about third-party layers (overlays, capture tools) are logged as warnings and not counted as errors | Console and log |
+
+`MetricStatus.Estimated` was added: estimated values are budgeted like measured ones, but always displayed with `~`.

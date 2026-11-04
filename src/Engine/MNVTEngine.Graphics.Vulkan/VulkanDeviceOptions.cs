@@ -22,6 +22,26 @@ public sealed record VulkanDeviceOptions
 
     public string ApplicationName { get; init; } = "MNVTEngine";
 
+    /// <summary>
+    /// Options for an application window: pipeline and SPIR-V caches in <c>%LOCALAPPDATA%\MNVTEngine\GpuCache\&lt;name&gt;</c>
+    /// (per user, per application; safe to delete).
+    /// </summary>
+    /// <param name="validation">True forces the validation layer (e.g. <c>--gpu-validation</c>); false leaves the default.</param>
+    public static VulkanDeviceOptions ForApplication(string applicationName, bool vsync, bool validation)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(applicationName);
+        var safeName = string.Concat(applicationName.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+        var cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MNVTEngine", "GpuCache", safeName);
+        return new VulkanDeviceOptions
+        {
+            ApplicationName = applicationName,
+            VSync = vsync,
+            Validation = validation ? true : null,
+            PipelineCachePath = Path.Combine(cache, "pipelines.bin"),
+            ShaderCacheDirectory = Path.Combine(cache, "Shaders"),
+        };
+    }
+
     internal (bool Enabled, bool Explicit) ResolveValidation()
     {
         switch (Environment.GetEnvironmentVariable("MNVT_VULKAN_VALIDATION")?.Trim().ToUpperInvariant())

@@ -17,10 +17,10 @@ namespace MNVTEngine.Build;
 /// </summary>
 public static class BuildValidator
 {
-    /// <summary>Native libraries the engine loads by name at run time, per target. OpenGL itself (opengl32.dll) comes from the GPU driver.</summary>
+    /// <summary>Native libraries the engine loads by name at run time, per target. Vulkan itself (vulkan-1.dll) comes from the GPU driver.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> RequiredNativeLibraries = new Dictionary<string, string[]>
     {
-        ["win-x64"] = ["glfw3.dll", "soft_oal.dll"],
+        ["win-x64"] = ["glfw3.dll", "soft_oal.dll", "shaderc_shared.dll", "vma.dll"],
     };
 
     /// <summary>Assembly name prefixes that must never ship: the editor, build tooling, compilers.</summary>
@@ -60,7 +60,7 @@ public static class BuildValidator
         return diagnostics;
     }
 
-    /// <summary>Starts the game, lets it render <paramref name="frames"/> frames and checks that it exits cleanly. Needs a GPU with OpenGL 4.5.</summary>
+    /// <summary>Starts the game, lets it render <paramref name="frames"/> frames and checks that it exits cleanly. Needs a GPU with Vulkan 1.4.</summary>
     public static async Task<IReadOnlyList<BuildDiagnostic>> RunAsync(string gameDirectory, int frames, TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         var data = GamePackage.FindDataDirectory(gameDirectory) ?? throw new DirectoryNotFoundException($"'{gameDirectory}' is not an exported game.");

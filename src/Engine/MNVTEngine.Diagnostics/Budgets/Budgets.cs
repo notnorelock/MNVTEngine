@@ -166,7 +166,7 @@ public sealed class BudgetMonitor
         {
             var value = metrics.Get(state.Budget.Metric);
             state.Value = value;
-            if (!value.IsMeasured)
+            if (!value.HasValue)
             {
                 state.Ratio = double.NaN;
                 state.Severity = BudgetSeverity.None;

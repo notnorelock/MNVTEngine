@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Assets;
 using MNVTEngine.Core.Logging;
-using MNVTEngine.Graphics.OpenGL;
+using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Platform;
 using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
@@ -81,7 +81,7 @@ public sealed class RuntimeTests : IDisposable
         GameWindow window;
         try
         {
-            window = new GameWindow(new GameWindowOptions { Hidden = true, Width = 64, Height = 64, VSync = false });
+            window = new GameWindow(new GameWindowOptions { Hidden = true, Width = 64, Height = 64, VSync = false, OpenGL = false });
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -92,12 +92,19 @@ public sealed class RuntimeTests : IDisposable
         var runtime = new GameRuntime(
             project,
             registry,
-            (w, l) => GLGraphicsDevice.Create(w.GraphicsContext, w.FramebufferWidth, w.FramebufferHeight, l),
+            (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface!, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }),
             factory,
             new GameRuntimeOptions { ExitAfterFrames = 10 });
         using (window)
         {
-            window.Run(runtime);
+            try
+            {
+                window.Run(runtime);
+            }
+            catch (MNVTEngine.Graphics.GraphicsInitializationException ex)
+            {
+                Assert.Skip($"No Vulkan 1.4 device available: {ex.Message}");
+            }
         }
 
         Assert.Equal("Second", runtime.CurrentScene!.Name);
@@ -228,7 +235,7 @@ public sealed class RuntimeTests : IDisposable
         GameWindow window;
         try
         {
-            window = new GameWindow(new GameWindowOptions { Hidden = true, Width = 64, Height = 64, VSync = false });
+            window = new GameWindow(new GameWindowOptions { Hidden = true, Width = 64, Height = 64, VSync = false, OpenGL = false });
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -237,11 +244,18 @@ public sealed class RuntimeTests : IDisposable
         }
 
         var runtime = new GameRuntime(project, registry,
-            (w, l) => GLGraphicsDevice.Create(w.GraphicsContext, w.FramebufferWidth, w.FramebufferHeight, l),
+            (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface!, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }),
             factory, new GameRuntimeOptions { ExitAfterFrames = frames, ScreenshotPath = screenshot, Profiler = profiler });
         using (window)
         {
-            window.Run(runtime);
+            try
+            {
+                window.Run(runtime);
+            }
+            catch (MNVTEngine.Graphics.GraphicsInitializationException ex)
+            {
+                Assert.Skip($"No Vulkan 1.4 device available: {ex.Message}");
+            }
         }
 
         return runtime;

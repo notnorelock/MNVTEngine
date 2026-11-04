@@ -64,7 +64,7 @@ public sealed class BudgetsPanel() : DebugPanel("Budgets")
                 ImGui.TableNextColumn();
                 ImGui.TextUnformatted(string.Create(CultureInfo.InvariantCulture, $"{state.PeakRatio * 100:0}%"));
                 ImGui.TableNextColumn();
-                Gui.TextColored(SeverityColor(state.Severity), state.Value.IsMeasured ? state.Severity.ToString() : state.Value.Status.ToString());
+                Gui.TextColored(SeverityColor(state.Severity), state.Value.HasValue ? state.Severity.ToString() : state.Value.Status.ToString());
             }
 
             ImGui.EndTable();
@@ -78,7 +78,7 @@ public sealed class BudgetsPanel() : DebugPanel("Budgets")
     }
 }
 
-/// <summary>Draw calls (game vs. debug UI), geometry, state switches, GPU resources and memory.</summary>
+/// <summary>Draw calls (game vs. debug UI), geometry, state switches, backend facts, GPU resources and memory.</summary>
 public sealed class RendererPanel() : DebugPanel("Renderer")
 {
     protected override void Draw()
@@ -105,7 +105,21 @@ public sealed class RendererPanel() : DebugPanel("Renderer")
             Row("Texture switches", game.TextureSwitches, total.TextureSwitches);
             Row("Shader switches", game.ShaderSwitches, total.ShaderSwitches);
             Row("Target switches", game.RenderTargetSwitches, total.RenderTargetSwitches);
+            Row("Pipeline switches", game.PipelineSwitches, total.PipelineSwitches);
+            Row("Descriptor writes", game.DescriptorWrites, total.DescriptorWrites);
+            Row("Barriers", game.Barriers, total.Barriers);
             ImGui.EndTable();
+        }
+
+        var backend = device.DescribeBackend();
+        if (backend.Count > 0 && ImGui.CollapsingHeader("Backend", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            foreach (var (name, value) in backend)
+            {
+                Gui.TextColored(Dim, name);
+                ImGui.SameLine(ImGui.GetFontSize() * 9);
+                Gui.TextWrapped(value);
+            }
         }
 
         MetricRow(DiagnosticMetrics.SpriteBatches);
@@ -114,11 +128,15 @@ public sealed class RendererPanel() : DebugPanel("Renderer")
         ImGui.SeparatorText("GPU resources");
         var counts = device.Resources.Count();
         ImGui.TextUnformatted(string.Create(CultureInfo.InvariantCulture, $"Textures {counts.Textures} (render targets {counts.RenderTargets}), shaders {counts.Shaders}, buffers {counts.Buffers}"));
-        ImGui.TextUnformatted($"Texture memory (estimated) {DiagnosticMetrics.FormatBytes(counts.TextureBytes)}");
+        MetricRow(DiagnosticMetrics.TextureMemory);
+        MetricRow(DiagnosticMetrics.BufferMemory);
+        MetricRow(DiagnosticMetrics.GpuAllocated);
+        MetricRow(DiagnosticMetrics.GpuAllocations);
+        MetricRow(DiagnosticMetrics.GpuAllocationFailures);
         Diagnostics.GpuMemoryRequested = true;
         MetricRow(DiagnosticMetrics.GpuMemoryUsed);
         MetricRow(DiagnosticMetrics.GpuMemoryTotal);
-        Gui.TextColored(Dim, $"GPU memory source: {Diagnostics.GpuMemorySource ?? "none"} (all processes; sampled every 5 s while shown: the query stalls the GPU)");
+        Gui.TextColored(Dim, $"GPU memory source: {Diagnostics.GpuMemorySource ?? "none"} (device-local heaps, all processes; sampled every 5 s while shown)");
         MetricRow(DiagnosticMetrics.DebugDrawCommands);
         MetricRow(DiagnosticMetrics.DebugDrawDropped);
         Graph(DiagnosticMetrics.DrawCalls, "Draw calls", 50f);

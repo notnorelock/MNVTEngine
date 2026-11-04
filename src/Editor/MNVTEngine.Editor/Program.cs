@@ -8,7 +8,7 @@ using MNVTEngine.Runtime;
 using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
 
-// Usage: MNVTEngine.Editor [project dir or .mnvtproj] [--play] [--debug-gl]   (no project: the Project Hub opens)
+// Usage: MNVTEngine.Editor [project dir or .mnvtproj] [--play] [--gpu-validation]   (no project: the Project Hub opens)
 // Automation (tests, docs): [--select ObjectName] [--frames N] [--screenshot out.png]
 var logs = new InMemoryLoggerProvider(capacity: 5000);
 using var logHub = new LogHub().AddSink(logs).AddSink(new ConsoleLogSink());
@@ -21,9 +21,12 @@ var recent = new MNVTEngine.Editor.Services.RecentProjects(MNVTEngine.Editor.Ser
 if (projectArg is null)
 {
     var hub = new ProjectHub(loggerFactory, recent, Value("--frames") is { } hubFrames ? int.Parse(hubFrames, CultureInfo.InvariantCulture) : null, Value("--screenshot"));
-    using (var hubWindow = new GameWindow(new GameWindowOptions { Title = "MNVTEngine - Projects", Width = 960, Height = 600 }))
+    using (var hubWindow = new GameWindow(new GameWindowOptions { Title = "MNVTEngine - Projects", Width = 960, Height = 600, OpenGL = false, DebugContext = args.Contains("--gpu-validation") }))
     {
-        hubWindow.Run(hub);
+        if (!RunGraphics(hubWindow, hub))
+        {
+            return 4;
+        }
     }
 
     if (hub.SelectedProject is null)
@@ -64,13 +67,28 @@ using var window = new GameWindow(new GameWindowOptions
     Title = "MNVTEngine Editor",
     Width = 1600,
     Height = 900,
-    DebugContext = args.Contains("--debug-gl"),
+    DebugContext = args.Contains("--gpu-validation"),
+    OpenGL = false,
     FixedTimestep = project.FixedTimestep,
 });
 
 var app = new EditorApp(project, registry, loggerFactory, logs, logHub, options);
-window.Run(app);
-return app.ExitCode;
+return RunGraphics(window, app) ? app.ExitCode : 4;
+
+// Without a Vulkan 1.4 GPU and driver the editor cannot start; say why instead of crashing.
+static bool RunGraphics(GameWindow window, IGameLoop loop)
+{
+    try
+    {
+        window.Run(loop);
+        return true;
+    }
+    catch (MNVTEngine.Graphics.GraphicsInitializationException ex)
+    {
+        Console.Error.WriteLine($"Graphics could not start: {ex.Message}");
+        return false;
+    }
+}
 
 string? Value(string name)
 {

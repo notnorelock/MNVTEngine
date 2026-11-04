@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Core.Timing;
 using MNVTEngine.Graphics;
-using MNVTEngine.Graphics.OpenGL;
+using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Mathematics;
 using MNVTEngine.Platform;
 
@@ -19,7 +19,7 @@ internal sealed class HelloWorldGame(ILogger logger, int? exitAfterFrames, strin
 
     private readonly Orb[] _orbs = new Orb[OrbCount];
     private GameWindow _window = null!;
-    private GLGraphicsDevice _device = null!;
+    private VulkanGraphicsDevice _device = null!;
     private Renderer2D _renderer = null!;
     private Texture2D _player = null!, _orb = null!, _tile = null!;
     private RenderTarget2D _minimap = null!;
@@ -34,7 +34,7 @@ internal sealed class HelloWorldGame(ILogger logger, int? exitAfterFrames, strin
     public void Load(GameWindow window)
     {
         _window = window;
-        _device = GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, logger);
+        _device = VulkanGraphicsDevice.Create(window.VulkanSurface!, window.FramebufferWidth, window.FramebufferHeight, logger, VulkanDeviceOptions.ForApplication("HelloWorld", window.Options.VSync, window.Options.DebugContext));
         _renderer = new Renderer2D(_device);
         _additive = _renderer.CreateSpriteMaterial(BlendMode.Additive, "Sprite/Additive");
 
@@ -181,13 +181,15 @@ internal sealed class HelloWorldGame(ILogger logger, int? exitAfterFrames, strin
         _renderer.End();
 
         _frame++;
-        if (exitAfterFrames is { } limit && _frame >= limit)
+        var exiting = exitAfterFrames is { } limit && _frame >= limit;
+        if (exiting && screenshotPath is not null)
         {
-            if (screenshotPath is not null)
-            {
-                SaveScreenshot(screenshotPath);
-            }
+            SaveScreenshot(screenshotPath); // before presenting: the back buffer is gone afterwards
+        }
 
+        _device.Present();
+        if (exiting)
+        {
             logger.LogInformation("Frame {Frame}: {Draws} draw calls, {Sprites} sprites", _frame, _renderer.Batch.DrawCallCount, _renderer.Batch.SpriteCount);
             _window.Close();
         }

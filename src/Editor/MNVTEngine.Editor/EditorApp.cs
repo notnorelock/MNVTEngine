@@ -7,7 +7,7 @@ using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Editor.Panels;
 using MNVTEngine.Editor.Services;
 using MNVTEngine.Graphics;
-using MNVTEngine.Graphics.OpenGL;
+using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Mathematics;
 using MNVTEngine.Platform;
 using MNVTEngine.Runtime;
@@ -67,7 +67,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
     public void Load(GameWindow window)
     {
-        var device = GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"));
+        var device = VulkanGraphicsDevice.Create(window.VulkanSurface!, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"), VulkanDeviceOptions.ForApplication("Editor", window.Options.VSync, window.Options.DebugContext));
         var renderer = new Renderer2D(device);
         var session = new EditorSession(project, registry, loggerFactory.CreateLogger("Assets"));
         var resources = new ResourceCache(device, session.Assets, loggerFactory.CreateLogger("Resources"));
@@ -278,13 +278,15 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _context.ImGui.Render(ImGui.GetDrawData(), _context.Window.FramebufferWidth, _context.Window.FramebufferHeight);
 
         _frames++;
-        if (options.ExitAfterFrames is { } limit && _frames >= limit)
+        var exiting = options.ExitAfterFrames is { } limit && _frames >= limit;
+        if (exiting && options.ScreenshotPath is { } path)
         {
-            if (options.ScreenshotPath is { } path)
-            {
-                SaveScreenshot(path);
-            }
+            SaveScreenshot(path); // before presenting: the back buffer is gone afterwards
+        }
 
+        _context.Device.Present();
+        if (exiting)
+        {
             _context.Window.Close();
         }
     }
@@ -293,6 +295,11 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
     public void Unload()
     {
+        if (_context is null)
+        {
+            return; // the graphics device could not be created
+        }
+
         SaveLayout();
         _context.PlayMode.Stop();
         _scripts.Dispose();

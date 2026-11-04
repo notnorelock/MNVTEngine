@@ -66,6 +66,8 @@ public sealed class RuntimeDiagnosticsTests : IDisposable
         Assert.True(metrics.Get(DiagnosticMetrics.ManagedHeap).Value > 0);
         Assert.Equal(MetricStatus.Unsupported, metrics.Get(DiagnosticMetrics.GpuTime).Status);         // the stub has no timer queries
         Assert.Equal(MetricStatus.Unavailable, metrics.Get(DiagnosticMetrics.GpuMemoryUsed).Status);   // not requested by anything
+        Assert.Equal(MetricStatus.Unsupported, metrics.Get(DiagnosticMetrics.GpuAllocated).Status);    // the stub has no GPU allocator
+        Assert.Equal(MetricStatus.Estimated, metrics.Get(DiagnosticMetrics.TextureMemory).Status);     // ...so texture memory is only estimated
         Assert.Equal(2, diagnostics.Frame);
     }
 

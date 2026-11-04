@@ -110,6 +110,20 @@ public sealed class BudgetTests
     }
 
     [Fact]
+    public void EstimatedMetrics_AreBudgeted_AndShownAsEstimates()
+    {
+        var monitor = Monitor(new PerformanceBudget("tex", Metrics.TextureMemory, 1000, "Memory", ""));
+        var metrics = new MetricsSnapshot { Frame = 1 };
+        metrics.Set(Metrics.TextureMemory, MetricValue.Estimated(2048));
+        monitor.Evaluate(metrics);
+
+        Assert.Equal(BudgetSeverity.Critical, monitor.States[0].Severity); // 205 %
+        Assert.True(monitor.States[0].Value.HasValue);
+        Assert.False(monitor.States[0].Value.IsMeasured);
+        Assert.Equal("~2.0 KB", Metrics.Format(Metrics.TextureMemory, monitor.States[0].Value));
+    }
+
+    [Fact]
     public void SessionOverrides_ChangeTheLimit()
     {
         var monitor = Monitor(new PerformanceBudget("drawCalls", Metrics.DrawCalls, 1000, "Renderer", ""));

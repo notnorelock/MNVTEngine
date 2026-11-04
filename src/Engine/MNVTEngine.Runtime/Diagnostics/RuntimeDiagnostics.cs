@@ -170,7 +170,8 @@ public sealed partial class RuntimeDiagnostics
             var now = target.Device.Statistics.Current;
             var b = _sceneBaseline;
             SceneStatistics = new GraphicsFrameStatistics(now.DrawCalls - b.DrawCalls, now.Indices - b.Indices, now.Triangles - b.Triangles, now.Lines - b.Lines,
-                now.VerticesUploaded - b.VerticesUploaded, now.TextureSwitches - b.TextureSwitches, now.ShaderSwitches - b.ShaderSwitches, now.RenderTargetSwitches - b.RenderTargetSwitches);
+                now.VerticesUploaded - b.VerticesUploaded, now.TextureSwitches - b.TextureSwitches, now.ShaderSwitches - b.ShaderSwitches, now.RenderTargetSwitches - b.RenderTargetSwitches,
+                now.PipelineSwitches - b.PipelineSwitches, now.DescriptorWrites - b.DescriptorWrites, now.Barriers - b.Barriers, now.Submits - b.Submits);
             _sceneBaseline = default;
         }
     }
@@ -284,6 +285,7 @@ public sealed partial class RuntimeDiagnostics
         private MetricValue _gpuUsed = MetricValue.Unavailable;
         private MetricValue _gpuTotal = MetricValue.Unavailable;
         private MetricValue _textures;
+        private GpuAllocationStatistics? _allocation;
 
         public string Name => "Memory";
 
@@ -331,7 +333,11 @@ public sealed partial class RuntimeDiagnostics
                         _lastGpuSample = double.NegativeInfinity;
                     }
 
-                    _textures = MetricValue.Measured(target.Device.Resources.Count().TextureBytes);
+                    // Exact sizes from the GPU allocator when the backend has one; otherwise width x height x 4 is only an estimate.
+                    _allocation = target.Device.AllocationStatistics;
+                    _textures = _allocation is { } allocation
+                        ? MetricValue.Measured(allocation.TextureBytes + allocation.RenderTargetBytes)
+                        : MetricValue.Estimated(target.Device.Resources.Count().TextureBytes);
                 }
             }
 
@@ -339,6 +345,21 @@ public sealed partial class RuntimeDiagnostics
             metrics.Set(DiagnosticMetrics.GpuMemoryUsed, _gpuUsed);
             metrics.Set(DiagnosticMetrics.GpuMemoryTotal, _gpuTotal);
             metrics.Set(DiagnosticMetrics.TextureMemory, _textures);
+            if (_allocation is { } engineGpu)
+            {
+                metrics.Set(DiagnosticMetrics.GpuAllocated, engineGpu.BlockBytes);
+                metrics.Set(DiagnosticMetrics.GpuAllocations, engineGpu.AllocationCount);
+                metrics.Set(DiagnosticMetrics.GpuAllocationFailures, engineGpu.FailedAllocations);
+                metrics.Set(DiagnosticMetrics.BufferMemory, engineGpu.BufferBytes);
+            }
+            else if (owner._target is not null)
+            {
+                metrics.SetUnsupported(DiagnosticMetrics.GpuAllocated);
+                metrics.SetUnsupported(DiagnosticMetrics.GpuAllocations);
+                metrics.SetUnsupported(DiagnosticMetrics.GpuAllocationFailures);
+                metrics.SetUnsupported(DiagnosticMetrics.BufferMemory);
+            }
+
             var (oldest, oldCount) = _gcSamples.Count > 0 ? _gcSamples.Peek() : (now, gen0);
             if (now - oldest >= 10)
             {
@@ -351,9 +372,9 @@ public sealed partial class RuntimeDiagnostics
                 metrics.Set(DiagnosticMetrics.AudioMemory, audio.BufferBytes);
             }
 
-            if (_textures.IsMeasured)
+            if (_textures.HasValue)
             {
-                metrics.Set(DiagnosticMetrics.AssetMemory, _textures.Value + (audio?.BufferBytes ?? 0));
+                metrics.Set(DiagnosticMetrics.AssetMemory, new MetricValue(_textures.Status, _textures.Value + (audio?.BufferBytes ?? 0)));
             }
         }
     }
@@ -380,6 +401,10 @@ public sealed partial class RuntimeDiagnostics
             metrics.Set(DiagnosticMetrics.TextureSwitches, stats.TextureSwitches);
             metrics.Set(DiagnosticMetrics.ShaderSwitches, stats.ShaderSwitches);
             metrics.Set(DiagnosticMetrics.RenderTargetSwitches, stats.RenderTargetSwitches);
+            metrics.Set(DiagnosticMetrics.PipelineSwitches, stats.PipelineSwitches);
+            metrics.Set(DiagnosticMetrics.DescriptorWrites, stats.DescriptorWrites);
+            metrics.Set(DiagnosticMetrics.Barriers, stats.Barriers);
+            metrics.Set(DiagnosticMetrics.Submits, stats.Submits);
             if (_frame++ % 15 == 0)
             {
                 _counts = target.Device.Resources.Count();
@@ -504,7 +529,7 @@ public sealed partial class RuntimeDiagnostics
             .Register("fps", "Frame rate and frame times.", _ => Ok(Lines(DiagnosticMetrics.Fps, DiagnosticMetrics.FrameTime, DiagnosticMetrics.CpuTime, DiagnosticMetrics.GpuTime)))
             .Register("stats", "Every metric with its current value.", _ => Ok(string.Join('\n', DiagnosticMetrics.Definitions.Select(d => $"{d.Subsystem,-11} {d.Name,-22} {DiagnosticMetrics.Format(Metrics.Get(d.Id), d.Unit)}"))))
             .Register("memory", "Heap, process, GPU and asset memory; GC counts.", _ => Ok(Lines(DiagnosticMetrics.ManagedHeap, DiagnosticMetrics.ProcessMemory, DiagnosticMetrics.AllocatedPerFrame, DiagnosticMetrics.TextureMemory, DiagnosticMetrics.AudioMemory, DiagnosticMetrics.Gen0Collections, DiagnosticMetrics.Gen1Collections, DiagnosticMetrics.Gen2Collections, DiagnosticMetrics.CollectionsPerMinute) + Environment.NewLine + GpuMemoryLine()))
-            .Register("renderer", "Draw calls, geometry, switches and GPU resources.", _ => Ok(Lines(DiagnosticMetrics.DrawCalls, DiagnosticMetrics.Vertices, DiagnosticMetrics.Triangles, DiagnosticMetrics.TextureSwitches, DiagnosticMetrics.ShaderSwitches, DiagnosticMetrics.RenderTargetSwitches, DiagnosticMetrics.Textures, DiagnosticMetrics.RenderTargets, DiagnosticMetrics.Shaders, DiagnosticMetrics.Sprites, DiagnosticMetrics.SpritesCulled) + $"\nDevice: {_target?.Device.Description ?? "none"}"))
+            .Register("renderer", "Draw calls, geometry, switches and GPU resources.", _ => Ok(Lines(DiagnosticMetrics.DrawCalls, DiagnosticMetrics.Vertices, DiagnosticMetrics.Triangles, DiagnosticMetrics.TextureSwitches, DiagnosticMetrics.ShaderSwitches, DiagnosticMetrics.RenderTargetSwitches, DiagnosticMetrics.PipelineSwitches, DiagnosticMetrics.DescriptorWrites, DiagnosticMetrics.Barriers, DiagnosticMetrics.Textures, DiagnosticMetrics.RenderTargets, DiagnosticMetrics.Shaders, DiagnosticMetrics.Sprites, DiagnosticMetrics.SpritesCulled) + $"\nDevice: {_target?.Device.Description ?? "none"}" + BackendLines()))
             .Register("scene", "The running scene.", _ => _target?.Scene() is { } scene
                 ? Ok($"Scene '{scene.Name}': {scene.GameObjects.Count} objects, {scene.Systems.Count} systems, camera {(scene.MainCamera?.GameObject.Name ?? "none")}, {scene.ScriptExceptionCount} script exceptions")
                 : DebugCommandResult.Fail("No scene is running."))
@@ -550,6 +575,11 @@ public sealed partial class RuntimeDiagnostics
         string.Join('\n', ids.Select(id => $"{DiagnosticMetrics.Find(id)?.Name ?? id,-22} {DiagnosticMetrics.Format(id, Metrics.Get(id))}"));
 
     /// <summary>Queried right now (a one-off command may stall the GPU once).</summary>
+    private string BackendLines() =>
+        _target?.Device.DescribeBackend() is { Count: > 0 } backend
+            ? string.Concat(backend.Select(entry => $"\n{entry.Key}: {entry.Value}"))
+            : string.Empty;
+
     private string GpuMemoryLine()
     {
         var memory = _target?.Device.QueryGpuMemory() ?? GpuMemoryInfo.Unsupported;

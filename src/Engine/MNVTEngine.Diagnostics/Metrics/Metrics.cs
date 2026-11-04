@@ -12,6 +12,9 @@ public enum MetricStatus
     Unsupported,
 
     Measured,
+
+    /// <summary>Derived from other data, not read from the hardware or driver (e.g. texture memory from sizes). Shown with "~".</summary>
+    Estimated,
 }
 
 public enum MetricUnit
@@ -31,7 +34,12 @@ public readonly record struct MetricValue(MetricStatus Status, double Value)
 
     public bool IsMeasured => Status == MetricStatus.Measured;
 
+    /// <summary>Measured or estimated: there is a number to show and compare.</summary>
+    public bool HasValue => Status is MetricStatus.Measured or MetricStatus.Estimated;
+
     public static MetricValue Measured(double value) => new(MetricStatus.Measured, value);
+
+    public static MetricValue Estimated(double value) => new(MetricStatus.Estimated, value);
 }
 
 /// <summary>A metric's identity and how to present it.</summary>
@@ -71,6 +79,14 @@ public static class Metrics
     public const string TextureSwitches = "render.textureSwitches";
     public const string ShaderSwitches = "render.shaderSwitches";
     public const string RenderTargetSwitches = "render.targetSwitches";
+    public const string PipelineSwitches = "render.pipelineSwitches";
+    public const string DescriptorWrites = "render.descriptorWrites";
+    public const string Barriers = "render.barriers";
+    public const string Submits = "render.submits";
+    public const string GpuAllocated = "memory.gpuAllocated";
+    public const string GpuAllocations = "memory.gpuAllocations";
+    public const string GpuAllocationFailures = "memory.gpuAllocationFailures";
+    public const string BufferMemory = "memory.buffers";
     public const string RenderTargets = "render.targets";
     public const string Textures = "render.textures";
     public const string Shaders = "render.shaders";
@@ -104,9 +120,13 @@ public static class Metrics
         new(ProcessMemory, "Process memory", "Memory", MetricUnit.Bytes, "Working set of the process."),
         new(ManagedHeap, "Managed heap", "Memory", MetricUnit.Bytes, "Bytes in use on the .NET heap."),
         new(AllocatedPerFrame, "Allocated / frame", "Memory", MetricUnit.Bytes, "Managed bytes allocated during the last frame (temporary allocations)."),
-        new(GpuMemoryUsed, "GPU memory", "Memory", MetricUnit.Bytes, "Video memory in use on the adapter (all processes), from a vendor extension."),
+        new(GpuMemoryUsed, "GPU memory", "Memory", MetricUnit.Bytes, "Device-local memory in use on the adapter (all processes), from the driver's memory budget (VK_EXT_memory_budget)."),
+        new(GpuAllocated, "GPU allocated", "Memory", MetricUnit.Bytes, "Device memory the engine reserved through its allocator (VMA blocks), exact."),
+        new(GpuAllocations, "GPU allocations", "Memory", MetricUnit.Count, "Live GPU allocations (buffers and images) placed in those blocks."),
+        new(GpuAllocationFailures, "GPU allocation failures", "Memory", MetricUnit.Count, "GPU allocations that failed since start."),
+        new(BufferMemory, "Buffer memory", "Memory", MetricUnit.Bytes, "GPU buffers: static geometry, streaming and staging memory."),
         new(GpuMemoryTotal, "GPU memory total", "Memory", MetricUnit.Bytes, "Dedicated video memory of the adapter."),
-        new(TextureMemory, "Texture memory", "Memory", MetricUnit.Bytes, "Estimated from live texture and render target sizes (RGBA8)."),
+        new(TextureMemory, "Texture memory", "Memory", MetricUnit.Bytes, "Textures and render targets: exact allocation sizes from the GPU allocator, or estimated from sizes (RGBA8, shown with ~) without one."),
         new(AudioMemory, "Audio memory", "Memory", MetricUnit.Bytes, "Decoded PCM held by audio buffers."),
         new(AssetMemory, "Asset memory", "Memory", MetricUnit.Bytes, "Textures plus audio buffers held for the current scene."),
         new(Gen0Collections, "GC gen0", "Memory", MetricUnit.Count, "Gen0 collections since start."),
@@ -120,6 +140,10 @@ public static class Metrics
         new(TextureSwitches, "Texture switches", "Renderer", MetricUnit.Count, "Texture binding changes last frame."),
         new(ShaderSwitches, "Shader switches", "Renderer", MetricUnit.Count, "Shader program changes last frame."),
         new(RenderTargetSwitches, "Target switches", "Renderer", MetricUnit.Count, "Render target changes last frame."),
+        new(PipelineSwitches, "Pipeline switches", "Renderer", MetricUnit.Count, "Graphics pipeline binds (shader + blend/topology state) last frame."),
+        new(DescriptorWrites, "Descriptor writes", "Renderer", MetricUnit.Count, "Push-descriptor writes (texture and uniform bindings) last frame."),
+        new(Barriers, "Barriers", "Renderer", MetricUnit.Count, "Pipeline barriers (image layout transitions) recorded last frame."),
+        new(Submits, "Queue submits", "Renderer", MetricUnit.Count, "Command buffer submissions to the GPU queue last frame."),
         new(RenderTargets, "Render targets", "Renderer", MetricUnit.Count, "Live render targets."),
         new(Textures, "Textures", "Renderer", MetricUnit.Count, "Live textures (render targets included)."),
         new(Shaders, "Shaders", "Renderer", MetricUnit.Count, "Live shader programs."),
@@ -150,6 +174,7 @@ public static class Metrics
     {
         MetricStatus.Unsupported => "n/a (unsupported)",
         MetricStatus.Unavailable => "n/a",
+        MetricStatus.Estimated => "~" + Format(MetricValue.Measured(value.Value), unit),
         _ => unit switch
         {
             MetricUnit.Milliseconds => string.Create(CultureInfo.InvariantCulture, $"{value.Value:0.00} ms"),

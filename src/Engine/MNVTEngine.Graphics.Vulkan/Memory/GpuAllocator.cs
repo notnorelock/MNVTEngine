@@ -39,25 +39,6 @@ internal sealed unsafe class GpuBuffer
     public required byte* Mapped { get; init; }
 }
 
-/// <summary>Memory statistics of the engine's own allocations (exact) and of the heaps (from the driver when <see cref="BudgetMeasured"/>).</summary>
-/// <param name="BlockBytes">Device memory VMA reserved (vkAllocateMemory) for this device.</param>
-/// <param name="AllocatedBytes">Bytes of live allocations placed in those blocks.</param>
-/// <param name="DeviceLocalBudgetBytes">How much device-local memory this process may use; null when unknown.</param>
-/// <param name="DeviceLocalUsageBytes">Device-local memory this process uses (all allocations, from the driver); null when unknown.</param>
-/// <param name="BudgetMeasured">True with VK_EXT_memory_budget; otherwise VMA estimates the budget as 80 % of the heap.</param>
-public readonly record struct VulkanMemoryStatistics(
-    long BlockBytes,
-    long AllocatedBytes,
-    int BlockCount,
-    int AllocationCount,
-    long TextureBytes,
-    long RenderTargetBytes,
-    long BufferBytes,
-    int FailedAllocations,
-    long? DeviceLocalBudgetBytes,
-    long? DeviceLocalUsageBytes,
-    bool BudgetMeasured);
-
 /// <summary>
 /// GPU memory through the Vulkan Memory Allocator (VMA 3, via Vortice.VulkanMemoryAllocator): suballocated blocks per
 /// memory type, persistent mapping, memory-type choice from usage. Vortice and Silk.NET share the loader, so handles
@@ -176,7 +157,8 @@ internal sealed unsafe class GpuAllocator : IDisposable
     /// <summary>Makes GPU writes visible to the CPU (no-op on host-coherent memory).</summary>
     public void Invalidate(GpuBuffer buffer, ulong offset, ulong size) => vmaInvalidateAllocation(_allocator, buffer.Allocation, offset, size);
 
-    public VulkanMemoryStatistics Statistics()
+    /// <remarks>Without VK_EXT_memory_budget, VMA estimates the budget as 80 % of the heap (<see cref="GpuAllocationStatistics.BudgetMeasured"/> false).</remarks>
+    public GpuAllocationStatistics Statistics()
     {
         var budgets = stackalloc VmaBudget[_heapCount];
         vmaGetHeapBudgets(_allocator, budgets);
@@ -196,7 +178,7 @@ internal sealed unsafe class GpuAllocator : IDisposable
             usage += (long)budgets[h].usage;
         }
 
-        return new VulkanMemoryStatistics(
+        return new GpuAllocationStatistics(
             blockBytes, allocationBytes, blocks, allocations,
             _bytesByKind[(int)AllocationKind.Texture], _bytesByKind[(int)AllocationKind.RenderTarget], _bytesByKind[(int)AllocationKind.Buffer], _failed,
             DeviceLocalHeaps.Length > 0 ? budget : null,

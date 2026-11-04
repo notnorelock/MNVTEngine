@@ -32,7 +32,7 @@
     <!-- Game settings only concern this executable; engine libraries build the same for every game. -->
     <ProjectReference Include="..\MNVTEngine.Audio.OpenAL\MNVTEngine.Audio.OpenAL.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
     <ProjectReference Include="..\MNVTEngine.GameAssemblies\MNVTEngine.GameAssemblies.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
-    <ProjectReference Include="..\MNVTEngine.Graphics.OpenGL\MNVTEngine.Graphics.OpenGL.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
+    <ProjectReference Include="..\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
     <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
     <ProjectReference Include="..\MNVTEngine.DebugUI\MNVTEngine.DebugUI.csproj" Condition="'$(MnvtDevTools)' == 'true'" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
   </ItemGroup>

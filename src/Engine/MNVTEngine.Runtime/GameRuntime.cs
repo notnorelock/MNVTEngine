@@ -179,13 +179,15 @@ public sealed partial class GameRuntime(
         }
 
         _frames++;
-        if (_options.ExitAfterFrames is { } limit && _frames >= limit)
+        var exiting = _options.ExitAfterFrames is { } limit && _frames >= limit;
+        if (exiting && _options.ScreenshotPath is { } path)
         {
-            if (_options.ScreenshotPath is { } path)
-            {
-                SaveScreenshot(path);
-            }
+            SaveScreenshot(path); // before presenting: the back buffer is gone afterwards
+        }
 
+        _device.Present();
+        if (exiting)
+        {
             LogAutoExit(_logger, _frames, _sceneRenderer.SpritesDrawn, _sceneRenderer.SpritesCulled);
             _window.Close();
         }
@@ -195,12 +197,17 @@ public sealed partial class GameRuntime(
 
     public void Unload()
     {
+        if (_device is null)
+        {
+            return; // the graphics device could not be created; Load created nothing else
+        }
+
         _options.Overlay?.Dispose();
         _options.Diagnostics?.Uninstall();
         CurrentScene?.Unload();
-        _sceneRenderer.Dispose();
-        _resources.Dispose();
-        _renderer.Dispose();
+        _sceneRenderer?.Dispose();
+        _resources?.Dispose();
+        _renderer?.Dispose();
         if (_device.Resources.LiveCount > 0)
         {
             ExitCode = 1;

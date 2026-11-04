@@ -3,7 +3,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics.OpenGL\MNVTEngine.Graphics.OpenGL.csproj" />
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" />
   </ItemGroup>
 </Project>

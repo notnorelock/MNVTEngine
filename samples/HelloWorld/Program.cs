@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using MNVTEngine.Platform;
 using MNVTEngine.Samples.HelloWorld;
 
-// Usage: HelloWorld [--frames N] [--screenshot out.png] [--debug-gl]
+// Usage: HelloWorld [--frames N] [--screenshot out.png] [--gpu-validation]
 var frames = ArgValue("--frames") is { } f ? int.Parse(f, System.Globalization.CultureInfo.InvariantCulture) : (int?)null;
 var screenshot = ArgValue("--screenshot");
 
@@ -13,7 +13,8 @@ var logger = loggerFactory.CreateLogger("HelloWorld");
 using var window = new GameWindow(new GameWindowOptions
 {
     Title = "MNVTEngine - Hello World",
-    DebugContext = args.Contains("--debug-gl"),
+    DebugContext = args.Contains("--gpu-validation"),
+    OpenGL = false,
 });
 
 var game = new HelloWorldGame(logger, frames, screenshot);
