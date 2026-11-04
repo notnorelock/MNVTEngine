@@ -13,8 +13,7 @@ var logger = loggerFactory.CreateLogger("HelloWorld");
 using var window = new GameWindow(new GameWindowOptions
 {
     Title = "MNVTEngine - Hello World",
-    DebugContext = args.Contains("--gpu-validation"),
-    OpenGL = false,
+    GraphicsValidation = args.Contains("--gpu-validation"),
 });
 
 var game = new HelloWorldGame(logger, frames, screenshot);

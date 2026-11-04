@@ -11,6 +11,6 @@ MNVTEngine.GameLog.Factory = loggerFactory;
 return DevelopmentRun.Run(
     args,
     loggerFactory,
-    (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface!, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication("Player", window.Options.VSync, window.Options.DebugContext)),
+    (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication("Player", window.Options.VSync, window.Options.GraphicsValidation)),
     MNVTEngine.Audio.OpenAL.OpenALAudioDevice.Create,
     new DevelopmentTools(log => new MNVTEngine.DebugUI.DebugOverlay(log), debugLogs));

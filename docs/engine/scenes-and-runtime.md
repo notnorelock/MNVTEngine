@@ -98,13 +98,14 @@ A game host is a few lines (see `src/Tooling/MNVTEngine.Player/Program.cs`):
 
 ```csharp
 return GameApplication.Run(args,
-    (window, logger) => GLGraphicsDevice.Create(window.GraphicsContext, window.FramebufferWidth, window.FramebufferHeight, logger),
+    (window, logger) => VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, logger,
+        VulkanDeviceOptions.ForApplication("MyGame", window.Options.VSync, window.Options.GraphicsValidation)),
     loggerFactory,
     (project, registry) => LoadScripts(project, registry)); // false aborts startup (exit code 3)
 ```
 
 - **Project discovery:** the host uses the project path argument, or else the single `.mnvtproj` next to the executable.
-- **Options:** `--frames N` exits after N frames, `--screenshot file.png` saves the last frame, and `--debug-gl` enables GL driver messages.
+- **Options:** `--frames N` exits after N frames, `--screenshot file.png` saves the last frame, and `--gpu-validation` enables the Vulkan validation layer. Exit code 4 means no Vulkan 1.4 GPU or driver was found.
 - **Exit codes:** 0 ok, 1 GPU resource leak, 2 project or startup scene unreadable.
 - **Scene switching:** `SceneManager.LoadScene(path)` switches at the end of the frame. A broken target scene is logged and the current scene keeps running.
 - **Missing textures:** each missing or corrupt texture is logged once and drawn as a magenta checkerboard.

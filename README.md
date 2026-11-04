@@ -2,7 +2,7 @@
 
 A modular 2D game engine in C# / .NET 11:
 
-- **Core:** an OpenGL 4.5 renderer (Silk.NET), an ImGui.NET editor and a hybrid ECS.
+- **Core:** a Vulkan 1.4 renderer (Silk.NET, VMA, shaderc), an ImGui.NET editor and a hybrid ECS.
 - **Gameplay:** Box2D physics, OpenAL audio, sprite animation, tilemaps, materials and 2D lighting.
 - **Assets and scripting:** an asset pipeline with stable GUIDs, C# components with hot reload, and the `.mnvts` scripting language with its own bytecode VM, missions and debugger.
 - **Export:** standalone Windows games.
@@ -13,6 +13,7 @@ A modular 2D game engine in C# / .NET 11:
 
 - .NET SDK 11 (`global.json` pins `11.0.100-rc.3` and rolls forward)
 - Windows x64 is the first target platform
+- A GPU and driver with Vulkan 1.4. The [LunarG Vulkan SDK](https://vulkan.lunarg.com/) is optional; it adds the validation layer that development builds use
 
 ## Build and test
 
@@ -40,11 +41,11 @@ scripts\mnvt.cmd run samples/SceneDemo      # WASD flies; Tab switches to the ph
 
 dotnet run --project samples/HelloWorld
 # Automated: render 120 frames, save a screenshot, exit
-dotnet run --project samples/HelloWorld -- --frames 120 --screenshot shot.png --debug-gl
+dotnet run --project samples/HelloWorld -- --frames 120 --screenshot shot.png --gpu-validation
 ```
 
 SceneDemo: WASD/arrows move, Space spawns orbs, Tab switches scenes. Both samples export with `mnvt build`.
-HelloWorld: WASD/arrows move, mouse wheel zooms, Q/E rotate the camera, Escape quits. Requires an OpenGL 4.5 GPU.
+HelloWorld: WASD/arrows move, mouse wheel zooms, Q/E rotate the camera, Escape quits. Requires a Vulkan 1.4 GPU and driver.
 
 ## Run the editor
 
@@ -74,6 +75,7 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 - [Mathematics conventions](docs/engine/mathematics.md)
 - [JSON serialization](docs/serialization/json.md)
 - [2D rendering, frame loop, resource ownership](docs/graphics/rendering.md)
+- [Vulkan 1.4 backend: audit, decisions, synchronization model](docs/graphics/vulkan-migration.md)
 - [Scenes, ECS, lifecycle, scene format, standalone runtime](docs/engine/scenes-and-runtime.md)
 - [Editor: panels, Play Mode, ImGui integration](docs/editor/editor.md)
 - [Assets: metas, GUIDs, importers, prefabs](docs/engine/assets.md)
@@ -94,7 +96,7 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 | Milestone | Scope | Status |
 |---|---|---|
 | 0 | Foundation: solution, math, serialization, logging, timing | done |
-| 1 | Window, OpenGL context, shaders, textures, SpriteBatch, Camera2D, input | done |
+| 1 | Window, graphics device, shaders, textures, SpriteBatch, Camera2D, input (OpenGL 4.5 at the time; Vulkan 1.4 since M9) | done |
 | 2 | Hybrid ECS, GameObject API, scenes, standalone runtime | done |
 | 3 | ImGui editor, Play Mode | done |
 | 4 | Asset pipeline with stable GUIDs | done |
@@ -102,3 +104,4 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 | 6 | `.mnvts` language, compiler, VM, mission framework | done |
 | 7 | Build and Windows x64 packaging, `mnvt` CLI | done |
 | 8 | 2D beta: Physics2D, audio, sprite animation, tilemaps, materials, 2D lighting, undo/redo, profiling, script debugger, Platformer sample | done |
+| 9 | Vulkan 1.4 backend replaces OpenGL; runtime diagnostics with GPU timing and memory. See [Vulkan migration](docs/graphics/vulkan-migration.md) | done |

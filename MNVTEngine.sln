@@ -19,15 +19,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Serialization.Te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Graphics", "src\Engine\MNVTEngine.Graphics\MNVTEngine.Graphics.csproj", "{20D0D329-904C-4A53-BD3E-C891A2CBF7AB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Graphics.OpenGL", "src\Engine\MNVTEngine.Graphics.OpenGL\MNVTEngine.Graphics.OpenGL.csproj", "{FCD6EC4B-2DE0-4CE3-8495-2F3C49C9E663}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Platform", "src\Engine\MNVTEngine.Platform\MNVTEngine.Platform.csproj", "{959A4439-DC69-4E29-87A5-F0D20EA69BD1}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Graphics.Tests", "tests\MNVTEngine.Graphics.Tests\MNVTEngine.Graphics.Tests.csproj", "{2047347B-613C-42FA-9B1F-DA45F35BE5C2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Platform.Tests", "tests\MNVTEngine.Platform.Tests\MNVTEngine.Platform.Tests.csproj", "{BE40BDF2-C632-45E4-81CC-289A47600AC4}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Graphics.OpenGL.Tests", "tests\MNVTEngine.Graphics.OpenGL.Tests\MNVTEngine.Graphics.OpenGL.Tests.csproj", "{6D7F37C5-E151-4393-80F2-369D90F1D00D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HelloWorld", "samples\HelloWorld\HelloWorld.csproj", "{ED6C05E0-B8BC-40F1-8836-D3F2B62BD3C3}"
 EndProject
@@ -207,18 +203,6 @@ Global
 		{20D0D329-904C-4A53-BD3E-C891A2CBF7AB}.Release|x64.Build.0 = Release|Any CPU
 		{20D0D329-904C-4A53-BD3E-C891A2CBF7AB}.Release|x86.ActiveCfg = Release|Any CPU
 		{20D0D329-904C-4A53-BD3E-C891A2CBF7AB}.Release|x86.Build.0 = Release|Any CPU
-		{FCD6EC4B-2DE0-4CE3-8495-2F3C49C9E663}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{FCD6EC4B-2DE0-4CE3-8495-2F3C49C9E663}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{FCD6EC4B-2DE0-4CE3-8495-2F3C49C9E663}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{FCD6EC4B-2DE0-4CE3-8495-2F3C49C9E663}.Debug|x64.Build.0 = Debug|Any CPU
-		{FCD6EC4B-2DE0-4CE3-8495-2F3C49C9E663}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{FCD6EC4B-2DE0-4CE3-8495-2F3C49C9E663}.Debug|x86.Build.0 = Debug|Any CPU
-		{FCD6EC4B-2DE0-4CE3-8495-2F3C49C9E663}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{FCD6EC4B-2DE0-4CE3-8495-2F3C49C9E663}.Release|Any CPU.Build.0 = Release|Any CPU
-		{FCD6EC4B-2DE0-4CE3-8495-2F3C49C9E663}.Release|x64.ActiveCfg = Release|Any CPU
-		{FCD6EC4B-2DE0-4CE3-8495-2F3C49C9E663}.Release|x64.Build.0 = Release|Any CPU
-		{FCD6EC4B-2DE0-4CE3-8495-2F3C49C9E663}.Release|x86.ActiveCfg = Release|Any CPU
-		{FCD6EC4B-2DE0-4CE3-8495-2F3C49C9E663}.Release|x86.Build.0 = Release|Any CPU
 		{959A4439-DC69-4E29-87A5-F0D20EA69BD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{959A4439-DC69-4E29-87A5-F0D20EA69BD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{959A4439-DC69-4E29-87A5-F0D20EA69BD1}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -255,18 +239,6 @@ Global
 		{BE40BDF2-C632-45E4-81CC-289A47600AC4}.Release|x64.Build.0 = Release|Any CPU
 		{BE40BDF2-C632-45E4-81CC-289A47600AC4}.Release|x86.ActiveCfg = Release|Any CPU
 		{BE40BDF2-C632-45E4-81CC-289A47600AC4}.Release|x86.Build.0 = Release|Any CPU
-		{6D7F37C5-E151-4393-80F2-369D90F1D00D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6D7F37C5-E151-4393-80F2-369D90F1D00D}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6D7F37C5-E151-4393-80F2-369D90F1D00D}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{6D7F37C5-E151-4393-80F2-369D90F1D00D}.Debug|x64.Build.0 = Debug|Any CPU
-		{6D7F37C5-E151-4393-80F2-369D90F1D00D}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{6D7F37C5-E151-4393-80F2-369D90F1D00D}.Debug|x86.Build.0 = Debug|Any CPU
-		{6D7F37C5-E151-4393-80F2-369D90F1D00D}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{6D7F37C5-E151-4393-80F2-369D90F1D00D}.Release|Any CPU.Build.0 = Release|Any CPU
-		{6D7F37C5-E151-4393-80F2-369D90F1D00D}.Release|x64.ActiveCfg = Release|Any CPU
-		{6D7F37C5-E151-4393-80F2-369D90F1D00D}.Release|x64.Build.0 = Release|Any CPU
-		{6D7F37C5-E151-4393-80F2-369D90F1D00D}.Release|x86.ActiveCfg = Release|Any CPU
-		{6D7F37C5-E151-4393-80F2-369D90F1D00D}.Release|x86.Build.0 = Release|Any CPU
 		{ED6C05E0-B8BC-40F1-8836-D3F2B62BD3C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{ED6C05E0-B8BC-40F1-8836-D3F2B62BD3C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ED6C05E0-B8BC-40F1-8836-D3F2B62BD3C3}.Debug|x64.ActiveCfg = Debug|Any CPU

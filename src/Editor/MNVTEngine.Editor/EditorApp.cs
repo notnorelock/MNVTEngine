@@ -67,7 +67,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
     public void Load(GameWindow window)
     {
-        var device = VulkanGraphicsDevice.Create(window.VulkanSurface!, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"), VulkanDeviceOptions.ForApplication("Editor", window.Options.VSync, window.Options.DebugContext));
+        var device = VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"), VulkanDeviceOptions.ForApplication("Editor", window.Options.VSync, window.Options.GraphicsValidation));
         var renderer = new Renderer2D(device);
         var session = new EditorSession(project, registry, loggerFactory.CreateLogger("Assets"));
         var resources = new ResourceCache(device, session.Assets, loggerFactory.CreateLogger("Resources"));

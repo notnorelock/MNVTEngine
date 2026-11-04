@@ -79,7 +79,7 @@ internal static class Game
             HostLog.Starting(logger, package.Name, package.Profile, package.EngineVersion);
             return GameApplication.Run(
                 args,
-                (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface!, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication(package.Name, window.Options.VSync, window.Options.DebugContext)),
+                (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication(package.Name, window.Options.VSync, window.Options.GraphicsValidation)),
                 loggerFactory,
                 (_, registry) => LoadScripts(package, archive, registry, logger),
                 archive,

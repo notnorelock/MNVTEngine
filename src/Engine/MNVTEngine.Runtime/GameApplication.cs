@@ -62,8 +62,7 @@ public static partial class GameApplication
             VSync = project.Window.VSync,
             Resizable = project.Window.Resizable,
             FixedTimestep = project.FixedTimestep,
-            DebugContext = args.Contains("--gpu-validation"),
-            OpenGL = false,
+            GraphicsValidation = args.Contains("--gpu-validation"),
         });
 
         using var audio = AudioDevices.CreateOrSilent(createAudio, loggerFactory.CreateLogger("Audio"));

@@ -4,7 +4,7 @@ using static MNVTEngine.Graphics.Vulkan.Tests.VulkanHarness;
 
 namespace MNVTEngine.Graphics.Vulkan.Tests;
 
-/// <summary>The OpenGL backend's rendering contract, on Vulkan: 64x64 target, pixel camera (world (0,0) = bottom-left).</summary>
+/// <summary>The device's rendering contract (ported from the former OpenGL tests): 64x64 target, pixel camera (world (0,0) = bottom-left).</summary>
 [Collection(nameof(VulkanGroup))]
 public class VulkanRenderingTests
 {

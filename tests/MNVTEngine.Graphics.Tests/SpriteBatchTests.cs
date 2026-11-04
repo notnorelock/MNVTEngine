@@ -139,7 +139,7 @@ public sealed class SpriteBatchTests : IDisposable
         Batch.End();
 
         var v = _device.VerticesAtDraw.Single();
-        Assert.Equal(0f, v[0].TexCoord.Y); // bottom of quad samples GL row 0 = bottom of the target
+        Assert.Equal(0f, v[0].TexCoord.Y); // flipped texture: bottom of the quad samples row 0
         Assert.Equal(1f, v[2].TexCoord.Y);
     }
 

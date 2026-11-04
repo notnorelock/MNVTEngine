@@ -32,7 +32,7 @@ Convert with `Mathf.Deg2Rad` and `Mathf.Rad2Deg`.
 - `TRS(t, r, s) == Translate(t) * Rotate(r) * Scale(s)`: scale, then rotate, then translate.
 - Field `Mrc` is row r, column c. Memory layout is **column-major** (`M00, M10, M20, M30, M01, ...`). Upload with `transpose: false`.
 - Translation lives in `M03, M13, M23`.
-- `Ortho` and `Perspective` produce OpenGL clip space (NDC z in [-1, 1]); the camera looks down -Z.
+- `Ortho` and `Perspective` produce GL-style clip space (y up, NDC z in [-1, 1]); the camera looks down -Z. The Vulkan device flips its viewport so this stays y-up, and 2D content at z = 0 lies inside Vulkan's depth range.
 - `MultiplyPoint` performs the w divide; `MultiplyPoint3x4` assumes an affine matrix; `MultiplyVector` ignores translation.
 
 ## Equality and tolerance

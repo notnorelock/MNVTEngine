@@ -81,7 +81,7 @@ public sealed class RuntimeTests : IDisposable
         GameWindow window;
         try
         {
-            window = new GameWindow(new GameWindowOptions { Hidden = true, Width = 64, Height = 64, VSync = false, OpenGL = false });
+            window = new GameWindow(new GameWindowOptions { Hidden = true, Width = 64, Height = 64, VSync = false });
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -92,7 +92,7 @@ public sealed class RuntimeTests : IDisposable
         var runtime = new GameRuntime(
             project,
             registry,
-            (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface!, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }),
+            (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }),
             factory,
             new GameRuntimeOptions { ExitAfterFrames = 10 });
         using (window)
@@ -235,7 +235,7 @@ public sealed class RuntimeTests : IDisposable
         GameWindow window;
         try
         {
-            window = new GameWindow(new GameWindowOptions { Hidden = true, Width = 64, Height = 64, VSync = false, OpenGL = false });
+            window = new GameWindow(new GameWindowOptions { Hidden = true, Width = 64, Height = 64, VSync = false });
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -244,7 +244,7 @@ public sealed class RuntimeTests : IDisposable
         }
 
         var runtime = new GameRuntime(project, registry,
-            (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface!, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }),
+            (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }),
             factory, new GameRuntimeOptions { ExitAfterFrames = frames, ScreenshotPath = screenshot, Profiler = profiler });
         using (window)
         {

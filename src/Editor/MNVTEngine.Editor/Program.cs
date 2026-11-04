@@ -21,7 +21,7 @@ var recent = new MNVTEngine.Editor.Services.RecentProjects(MNVTEngine.Editor.Ser
 if (projectArg is null)
 {
     var hub = new ProjectHub(loggerFactory, recent, Value("--frames") is { } hubFrames ? int.Parse(hubFrames, CultureInfo.InvariantCulture) : null, Value("--screenshot"));
-    using (var hubWindow = new GameWindow(new GameWindowOptions { Title = "MNVTEngine - Projects", Width = 960, Height = 600, OpenGL = false, DebugContext = args.Contains("--gpu-validation") }))
+    using (var hubWindow = new GameWindow(new GameWindowOptions { Title = "MNVTEngine - Projects", Width = 960, Height = 600, GraphicsValidation = args.Contains("--gpu-validation") }))
     {
         if (!RunGraphics(hubWindow, hub))
         {
@@ -67,8 +67,7 @@ using var window = new GameWindow(new GameWindowOptions
     Title = "MNVTEngine Editor",
     Width = 1600,
     Height = 900,
-    DebugContext = args.Contains("--gpu-validation"),
-    OpenGL = false,
+    GraphicsValidation = args.Contains("--gpu-validation"),
     FixedTimestep = project.FixedTimestep,
 });
 

@@ -8,7 +8,7 @@ using MNVTEngine.Runtime;
 
 namespace MNVTEngine.Editor;
 
-/// <summary>Services shared by the editor panels. Created in <see cref="EditorApp.Load"/> while the GL context is current.</summary>
+/// <summary>Services shared by the editor panels. Created in <see cref="EditorApp.Load"/> after the graphics device.</summary>
 internal sealed class EditorContext
 {
     public required GameWindow Window { get; init; }

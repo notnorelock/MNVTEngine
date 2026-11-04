@@ -44,7 +44,7 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
     public void Load(GameWindow window)
     {
         _window = window;
-        _device = VulkanGraphicsDevice.Create(window.VulkanSurface!, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"), VulkanDeviceOptions.ForApplication("Editor", window.Options.VSync, window.Options.DebugContext));
+        _device = VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"), VulkanDeviceOptions.ForApplication("Editor", window.Options.VSync, window.Options.GraphicsValidation));
         _renderer = new Renderer2D(_device);
         _imgui = new ImGuiRenderer(_device, _renderer.DefaultMaterial, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "segoeui.ttf"), 17f);
         Gui.ApplyDarkTheme();

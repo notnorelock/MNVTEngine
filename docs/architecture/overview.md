@@ -25,7 +25,7 @@ Projects that exist today are **bold**. The rest are planned and only get a proj
                                    │ may reference anything below
              ┌─────────────────────┼─────────────────────┐
              ▼                     ▼                     ▼
-      Tooling (CLI, Build,   Runtime (game host,    Graphics.OpenGL / Windowing /
+      Tooling (CLI, Build,   Runtime (game host,    Graphics.Vulkan / Windowing /
       Packaging, AssetComp.)  scene loop) M1-M2     Input / Audio backends (Silk.NET)
              │                     │                     │
              └──────────┬──────────┴──────────┬──────────┘
@@ -49,9 +49,9 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.Core** | M0 | Game clock, fixed timestep, logging sinks, frame profiler (M8, see [profiling](../engine/profiling.md)), low-level utilities | nothing |
 | **MNVTEngine.Mathematics** | M0 | Vectors, quaternion, matrix, color, shapes | nothing |
 | **MNVTEngine.Serialization** | M0 | JSON settings, math converters, later: type registry, schema versions, migrations | Mathematics |
-| **MNVTEngine.Graphics** | M1 | Renderer2D, SpriteBatch (per-sprite materials), Camera2D, materials, resources, image decoding (no GL types). Material assets and 2D lighting: see [materials and lighting](../graphics/materials-and-lighting.md) | Core, Mathematics, StbImageSharp |
-| **MNVTEngine.Graphics.OpenGL** | M1 | GL 4.5 implementation of Graphics | Graphics, Silk.NET.OpenGL |
-| **MNVTEngine.Platform** | M1 | Window, GL context, input state, frame loop (Silk.NET GLFW) | Core, Mathematics |
+| **MNVTEngine.Graphics** | M1 | Renderer2D, SpriteBatch (per-sprite materials), Camera2D, materials, resources, image decoding (no backend types). Material assets and 2D lighting: see [materials and lighting](../graphics/materials-and-lighting.md) | Core, Mathematics, StbImageSharp |
+| **MNVTEngine.Graphics.Vulkan** | M9 (replaced Graphics.OpenGL) | Vulkan 1.4 implementation of Graphics: device selection, swapchain, frames in flight, VMA memory, shaderc + SPIR-V reflection, pipelines and caches, GPU timing. See [Vulkan migration](../graphics/vulkan-migration.md) | Graphics, Silk.NET.Vulkan, Silk.NET.Shaderc, Vortice.VulkanMemoryAllocator |
+| **MNVTEngine.Platform** | M1 | Window and its Vulkan surface source, input state, frame loop (Silk.NET GLFW) | Core, Mathematics |
 | **MNVTEngine.ECS** | M2 | Entity storage, component pools, queries, systems | Core |
 | **MNVTEngine.Input** | M2 | Backend-free input state, keys, axes | Mathematics |
 | **MNVTEngine.Scenes** | M2 | GameObject/Component API, Transform hierarchy, lifecycle, Time/Input facades, scene serialization, sprite animation and tilemaps (M8, see [animation](../engine/animation.md), [tilemaps](../engine/tilemaps.md)) | ECS, Input, Serialization |
@@ -64,12 +64,12 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.Audio** | M8 | Audio device abstraction, WAV/Ogg decoding, AudioSource/AudioListener, per-scene AudioSystem, silent device. See [audio](../engine/audio.md) | Scenes, NVorbis; never OpenAL (enforced) |
 | **MNVTEngine.Audio.OpenAL** | M8 | OpenAL Soft backend, chosen by hosts | Audio, Silk.NET.OpenAL |
 | **MNVTEngine.GameAssemblies** | M5 | Collectible load contexts for game code, component discovery and registration, unload support (reflection cache release) | Scenes |
-| **MNVTEngine.GameHost** | M7 | Executable of exported games: resolves `Dependencies/`, opens the encrypted content archive, loads game code from it; never compiles | Runtime, GameAssemblies, Graphics.OpenGL |
+| **MNVTEngine.GameHost** | M7 | Executable of exported games: resolves `Dependencies/`, opens the encrypted content archive, loads game code from it; never compiles | Runtime, GameAssemblies, Graphics.Vulkan |
 | **MNVTEngine.Build** (Tooling) | M5/M7 | C# script compilation, build profiles, content compilation, host publishing, package validation, templates. See [building](../build-system/building.md) | GameAssemblies, Runtime |
-| **MNVTEngine.CLI** (Tooling, `mnvt`) | M7 | Commands `new`, `editor`, `run`, `build`, `validate`; argument parsing and reporting only | Build, Graphics.OpenGL |
-| **MNVTEngine.Player** (Tooling) | M5 | Development runner: compile scripts if stale, load, run any project | Build, Graphics.OpenGL |
+| **MNVTEngine.CLI** (Tooling, `mnvt`) | M7 | Commands `new`, `editor`, `run`, `build`, `validate`; argument parsing and reporting only | Build, Graphics.Vulkan |
+| **MNVTEngine.Player** (Tooling) | M5 | Development runner: compile scripts if stale, load, run any project | Build, Graphics.Vulkan |
 | **MNVTEngine.Editor.Services** | M3 | Session, selection, Play Mode, inspection, picking, gizmo math (no ImGui) | Runtime |
-| **MNVTEngine.Editor** | M3 | ImGui backend, docked workspace, panels, dialogs (exe) | Editor.Services, Graphics.OpenGL, ImGui.NET |
+| **MNVTEngine.Editor** | M3 | ImGui backend, docked workspace, panels, dialogs (exe) | Editor.Services, Graphics.Vulkan, ImGui.NET |
 
 Deviations from the original proposal, and why:
 
@@ -89,30 +89,30 @@ Deviations from the original proposal, and why:
 3. Engine projects never reference Editor or Tooling projects (transitively).
 4. Tooling never references Editor.
 5. Only Editor projects reference ImGui packages (transitively).
-6. Only platform backends reference Silk.NET packages directly.
-7. Graphics never references Graphics.OpenGL; Runtime never references Graphics.OpenGL directly (backend chosen at the host).
-   Graphics and Platform never reference each other, and Graphics.OpenGL never references Platform; the host wires them.
+6. Only platform backends reference Silk.NET (or Vortice) packages directly.
+7. Graphics never references Graphics.Vulkan; Runtime never references Graphics.Vulkan directly (backend chosen at the host).
+   Graphics and Platform never reference each other, and Graphics.Vulkan never references Platform; the host wires them.
    Scenes never references Graphics or Platform; ECS never references Scenes; Input depends only on Mathematics.
-8. Scripting projects and Physics2D never reference Graphics, OpenGL or ImGui.
+8. Scripting projects and Physics2D never reference Graphics, Graphics.Vulkan or ImGui.
 
 ## Key decisions
 
 | Decision | Choice | Reason |
 |---|---|---|
-| Coordinate system | Right-handed, +X right, +Y up, +Z towards viewer | Matches OpenGL; 2D world is Y-up |
-| Matrix convention | Column vectors (`v' = M * v`), column-major storage | Direct `glUniformMatrix4fv(..., transpose: false)` |
+| Coordinate system | Right-handed, +X right, +Y up, +Z towards viewer | 2D world is Y-up; the Vulkan device flips its viewport so clip space stays y-up |
+| Matrix convention | Column vectors (`v' = M * v`), column-major storage | Same memory layout as a GLSL `mat4` in a std140 uniform block: copied as is |
 | Angles | Degrees in gameplay APIs, radians in `Mathf` trig | Designer-friendly, matches common engine conventions |
 | Math struct equality | Exact `==`; `Approximately` for tolerance | Keeps `Equals`/`GetHashCode` consistent |
 | JSON polymorphism | Never `TypeNameHandling`; explicit registries | Project files are untrusted input |
 | Logging | MEL abstractions + engine `InMemoryLoggerProvider` | Standard structured logging; ring buffer feeds the editor console |
 | Time | `GameClock` takes measured elapsed time; `FixedTimestep` with backlog cap | Deterministic and testable; no hidden system-timer reads |
-| GPU API | OpenGL 4.5 DSA only, single graphics thread | No bind-to-edit state bugs; simple ownership. See [rendering](../graphics/rendering.md) |
-| Resource lifetime | Explicit `Dispose`, tracker per device, no finalizers | GL objects cannot be freed off-thread; leaks are reported, not hidden |
+| GPU API | Vulkan 1.4 core (dynamic rendering, synchronization2, push descriptors), single graphics thread, 2 frames in flight. Replaced OpenGL 4.5 | Explicit memory, synchronization and validation; modern drivers and tools. See [rendering](../graphics/rendering.md) and [Vulkan migration](../graphics/vulkan-migration.md) |
+| Resource lifetime | Explicit `Dispose`, tracker per device, no finalizers | GPU objects are destroyed on the graphics thread after the GPU is done with them (deferred destruction); leaks are reported, not hidden |
 | Input | Engine-owned `Key` enum mapped by name from Silk.NET | Gameplay code never sees backend types |
 | Hybrid ECS | GameObjects are entities; object components live in world pools by concrete type; one component per type per object | Systems query scripts and data alike; see [scenes](../engine/scenes-and-runtime.md) |
 | Gameplay facades | `Time`/`Input`/`SceneManager` statics backed by a thread-static current scene | Unity-like ergonomics without cross-scene global state |
 | Script exceptions | Logged with context, frame continues | One broken script does not take down the game |
-| Editor rendering | ImGui drawn through `IGraphicsDevice` (sprite shader + scissor + dynamic indices) | Editor works on any future backend; no second GL code path |
+| Editor rendering | ImGui drawn through `IGraphicsDevice` (sprite shader + scissor + dynamic indices) | Editor and debug UI moved to Vulkan without a dedicated ImGui renderer; no second backend code path |
 | Play Mode | Copy made by serialize/deserialize; edit scene never runs | Identical to what a build loads; Stop needs no restore logic. See [editor](../editor/editor.md) |
 | Asset identity | Sidecar `.meta` with GUID; references are `"asset:<guid>"` | Renames/moves never break references; metas are diffable and merge-friendly. See [assets](../engine/assets.md) |
 | Scenes vs assets | Scenes depend only on `IAssetLookup` (Serialization); `Assets` does not know about scenes | Asset database stays usable by tooling without the gameplay model |
@@ -129,6 +129,7 @@ Deviations from the original proposal, and why:
 | ImGui.NET (1.91.6.1) is updated infrequently | Docking API or native binary gaps | Verified at M3: docking works; DockBuilder (not wrapped) is bound via P/Invoke to cimgui. Hexa.NET.ImGui remains the fallback; all ImGui use is in the Editor exe |
 | Silk.NET 2.x vs 3.0 transition | API churn | Pinned 2.23.0; Silk types do not appear in Graphics or gameplay-facing input APIs |
 | Newtonsoft.Json static reflection caches | Confirmed at M5 to pin unloaded game code | Per-operation contract resolvers plus `ReflectionCacheCleaner` clearing Newtonsoft's internal stores on unload; tests verify collection and fail if Newtonsoft internals change |
-| Native deps in self-contained publish | GLFW/OpenAL natives not always copied | Done in M7: the validator checks every deps.json asset plus required natives (`glfw3.dll`), and a build test launches the exported game |
+| Native deps in self-contained publish | GLFW/OpenAL natives not always copied | Done in M7: the validator checks every deps.json asset plus required natives (`glfw3.dll`, `soft_oal.dll`, `shaderc_shared.dll`, `vma.dll`), and a build test launches the exported game |
 | Physics scope | Custom solver is a large effort | Decided at M8: Box2D.NET (MIT, pure C# Box2D v3) behind engine components; its process-wide world table is guarded and worlds are freed on scene unload |
-| OpenGL integration tests | CI agents may lack a GL context | Separate test category requiring a GPU; unit tests stay GL-free |
+| GPU integration tests | CI agents may lack a Vulkan 1.4 GPU or the validation layer | Tests use a headless device and skip without a GPU; selection, reflection and linking are unit-tested without one. Validation runs whenever the layer is installed |
+| Vulkan validation layer availability | Not installed with drivers; only with the LunarG SDK | Optional at run time; development machines install the SDK (1.4.363.1 at migration time) |

@@ -141,7 +141,7 @@ public static class Cli
         return DevelopmentRun.Run(
             [project, .. command.Passthrough("--frames", "--screenshot", "--profile", "--gpu-validation")],
             loggerFactory,
-            (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface!, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication("Player", window.Options.VSync, window.Options.DebugContext)),
+            (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication("Player", window.Options.VSync, window.Options.GraphicsValidation)),
             Audio.OpenAL.OpenALAudioDevice.Create) == 0 ? Ok : Failed;
     }
 

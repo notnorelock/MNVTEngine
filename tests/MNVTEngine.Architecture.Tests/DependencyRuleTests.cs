@@ -99,7 +99,7 @@ public class DependencyRuleTests
     [Fact]
     public void OnlyPlatformBackends_ReferenceSilkNetDirectly()
     {
-        string[] allowed = ["MNVTEngine.Graphics.OpenGL", "MNVTEngine.Graphics.Vulkan", "MNVTEngine.Platform", "MNVTEngine.Windowing", "MNVTEngine.Audio.OpenAL"];
+        string[] allowed = ["MNVTEngine.Graphics.Vulkan", "MNVTEngine.Platform", "MNVTEngine.Windowing", "MNVTEngine.Audio.OpenAL"];
         var violations = Graph.Projects
             .Where(p => p.Area == "Engine" && !allowed.Contains(p.Name))
             .Where(p => p.Packages.Any(pkg => GraphicsBackendPackages.Any(b => pkg.StartsWith(b, StringComparison.OrdinalIgnoreCase))))
@@ -109,14 +109,14 @@ public class DependencyRuleTests
     }
 
     [Theory]
-    [InlineData("MNVTEngine.Graphics", "MNVTEngine.Graphics.OpenGL")]
     [InlineData("MNVTEngine.Graphics", "MNVTEngine.Platform")]
-    [InlineData("MNVTEngine.Graphics.OpenGL", "MNVTEngine.Platform")]
     [InlineData("MNVTEngine.Graphics", "MNVTEngine.Graphics.Vulkan")]
     [InlineData("MNVTEngine.Graphics.Vulkan", "MNVTEngine.Platform")]
     [InlineData("MNVTEngine.Runtime", "MNVTEngine.Graphics.Vulkan")]
     [InlineData("MNVTEngine.Assets", "MNVTEngine.Graphics.Vulkan")]
     [InlineData("MNVTEngine.Scripting", "MNVTEngine.Graphics.Vulkan")]
+    [InlineData("MNVTEngine.Scripting.VM", "MNVTEngine.Graphics.Vulkan")]
+    [InlineData("MNVTEngine.Physics2D", "MNVTEngine.Graphics.Vulkan")]
     [InlineData("MNVTEngine.Scenes", "MNVTEngine.Graphics.Vulkan")]
     [InlineData("MNVTEngine.Platform", "MNVTEngine.Graphics")]
     [InlineData("MNVTEngine.Scenes", "MNVTEngine.Graphics")]
@@ -126,16 +126,12 @@ public class DependencyRuleTests
     [InlineData("MNVTEngine.GameAssemblies", "MNVTEngine.Platform")]
     [InlineData("MNVTEngine.Runtime", "MNVTEngine.GameAssemblies")]
     [InlineData("MNVTEngine.Assets", "MNVTEngine.Platform")]
-    [InlineData("MNVTEngine.Assets", "MNVTEngine.Graphics.OpenGL")]
     [InlineData("MNVTEngine.Scenes", "MNVTEngine.Platform")]
     [InlineData("MNVTEngine.ECS", "MNVTEngine.Scenes")]
     [InlineData("MNVTEngine.Input", "MNVTEngine.Platform")]
     [InlineData("MNVTEngine.Mathematics", "MNVTEngine.Graphics")]
-    [InlineData("MNVTEngine.Runtime", "MNVTEngine.Graphics.OpenGL")]
     [InlineData("MNVTEngine.Scripting", "MNVTEngine.Graphics")]
-    [InlineData("MNVTEngine.Scripting", "MNVTEngine.Graphics.OpenGL")]
     [InlineData("MNVTEngine.Scripting.VM", "MNVTEngine.Graphics")]
-    [InlineData("MNVTEngine.Scripting.VM", "MNVTEngine.Graphics.OpenGL")]
     [InlineData("MNVTEngine.Scripting.Compiler", "MNVTEngine.Graphics")]
     [InlineData("MNVTEngine.Scripting.Missions", "MNVTEngine.Graphics")]
     [InlineData("MNVTEngine.Physics2D", "MNVTEngine.Graphics")]

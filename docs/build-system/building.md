@@ -101,7 +101,7 @@ Builds/release/
 ├── MyGame.runtimeconfig.json
 ├── Dependencies/
 │   ├── Managed/                 MNVTEngine.*.dll, Newtonsoft.Json, Silk.NET.*, StbImage*, Microsoft.Extensions.*
-│   ├── Native/                  glfw3.dll, soft_oal.dll (OpenAL Soft, LGPL)
+│   ├── Native/                  glfw3.dll, soft_oal.dll (OpenAL Soft, LGPL), shaderc_shared.dll, vma.dll
 │   └── Runtime/                 private .NET runtime
 │       ├── host/fxr/<version>/hostfxr.dll
 │       └── shared/Microsoft.NETCore.App/<version>/   coreclr.dll, System.*.dll, ...
@@ -141,7 +141,7 @@ Size is about 89 MB, mostly the .NET runtime. Trimming is not enabled because co
 
 - `MyGame.exe` runs the content in `MyGame_Data/`. It never compiles anything, and it needs neither the .NET SDK, an installed .NET runtime, nor the editor. The build tests run the game with no `dotnet` on `PATH`.
 - `.mnvts` scripts run from the build-time bytecode. Invalid bytecode disables that mission runner with an error ("rebuild the game"). It never falls back to the source.
-- Optional arguments: `--frames N`, `--screenshot file.png`, `--debug-gl`, `--profile report.txt` (see [profiling](../engine/profiling.md)).
+- Optional arguments: `--frames N`, `--screenshot file.png`, `--gpu-validation`, `--profile report.txt` (see [profiling](../engine/profiling.md)).
 - Exit codes:
 
   | Code | Meaning |
@@ -156,8 +156,9 @@ Size is about 89 MB, mostly the .NET runtime. Trimming is not enabled because co
 ### Platform requirements
 
 - Windows 10/11 x64.
-- A GPU and driver with **OpenGL 4.5**. `opengl32.dll` and the GPU driver come from Windows and the vendor; they are not packaged and cannot be.
-- Nothing else needs to be installed: the .NET runtime, `glfw3.dll` and `soft_oal.dll` ship in `Dependencies/`. Without an audio device the game runs silently.
+- A GPU and driver with **Vulkan 1.4**. `vulkan-1.dll` (the loader) and the GPU driver come from the vendor; they are not packaged and cannot be. Without them the game logs the reason and exits with code 4.
+- Nothing else needs to be installed: the .NET runtime, `glfw3.dll`, `soft_oal.dll`, `shaderc_shared.dll` and `vma.dll` ship in `Dependencies/`. Without an audio device the game runs silently.
+- Shaders compile on first run and are cached with the driver's pipeline cache in `%LOCALAPPDATA%\MNVTEngine\GpuCache\<game>`.
 
 ## Validation
 
@@ -169,7 +170,7 @@ Size is about 89 MB, mostly the .NET runtime. Trimming is not enabled because co
 | MNVB503 | `<exe>.exe`, `.dll` and `.runtimeconfig.json` are in the root |
 | MNVB504 | The private runtime is complete: `hostfxr`, `hostpolicy`, `coreclr`, `System.Private.CoreLib` and the framework `deps.json` for the version in the runtime config |
 | MNVB505 | Every assembly reference of the host and of `Dependencies/Managed` resolves to the private runtime or `Dependencies/Managed`; every shipped assembly is valid |
-| MNVB506 | Required native libraries for the target are in `Dependencies/Native` (`glfw3.dll`, `soft_oal.dll` on win-x64) |
+| MNVB506 | Required native libraries for the target are in `Dependencies/Native` (`glfw3.dll`, `soft_oal.dll`, `shaderc_shared.dll`, `vma.dll` on win-x64) |
 | MNVB507 | No development-only assemblies (editor, build tooling, ImGui, MSBuild, Roslyn) |
 | MNVB508 | Every file matches its manifest size and SHA-256 |
 | MNVB509 | Warning for files that are not part of the build (`Logs/` is ignored) |

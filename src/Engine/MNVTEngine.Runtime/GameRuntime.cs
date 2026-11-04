@@ -51,7 +51,7 @@ public sealed record GameRuntimeOptions
 /// Runs a game project without the editor: loads the startup scene, drives its lifecycle from the window
 /// loop, renders it, and services <see cref="SceneManager.LoadScene"/>.
 /// </summary>
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "Resources are created in IGameLoop.Load and released in IGameLoop.Unload, while the GL context is current.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "Resources are created in IGameLoop.Load and released in IGameLoop.Unload, while the window and graphics device exist.")]
 public sealed partial class GameRuntime(
     GameProject project,
     ComponentRegistry registry,

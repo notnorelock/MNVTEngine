@@ -17,11 +17,8 @@ public sealed record GameWindowOptions
     public bool VSync { get; init; } = true;
     public bool Resizable { get; init; } = true;
 
-    /// <summary>Requests graphics API validation (Vulkan validation layer, or a GL debug context) so driver errors are logged. Costs performance.</summary>
-    public bool DebugContext { get; init; }
-
-    /// <summary>Creates a legacy OpenGL 4.5 context instead of a Vulkan surface. Used until the OpenGL backend is removed.</summary>
-    public bool OpenGL { get; init; } = true;
+    /// <summary>Asks the graphics device for API validation (the Vulkan validation layer) so driver errors are logged. Costs performance.</summary>
+    public bool GraphicsValidation { get; init; }
 
     /// <summary>Starts hidden; for automated runs that only read back pixels.</summary>
     public bool Hidden { get; init; }
@@ -32,7 +29,7 @@ public sealed record GameWindowOptions
 /// <summary>Callbacks driven by <see cref="GameWindow.Run"/>.</summary>
 public interface IGameLoop
 {
-    /// <summary>The window's graphics surface (or GL context) exists; create the graphics device and resources here.</summary>
+    /// <summary>The window and its Vulkan surface source exist; create the graphics device and resources here.</summary>
     void Load(GameWindow window);
 
     /// <summary>Zero or more times per frame at the fixed timestep. Physics and deterministic simulation.</summary>
@@ -51,9 +48,9 @@ public interface IGameLoop
 }
 
 /// <summary>
-/// Native window (GLFW via Silk.NET) with a Vulkan surface, or an OpenGL 4.5 core context while that backend exists, and
-/// the engine frame loop: pump events, advance <see cref="Clock"/>, run fixed steps, update, render. With Vulkan the
-/// graphics device presents at the end of <see cref="IGameLoop.Render"/>; with OpenGL the window swaps buffers.
+/// Native window (GLFW via Silk.NET) for Vulkan rendering, and the engine frame loop: pump events, advance
+/// <see cref="Clock"/>, run fixed steps, update, render. The window has no graphics context: the graphics device creates
+/// its surface from <see cref="VulkanSurface"/> and presents at the end of <see cref="IGameLoop.Render"/>.
 /// </summary>
 public sealed class GameWindow : IDisposable
 {
@@ -72,7 +69,6 @@ public sealed class GameWindow : IDisposable
         GlfwWindowing.RegisterPlatform();
         GlfwInput.RegisterPlatform();
 
-        var flags = ContextFlags.ForwardCompatible | (options.DebugContext ? ContextFlags.Debug : ContextFlags.Default);
         var silkOptions = WindowOptions.Default with
         {
             Title = options.Title,
@@ -80,7 +76,7 @@ public sealed class GameWindow : IDisposable
             VSync = options.VSync,
             WindowBorder = options.Resizable ? WindowBorder.Resizable : WindowBorder.Fixed,
             IsVisible = !options.Hidden,
-            API = options.OpenGL ? new GraphicsAPI(ContextAPI.OpenGL, ContextProfile.Core, flags, new APIVersion(4, 5)) : GraphicsAPI.DefaultVulkan,
+            API = GraphicsAPI.DefaultVulkan, // no GL context; VSync is the graphics device's present mode
             ShouldSwapAutomatically = false,
             IsEventDriven = false,
         };
@@ -98,11 +94,11 @@ public sealed class GameWindow : IDisposable
 
     public GameWindowOptions Options => _options;
 
-    /// <summary>The window's GL context (OpenGL windows only); pass to the GL backend.</summary>
-    public IGLContextSource GraphicsContext => _window;
-
-    /// <summary>Creates the window's Vulkan surface; available once the window is initialized (in <see cref="IGameLoop.Load"/>). Null for OpenGL windows.</summary>
-    public IVkSurface? VulkanSurface => _options.OpenGL ? null : _window.VkSurface;
+    /// <summary>
+    /// Creates the window's Vulkan surface and names the instance extensions it needs. Available from
+    /// <see cref="IGameLoop.Load"/>; null when GLFW finds no Vulkan loader (the graphics device reports that).
+    /// </summary>
+    public IVkSurface? VulkanSurface => _window.VkSurface;
 
     public int FramebufferWidth => _window.FramebufferSize.X;
 
@@ -197,10 +193,6 @@ public sealed class GameWindow : IDisposable
                 }
 
                 game.Render(time, FixedStep.Alpha);
-                if (_options.OpenGL)
-                {
-                    _window.SwapBuffers();
-                }
             }
         }
         finally

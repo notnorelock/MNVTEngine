@@ -63,6 +63,6 @@ With vsync on, frame time includes waiting for the display. Compare region times
 
 ## Limitations
 
-- **CPU only.** There are no GPU timer queries yet, so `Render` measures command submission, not GPU work.
+- **CPU only.** `Render` measures command recording and submission, not GPU work. GPU time per frame and per scope comes from timestamp queries in the [diagnostics](diagnostics.md) (HUD, Profiler window).
 - **One thread.** Samples from other threads go to that thread's profiler, which no host sets.
 - **No timeline capture.** The report shows per-frame aggregates, not a timeline of individual calls.

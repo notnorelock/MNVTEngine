@@ -1,8 +1,9 @@
 namespace MNVTEngine.Graphics;
 
 /// <summary>
-/// Shader program source. The only backend today is OpenGL, so stages are GLSL 4.50 core.
-/// Reserved names: <c>uViewProjection</c> (mat4) and <c>uTexture</c> (sampler2D, binding 0).
+/// Shader program source: GLSL <c>#version 450 core</c> in GL style (loose <c>uniform</c>s, <c>in</c>/<c>out</c> without
+/// locations). The Vulkan backend compiles it to SPIR-V under Vulkan relaxed rules and links stages by name.
+/// Reserved names: <c>uViewProjection</c> (mat4) and <c>uTexture</c> (sampler2D, binding 0, the only texture).
 /// </summary>
 public sealed record ShaderSource(string Name, string VertexGlsl, string FragmentGlsl);
 

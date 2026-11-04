@@ -8,7 +8,7 @@ dotnet run --project src/Editor/MNVTEngine.Editor -- samples/SceneDemo   # compi
 |---|---|
 | `<project>` | Project directory or `.mnvtproj` file. Opens the startup scene. |
 | `--play` | Enters Play Mode on start. |
-| `--debug-gl` | Logs GL driver messages. |
+| `--gpu-validation` | Enables the Vulkan validation layer (when installed) and logs its messages. |
 | `--select Name`, `--frames N`, `--screenshot out.png` | For automation: select an object (or an asset by path), then exit after N frames and save a screenshot. |
 
 ## Projects
@@ -22,7 +22,7 @@ This replaces the nine Editor projects in the original proposal. They would have
 
 ## ImGui integration
 
-- **Rendering:** ImGui renders through `IGraphicsDevice`, not raw OpenGL. `ImDrawVert` has exactly the `SpriteVertex` layout, so the built-in sprite shader and alpha blend are reused. Clip rects map to the new `DrawCommand.Scissor`, and geometry is uploaded through the new dynamic index buffer.
+- **Rendering:** ImGui renders through `IGraphicsDevice`, not raw Vulkan. `ImDrawVert` has exactly the `SpriteVertex` layout, so the built-in sprite shader and alpha blend are reused. Clip rects map to the new `DrawCommand.Scissor`, and geometry is uploaded through the new dynamic index buffer.
 - **Textures:** any texture shown in the UI is registered with the ImGui renderer and gets an id. Scene and Game views are render targets that follow their panel's size under a stable id.
 - **Input:** the engine's `InputState` edges are forwarded as ImGui events. Typed characters were added to `InputState` for this.
 - **Layout:** docking is enabled. ImGui.NET doesn't wrap the DockBuilder API, so the default layout is built through P/Invoke calls into the bundled `cimgui` library. Window → Reset Layout rebuilds it.

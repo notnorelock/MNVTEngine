@@ -222,10 +222,15 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
     internal CommandBuffer CurrentCommandBuffer => _cmd;
 
     /// <summary>Creates the device for a window's Vulkan surface.</summary>
+    /// <param name="surface">The window's surface source; null when the window found no Vulkan loader.</param>
     /// <exception cref="GraphicsInitializationException">No Vulkan 1.4 runtime or GPU, or a required feature is missing.</exception>
-    public static VulkanGraphicsDevice Create(IVkSurface surface, int backBufferWidth, int backBufferHeight, ILogger logger, VulkanDeviceOptions? options = null)
+    public static VulkanGraphicsDevice Create(IVkSurface? surface, int backBufferWidth, int backBufferHeight, ILogger logger, VulkanDeviceOptions? options = null)
     {
-        ArgumentNullException.ThrowIfNull(surface);
+        if (surface is null)
+        {
+            throw new GraphicsInitializationException("The window has no Vulkan surface: the Vulkan loader (vulkan-1.dll) was not found. Install a GPU driver with Vulkan 1.4 support.");
+        }
+
         return new VulkanGraphicsDevice(surface, backBufferWidth, backBufferHeight, logger, options ?? new VulkanDeviceOptions());
     }
 

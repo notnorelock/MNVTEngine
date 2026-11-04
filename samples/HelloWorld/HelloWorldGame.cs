@@ -34,7 +34,7 @@ internal sealed class HelloWorldGame(ILogger logger, int? exitAfterFrames, strin
     public void Load(GameWindow window)
     {
         _window = window;
-        _device = VulkanGraphicsDevice.Create(window.VulkanSurface!, window.FramebufferWidth, window.FramebufferHeight, logger, VulkanDeviceOptions.ForApplication("HelloWorld", window.Options.VSync, window.Options.DebugContext));
+        _device = VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, logger, VulkanDeviceOptions.ForApplication("HelloWorld", window.Options.VSync, window.Options.GraphicsValidation));
         _renderer = new Renderer2D(_device);
         _additive = _renderer.CreateSpriteMaterial(BlendMode.Additive, "Sprite/Additive");
 

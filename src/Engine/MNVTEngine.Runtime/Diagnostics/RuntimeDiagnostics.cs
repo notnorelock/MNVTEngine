@@ -111,7 +111,7 @@ public sealed partial class RuntimeDiagnostics
     /// </summary>
     public bool GpuMemoryRequested { get; set; }
 
-    /// <summary>Source of the last GPU memory reading (e.g. the GL extension), or null.</summary>
+    /// <summary>Source of the last GPU memory reading (e.g. VK_EXT_memory_budget), or null.</summary>
     public string? GpuMemorySource { get; private set; }
 
     public void Attach(DiagnosticsTarget target) => _target = target ?? throw new ArgumentNullException(nameof(target));

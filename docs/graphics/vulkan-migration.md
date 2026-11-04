@@ -90,7 +90,7 @@ It records the decisions and is kept up to date as the phases land.
 | 3 | shaderc and reflection, pipelines and cache, push descriptors, streaming buffers, full `IGraphicsDevice`; GL rendering tests ported | done (`tests/MNVTEngine.Graphics.Vulkan.Tests`, 32 tests, no validation errors) |
 | 4 | Hosts on Vulkan: GameHost, Player, CLI, editor, Project Hub, HelloWorld; ImGui and the debug overlay verified | done: Platformer, SceneDemo, HelloWorld, the editor in Play Mode and Debug/Release exports run without validation messages |
 | 5 | GPU timestamps, memory budget and allocator statistics, validation counts, pipeline and descriptor statistics in diagnostics | done |
-| 6 | OpenGL backend, package and docs removed | |
+| 6 | OpenGL backend, package and docs removed | done: `Graphics.OpenGL` and its tests deleted, `Silk.NET.OpenGL` removed, `GameWindow` is Vulkan-only (`GraphicsValidation` replaces `DebugContext`), docs updated. 567 tests pass |
 
 ## Risks
 

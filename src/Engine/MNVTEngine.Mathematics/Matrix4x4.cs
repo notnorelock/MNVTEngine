@@ -5,8 +5,8 @@ namespace MNVTEngine.Mathematics;
 
 /// <summary>
 /// 4x4 float matrix using the column-vector convention: <c>v' = M * v</c>, and <c>A * B</c> applies B first.
-/// <c>Mrc</c> is row r, column c. Fields are laid out column-major, so the struct can be uploaded to
-/// OpenGL with <c>transpose = false</c>. Translation lives in column 3 (M03, M13, M23).
+/// <c>Mrc</c> is row r, column c. Fields are laid out column-major, the layout of a GLSL <c>mat4</c> (std140), so the
+/// struct is copied into uniform blocks as is. Translation lives in column 3 (M03, M13, M23).
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 public struct Matrix4x4 : IEquatable<Matrix4x4>, IFormattable

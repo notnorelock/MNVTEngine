@@ -11,7 +11,7 @@ A running game can be inspected from inside its own window: a HUD with live metr
 | Piece | Project | What it does |
 |---|---|---|
 | Metrics, budgets, `Debug` API, console commands, settings | `MNVTEngine.Diagnostics` | No rendering and no backend. |
-| Render statistics, GPU timer queries, GPU memory | `MNVTEngine.Graphics` (+ GL implementation) | Optional device capabilities. |
+| Render statistics, GPU timer queries, GPU memory, allocator statistics, backend facts | `MNVTEngine.Graphics` (+ Vulkan implementation) | Optional device capabilities. |
 | `RuntimeDiagnostics`: metric providers, built-in commands, frame lifecycle | `MNVTEngine.Runtime` | Collects data; draws nothing. |
 | `DebugOverlay`: HUD, windows, console, debug-draw rendering; the shared ImGui backend | `MNVTEngine.DebugUI` | Development builds only. |
 
@@ -148,8 +148,8 @@ Only registered delegates run: there is no shell or process access. A command th
   - `Frame`: frame totals only.
   - `Systems` (default): engine phases and systems.
   - `Scripts`: also every component callback per type (`Player.Update`), at the cost of a dictionary lookup per call.
-- **GPU timing** uses `GL_TIMESTAMP` queries:
-  - Queries rotate through 4 slots, and results are read 3 frames later only when they are available. Nothing ever waits on the GPU, and frames whose results are not ready are counted as dropped.
+- **GPU timing** uses Vulkan timestamp queries (`vkCmdWriteTimestamp2`):
+  - Each of the 2 frames in flight has a query pool. Results are read when that frame slot is reused, after its fence has signalled, without `WAIT`. Nothing ever waits on the GPU for them, and frames whose results are not available are counted as dropped.
   - Scopes: `Scene` and `Debug Overlay`.
 - **Overhead is visible:** the `Diagnostics` sample includes every metric provider, and `Debug Overlay` is the UI.
   - Measured on the Platformer with an RTX 2060 SUPER: diagnostics cost about 0.05 ms and the overlay about 0.02 ms per frame with the HUD hidden.
@@ -192,12 +192,26 @@ Only registered delegates run: there is no shell or process access. A command th
 
 ### GPU memory
 
-GPU memory comes from `GL_NVX_gpu_memory_info`, which reports total and available memory, or from `GL_ATI_meminfo`, which reports available memory only. Without either, it is unsupported.
+GPU memory comes from `VK_EXT_memory_budget`: total is the size of the device-local heaps, and available is this process's budget minus its usage. Without the extension it is unsupported.
 
-- **It covers the whole adapter, all processes included.**
-- **Reading it stalls the GPU.** The driver waits for the GPU, up to a whole frame. It is therefore sampled every 5 s, and only while something displays it (the HUD memory section, the Renderer or Memory window) or a `gpuMemoryMb` budget exists.
+- **It covers the device-local heaps, other processes included** (they shrink the budget).
+- Reading it costs no GPU synchronization (the OpenGL vendor queries used before stalled up to a frame). It is still sampled every 5 s, and only while something displays it (the HUD memory section, the Renderer or Memory window) or a `gpuMemoryMb` budget exists.
+- **The engine's own allocations** come from the GPU allocator (VMA) and are exact:
+  - `GPU allocated`: memory reserved from the driver;
+  - `GPU allocations`: live allocations;
+  - `GPU allocation failures`;
+  - `Buffer memory`.
+  Backends without an allocator report them as unsupported.
+- **Vulkan specifics** are in the Renderer window's *Backend* section and the `renderer` command:
+  - API and instance version, GPU and driver;
+  - swapchain size, format, present mode and image count;
+  - frames in flight;
+  - validation state, error and warning counts, and the last error;
+  - pipelines created and the pipeline cache;
+  - streaming memory, memory budget source and GPU timer.
+- **Per-frame counters** cover draw calls, geometry, texture, shader and target switches, plus pipeline switches, push-descriptor writes, barriers and queue submits.
 
-**Texture memory** is estimated from the live textures' sizes (width × height × 4 bytes).
+**Texture memory** is the exact allocation size of textures and render targets, from the allocator. On a device without an allocator it is estimated from the sizes (width × height × 4 bytes), and shown as an estimate (`~12.0 MB`, status `Estimated`). Estimated values are budgeted like measured ones.
 
 ## Configuration
 
@@ -246,8 +260,8 @@ The `diagnostics` section of the `.mnvtproj`. Every value is optional; the defau
 ## Tests
 
 - **Metric, budget and command logic** run without a GPU: budget thresholds, deduplication, rate limiting, flicker, unmeasured metrics, session overrides, the command registry, the draw buffer's lifetime and overflow, settings validation and serialization, project save and load, the `RuntimeDiagnostics` frame lifecycle and commands, input capture and suppression, profiler percentiles and detail levels.
-- **GPU tests** run on a real GL context:
-  - frame statistics, timestamp queries delivered without waiting, and GPU memory reported only when exposed;
+- **GPU tests** run on a real Vulkan device (headless) with the validation layer requested, and fail on any validation error:
+  - frame statistics including pipeline and descriptor counts, timestamp queries delivered without waiting, and allocator and budget memory;
   - the overlay's own ImGui context (the caller's context is restored);
   - F1 toggling the HUD and never reaching the game;
   - the console capturing and releasing the keyboard;

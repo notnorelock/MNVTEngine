@@ -43,7 +43,7 @@ public class VulkanSwapchainTests
         GameWindow window;
         try
         {
-            window = new GameWindow(new GameWindowOptions { Hidden = true, Width = width, Height = height, VSync = false, OpenGL = false });
+            window = new GameWindow(new GameWindowOptions { Hidden = true, Width = width, Height = height, VSync = false });
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -82,7 +82,7 @@ public class VulkanSwapchainTests
                 VulkanGraphicsDevice device;
                 try
                 {
-                    device = VulkanGraphicsDevice.Create(window.VulkanSurface!, window.FramebufferWidth, window.FramebufferHeight, logger, new VulkanDeviceOptions { Validation = true, VSync = false });
+                    device = VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, logger, new VulkanDeviceOptions { Validation = true, VSync = false });
                 }
                 catch (GraphicsInitializationException ex)
                 {

@@ -1,6 +1,6 @@
 # Getting Started
 
-This walkthrough creates a game, runs it, edits it in the editor, and exports a standalone Windows build. You need the .NET 11 SDK and a GPU with OpenGL 4.5.
+This walkthrough creates a game, runs it, edits it in the editor, and exports a standalone Windows build. You need the .NET 11 SDK and a GPU with a Vulkan 1.4 driver. Install the [LunarG Vulkan SDK](https://vulkan.lunarg.com/) as well if you want validation-layer checks in development builds.
 
 ## 1. Create a project
 

@@ -2,7 +2,7 @@
 
 Instructions for AI coding agents working on MNVTEngine. Human-facing docs start at [README.md](README.md).
 
-MNVTEngine is a modular 2D game engine in C# / .NET 11: OpenGL 4.5 renderer (Silk.NET), ImGui.NET editor, hybrid ECS,
+MNVTEngine is a modular 2D game engine in C# / .NET 11: Vulkan 1.4 renderer (Silk.NET, VMA, shaderc), ImGui.NET editor, hybrid ECS,
 Box2D physics, OpenAL audio, asset pipeline with stable GUIDs, C# components with hot reload, the `.mnvts` scripting
 language (own bytecode VM, missions, debugger), runtime diagnostics overlay and standalone Windows export.
 
@@ -22,8 +22,10 @@ dotnet test --project tests/MNVTEngine.Scenes.Tests -- --filter-method "*Prefab*
 - Package versions live in `Directory.Packages.props` (central package management). Add new packages there, not in csproj files.
 - Add projects with `dotnet sln add --in-root <csproj>`; adding into solution folders fails on this SDK.
 - MSBuild treats `*.mnvtproj` as a project file: build the `.csproj` explicitly when one sits next to it.
-- GPU tests (`Graphics.OpenGL.Tests`, `DebugUI.Tests`) need an OpenGL 4.5 context and skip without one.
-  All GL test classes in a project must share one `[Collection]` with `DisableParallelization = true`, or they all skip.
+- GPU tests (`Graphics.Vulkan.Tests`, `DebugUI.Tests`) need a Vulkan 1.4 GPU and skip without one. They request the
+  validation layer and fail on validation errors. Install the LunarG Vulkan SDK, or point `VK_ADD_LAYER_PATH` at a
+  Khronos validation layer build, or validation is silently off. GPU test classes share one `[Collection]` with
+  `DisableParallelization = true`.
 - The user often has the editor running, which locks `src/Editor/MNVTEngine.Editor/bin` (MSB3027). Never kill it.
   Build the editor or `Editor.Tests` with `-p:OutDir=<temp dir>` and run the other test projects one by one.
 
@@ -33,14 +35,14 @@ Run the engine:
 scripts\mnvt.cmd editor samples/Platformer
 scripts\mnvt.cmd run samples/Platformer
 scripts\mnvt.cmd build samples/Platformer --configuration release --run
-dotnet run --project samples/HelloWorld -- --frames 120 --screenshot shot.png --debug-gl
+dotnet run --project samples/HelloWorld -- --frames 120 --screenshot shot.png --gpu-validation
 ```
 
 ## Layout
 
 | Path | Contents |
 |---|---|
-| `src/Engine` | Runtime modules (`Core`, `Mathematics`, `ECS`, `Scenes`, `Graphics`, `Graphics.OpenGL`, `Platform`, `Input`, `Audio`, `Physics2D`, `Assets`, `Scripting*`, `Diagnostics`, `DebugUI`, `Runtime`, ...) and `GameHost`, the executable of exported games |
+| `src/Engine` | Runtime modules (`Core`, `Mathematics`, `ECS`, `Scenes`, `Graphics`, `Graphics.Vulkan`, `Platform`, `Input`, `Audio`, `Physics2D`, `Assets`, `Scripting*`, `Diagnostics`, `DebugUI`, `Runtime`, ...) and `GameHost`, the executable of exported games |
 | `src/Editor` | `Editor.Services` (UI-free, testable) and `Editor` (ImGui application) |
 | `src/Tooling` | `CLI` (`mnvt`), `Build` (export pipeline, packaging, validator), `Player` (development runner) |
 | `samples`, `templates` | Sample games and `mnvt new` templates |
@@ -52,9 +54,10 @@ dotnet run --project samples/HelloWorld -- --frames 120 --screenshot shot.png --
 `tests/MNVTEngine.Architecture.Tests` enforces these from the csproj graph. Keep them green; do not weaken a rule to make a change fit.
 
 - Engine projects never reference Editor or Tooling projects. Tooling never references Editor.
-- Graphics and Platform never reference each other; the backend (`Graphics.OpenGL`) is chosen at the host, not in Runtime.
+- Graphics and Platform never reference each other; the backend (`Graphics.Vulkan`) is chosen at the host, not in Runtime.
+  No Vulkan (Silk.NET/Vortice) types outside `Graphics.Vulkan`; gameplay code and scripts never see them.
 - Scenes never references Graphics or Platform; ECS never references Scenes; Input depends only on Mathematics.
-- Scripting projects and Physics2D never reference Graphics, OpenGL or ImGui. Audio never references OpenAL.
+- Scripting projects and Physics2D never reference Graphics, Graphics.Vulkan or ImGui. Audio never references OpenAL.
 - `DebugUI` (ImGui) is a development tool: GameHost references it only when `MnvtDevTools` is set (`MNVT_DEVTOOLS` define).
   Release exports must not contain it unless the project opts in; the build validator reports MNVB508 otherwise.
 
@@ -77,6 +80,13 @@ dotnet run --project samples/HelloWorld -- --frames 120 --screenshot shot.png --
   Use `Gui.TextColored`, `Gui.Bullet`, `Gui.Tooltip`, `Gui.TextWrapped`, `Gui.TextDisabled` from `MNVTEngine.DebugUI.ImGuiBackend`.
 - `ImGui.InputDouble` hung natively in large views; use `Gui.InputNumber`.
 - The debug overlay owns its own ImGui context and must restore the caller's context.
+
+## Vulkan backend
+
+- Hosts call `device.Present()` at the end of each rendered frame; take screenshots (`ReadPixels`) before it.
+- Never destroy Vulkan objects directly: resources go through `DestroyLater`, which waits for frames in flight.
+- Shaders stay GL-style GLSL 450 (compiled with relaxed rules, linked by name); see `docs/graphics/rendering.md`.
+- Run apps with `--gpu-validation` after rendering changes and check the log for `Vulkan` warnings and errors.
 
 ## Hot reload
 
