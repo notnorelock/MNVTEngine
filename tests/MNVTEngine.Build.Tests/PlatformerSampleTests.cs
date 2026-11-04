@@ -5,6 +5,8 @@ using MNVTEngine.Mathematics;
 using MNVTEngine.Runtime;
 using MNVTEngine.Scenes;
 using MNVTEngine.Scripting.Missions;
+using MNVTEngine.UI;
+using MNVTEngine.UI.Widgets;
 
 namespace MNVTEngine.Build.Tests;
 
@@ -15,6 +17,7 @@ namespace MNVTEngine.Build.Tests;
 public sealed class PlatformerSampleTests
 {
     private const float Step = 1f / 60f;
+    private static readonly Lazy<Graphics.Text.Font> UIFont = new(Graphics.Text.Font.LoadDefault);
     private long _frame;
 
     private sealed record Level(Scene Scene, InputState Input, GameObject Player, MissionRuntime Mission);
@@ -34,6 +37,7 @@ public sealed class PlatformerSampleTests
         var provider = new PrefabProvider(serializer, assets, NullLogger.Instance);
         var input = new InputState();
         (scene.TextAssets, scene.Prefabs, scene.Input, scene.RethrowScriptExceptions) = (provider, provider, input, true);
+        UISystem.Attach(scene, new UIServices(UIFont.Value, null, asset => assets.ReadAllBytes(asset.Guid), null)); // as the runtime does
         scene.Start();
         return new Level(scene, input, scene.Find("Player")!, null!);
     }
@@ -49,13 +53,21 @@ public sealed class PlatformerSampleTests
             }
 
             _frame++;
-            level.Scene.FixedUpdate(Step);
-            level.Scene.Update(new FrameTime(Step, Step, _frame * Step, _frame * Step, _frame));
+            var step = Step * level.Scene.TimeScale; // the host's clock applies Time.TimeScale
+            if (step > 0f)
+            {
+                level.Scene.FixedUpdate(step);
+            }
+
+            level.Scene.Update(new FrameTime(step, Step, _frame * Step, _frame * Step, _frame));
+            UISystem.For(level.Scene)!.Update(level.Input, new Vector2(1280, 720), 1f, Step);
         }
     }
 
     private static bool Grounded(GameObject player) =>
         (bool)player.Components.Single(c => c.GetType().Name == "Player").GetType().GetProperty("Grounded")!.GetValue(player.Components.Single(c => c.GetType().Name == "Player"))!;
+
+    private static UIElement Ui(Level level, string objectName) => level.Scene.Find(objectName)!.GetComponent<UIDocument>()!.Root!;
 
     private static MissionRuntime MissionOf(Level level) =>
         level.Scene.FindObjectsOfType<MissionRunner>().Single().Missions!.Missions["level1"];
@@ -67,6 +79,9 @@ public sealed class PlatformerSampleTests
         var player = level.Player;
 
         Frames(level, 30);
+        var hud = Ui(level, "HUD");
+        Assert.Equal("Coins 0 / 5", hud.Find<Label>("Coins")!.Text);
+        Assert.Equal("Collect all coins", hud.Find<Label>("Objective")!.Text);
         Assert.True(Grounded(player), "the player lands on the tilemap floor");
         Assert.Equal(0.5f, player.Transform.Position.Y, 1);
 
@@ -83,6 +98,7 @@ public sealed class PlatformerSampleTests
         Assert.True(Grounded(player));
         Assert.Equal(3.5f, player.Transform.Position.Y, 1);
         Assert.Null(level.Scene.Find("Coin 1"));
+        Assert.Equal("Coins 1 / 5", hud.Find<Label>("Coins")!.Text);
 
         var mission = MissionOf(level);
         Assert.Equal(MissionState.Active, mission.State);
@@ -103,6 +119,32 @@ public sealed class PlatformerSampleTests
         player.Transform.Position = level.Scene.Find("Flag")!.Transform.Position;
         Frames(level, 3);
         Assert.Equal(MissionState.Completed, mission.State);
+        Assert.True(hud.Find("Complete")!.Visible, "the HUD shows the level-complete card");
+        Assert.Contains("All 5 coins", hud.Find<Label>("CompleteTime")!.Text, StringComparison.Ordinal);
+        Assert.Equal(0f, level.Scene.TimeScale);
+    }
+
+    [Fact]
+    public async Task Escape_PausesTheGame_WithThePauseMenu()
+    {
+        var level = await LoadAsync();
+        var pause = level.Scene.Find("Pause Menu")!.GetComponent<UIDocument>()!.Context!;
+        Frames(level, 30);
+        Assert.False(pause.Visible);
+
+        Frames(level, 1, Key.Escape);
+        Assert.True(pause.Visible);
+        Assert.Equal(0f, level.Scene.TimeScale);
+        var x = level.Player.Transform.Position.X;
+        Frames(level, 30, Key.Right); // paused: running does nothing
+        Assert.Equal(x, level.Player.Transform.Position.X);
+
+        Frames(level, 1);
+        Frames(level, 1, Key.Escape);
+        Assert.False(pause.Visible);
+        Assert.Equal(1f, level.Scene.TimeScale);
+        Frames(level, 30, Key.Right);
+        Assert.True(level.Player.Transform.Position.X > x + 1f);
     }
 
     [Fact]

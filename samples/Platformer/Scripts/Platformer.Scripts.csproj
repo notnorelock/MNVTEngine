@@ -5,5 +5,6 @@
     <ProjectReference Include="..\..\..\src\Engine\MNVTEngine.Physics2D\MNVTEngine.Physics2D.csproj" Private="false" />
     <ProjectReference Include="..\..\..\src\Engine\MNVTEngine.Audio\MNVTEngine.Audio.csproj" Private="false" />
     <ProjectReference Include="..\..\..\src\Engine\MNVTEngine.Scripting.Bindings\MNVTEngine.Scripting.Bindings.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\src\Engine\MNVTEngine.UI\MNVTEngine.UI.csproj" Private="false" />
   </ItemGroup>
 </Project>

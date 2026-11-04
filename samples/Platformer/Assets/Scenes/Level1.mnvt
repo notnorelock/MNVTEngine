@@ -3,6 +3,31 @@
   "name": "Level1",
   "gameObjects": [
     {
+      "id": "b1000000-0000-0000-0000-0000000000f1",
+      "name": "HUD",
+      "active": true,
+      "parent": null,
+      "transform": { "localPosition": { "x": 0.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "components": [
+        { "type": "MNVTEngine.UIDocument", "id": "c1000000-0000-0000-00f1-000000000001", "enabled": true,
+          "data": { "layout": "asset:b5000000-0000-4000-8000-000000000001", "sortOrder": 0, "scale": 1.0 } },
+        { "type": "Platformer.Hud", "id": "c1000000-0000-0000-00f1-000000000002", "enabled": true,
+          "data": { "level": "asset:9a000000-0000-4000-8000-000000000028" } }
+      ]
+    },
+    {
+      "id": "b1000000-0000-0000-0000-0000000000f2",
+      "name": "Pause Menu",
+      "active": true,
+      "parent": null,
+      "transform": { "localPosition": { "x": 0.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "components": [
+        { "type": "MNVTEngine.UIDocument", "id": "c1000000-0000-0000-00f2-000000000001", "enabled": true,
+          "data": { "layout": "asset:b5000000-0000-4000-8000-000000000002", "sortOrder": 10, "scale": 1.0 } },
+        { "type": "Platformer.PauseMenu", "id": "c1000000-0000-0000-00f2-000000000002", "enabled": true, "data": {} }
+      ]
+    },
+    {
       "id": "b1000000-0000-0000-0000-00000000000b",
       "name": "Mission",
       "active": true,

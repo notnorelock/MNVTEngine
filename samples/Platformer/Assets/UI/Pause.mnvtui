@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "type": "Panel",
+    "name": "Overlay",
+    "properties": { "alignItems": "center", "height": "100%", "justify": "center", "layout": "column", "width": "100%" },
+    "style": { "background": { "r": 0.0, "g": 0.0, "b": 0.0, "a": 0.55 } },
+    "children": [
+      {
+        "type": "Panel",
+        "name": "Card",
+        "properties": { "alignItems": "stretch", "gap": 10.0, "layout": "column", "styleClass": "panel", "width": "300" },
+        "style": { "padding": [ 24.0, 20.0, 24.0, 24.0 ] },
+        "children": [
+          { "type": "Label", "name": "Title", "text": "Paused", "properties": { "alignment": "center" }, "style": { "fontSize": 34.0 } },
+          { "type": "Button", "name": "Resume", "text": "Resume", "properties": { "action": "resume", "tooltip": "Esc" } },
+          { "type": "Button", "name": "Restart", "text": "Restart level", "properties": { "action": "restart" } },
+          { "type": "Button", "name": "Quit", "text": "Quit", "properties": { "action": "quit" } }
+        ]
+      }
+    ]
+  }
+}

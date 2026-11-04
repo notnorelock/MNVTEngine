@@ -132,7 +132,12 @@ var ui = GetComponent<UIDocument>()!.Context!;
 ui.OnAction("resume", _ => ui.Visible = false);
 ```
 
-Example: `samples/UIShowcase/Assets/UI/PauseMenu.mnvtui`, shown by the "Pause Menu" object and bound in `Scripts/PauseMenu.cs`. Press P in the game to open it.
+Examples:
+
+- `samples/UIShowcase/Assets/UI/PauseMenu.mnvtui`, shown by the "Pause Menu" object and bound in `Scripts/PauseMenu.cs`. Press P in the game to open it.
+- `samples/Platformer/Assets/UI/Hud.mnvtui` and `Pause.mnvtui`, bound in `Scripts/GameUI.cs`:
+  - The HUD shows collected coins and the mission's current objective, and a "Level complete" card with **Play again** and **Quit**.
+  - Escape opens the pause menu (**Resume**, **Restart level**, **Quit**) and pauses the game with `Time.TimeScale = 0`.
 
 ## Window
 

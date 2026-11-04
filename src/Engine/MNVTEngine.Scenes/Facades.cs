@@ -41,6 +41,16 @@ public static class Time
 
     public static long FrameCount => SceneContext.Current.FrameTime.FrameCount;
 
+    /// <summary>
+    /// Multiplier for <see cref="DeltaTime"/> and physics, from the next frame: 0 pauses the game (pause menus), 0.5 is
+    /// slow motion. <see cref="UnscaledDeltaTime"/> and the game UI are not affected. Resets to 1 with a new scene.
+    /// </summary>
+    public static float TimeScale
+    {
+        get => SceneContext.Current.TimeScale;
+        set => SceneContext.Current.TimeScale = value;
+    }
+
     internal static FrameTime Frame => SceneContext.Current.FrameTime;
 }
 

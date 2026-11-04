@@ -141,6 +141,7 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         }
         else
         {
+            _clock.TimeScale = PlayScene.TimeScale; // Time.TimeScale set by game code (pause menus, slow motion)
             time = _clock.Advance(elapsedSeconds);
             steps = _fixed.Accumulate(time.DeltaTime);
         }

@@ -139,6 +139,7 @@ public sealed partial class GameRuntime(
     {
         StartFrame();
         using var sample = Core.Diagnostics.Profiler.Sample("Update");
+        _window.Clock.TimeScale = CurrentScene?.TimeScale ?? 1f; // the window's loop scales the next frame and its fixed steps
         if (UpdateLoading(time))
         {
             if (_pendingScene is { } queued && !_loadIsStartup)

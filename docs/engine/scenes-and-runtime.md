@@ -35,6 +35,10 @@ Callbacks run only while the scene is running (`scene.Start()`). In edit mode th
 - Exceptions from callbacks are logged (event 2000) with the component and object name, and the frame continues. Set `Scene.RethrowScriptExceptions` to make them propagate instead.
 - Only overridden update methods are called; the engine detects overrides once per type by reflection.
 - `Time` and `Input` are static facades over the scene that is currently executing on this thread. Scenes on different threads (editor, tests) don't interfere. Using them outside a callback throws.
+- `Time.TimeScale` (per scene, default 1, reset by a new scene) scales `Time.DeltaTime` and the fixed steps from the next frame:
+  - At 0 the game is paused: `Update` still runs with a zero delta; `FixedUpdate` and physics do not.
+  - `Time.UnscaledDeltaTime` and the game UI keep running, so pause menus work.
+  - The runtime and editor Play Mode both apply it to their clock.
 
 ## Transform
 

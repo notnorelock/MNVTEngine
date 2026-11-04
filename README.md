@@ -36,7 +36,7 @@ MyGame\Builds\release\MyGame.exe
 ## Run the samples
 
 ```bash
-scripts\mnvt.cmd run samples/Platformer     # A/D or arrows run, Space jumps: collect 5 coins, then reach the flag
+scripts\mnvt.cmd run samples/Platformer     # A/D or arrows run, Space jumps, Esc pauses: collect 5 coins, then reach the flag
 scripts\mnvt.cmd run samples/SceneDemo      # WASD flies; Tab switches to the physics/lighting arena
 
 dotnet run --project samples/HelloWorld

@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "type": "Panel",
+    "name": "HUD",
+    "properties": { "height": "100%", "width": "100%" },
+    "children": [
+      {
+        "type": "Panel",
+        "name": "Stats",
+        "properties": { "gap": 2.0, "layout": "column", "left": "16", "styleClass": "panel", "top": "16" },
+        "style": { "padding": [ 16.0, 10.0, 16.0, 12.0 ] },
+        "children": [
+          { "type": "Label", "name": "Coins", "text": "Coins 0 / 0", "style": { "fontSize": 24.0, "foreground": { "r": 1.0, "g": 0.84, "b": 0.3, "a": 1.0 } } },
+          { "type": "Label", "name": "Objective", "text": "Collect all coins", "style": { "fontSize": 15.0, "foreground": { "r": 0.78, "g": 0.8, "b": 0.86, "a": 1.0 } } }
+        ]
+      },
+      {
+        "type": "Label",
+        "name": "Hint",
+        "text": "Esc: pause",
+        "properties": { "anchor": { "x": 1.0, "y": 0.0 }, "left": "-16", "pivot": { "x": 1.0, "y": 0.0 }, "top": "16" },
+        "style": { "fontSize": 14.0, "foreground": { "r": 1.0, "g": 1.0, "b": 1.0, "a": 0.55 } }
+      },
+      {
+        "type": "Panel",
+        "name": "Complete",
+        "properties": {
+          "alignItems": "stretch",
+          "anchor": { "x": 0.5, "y": 0.5 },
+          "gap": 10.0,
+          "layout": "column",
+          "pivot": { "x": 0.5, "y": 0.5 },
+          "styleClass": "panel",
+          "visible": false,
+          "width": "340"
+        },
+        "style": { "padding": [ 24.0, 20.0, 24.0, 24.0 ] },
+        "children": [
+          { "type": "Label", "name": "CompleteTitle", "text": "Level complete!", "properties": { "alignment": "center" }, "style": { "fontSize": 34.0 } },
+          { "type": "Label", "name": "CompleteTime", "text": "", "properties": { "alignment": "center" }, "style": { "fontSize": 16.0, "foreground": { "r": 0.78, "g": 0.8, "b": 0.86, "a": 1.0 } } },
+          { "type": "Button", "name": "PlayAgain", "text": "Play again", "properties": { "action": "restart" } },
+          { "type": "Button", "name": "QuitFromComplete", "text": "Quit", "properties": { "action": "quit" } }
+        ]
+      }
+    ]
+  }
+}

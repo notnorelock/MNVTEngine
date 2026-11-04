@@ -18,6 +18,7 @@ public sealed partial class Scene
     private readonly Dictionary<Guid, GameObject> _byId = [];
     private readonly List<Component> _updateList = [];
     private readonly List<Component> _fixedUpdateList = [];
+    private float _timeScale = 1f;
     private readonly List<Component> _lateUpdateList = [];
     private readonly List<Component> _allComponents = [];
     private readonly List<Component> _pendingStart = [];
@@ -52,6 +53,27 @@ public sealed partial class Scene
 
     /// <summary>Exceptions from component callbacks are logged and the frame continues; set true to rethrow (tests, debugging).</summary>
     public bool RethrowScriptExceptions { get; set; }
+
+    /// <summary>
+    /// Speed of scaled time for this scene (see <see cref="Time.TimeScale"/>); the host applies it to its clock from the
+    /// next frame. 0 pauses gameplay and physics; the game UI keeps running on unscaled time.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">Negative or not finite.</exception>
+    public float TimeScale
+    {
+        get => _timeScale;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            if (!float.IsFinite(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Time scale must be finite.");
+            }
+
+            _timeScale = value;
+        }
+    }
+
 
     /// <summary>All live GameObjects in creation order.</summary>
     public IReadOnlyList<GameObject> GameObjects => _gameObjects;
