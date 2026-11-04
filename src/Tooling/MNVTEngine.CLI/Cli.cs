@@ -124,6 +124,7 @@ public static class Cli
         string[] project = command.Positional.Count == 0 ? [] : [GameProject.Load(command.Single("project")).RootDirectory];
         var editor = EngineLocation.EditorProject(EngineLocation.FindRoot());
         var start = new ProcessStartInfo("dotnet") { UseShellExecute = false };
+        start.Environment["MSBUILDDISABLENODEREUSE"] = "1"; // the build before the run leaves no idle MSBuild nodes
         foreach (var argument in new[] { "run", "--project", editor, "-c", "Debug", "--" }.Concat(project).Concat(command.Passthrough("--frames")))
         {
             start.ArgumentList.Add(argument);

@@ -35,6 +35,7 @@ public static class DotnetCli
         start.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
         start.Environment["DOTNET_NOLOGO"] = "1";
         start.Environment["DOTNET_CLI_UI_LANGUAGE"] = "en"; // diagnostics are parsed
+        start.Environment["MSBUILDDISABLENODEREUSE"] = "1"; // MSBuild worker nodes exit with the build instead of idling (~120 MB each)
 
         var watch = Stopwatch.StartNew();
         using var process = new Process { StartInfo = start };
