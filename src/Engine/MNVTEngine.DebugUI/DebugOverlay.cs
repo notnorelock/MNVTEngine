@@ -54,6 +54,9 @@ public sealed partial class DebugOverlay : IRuntimeOverlay
 
     public RuntimeOverlayContext Context => _context;
 
+    /// <summary>ImGui texture id of an engine texture, for panels that show textures.</summary>
+    internal nint TextureId(Texture2D texture) => _renderer.Register(texture);
+
     public bool HudVisible { get; set; }
 
     public bool WarningsVisible { get; set; } = true;
@@ -100,7 +103,7 @@ public sealed partial class DebugOverlay : IRuntimeOverlay
 
             _draw = new DebugDrawRenderer();
             HudVisible = settings.ShowOverlayByDefault;
-            foreach (var panel in (DebugPanel[])[new WindowsPanel(), new ProfilerPanel(), new ConsolePanel(), new BudgetsPanel(), new RendererPanel(), new EcsPanel(), new MemoryPanel(), new ScriptingPanel(), new PhysicsPanel(), new AssetsPanel()])
+            foreach (var panel in (DebugPanel[])[new WindowsPanel(), new ProfilerPanel(), new ConsolePanel(), new BudgetsPanel(), new RendererPanel(), new EcsPanel(), new MemoryPanel(), new ScriptingPanel(), new PhysicsPanel(), new AssetsPanel(), new UIPanel()])
             {
                 if (!settings.DisabledPanels.Contains(panel.Name, StringComparer.OrdinalIgnoreCase))
                 {

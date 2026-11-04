@@ -80,6 +80,15 @@ public static class Metrics
     public const string ShaderSwitches = "render.shaderSwitches";
     public const string RenderTargetSwitches = "render.targetSwitches";
     public const string PipelineSwitches = "render.pipelineSwitches";
+    public const string UIElements = "ui.elements";
+    public const string UIVisibleElements = "ui.visible";
+    public const string UIDrawCalls = "ui.drawCalls";
+    public const string UIQuads = "ui.quads";
+    public const string UILayoutPasses = "ui.layoutPasses";
+    public const string UIGeometryRebuilds = "ui.rebuilds";
+    public const string UIGlyphs = "ui.glyphs";
+    public const string UIAtlasPages = "ui.atlasPages";
+    public const string UITextLayouts = "ui.textLayouts";
     public const string DescriptorWrites = "render.descriptorWrites";
     public const string Barriers = "render.barriers";
     public const string Submits = "render.submits";
@@ -141,6 +150,15 @@ public static class Metrics
         new(ShaderSwitches, "Shader switches", "Renderer", MetricUnit.Count, "Shader program changes last frame."),
         new(RenderTargetSwitches, "Target switches", "Renderer", MetricUnit.Count, "Render target changes last frame."),
         new(PipelineSwitches, "Pipeline switches", "Renderer", MetricUnit.Count, "Graphics pipeline binds (shader + blend/topology state) last frame."),
+        new(UIElements, "UI elements", "UI", MetricUnit.Count, "Elements in all UI contexts of the scene."),
+        new(UIVisibleElements, "UI visible", "UI", MetricUnit.Count, "Elements drawn (visible ones)."),
+        new(UIDrawCalls, "UI draw calls", "UI", MetricUnit.Count, "Draw calls of the game UI last frame (one per texture run)."),
+        new(UIQuads, "UI quads", "UI", MetricUnit.Count, "Quads in the cached UI geometry (4 vertices, 6 indices each)."),
+        new(UILayoutPasses, "UI layout passes", "UI", MetricUnit.Count, "Layout passes since start (only when something changed)."),
+        new(UIGeometryRebuilds, "UI rebuilds", "UI", MetricUnit.Count, "Geometry rebuilds since start (only when something visible changed)."),
+        new(UIGlyphs, "Glyphs cached", "UI", MetricUnit.Count, "Glyphs rasterized into the atlas (per font, glyph and size)."),
+        new(UIAtlasPages, "Atlas pages", "UI", MetricUnit.Count, "1024x1024 glyph atlas textures."),
+        new(UITextLayouts, "Text layouts built", "UI", MetricUnit.Count, "Text layouts built since start (cache misses)."),
         new(DescriptorWrites, "Descriptor writes", "Renderer", MetricUnit.Count, "Push-descriptor writes (texture and uniform bindings) last frame."),
         new(Barriers, "Barriers", "Renderer", MetricUnit.Count, "Pipeline barriers (image layout transitions) recorded last frame."),
         new(Submits, "Queue submits", "Renderer", MetricUnit.Count, "Command buffer submissions to the GPU queue last frame."),

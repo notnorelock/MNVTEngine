@@ -162,6 +162,7 @@ public sealed partial class UIContext : IDisposable
         LayoutEngine.Layout(Overlay, viewport);
         Statistics.LayoutPasses++;
         Statistics.LastLayoutMilliseconds = watch.Elapsed.TotalMilliseconds;
+        Statistics.Elements = Root.Descendants().Count() + Overlay.Descendants().Count(); // structure changes dirty layout
         VisualDirty = true;
     }
 

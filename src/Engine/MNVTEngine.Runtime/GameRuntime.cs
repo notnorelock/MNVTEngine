@@ -103,7 +103,7 @@ public sealed partial class GameRuntime(
 
         if (_options.Diagnostics is { } diagnostics)
         {
-            diagnostics.Attach(new DiagnosticsTarget(_device, () => CurrentScene, _resources, _assets, _sceneRenderer));
+            diagnostics.Attach(new DiagnosticsTarget(_device, () => CurrentScene, _resources, _assets, _sceneRenderer, _ui));
             diagnostics.Install();
             _options.Overlay?.Load(new RuntimeOverlayContext(
                 _device, _renderer, diagnostics, window.Input,

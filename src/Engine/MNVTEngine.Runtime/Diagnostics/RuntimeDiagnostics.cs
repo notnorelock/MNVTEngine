@@ -14,7 +14,7 @@ using DiagnosticMetrics = MNVTEngine.Diagnostics.Metrics;
 namespace MNVTEngine.Runtime;
 
 /// <summary>What diagnostics observe: the device, the running scene and its resources. Any part may be missing.</summary>
-public sealed record DiagnosticsTarget(IGraphicsDevice Device, Func<Scene?> Scene, ResourceCache? Resources = null, AssetDatabase? Assets = null, SceneRenderer? SceneRenderer = null);
+public sealed record DiagnosticsTarget(IGraphicsDevice Device, Func<Scene?> Scene, ResourceCache? Resources = null, AssetDatabase? Assets = null, SceneRenderer? SceneRenderer = null, UI.UIRenderer? UI = null);
 
 /// <summary>
 /// The diagnostics of one running game (standalone runtime, Player or editor Play Mode): profiler, GPU timer, metrics,
@@ -65,6 +65,7 @@ public sealed partial class RuntimeDiagnostics
             .Add(new TimeProvider(this))
             .Add(new MemoryProvider(this))
             .Add(new RendererProvider(this))
+            .Add(new UIProvider(this))
             .Add(new SceneProvider(this))
             .Add(new AssetProvider(this));
         foreach (var name in settings.DisabledProviders)
@@ -375,6 +376,34 @@ public sealed partial class RuntimeDiagnostics
             if (_textures.HasValue)
             {
                 metrics.Set(DiagnosticMetrics.AssetMemory, new MetricValue(_textures.Status, _textures.Value + (audio?.BufferBytes ?? 0)));
+            }
+        }
+    }
+
+    /// <summary>Game UI of the current scene: element counts, draws, cache behaviour and the glyph atlas.</summary>
+    private sealed class UIProvider(RuntimeDiagnostics owner) : IMetricsProvider
+    {
+        public string Name => "UI";
+
+        public void Collect(MetricsSnapshot metrics)
+        {
+            if (owner._target is not { } target || target.Scene() is not { } scene || UI.UISystem.For(scene) is not { } ui)
+            {
+                return;
+            }
+
+            var totals = ui.Totals();
+            metrics.Set(DiagnosticMetrics.UIElements, totals.Elements);
+            metrics.Set(DiagnosticMetrics.UIVisibleElements, totals.Visible);
+            metrics.Set(DiagnosticMetrics.UIDrawCalls, totals.DrawCalls);
+            metrics.Set(DiagnosticMetrics.UIQuads, totals.Quads);
+            metrics.Set(DiagnosticMetrics.UILayoutPasses, totals.LayoutPasses);
+            metrics.Set(DiagnosticMetrics.UIGeometryRebuilds, totals.Rebuilds);
+            metrics.Set(DiagnosticMetrics.UITextLayouts, UI.TextBlock.Builds);
+            if (target.UI is { } renderer)
+            {
+                metrics.Set(DiagnosticMetrics.UIGlyphs, renderer.Atlas.GlyphCount);
+                metrics.Set(DiagnosticMetrics.UIAtlasPages, renderer.Atlas.PageCount);
             }
         }
     }

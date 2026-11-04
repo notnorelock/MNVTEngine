@@ -93,6 +93,27 @@ public sealed class RuntimeDiagnosticsTests : IDisposable
     }
 
     [Fact]
+    public void GameUI_IsMeasured_WhenTheSceneHasOne()
+    {
+        var diagnostics = Create();
+        Frame(diagnostics);
+        Assert.Equal(MetricStatus.Unavailable, diagnostics.Metrics.Get(DiagnosticMetrics.UIElements).Status); // no UI: not 0
+
+        var system = UI.UISystem.Attach(_scene, new UI.UIServices(Graphics.Text.Font.LoadDefault(), null, null, null));
+        var context = system.CreateContext();
+        var panel = context.Root.AddChild(new UI.Widgets.Panel { Layout = UI.LayoutMode.Column });
+        panel.AddChild(new UI.Widgets.Button { Text = "Play" });
+        panel.AddChild(new UI.Widgets.Label { Text = "Hidden", Visible = false });
+        system.Update(new InputState(), new Vector2(640, 360), 1f, 0.016f);
+        Frame(diagnostics);
+
+        Assert.Equal(context.Statistics.Elements, diagnostics.Metrics.Get(DiagnosticMetrics.UIElements).Value);
+        Assert.Equal(5, diagnostics.Metrics.Get(DiagnosticMetrics.UIElements).Value); // root, overlay, panel, button, hidden label
+        Assert.True(diagnostics.Metrics.Get(DiagnosticMetrics.UILayoutPasses).Value >= 1);
+        Assert.Equal(MetricStatus.Unavailable, diagnostics.Metrics.Get(DiagnosticMetrics.UIGlyphs).Status); // no renderer attached
+    }
+
+    [Fact]
     public void InstallRoutesDebugDraws_AndOneFrameDrawsEndWithTheFrame()
     {
         var diagnostics = Create();

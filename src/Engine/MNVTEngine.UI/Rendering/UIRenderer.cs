@@ -105,13 +105,13 @@ public sealed class UIRenderer : IDisposable
             mesh.Runs.Clear();
             var generation = Atlas.Generation;
             var painter = new UIPainter(Atlas, pixelScale, mesh.Vertices, mesh.Runs, new Rect(0, 0, context.Size.X, context.Size.Y));
-            int elements = 0, visible = 0;
-            Paint(context.Root, painter, ref elements, ref visible);
-            Paint(context.Overlay, painter, ref elements, ref visible);
+            var visible = 0;
+            Paint(context.Root, painter, ref visible);
+            Paint(context.Overlay, painter, ref visible);
             if (Atlas.Generation == generation)
             {
                 (mesh.Generation, mesh.PixelScale) = (generation, pixelScale);
-                (context.Statistics.Elements, context.Statistics.VisibleElements) = (elements, visible);
+                context.Statistics.VisibleElements = visible;
                 break; // otherwise the atlas was cleared while painting: quads point at old pages, paint again
             }
         }
@@ -121,12 +121,10 @@ public sealed class UIRenderer : IDisposable
         context.Statistics.Quads = mesh.Quads;
     }
 
-    private static void Paint(UIElement element, UIPainter painter, ref int elements, ref int visible)
+    private static void Paint(UIElement element, UIPainter painter, ref int visible)
     {
-        elements++;
         if (!element.Visible)
         {
-            elements += element.Descendants().Count() - 1;
             return;
         }
 
@@ -138,7 +136,7 @@ public sealed class UIRenderer : IDisposable
         painter.PopClip();
         foreach (var child in element.ChildrenInDrawOrder())
         {
-            Paint(child, painter, ref elements, ref visible);
+            Paint(child, painter, ref visible);
         }
 
         painter.PushClip(element.PaintClip);
