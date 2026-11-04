@@ -123,8 +123,9 @@ public sealed partial class GameRuntime(
             _options.Profiler?.BeginFrame();
         }
 
-        // A broken startup scene is fatal; later scene switches fall back to the current scene.
-        SwitchTo(LoadScene(project.StartupScene));
+        // Loads over the next frames, behind the splash or loading screen. A broken startup scene is fatal;
+        // later scene switches fall back to the current scene.
+        StartPresentation();
     }
 
     public void FixedUpdate(float fixedDeltaTime)
@@ -138,6 +139,17 @@ public sealed partial class GameRuntime(
     {
         StartFrame();
         using var sample = Core.Diagnostics.Profiler.Sample("Update");
+        if (UpdateLoading(time))
+        {
+            if (_pendingScene is { } queued && !_loadIsStartup)
+            {
+                _pendingScene = null;
+                BeginLoad(queued, startup: false); // a newer request replaces the load in progress
+            }
+
+            return; // gameplay is frozen while a scene loads or the splash shows
+        }
+
         if (CurrentScene is { } scene && UI.UISystem.For(scene) is { } ui)
         {
             // Before gameplay: input the UI takes (focused text field, pointer over UI) reads as released for scripts.
@@ -150,14 +162,7 @@ public sealed partial class GameRuntime(
         if (_pendingScene is { } path)
         {
             _pendingScene = null;
-            try
-            {
-                SwitchTo(LoadScene(path));
-            }
-            catch (SerializationException ex)
-            {
-                LogSceneSwitchFailed(_logger, ex, path);
-            }
+            BeginLoad(path, startup: false);
         }
     }
 
@@ -165,7 +170,7 @@ public sealed partial class GameRuntime(
     {
         StartFrame();
         var gpu = _options.Diagnostics?.GpuTimer;
-        if (CurrentScene is not null)
+        if (CurrentScene is not null && !PresentationCoversScene)
         {
             using var sample = Core.Diagnostics.Profiler.Sample("Render");
             using var gpuScope = new GpuScope(gpu, "Scene");
@@ -177,6 +182,8 @@ public sealed partial class GameRuntime(
                 ui.Render(_ui, _window.FramebufferWidth, _window.FramebufferHeight);
             }
         }
+
+        RenderPresentation();
 
         // Frames run FixedUpdate* → Update → Render: a frame ends after rendering.
         if (_options.Diagnostics is { } diagnostics)
@@ -198,7 +205,11 @@ public sealed partial class GameRuntime(
             _options.Profiler?.BeginFrame();
         }
 
-        _frames++;
+        if (!IsLoading && _splash is null)
+        {
+            _frames++; // --frames counts frames of the running game, not of loading or splash screens
+        }
+
         var exiting = _options.ExitAfterFrames is { } limit && _frames >= limit;
         if (exiting && _options.ScreenshotPath is { } path)
         {
@@ -222,6 +233,7 @@ public sealed partial class GameRuntime(
             return; // the graphics device could not be created; Load created nothing else
         }
 
+        StopPresentation();
         Application.QuitRequested -= OnQuitRequested;
         Application.SetHostWindow(null);
 
@@ -269,33 +281,6 @@ public sealed partial class GameRuntime(
         _frameStarted = true;
         _options.Diagnostics.BeginFrame();
         _options.Overlay?.BeginFrame();
-    }
-
-    private Scene LoadScene(string path)
-    {
-        string json;
-        try
-        {
-            json = System.Text.Encoding.UTF8.GetString(_assets.ReadAllBytes(path));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or InvalidDataException)
-        {
-            throw new SerializationException(path, ex.Message, [], ex);
-        }
-
-        var result = _serializer.Deserialize(json, path);
-        foreach (var diagnostic in result.Diagnostics)
-        {
-            var level = diagnostic.Severity switch
-            {
-                DiagnosticSeverity.Error => LogLevel.Error,
-                DiagnosticSeverity.Warning => LogLevel.Warning,
-                _ => LogLevel.Information,
-            };
-            LogSceneDiagnostic(_logger, level, path, diagnostic.Path, diagnostic.Message);
-        }
-
-        return result.Scene;
     }
 
     private void SwitchTo(Scene next)

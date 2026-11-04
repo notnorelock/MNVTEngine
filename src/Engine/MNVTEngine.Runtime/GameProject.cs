@@ -47,6 +47,74 @@ public sealed class WindowSettings
     public bool TopMost { get; set; }
 }
 
+/// <summary>
+/// The startup splash: background, logo, title and subtitle, shown while the first scene loads, for at least
+/// <see cref="MinimumDuration"/> seconds, with fades. Off by default; engine branding is opt-in
+/// (<see cref="ShowEngineBranding"/>), never forced.
+/// </summary>
+public sealed class SplashScreenSettings
+{
+    public bool Enabled { get; set; }
+
+    public Mathematics.Color Background { get; set; } = new(0f, 0f, 0f, 1f);
+
+    public Mathematics.Color Foreground { get; set; } = new(0.92f, 0.93f, 0.95f, 1f);
+
+    /// <summary>Texture asset path (e.g. "Branding/logo.png").</summary>
+    public string? Logo { get; set; }
+
+    /// <summary>Background image asset path, stretched to cover the window.</summary>
+    public string? BackgroundImage { get; set; }
+
+    /// <summary>Defaults to none (only the logo).</summary>
+    public string? Title { get; set; }
+
+    public string? Subtitle { get; set; }
+
+    public float MinimumDuration { get; set; } = 2f;
+
+    public float FadeIn { get; set; } = 0.4f;
+
+    public float FadeOut { get; set; } = 0.4f;
+
+    /// <summary>A key or click skips the rest of the splash once loading has finished.</summary>
+    public bool Skippable { get; set; } = true;
+
+    /// <summary>Adds "Made with MNVTEngine".</summary>
+    public bool ShowEngineBranding { get; set; }
+
+    /// <summary>Shows a progress bar of the startup load on the splash.</summary>
+    public bool ShowProgress { get; set; }
+}
+
+/// <summary>Defaults for <see cref="MNVTEngine.LoadingScreen.Options"/>; game code can change them at run time.</summary>
+public sealed class LoadingScreenSettings
+{
+    /// <summary>Shown for scene loads; off keeps the previous scene visible (frozen) while the next one loads.</summary>
+    public bool Enabled { get; set; } = true;
+
+    public string Title { get; set; } = "Loading...";
+
+    public Mathematics.Color Background { get; set; } = new(0.04f, 0.04f, 0.05f, 1f);
+
+    public Mathematics.Color Foreground { get; set; } = new(0.92f, 0.93f, 0.95f, 1f);
+
+    public Mathematics.Color Accent { get; set; } = new(0.27f, 0.55f, 1f, 1f);
+
+    public string? Logo { get; set; }
+
+    /// <summary>Font asset path (TTF/OTF); the built-in font when null.</summary>
+    public string? Font { get; set; }
+
+    public bool ShowProgress { get; set; } = true;
+
+    public bool ShowPercentage { get; set; } = true;
+
+    public List<string> Tips { get; set; } = [];
+
+    public float TipSeconds { get; set; } = 5f;
+}
+
 /// <summary>A named export configuration (<c>"buildProfiles"</c> in the .mnvtproj), used by <c>mnvt build</c>.</summary>
 public sealed class BuildProfile
 {
@@ -99,6 +167,12 @@ public sealed class GameProject
     public string StartupScene { get; set; } = "";
 
     public WindowSettings Window { get; set; } = new();
+
+    /// <summary>Startup splash (<c>"splashScreen"</c>); off unless the project enables it.</summary>
+    public SplashScreenSettings SplashScreen { get; set; } = new();
+
+    /// <summary>Screen shown while scenes load (<c>"loadingScreen"</c>).</summary>
+    public LoadingScreenSettings LoadingScreen { get; set; } = new();
 
     public float FixedTimestep { get; set; } = 1f / 60f;
 
@@ -271,6 +345,26 @@ public sealed class GameProject
         if (Window.X.HasValue != Window.Y.HasValue)
         {
             Error("window", "Set both window.x and window.y, or neither (centered).");
+        }
+
+        foreach (var (name, path) in new[] { ("splashScreen.logo", SplashScreen.Logo), ("splashScreen.backgroundImage", SplashScreen.BackgroundImage), ("loadingScreen.logo", LoadingScreen.Logo), ("loadingScreen.font", LoadingScreen.Font) })
+        {
+            try
+            {
+                if (path is { Length: > 0 } && !assetExists(path))
+                {
+                    Error(name, $"'{path}' not found under Assets.");
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                Error(name, ex.Message);
+            }
+        }
+
+        if (SplashScreen.MinimumDuration < 0 || SplashScreen.FadeIn < 0 || SplashScreen.FadeOut < 0 || LoadingScreen.TipSeconds <= 0)
+        {
+            Error("splashScreen", "Durations must not be negative (and tip intervals must be positive).");
         }
 
         if (!Enum.IsDefined(Window.Mode))

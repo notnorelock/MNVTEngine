@@ -68,6 +68,25 @@ public sealed partial class ResourceCache : IDisposable
         return texture;
     }
 
+    /// <summary>True when the texture is already on the GPU (or failed and uses the placeholder).</summary>
+    public bool HasTexture(Guid guid) => _textures.ContainsKey(guid);
+
+    /// <summary>
+    /// Creates the GPU texture of an asset from an image decoded elsewhere (a loading worker), so loading a scene only
+    /// uploads on the graphics thread. Does nothing when the texture is already cached.
+    /// </summary>
+    public void AddDecodedTexture(Guid guid, Image image)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        if (_textures.ContainsKey(guid))
+        {
+            return;
+        }
+
+        var path = _assets.Get(guid)?.Path ?? guid.ToString();
+        _textures.Add(guid, _device.CreateTexture(image, _assets.GetTextureSettings(guid).ToSampler(), path));
+    }
+
     /// <summary>Texture by path relative to Assets (editor thumbnails); the placeholder if the path is not an indexed asset.</summary>
     public Texture2D GetTexture(string relativePath) =>
         _assets.TryGetGuid(relativePath, out var guid) ? GetTexture(new AssetRef(guid)) : MissingTexture;
