@@ -26,7 +26,7 @@ internal sealed class FakeGraphicsDevice : IGraphicsDevice
     public Texture2D CreateTexture(int width, int height, ReadOnlySpan<byte> rgba, SamplerState sampler, string debugName = "Texture") =>
         new FakeTexture(Resources, debugName, width, height, sampler);
 
-    public RenderTarget2D CreateRenderTarget(int width, int height, SamplerState sampler, string debugName = "RenderTarget") =>
+    public RenderTarget2D CreateRenderTarget(int width, int height, SamplerState sampler, string debugName = "RenderTarget", bool depth = false) =>
         new FakeRenderTarget(Resources, debugName, width, height, sampler);
 
     public Shader CreateShader(ShaderSource source) => new FakeShader(Resources, source.Name);
@@ -53,6 +53,10 @@ internal sealed class FakeGraphicsDevice : IGraphicsDevice
     }
 
     public void Clear(Color color)
+    {
+    }
+
+    public void ClearDepth(float depth = 1f)
     {
     }
 

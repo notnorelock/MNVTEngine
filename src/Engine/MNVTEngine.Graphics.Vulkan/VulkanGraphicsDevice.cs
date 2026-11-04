@@ -51,6 +51,9 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
     private SurfaceKHR _surface;
     private VulkanSwapchain? _swapchain;
     private VulkanImage? _headlessBackBuffer;
+    private VulkanImage? _backBufferDepth;
+    private VulkanImage? _renderingDepth;
+    private Format _depthFormat;
     private bool _swapchainDirty;
     private bool _surfaceLost;
     private bool _disposed;
@@ -391,13 +394,24 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         Statistics.RecordTextureUpload(bytes);
     }
 
-    public RenderTarget2D CreateRenderTarget(int width, int height, SamplerState sampler, string debugName = "RenderTarget")
+    public RenderTarget2D CreateRenderTarget(int width, int height, SamplerState sampler, string debugName = "RenderTarget", bool depth = false)
     {
         ThrowIfDisposed();
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
         var image = CreateImage(width, height, 1, ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit, AllocationKind.RenderTarget, debugName);
-        return new VulkanRenderTarget(this, debugName, image, Sampler(sampler with { GenerateMipmaps = false }), sampler with { GenerateMipmaps = false });
+        VulkanImage? depthImage = null;
+        try
+        {
+            depthImage = depth ? CreateDepthImage(width, height, debugName + " depth") : null;
+        }
+        catch
+        {
+            DestroyLater(image);
+            throw;
+        }
+
+        return new VulkanRenderTarget(this, debugName, image, Sampler(sampler with { GenerateMipmaps = false }), sampler with { GenerateMipmaps = false }, depthImage);
     }
 
     public Shader CreateShader(ShaderSource source)
@@ -501,7 +515,33 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         }
 
         EndRendering();
-        BeginRendering(image, clear);
+        BeginRendering(image, CurrentDepth(image), clear, null);
+    }
+
+    public void ClearDepth(float depth = 1f)
+    {
+        ThrowIfDisposed();
+        BeginRecording();
+        if (CurrentImage() is not { } image)
+        {
+            return;
+        }
+
+        if (CurrentDepth(image) is not { } depthImage)
+        {
+            throw new InvalidOperationException($"The current target has no depth buffer; create render targets with depth: true.");
+        }
+
+        if (_renderingImage == image && _renderingDepth == depthImage)
+        {
+            var attachment = new ClearAttachment(ImageAspectFlags.DepthBit, 0, new ClearValue(depthStencil: new ClearDepthStencilValue(depth, 0)));
+            var rect = new ClearRect(new Rect2D(default, new Extent2D((uint)image.Width, (uint)image.Height)), 0, 1);
+            Context.Vk.CmdClearAttachments(_cmd, 1, &attachment, 1, &rect);
+            return;
+        }
+
+        EndRendering();
+        BeginRendering(image, depthImage, null, depth);
     }
 
     public void Draw(in DrawCommand command)
@@ -544,11 +584,16 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         if (_renderingImage != target)
         {
             EndRendering();
-            BeginRendering(target, null);
+            BeginRendering(target, CurrentDepth(target), null, null);
+        }
+
+        if ((command.State.DepthTest || command.State.DepthWrite) && _renderingDepth is null)
+        {
+            throw new InvalidOperationException($"Draw with depth testing into '{(_currentTarget?.DebugName ?? "the back buffer")}', which has no depth buffer; create render targets with depth: true.");
         }
 
         var vk = Context.Vk;
-        var key = new PipelineKey(command.Material.BlendMode, command.Topology, vertices.Layout, target.Format);
+        var key = new PipelineKey(command.Material.BlendMode, command.Topology, vertices.Layout, target.Format, _renderingDepth?.Format ?? Format.Undefined, command.State);
         if (!shader.Pipelines.TryGetValue(key, out var pipeline))
         {
             pipeline = _pipelines.Create(shader, key);
@@ -670,7 +715,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
             {
                 if (image.Layout == ImageLayout.Undefined)
                 {
-                    BeginRendering(image, new ClearValue(new ClearColorValue(0f, 0f, 0f, 1f))); // nothing drawn: show black, not garbage
+                    BeginRendering(image, null, new ClearValue(new ClearColorValue(0f, 0f, 0f, 1f)), null); // nothing drawn: show black, not garbage
                     EndRendering();
                 }
 
@@ -827,6 +872,71 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
     }
 
     private VulkanImage? CurrentImage() => _currentTarget is IVulkanTexture target ? target.Image : AcquireBackBuffer();
+
+    /// <summary>
+    /// The depth buffer of the current target: a render target's own, or the back buffer's (created on first use and
+    /// recreated when the back buffer size changes).
+    /// </summary>
+    private VulkanImage? CurrentDepth(VulkanImage color)
+    {
+        if (_currentTarget is VulkanRenderTarget target)
+        {
+            return target.Depth;
+        }
+
+        if (_backBufferDepth is { } existing && existing.Width == color.Width && existing.Height == color.Height)
+        {
+            return existing;
+        }
+
+        if (_backBufferDepth is not null)
+        {
+            DestroyLater(_backBufferDepth);
+        }
+
+        _backBufferDepth = CreateDepthImage(color.Width, color.Height, "BackBuffer depth");
+        return _backBufferDepth;
+    }
+
+    private VulkanImage CreateDepthImage(int width, int height, string debugName)
+    {
+        if (_depthFormat == Format.Undefined)
+        {
+            _depthFormat = ChooseDepthFormat();
+        }
+
+        var info = new ImageCreateInfo { Format = _depthFormat, Extent = new Extent3D((uint)width, (uint)height, 1), MipLevels = 1, Usage = ImageUsageFlags.DepthStencilAttachmentBit };
+        var (image, allocation) = _allocator.CreateImage(info, AllocationKind.RenderTarget);
+        ImageView view;
+        try
+        {
+            view = VulkanImage.CreateView(Context.Vk, Context.Device, image, _depthFormat, 1, ImageAspectFlags.DepthBit);
+        }
+        catch
+        {
+            _allocator.DestroyImage(image, allocation, AllocationKind.RenderTarget);
+            throw;
+        }
+
+        Context.SetName(ObjectType.Image, image.Handle, debugName);
+        return new VulkanImage { Handle = image, View = view, Format = _depthFormat, Width = width, Height = height, Allocation = allocation, Kind = AllocationKind.RenderTarget, Aspect = ImageAspectFlags.DepthBit };
+    }
+
+    /// <summary>32-bit float depth when the device can render to it (nearly all desktop GPUs), else a packed format.</summary>
+    private Format ChooseDepthFormat()
+    {
+        foreach (var format in (ReadOnlySpan<Format>)[Format.D32Sfloat, Format.D32SfloatS8Uint, Format.D24UnormS8Uint])
+        {
+            FormatProperties properties;
+            Context.Vk.GetPhysicalDeviceFormatProperties(Context.PhysicalDevice, format, &properties);
+            if ((properties.OptimalTilingFeatures & FormatFeatureFlags.DepthStencilAttachmentBit) != 0)
+            {
+                return format;
+            }
+        }
+
+        throw new GraphicsInitializationException("The GPU supports none of the depth formats D32_SFLOAT, D32_SFLOAT_S8_UINT, D24_UNORM_S8_UINT.");
+    }
 
     private VulkanImage? AcquireBackBuffer()
     {
@@ -1004,9 +1114,17 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         return _uploadCmd;
     }
 
-    private void BeginRendering(VulkanImage image, ClearValue? clear)
+    /// <param name="depth">Depth attachment of the target, if it has one (pipelines then declare its format).</param>
+    /// <param name="clearDepth">Clears the depth attachment to this value; otherwise its contents are loaded.</param>
+    private void BeginRendering(VulkanImage image, VulkanImage? depth, ClearValue? clear, float? clearDepth)
     {
         Barriers.Transition(Context.Vk, _cmd, image, ImageLayout.ColorAttachmentOptimal, Statistics);
+        if (depth is not null)
+        {
+            // Always a barrier, also from the same layout: it orders this pass after earlier frames' depth writes.
+            Barriers.Transition(Context.Vk, _cmd, depth, ImageLayout.DepthAttachmentOptimal, Statistics);
+        }
+
         var attachment = new RenderingAttachmentInfo
         {
             SType = StructureType.RenderingAttachmentInfo,
@@ -1016,6 +1134,15 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
             StoreOp = AttachmentStoreOp.Store,
             ClearValue = clear ?? default,
         };
+        var depthAttachment = new RenderingAttachmentInfo
+        {
+            SType = StructureType.RenderingAttachmentInfo,
+            ImageView = depth?.View ?? default,
+            ImageLayout = ImageLayout.DepthAttachmentOptimal,
+            LoadOp = clearDepth is null ? AttachmentLoadOp.Load : AttachmentLoadOp.Clear,
+            StoreOp = AttachmentStoreOp.Store,
+            ClearValue = new ClearValue(depthStencil: new ClearDepthStencilValue(clearDepth ?? 1f, 0)),
+        };
         var info = new RenderingInfo
         {
             SType = StructureType.RenderingInfo,
@@ -1023,9 +1150,11 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
             LayerCount = 1,
             ColorAttachmentCount = 1,
             PColorAttachments = &attachment,
+            PDepthAttachment = depth is null ? null : &depthAttachment,
         };
         Context.Vk.CmdBeginRendering(_cmd, &info);
         _renderingImage = image;
+        _renderingDepth = depth;
         _viewportDirty = true;
         _scissor = default;
     }
@@ -1036,6 +1165,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         {
             Context.Vk.CmdEndRendering(_cmd);
             _renderingImage = null;
+            _renderingDepth = null;
         }
     }
 
@@ -1135,6 +1265,28 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
             {
                 var viewProjection = command.ViewProjection;
                 MemoryMarshal.Write(data[slot.Member.Offset..], in viewProjection);
+            }
+        }
+
+        if (shader.Slots("uModel").Count > 0 || shader.Slots("uNormalMatrix").Count > 0)
+        {
+            var world = command.World ?? Matrix4x4.Identity;
+            foreach (var slot in shader.Slots("uModel"))
+            {
+                if (slot.Stage == stage && slot.Member.Kind == UniformKind.Matrix4x4)
+                {
+                    MemoryMarshal.Write(data[slot.Member.Offset..], in world);
+                }
+            }
+
+            // Normals transform by the inverse transpose, so non-uniform scale keeps them perpendicular to surfaces.
+            var normalMatrix = Matrix4x4.TryInvert(world, out var inverse) ? inverse.Transposed : Matrix4x4.Identity;
+            foreach (var slot in shader.Slots("uNormalMatrix"))
+            {
+                if (slot.Stage == stage && slot.Member.Kind == UniformKind.Matrix4x4)
+                {
+                    MemoryMarshal.Write(data[slot.Member.Offset..], in normalMatrix);
+                }
             }
         }
 
@@ -1292,6 +1444,12 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
             {
                 Context.Vk.DestroyImageView(Context.Device, backBuffer.View, null);
                 _allocator.DestroyImage(backBuffer.Handle, backBuffer.Allocation, backBuffer.Kind);
+            }
+
+            if (_backBufferDepth is { } depth)
+            {
+                Context.Vk.DestroyImageView(Context.Device, depth.View, null);
+                _allocator.DestroyImage(depth.Handle, depth.Allocation, depth.Kind);
             }
 
             _swapchain?.Dispose();

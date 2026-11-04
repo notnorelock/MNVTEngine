@@ -10,6 +10,9 @@ public enum PrimitiveTopology
 
 /// <summary>One indexed draw. The device binds <see cref="Texture"/> to unit 0 and sets <c>uViewProjection</c>.</summary>
 /// <param name="Scissor">Clip rectangle in pixels of the current target, origin bottom-left; null draws unclipped.</param>
+/// <param name="State">Depth testing and face culling; the default (both off) is what 2D drawing uses.</param>
+/// <param name="World">Object-to-world matrix, given to shaders as <c>uModel</c> (and its inverse transpose as
+/// <c>uNormalMatrix</c>); identity when null.</param>
 public readonly record struct DrawCommand(
     Material Material,
     Texture2D Texture,
@@ -19,7 +22,32 @@ public readonly record struct DrawCommand(
     int IndexCount,
     Matrix4x4 ViewProjection,
     PrimitiveTopology Topology = PrimitiveTopology.Triangles,
-    Rect? Scissor = null);
+    Rect? Scissor = null,
+    RenderState State = default,
+    Matrix4x4? World = null);
+
+public enum CullMode
+{
+    /// <summary>Both sides are drawn (2D, double-sided materials).</summary>
+    None,
+
+    /// <summary>Faces seen from behind (clockwise on screen) are skipped: closed meshes.</summary>
+    Back,
+
+    Front,
+}
+
+/// <summary>Fixed-function state of a draw. Depth testing needs a target with a depth buffer.</summary>
+/// <param name="DepthTest">Fragments farther than what is already drawn (less-or-equal passes) are discarded.</param>
+/// <param name="DepthWrite">The draw writes its depth (opaque geometry; off for transparent).</param>
+public readonly record struct RenderState(bool DepthTest = false, bool DepthWrite = false, CullMode Cull = CullMode.None)
+{
+    /// <summary>Opaque 3D geometry: depth test and write, back faces culled.</summary>
+    public static RenderState Opaque3D => new(true, true, CullMode.Back);
+
+    /// <summary>Transparent 3D geometry: tested against depth but not written.</summary>
+    public static RenderState Transparent3D => new(true, false, CullMode.Back);
+}
 
 /// <summary>
 /// Backend-independent rendering device. All members must be called on the graphics thread.
@@ -42,7 +70,8 @@ public interface IGraphicsDevice : IDisposable
     /// <param name="rgba">Width * Height * 4 bytes, row 0 = top of the image.</param>
     Texture2D CreateTexture(int width, int height, ReadOnlySpan<byte> rgba, SamplerState sampler, string debugName = "Texture");
 
-    RenderTarget2D CreateRenderTarget(int width, int height, SamplerState sampler, string debugName = "RenderTarget");
+    /// <param name="depth">Give the target a depth buffer (3D rendering into it).</param>
+    RenderTarget2D CreateRenderTarget(int width, int height, SamplerState sampler, string debugName = "RenderTarget", bool depth = false);
 
     /// <summary>
     /// Replaces a rectangle of a texture (not a render target) with RGBA8 pixels, row 0 = top of the rectangle. Queued
@@ -77,6 +106,10 @@ public interface IGraphicsDevice : IDisposable
     void SetViewport(int x, int y, int width, int height);
 
     void Clear(Color color);
+
+    /// <summary>Clears the current target's depth buffer to <paramref name="depth"/> (1 = farthest).</summary>
+    /// <exception cref="InvalidOperationException">The target has no depth buffer.</exception>
+    void ClearDepth(float depth = 1f);
 
     void Draw(in DrawCommand command);
 

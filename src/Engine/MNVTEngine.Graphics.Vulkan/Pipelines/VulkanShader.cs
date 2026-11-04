@@ -162,7 +162,8 @@ internal sealed unsafe class VulkanShader : Shader
 }
 
 /// <summary>Everything that selects a pipeline for a shader; viewport and scissor are dynamic.</summary>
-internal readonly record struct PipelineKey(BlendMode Blend, PrimitiveTopology Topology, VertexLayout Layout, Format Format);
+/// <param name="DepthFormat">Depth attachment of the pass (<see cref="Format.Undefined"/> without one): pipelines must match it.</param>
+internal readonly record struct PipelineKey(BlendMode Blend, PrimitiveTopology Topology, VertexLayout Layout, Format Format, Format DepthFormat, RenderState State);
 
 /// <summary>
 /// Creates graphics pipelines (dynamic rendering, dynamic viewport and scissor) through one <c>VkPipelineCache</c> that
@@ -253,8 +254,8 @@ internal sealed unsafe partial class PipelineFactory : IDisposable
             {
                 SType = StructureType.PipelineRasterizationStateCreateInfo,
                 PolygonMode = PolygonMode.Fill,
-                CullMode = CullModeFlags.None,
-                FrontFace = FrontFace.CounterClockwise,
+                CullMode = key.State.Cull switch { Graphics.CullMode.Back => CullModeFlags.BackBit, Graphics.CullMode.Front => CullModeFlags.FrontBit, _ => CullModeFlags.None },
+                FrontFace = FrontFace.CounterClockwise, // counter-clockwise on screen, as in GL and glTF (the y-flipped viewport keeps it)
                 LineWidth = 1f,
             };
             var multisample = new PipelineMultisampleStateCreateInfo { SType = StructureType.PipelineMultisampleStateCreateInfo, RasterizationSamples = SampleCountFlags.Count1Bit };
@@ -263,7 +264,14 @@ internal sealed unsafe partial class PipelineFactory : IDisposable
             var dynamicStates = stackalloc DynamicState[] { DynamicState.Viewport, DynamicState.Scissor };
             var dynamic = new PipelineDynamicStateCreateInfo { SType = StructureType.PipelineDynamicStateCreateInfo, DynamicStateCount = 2, PDynamicStates = dynamicStates };
             var format = key.Format;
-            var rendering = new PipelineRenderingCreateInfo { SType = StructureType.PipelineRenderingCreateInfo, ColorAttachmentCount = 1, PColorAttachmentFormats = &format };
+            var rendering = new PipelineRenderingCreateInfo { SType = StructureType.PipelineRenderingCreateInfo, ColorAttachmentCount = 1, PColorAttachmentFormats = &format, DepthAttachmentFormat = key.DepthFormat };
+            var depth = new PipelineDepthStencilStateCreateInfo
+            {
+                SType = StructureType.PipelineDepthStencilStateCreateInfo,
+                DepthTestEnable = key.State.DepthTest,
+                DepthWriteEnable = key.State.DepthWrite,
+                DepthCompareOp = CompareOp.LessOrEqual,
+            };
             var info = new GraphicsPipelineCreateInfo
             {
                 SType = StructureType.GraphicsPipelineCreateInfo,
@@ -276,13 +284,14 @@ internal sealed unsafe partial class PipelineFactory : IDisposable
                 PRasterizationState = &raster,
                 PMultisampleState = &multisample,
                 PColorBlendState = &blend,
+                PDepthStencilState = key.DepthFormat == Format.Undefined ? null : &depth,
                 PDynamicState = &dynamic,
                 Layout = shader.Layout,
             };
 
             Pipeline pipeline;
             VulkanInstance.Check(_context.Vk.CreateGraphicsPipelines(_context.Device, Cache, 1, &info, null, &pipeline), "vkCreateGraphicsPipelines");
-            _context.SetName(ObjectType.Pipeline, pipeline.Handle, $"{shader.DebugName} {key.Blend} {key.Topology} {key.Format}");
+            _context.SetName(ObjectType.Pipeline, pipeline.Handle, $"{shader.DebugName} {key.Blend} {key.Topology} {key.Format} depth {key.DepthFormat} {key.State}");
             Created++;
             return pipeline;
         }

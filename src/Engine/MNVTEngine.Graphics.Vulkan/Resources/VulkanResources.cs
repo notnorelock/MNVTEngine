@@ -38,21 +38,33 @@ internal sealed class VulkanRenderTarget : RenderTarget2D, IVulkanTexture
 {
     private readonly VulkanGraphicsDevice _device;
 
-    public VulkanRenderTarget(VulkanGraphicsDevice device, string debugName, VulkanImage image, Sampler sampler, SamplerState state)
+    public VulkanRenderTarget(VulkanGraphicsDevice device, string debugName, VulkanImage image, Sampler sampler, SamplerState state, VulkanImage? depth = null)
         : base(device.Resources, debugName, image.Width, image.Height, state)
     {
         _device = device;
         Image = image;
         VkSampler = sampler;
+        Depth = depth;
     }
 
     public VulkanImage Image { get; }
 
     public Sampler VkSampler { get; }
 
+    public VulkanImage? Depth { get; }
+
     public override bool IsFlippedVertically => false;
 
-    protected override void ReleaseCore() => _device.DestroyLater(Image);
+    public override bool HasDepth => Depth is not null;
+
+    protected override void ReleaseCore()
+    {
+        _device.DestroyLater(Image);
+        if (Depth is not null)
+        {
+            _device.DestroyLater(Depth);
+        }
+    }
 }
 
 /// <summary>

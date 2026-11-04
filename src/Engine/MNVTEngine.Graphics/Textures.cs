@@ -63,4 +63,7 @@ public abstract class RenderTarget2D : Texture2D
     }
 
     public override bool IsFlippedVertically => true;
+
+    /// <summary>The target has a depth buffer, so 3D drawing into it can depth-test.</summary>
+    public virtual bool HasDepth => false;
 }

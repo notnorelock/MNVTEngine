@@ -35,7 +35,10 @@ internal sealed unsafe class VulkanImage
 
     public bool IsSwapchainImage { get; init; }
 
-    public static ImageView CreateView(Vk vk, Silk.NET.Vulkan.Device device, VkImageHandle image, Format format, uint mipLevels)
+    /// <summary>Color, or depth for depth buffers.</summary>
+    public ImageAspectFlags Aspect { get; init; } = ImageAspectFlags.ColorBit;
+
+    public static ImageView CreateView(Vk vk, Silk.NET.Vulkan.Device device, VkImageHandle image, Format format, uint mipLevels, ImageAspectFlags aspect = ImageAspectFlags.ColorBit)
     {
         var info = new ImageViewCreateInfo
         {
@@ -43,7 +46,7 @@ internal sealed unsafe class VulkanImage
             Image = image,
             ViewType = ImageViewType.Type2D,
             Format = format,
-            SubresourceRange = new ImageSubresourceRange(ImageAspectFlags.ColorBit, 0, mipLevels, 0, 1),
+            SubresourceRange = new ImageSubresourceRange(aspect, 0, mipLevels, 0, 1),
         };
         ImageView view;
         Instance.VulkanInstance.Check(vk.CreateImageView(device, &info, null, &view), "vkCreateImageView");
@@ -78,7 +81,7 @@ internal static unsafe class Barriers
             SrcQueueFamilyIndex = Vk.QueueFamilyIgnored,
             DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
             Image = image.Handle,
-            SubresourceRange = new ImageSubresourceRange(ImageAspectFlags.ColorBit, 0, Vk.RemainingMipLevels, 0, 1),
+            SubresourceRange = new ImageSubresourceRange(image.Aspect, 0, Vk.RemainingMipLevels, 0, 1),
         };
         var dependency = new DependencyInfo { SType = StructureType.DependencyInfo, ImageMemoryBarrierCount = 1, PImageMemoryBarriers = &barrier };
         vk.CmdPipelineBarrier2(cmd, &dependency);
@@ -105,6 +108,7 @@ internal static unsafe class Barriers
     private static (PipelineStageFlags2 Stage, AccessFlags2 Access) Usage(ImageLayout layout, bool destination) => layout switch
     {
         ImageLayout.ColorAttachmentOptimal => (PipelineStageFlags2.ColorAttachmentOutputBit, AccessFlags2.ColorAttachmentWriteBit | AccessFlags2.ColorAttachmentReadBit),
+        ImageLayout.DepthAttachmentOptimal => (PipelineStageFlags2.EarlyFragmentTestsBit | PipelineStageFlags2.LateFragmentTestsBit, AccessFlags2.DepthStencilAttachmentWriteBit | AccessFlags2.DepthStencilAttachmentReadBit),
         ImageLayout.ShaderReadOnlyOptimal => (PipelineStageFlags2.FragmentShaderBit, destination ? AccessFlags2.ShaderSampledReadBit : AccessFlags2.None),
         ImageLayout.TransferSrcOptimal => (PipelineStageFlags2.AllTransferBit, destination ? AccessFlags2.TransferReadBit : AccessFlags2.None),
         ImageLayout.TransferDstOptimal => (PipelineStageFlags2.AllTransferBit, AccessFlags2.TransferWriteBit),

@@ -268,7 +268,7 @@ public sealed class RuntimeDiagnosticsTests : IDisposable
 
         public Texture2D CreateTexture(int width, int height, ReadOnlySpan<byte> rgba, SamplerState sampler, string debugName = "Texture") => throw new NotSupportedException();
 
-        public RenderTarget2D CreateRenderTarget(int width, int height, SamplerState sampler, string debugName = "RenderTarget") => throw new NotSupportedException();
+        public RenderTarget2D CreateRenderTarget(int width, int height, SamplerState sampler, string debugName = "RenderTarget", bool depth = false) => throw new NotSupportedException();
 
         public Shader CreateShader(ShaderSource source) => throw new NotSupportedException();
 
@@ -291,6 +291,10 @@ public sealed class RuntimeDiagnosticsTests : IDisposable
         }
 
         public void Clear(Color color)
+        {
+        }
+
+        public void ClearDepth(float depth = 1f)
         {
         }
 
