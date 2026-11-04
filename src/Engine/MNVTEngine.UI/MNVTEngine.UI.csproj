@@ -1,0 +1,11 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Game UI: elements, layout, input, widgets, styling, rendering through IGraphicsDevice. Never ImGui, never Vulkan types. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.UI.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Graphics\MNVTEngine.Graphics.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Input\MNVTEngine.Input.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+  </ItemGroup>
+</Project>
