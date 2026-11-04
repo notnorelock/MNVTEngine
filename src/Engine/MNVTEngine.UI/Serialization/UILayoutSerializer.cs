@@ -57,6 +57,26 @@ public static class UILayoutSerializer
     public static void Register<T>()
         where T : UIElement, new() => Types[typeof(T).Name] = () => new T();
 
+    /// <summary>Registered widget type names (what layouts and the UI Editor can create).</summary>
+    public static IReadOnlyCollection<string> TypeNames => Types.Keys;
+
+    /// <exception cref="ArgumentException">The type is not registered.</exception>
+    public static UIElement Create(string typeName) =>
+        Types.TryGetValue(typeName, out var create) ? create() : throw new ArgumentException($"Unknown widget type '{typeName}'.", nameof(typeName));
+
+    /// <summary>The properties a layout stores for a widget type (besides text, placeholder, font and style).</summary>
+    public static IReadOnlyList<PropertyInfo> EditableProperties(Type type) => [.. SerializableProperties(type)];
+
+    /// <summary>The widget's text property ("text" in layouts), if it has one.</summary>
+    public static PropertyInfo? TextPropertyOf(Type type) => TextProperty(type);
+
+    /// <summary>The widget's placeholder property ("placeholder" in layouts), if it has one.</summary>
+    public static PropertyInfo? PlaceholderPropertyOf(Type type) => type.GetProperty("Placeholder") is { CanWrite: true } p && p.PropertyType == typeof(string) ? p : null;
+
+    /// <summary>The <see cref="UIStyle"/> properties a layout stores ("style" and "states").</summary>
+    public static IReadOnlyList<PropertyInfo> StyleProperties =>
+        [.. StyleFields.Select(f => typeof(UIStyle).GetProperty(f.Name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase)!)];
+
     /// <exception cref="SerializationException">Invalid JSON, unknown types or properties, bad values, newer schema.</exception>
     public static UIElement Load(string json, string sourceName, Func<AssetRef, Font?>? fonts = null)
     {

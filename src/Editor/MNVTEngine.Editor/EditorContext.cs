@@ -66,6 +66,12 @@ internal sealed class EditorContext
     /// <summary>Set by panels; handled by <see cref="EditorApp"/> with an unsaved-changes check.</summary>
     public string? OpenSceneRequest { get; set; }
 
+    /// <summary>Dock node of the Game view (the central area); windows new to a saved layout dock there.</summary>
+    public uint CenterDockId { get; set; }
+
+    /// <summary>A UI layout (full path) to open in the UI Editor this frame.</summary>
+    public string? OpenUILayoutRequest { get; set; }
+
     public GameObject CreateGameObject(string name, Transform? parent = null)
     {
         var gameObject = ActiveScene.CreateGameObject(name, parent);

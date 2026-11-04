@@ -57,6 +57,10 @@ internal sealed class AssetInspector(EditorContext context)
         {
             context.OpenSceneRequest = record.Path;
         }
+        else if (record.Type == AssetTypes.UILayout && ImGui.Button("Edit in UI Editor"))
+        {
+            context.OpenUILayoutRequest = assets.FullPath(guid);
+        }
         else if (record.Type == AssetTypes.Script)
         {
             if (ImGui.Button("Edit in Script Editor"))

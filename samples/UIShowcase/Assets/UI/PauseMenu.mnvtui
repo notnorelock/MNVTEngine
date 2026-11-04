@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "root": {
+    "type": "Panel",
+    "name": "Overlay",
+    "properties": {
+      "alignItems": "center",
+      "height": "100%",
+      "justify": "center",
+      "layout": "column",
+      "width": "100%"
+    },
+    "style": {
+      "background": { "r": 0.0, "g": 0.0, "b": 0.0, "a": 0.6 }
+    },
+    "children": [
+      {
+        "type": "Panel",
+        "name": "Card",
+        "properties": {
+          "alignItems": "stretch",
+          "gap": 10.0,
+          "layout": "column",
+          "styleClass": "panel",
+          "width": "320"
+        },
+        "style": {
+          "padding": [ 24.0, 20.0, 24.0, 24.0 ]
+        },
+        "children": [
+          {
+            "type": "Label",
+            "name": "Title",
+            "text": "Paused",
+            "font": "asset:a3000000-0000-4000-8000-000000000002",
+            "properties": { "alignment": "center" },
+            "style": { "fontSize": 36.0 }
+          },
+          {
+            "type": "Label",
+            "name": "Hint",
+            "text": "Made in the UI Editor: Assets/UI/PauseMenu.mnvtui",
+            "properties": { "alignment": "center", "wrap": true },
+            "style": { "fontSize": 14.0, "foreground": { "r": 0.7, "g": 0.72, "b": 0.78, "a": 1.0 } }
+          },
+          { "type": "Button", "name": "Resume", "text": "Resume", "properties": { "action": "resume", "tooltip": "P" } },
+          { "type": "Button", "name": "Quit", "text": "Quit game", "properties": { "action": "quit" } }
+        ]
+      }
+    ]
+  }
+}

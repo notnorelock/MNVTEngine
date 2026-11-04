@@ -79,6 +79,24 @@ The Script Editor is docked next to the Scene and Game views.
 - **Open externally** hands the file to the program Windows associates with it (for example Visual Studio or VS Code).
 - **Limitations:** there is no syntax highlighting or autocomplete, and closing a tab discards unsaved edits without asking.
 
+## UI Editor
+
+The UI Editor edits game UI layouts (`.mnvtui`, see [game UI](../ui/ui-system.md)). It is docked next to the Scene and Game views.
+
+- **Opening layouts:**
+  - Double-click a `.mnvtui` asset in the Project panel, or press **Edit in UI Editor** in its inspector.
+  - **Create > UI Layout** (right-click empty space in the Project panel's file list) makes a full-screen layout in the current folder and opens it.
+  - `--edit Assets/UI/Menu.mnvtui` opens one on start.
+- **Element tree** (left). Click to select. **Add** puts the widget chosen in the list into the selected element; **Duplicate**, **Delete**, **Up** and **Down** act on the selected element. The root cannot be deleted.
+- **Preview** (center). It is drawn with the game's UI renderer at the chosen resolution, with real fonts and images. Click an element to select it; the selected one is outlined.
+- **Inspector** (right):
+  - name, text, placeholder, and font (an asset path such as `Fonts/Title.ttf`, or `asset:<guid>`);
+  - every stored property of the widget, including the **Action** name that game code binds;
+  - style values (a checkbox sets or clears each one), and per-state styles (hover, pressed, focused, disabled, checked).
+  - Units take `120`, `50%` or `auto`, and asset fields take a path; press Enter to apply.
+- **Saving and undo:** Ctrl+S saves and Ctrl+Z / Ctrl+Y undo and redo while the window has focus. A drag or a typed value becomes one step. **Save*** marks unsaved changes.
+- **Limitations:** no drag and drop in the tree or preview, and quitting the editor does not ask about an unsaved layout.
+
 ## Project Hub and building
 
 - **Project Hub.** Starting the editor without a project, or **File → Project Hub**, opens the hub: recent projects (right-click to remove one), New Project from a template, and Open. The recent list is kept in `%APPDATA%/MNVTEngine/recent-projects.json`.

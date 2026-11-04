@@ -36,6 +36,7 @@ internal sealed class GameViewPanel : IDisposable
         ImGui.PopStyleVar();
         _visible = visible;
         _focused = visible && ImGui.IsWindowFocused();
+        _context.CenterDockId = ImGui.GetWindowDockID();
         if (visible)
         {
             var size = ImGui.GetContentRegionAvail();

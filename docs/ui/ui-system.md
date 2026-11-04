@@ -119,6 +119,21 @@ ui.OnAction("play", _ => SceneManager.LoadScene("Scenes/Level1.mnvt"));
   - Delegates are never serialized: behaviour binds through `Action` names.
   - `UI.LoadLayout(asset)` loads a layout asset. The importer records font and image dependencies, so exports pack them.
 
+### Layouts in scenes
+
+Layouts are made in the editor's [UI Editor](../editor/editor.md#ui-editor). A `UIDocument` component shows one in a scene:
+
+- **Settings.** `Layout` (a `.mnvtui` asset), `SortOrder` and `Scale`.
+- **Lifecycle.** It loads in `Awake`, into its own context. Disabling the component hides the context; destroying it removes the context. A broken layout is logged and leaves an empty context.
+- **Binding behaviour.** Game code binds actions in `Start`:
+
+```csharp
+var ui = GetComponent<UIDocument>()!.Context!;
+ui.OnAction("resume", _ => ui.Visible = false);
+```
+
+Example: `samples/UIShowcase/Assets/UI/PauseMenu.mnvtui`, shown by the "Pause Menu" object and bound in `Scripts/PauseMenu.cs`. Press P in the game to open it.
+
 ## Window
 
 Settings in the project's `window` section:
@@ -175,5 +190,4 @@ They are validated when the project loads. At runtime, `Application.Window` expo
 - **Debug text.** `Debug.DrawText` still renders through the debug overlay (ImGui), not the engine text stack.
 - **Pointer modifiers.** Pointer events carry no keyboard modifiers, so there is no Shift-click selection in text fields.
 - **Undo.** Text fields have no undo.
-- **Editor tooling.** There is no visual UI layout editor in the editor. `.mnvtui` files are edited as JSON or saved from code.
 - **Samples.** `samples/UIShowcase` covers every widget, async fonts, the window API, the splash and the loading screen in one project. The separate samples listed in the specification were not created.

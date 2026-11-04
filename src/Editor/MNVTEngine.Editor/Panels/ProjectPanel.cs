@@ -48,6 +48,21 @@ internal sealed class ProjectPanel(EditorContext context)
                 ImGui.BeginChild("##files");
                 DrawEntries();
                 DrawBackgroundDropZone();
+                if (ImGui.BeginPopupContextWindow("##create", ImGuiPopupFlags.MouseButtonRight | ImGuiPopupFlags.NoOpenOverItems))
+                {
+                    if (ImGui.BeginMenu("Create"))
+                    {
+                        if (ImGui.MenuItem("UI Layout"))
+                        {
+                            CreateUILayout();
+                        }
+
+                        ImGui.EndMenu();
+                    }
+
+                    ImGui.EndPopup();
+                }
+
                 ImGui.EndChild();
                 ImGui.EndTable();
             }
@@ -153,6 +168,10 @@ internal sealed class ProjectPanel(EditorContext context)
                     if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && record.Type == AssetTypes.Scene)
                     {
                         context.OpenSceneRequest = relative;
+                    }
+                    else if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && record.Type == AssetTypes.UILayout)
+                    {
+                        context.OpenUILayoutRequest = context.Session.Assets.FullPath(guid);
                     }
                     else if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && record.Type is AssetTypes.Script or AssetTypes.Text or AssetTypes.Json
                         or AssetTypes.Shader or AssetTypes.Animation or AssetTypes.Material)
@@ -316,6 +335,30 @@ internal sealed class ProjectPanel(EditorContext context)
 
             ImGui.EndPopup();
         }
+    }
+
+    /// <summary>A new full-screen layout in the current folder, opened in the UI Editor.</summary>
+    private void CreateUILayout()
+    {
+        var path = Combine("New UI.mnvtui");
+        for (var i = 1; File.Exists(Path.Combine(Assets.AssetsDirectory, path)); i++)
+        {
+            path = Combine($"New UI {i}.mnvtui");
+        }
+
+        var full = Path.Combine(Assets.AssetsDirectory, path);
+        Try($"Create UI layout {path}", () =>
+        {
+            Services.UILayoutDocument.CreateNew(full);
+            Assets.Refresh();
+            if (Assets.TryGetGuid(path, out var guid))
+            {
+                context.Session.Selection.SelectAsset(guid);
+            }
+
+            context.OpenUILayoutRequest = full;
+        });
+        Rescan(force: true);
     }
 
     private void CreatePrefab(GameObject gameObject)

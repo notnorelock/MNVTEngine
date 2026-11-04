@@ -43,6 +43,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private ScriptDebuggerPanel _scriptDebugger = null!;
     private BuildController _build = null!;
     private ScriptEditorPanel _scriptEditor = null!;
+    private UIEditorPanel _uiEditor = null!;
     private bool _showBuildSettings;
     private DiagnosticsSettingsWindow _diagnosticsWindow = null!;
     private int _focusSceneFrames;
@@ -101,7 +102,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         };
 
         _gameUIFont = Graphics.Text.Font.LoadDefault();
-        _context.PlayMode.UIServices = new UI.UIServices(_gameUIFont, new WindowClipboard(window), asset => session.Assets.ReadAllBytes(asset.Guid), asset => resources.GetTexture(asset));
+        var gameUIServices = new UI.UIServices(_gameUIFont, new WindowClipboard(window), asset => session.Assets.ReadAllBytes(asset.Guid), asset => resources.GetTexture(asset));
+        _context.PlayMode.UIServices = gameUIServices;
 
         Gui.ApplyDarkTheme();
         _iniPath = Path.Combine(project.RootDirectory, "Library", "Editor", "layout.ini");
@@ -143,9 +145,18 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _startupScene = project.StartupScene;
         _scripts.Reloaded += _inspector.ClearCaches;
         _scriptEditor = new ScriptEditorPanel(_context, _scripts);
+        _uiEditor = new UIEditorPanel(_context, gameUIServices);
         if (options.EditFile is { } file)
         {
-            _context.OpenScriptRequest = Path.IsPathRooted(file) ? file : Path.Combine(project.RootDirectory, file);
+            var full = Path.IsPathRooted(file) ? file : Path.Combine(project.RootDirectory, file);
+            if (full.EndsWith(UI.UILayoutSerializer.Extension, StringComparison.OrdinalIgnoreCase))
+            {
+                _context.OpenUILayoutRequest = full;
+            }
+            else
+            {
+                _context.OpenScriptRequest = full;
+            }
         }
         window.CloseRequested = OnCloseRequested;
         _selectOnStart = options.SelectOnStart;
@@ -224,6 +235,13 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         }
 
         _scriptEditor.Draw(time.UnscaledTotalTime);
+        if (_context.OpenUILayoutRequest is { } layout)
+        {
+            _context.OpenUILayoutRequest = null;
+            _uiEditor.Open(layout);
+        }
+
+        _uiEditor.Draw();
         if (options.FocusWindow is { } focus && _frames == 10) // after the dock layout and Play Mode focus settle
         {
             ImGui.SetWindowFocus(focus);
@@ -277,6 +295,10 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         }
 
         _gameView.EndDiagnosticsFrame();
+        using (Core.Diagnostics.Profiler.Sample("Editor.UIEditor"))
+        {
+            _uiEditor.Render(time.UnscaledDeltaTime);
+        }
 
         _context.Device.SetRenderTarget(null);
         _context.Device.Clear(new Color(0.08f, 0.08f, 0.09f));
@@ -308,6 +330,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         SaveLayout();
         _context.PlayMode.Stop();
         _scripts.Dispose();
+        _uiEditor.Dispose();
         _sceneView.Dispose();
         _gameView.Dispose();
         _context.ImGui.Dispose();
@@ -420,6 +443,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         DockBuilder.DockWindow("Script Debugger", bottom);
         DockBuilder.DockWindow("Game", center);
         DockBuilder.DockWindow("Script Editor", center);
+        DockBuilder.DockWindow("UI Editor", center);
         DockBuilder.DockWindow("Scene", center);
         DockBuilder.Finish(dockId);
     }
@@ -735,6 +759,26 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         {
             _scriptEditor.SaveActive();
             _lastAssetRefresh = double.MinValue; // pick the change up next frame, not in up to 2 s
+            return;
+        }
+
+        // The UI Editor has its own undo and save while it has focus.
+        if (io.KeyCtrl && _uiEditor.IsFocused)
+        {
+            if (ImGui.IsKeyPressed(ImGuiKey.S, false))
+            {
+                _uiEditor.Save();
+                _lastAssetRefresh = double.MinValue;
+            }
+            else if (!io.WantTextInput && (ImGui.IsKeyPressed(ImGuiKey.Y, false) || (io.KeyShift && ImGui.IsKeyPressed(ImGuiKey.Z, false))))
+            {
+                _uiEditor.Redo();
+            }
+            else if (!io.WantTextInput && ImGui.IsKeyPressed(ImGuiKey.Z, false))
+            {
+                _uiEditor.Undo();
+            }
+
             return;
         }
 
