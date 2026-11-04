@@ -39,6 +39,19 @@ internal sealed class SilkInputBridge : IDisposable
     public static IEnumerable<Key> UnmappedKeys =>
         Enum.GetValues<Key>().Where(k => k != Key.Unknown && !KeyMap.ContainsValue(k));
 
+    /// <summary>System clipboard text through the first keyboard; null when there is none.</summary>
+    public string? Clipboard
+    {
+        get => _context.Keyboards.Count > 0 ? _context.Keyboards[0].ClipboardText : null;
+        set
+        {
+            if (_context.Keyboards.Count > 0)
+            {
+                _context.Keyboards[0].ClipboardText = value ?? "";
+            }
+        }
+    }
+
     public void Dispose() => _context.Dispose();
 
     private static Dictionary<SilkKey, Key> BuildKeyMap()

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "guid": "7e000000-0000-4000-8000-000000000011",
+  "settings": {
+    "filter": "linear",
+    "wrap": "clamp",
+    "generateMipmaps": false,
+    "pixelsPerUnit": 16.0
+  }
+}

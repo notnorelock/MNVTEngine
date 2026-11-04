@@ -206,6 +206,27 @@ public static class LayoutEngine
 
             free = 0;
         }
+        else if (free < 0 && grow > 0)
+        {
+            // Too little room: flexible children give space back, down to their minimum (grow implies shrink).
+            var deficit = -free;
+            for (var i = 0; i < children.Count && deficit > 0; i++)
+            {
+                if (children[i].FlexGrow > 0)
+                {
+                    var min = row ? children[i].MinWidth : children[i].MinHeight;
+                    var take = Math.Min(Main(sizes[i]) - min, -free * children[i].FlexGrow / grow);
+                    if (take > 0)
+                    {
+                        var main = Main(sizes[i]) - take;
+                        sizes[i] = row ? new Vector2(main, sizes[i].Y) : new Vector2(sizes[i].X, main);
+                        deficit -= take;
+                    }
+                }
+            }
+
+            free = -deficit;
+        }
 
         var position = element.Justify switch
         {

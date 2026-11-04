@@ -74,6 +74,19 @@ public sealed class LayoutAndHierarchyTests
     }
 
     [Fact]
+    public void Column_ShrinksFlexibleChildren_WhenContentDoesNotFit()
+    {
+        using var ui = new UIHarness();
+        var column = ui.Context.Root.AddChild(new Panel { Width = 200, Height = 300, Layout = LayoutMode.Column });
+        column.AddChild(new Panel { Height = 200 });
+        var list = column.AddChild(new Panel { Height = 250, FlexGrow = 1, MinHeight = 40 });
+        var footer = column.AddChild(new Panel { Height = 30 });
+        ui.Frame();
+        Assert.Equal(70f, list.Bounds.Height, 2); // 300 - 200 - 30
+        Assert.Equal(270f, footer.Bounds.Y, 2);
+    }
+
+    [Fact]
     public void Column_StretchesAutoWidths_AndJustifiesSpaceBetween()
     {
         using var ui = new UIHarness();

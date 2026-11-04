@@ -109,7 +109,7 @@ public sealed partial class UIContext : IDisposable
 
     internal bool VisualDirty { get; set; } = true;
 
-    internal bool IsDisposed { get; private set; }
+    public bool IsDisposed { get; private set; }
 
     /// <summary>
     /// Runs one frame: layout when dirty, then input (hover, clicks, focus, keys, text), then element ticks. Called by

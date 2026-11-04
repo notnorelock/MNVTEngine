@@ -11,5 +11,6 @@
     <ProjectReference Include="..\MNVTEngine.Platform\MNVTEngine.Platform.csproj" />
     <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
     <ProjectReference Include="..\MNVTEngine.Scripting.Bindings\MNVTEngine.Scripting.Bindings.csproj" />
+    <ProjectReference Include="..\MNVTEngine.UI\MNVTEngine.UI.csproj" />
   </ItemGroup>
 </Project>

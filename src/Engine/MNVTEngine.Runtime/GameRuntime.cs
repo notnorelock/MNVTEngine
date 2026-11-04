@@ -64,6 +64,8 @@ public sealed partial class GameRuntime(
     private GameWindow _window = null!;
     private IGraphicsDevice _device = null!;
     private Renderer2D _renderer = null!;
+    private UI.UIRenderer _ui = null!;
+    private Graphics.Text.Font _uiFont = null!;
     private ResourceCache _resources = null!;
     private SceneRenderer _sceneRenderer = null!;
     private AssetDatabase _assets = null!;
@@ -83,6 +85,8 @@ public sealed partial class GameRuntime(
         _window = window;
         _device = createDevice(window, loggerFactory.CreateLogger("Graphics"));
         _renderer = new Renderer2D(_device);
+        _uiFont = Graphics.Text.Font.LoadDefault();
+        _ui = new UI.UIRenderer(_device, _renderer.DefaultMaterial);
         _assets = _options.Archive is { } archive ? AssetDatabase.OpenPackaged(archive) : AssetDatabase.OpenReadOnly(project.AssetsDirectory);
         foreach (var diagnostic in _assets.Diagnostics)
         {
@@ -132,6 +136,14 @@ public sealed partial class GameRuntime(
     {
         StartFrame();
         using var sample = Core.Diagnostics.Profiler.Sample("Update");
+        if (CurrentScene is { } scene && UI.UISystem.For(scene) is { } ui)
+        {
+            // Before gameplay: input the UI takes (focused text field, pointer over UI) reads as released for scripts.
+            using var uiSample = Core.Diagnostics.Profiler.Sample("UI");
+            var framebufferScale = _window.WindowWidth > 0 ? (float)_window.FramebufferWidth / _window.WindowWidth : 1f;
+            ui.Update(_window.Input, new Mathematics.Vector2(_window.WindowWidth, _window.WindowHeight), framebufferScale, time.UnscaledDeltaTime);
+        }
+
         CurrentScene?.Update(time);
         if (_pendingScene is { } path)
         {
@@ -156,6 +168,12 @@ public sealed partial class GameRuntime(
             using var sample = Core.Diagnostics.Profiler.Sample("Render");
             using var gpuScope = new GpuScope(gpu, "Scene");
             _sceneRenderer.Render(CurrentScene, _window.FramebufferWidth, _window.FramebufferHeight);
+            if (UI.UISystem.For(CurrentScene) is { } ui)
+            {
+                using var uiSample = Core.Diagnostics.Profiler.Sample("UI");
+                _device.SetRenderTarget(null);
+                ui.Render(_ui, _window.FramebufferWidth, _window.FramebufferHeight);
+            }
         }
 
         // Frames run FixedUpdate* → Update → Render: a frame ends after rendering.
@@ -206,6 +224,8 @@ public sealed partial class GameRuntime(
         _options.Diagnostics?.Uninstall();
         CurrentScene?.Unload();
         _sceneRenderer?.Dispose();
+        _ui?.Dispose();
+        _uiFont?.Dispose();
         _resources?.Dispose();
         _renderer?.Dispose();
         if (_device.Resources.LiveCount > 0)
@@ -283,6 +303,8 @@ public sealed partial class GameRuntime(
         {
             AudioSystem.Attach(next, audio, clip => _assets.ReadAllBytes(clip.Guid));
         }
+
+        UI.UISystem.Attach(next, new UI.UIServices(_uiFont, new WindowClipboard(_window), asset => _assets.ReadAllBytes(asset.Guid), asset => _resources.GetTexture(asset)));
 
         CurrentScene = next;
         next.Start();

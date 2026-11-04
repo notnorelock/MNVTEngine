@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "name": "UIShowcase",
+  "startupScene": "Scenes/Main.mnvt",
+  "window": { "title": "UIShowcase", "width": 1280, "height": 720, "vSync": true, "resizable": true },
+  "fixedTimestep": 0.016666668,
+  "scripts": { "project": "Scripts/UIShowcase.Scripts.csproj" },
+  "buildProfiles": [
+    { "name": "debug", "configuration": "Debug", "target": "win-x64" },
+    { "name": "release", "configuration": "Release", "target": "win-x64" }
+  ]
+}

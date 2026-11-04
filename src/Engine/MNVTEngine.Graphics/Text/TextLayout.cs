@@ -129,7 +129,8 @@ public sealed class TextLayout
 
         // 3. Place lines and glyphs.
         var widths = breaks.Select(b => Width(text, advances, b.Start, b.End)).ToList();
-        var layoutWidth = style.Wrap && float.IsFinite(maxWidth) ? maxWidth : widths.DefaultIfEmpty(0f).Max();
+        // A finite width is the alignment box when wrapping or when centering/right-aligning; otherwise the text is as wide as it is.
+        var layoutWidth = float.IsFinite(maxWidth) && (style.Wrap || style.Align != TextAlign.Left) ? maxWidth : widths.DefaultIfEmpty(0f).Max();
         var glyphs = new List<PlacedGlyph>(text.Length);
         var lines = new List<TextLine>(breaks.Count);
         var caretX = new float[text.Length + 1];

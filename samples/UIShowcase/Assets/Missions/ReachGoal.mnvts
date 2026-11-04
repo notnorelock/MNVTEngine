@@ -1,0 +1,19 @@
+// Started by the MissionRunner on the "Mission" object (startMission = "reach_goal").
+mission "reach_goal" {
+    name = "Reach the goal"
+
+    on start { objective.activate("reach") }
+
+    objective "reach" {
+        description = "Move to the goal with WASD"
+        log("Move to the goal with WASD")
+        wait until player.distance_to("Goal") < 1
+        objective.complete()
+        mission.complete()
+    }
+
+    on complete {
+        log("Goal reached!")
+        entity.set_active("Goal", false)
+    }
+}

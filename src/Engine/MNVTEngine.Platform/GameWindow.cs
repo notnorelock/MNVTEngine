@@ -100,6 +100,19 @@ public sealed class GameWindow : IDisposable
     /// </summary>
     public IVkSurface? VulkanSurface => _window.VkSurface;
 
+    /// <summary>The system clipboard as text (null before the window runs or without a keyboard).</summary>
+    public string? ClipboardText
+    {
+        get => _input?.Clipboard;
+        set
+        {
+            if (_input is not null)
+            {
+                _input.Clipboard = value;
+            }
+        }
+    }
+
     public int FramebufferWidth => _window.FramebufferSize.X;
 
     public int FramebufferHeight => _window.FramebufferSize.Y;

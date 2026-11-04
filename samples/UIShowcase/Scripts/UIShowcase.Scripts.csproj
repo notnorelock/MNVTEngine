@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The game's C# components. References the engine's gameplay API only; the host provides these assemblies. -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Engine\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\src\Engine\MNVTEngine.UI\MNVTEngine.UI.csproj" Private="false" />
+  </ItemGroup>
+</Project>

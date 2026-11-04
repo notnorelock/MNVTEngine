@@ -21,7 +21,9 @@ public sealed record UIServices(Font DefaultFont, IClipboard? Clipboard, Func<As
 public sealed class UISystem : GameSystem
 {
     private readonly List<UIContext> _contexts = [];
+    private static readonly GameLog Log = GameLog.For<UISystem>();
     private readonly Dictionary<AssetRef, Task<Font>> _fonts = [];
+    private readonly List<(Task<Font> Task, Action<Font> Loaded, Action<Exception>? Failed)> _pending = [];
 
     private UISystem(Scene scene, UIServices services)
     {
@@ -70,7 +72,17 @@ public sealed class UISystem : GameSystem
         return task;
     }
 
-    /// <summary>Loads a font asset now (blocking); prefer <see cref="LoadFontAsync"/> during gameplay.</summary>
+    /// <summary>
+    /// Loads a font asset on a worker and calls <paramref name="loaded"/> on the game thread (during <see cref="Update"/>),
+    /// where it is safe to change UI elements. Without <paramref name="failed"/>, a failure is logged as an error.
+    /// </summary>
+    public void LoadFont(AssetRef font, Action<Font> loaded, Action<Exception>? failed = null)
+    {
+        ArgumentNullException.ThrowIfNull(loaded);
+        _pending.Add((LoadFontAsync(font), loaded, failed));
+    }
+
+    /// <summary>Loads a font asset now (blocking); prefer <see cref="LoadFont(AssetRef, Action{Font}, Action{Exception})"/> during gameplay.</summary>
     public Font LoadFont(AssetRef font) => LoadFontAsync(font).GetAwaiter().GetResult();
 
     /// <summary>Updates contexts top to bottom and takes keyboard/mouse from gameplay where the UI uses them.</summary>
@@ -78,6 +90,7 @@ public sealed class UISystem : GameSystem
     public void Update(InputState input, Vector2 windowSize, float framebufferScale, float deltaSeconds)
     {
         ArgumentNullException.ThrowIfNull(input);
+        CompleteLoads();
         var blocked = false;
         foreach (var context in _contexts.Where(c => c.Visible).OrderByDescending(c => c.SortOrder).ToList())
         {
@@ -104,6 +117,32 @@ public sealed class UISystem : GameSystem
 
     internal void Remove(UIContext context) => _contexts.Remove(context);
 
+    private void CompleteLoads()
+    {
+        for (var i = _pending.Count - 1; i >= 0; i--)
+        {
+            var (task, loaded, failed) = _pending[i];
+            if (!task.IsCompleted)
+            {
+                continue;
+            }
+
+            _pending.RemoveAt(i);
+            if (task.IsCompletedSuccessfully)
+            {
+                loaded(task.Result);
+            }
+            else if (failed is not null)
+            {
+                failed(task.Exception?.InnerException ?? new OperationCanceledException("Font loading was cancelled."));
+            }
+            else
+            {
+                Log.Error("A font could not be loaded.", task.Exception?.InnerException);
+            }
+        }
+    }
+
     private void Dispose()
     {
         foreach (var context in _contexts.ToList())
@@ -127,8 +166,11 @@ public static class UI
     /// <exception cref="InvalidOperationException">Outside scene callbacks, or the host attached no UI system.</exception>
     public static UIContext CreateContext() => System.CreateContext();
 
-    /// <summary>Loads a font asset (TTF or OTF) without blocking the frame.</summary>
+    /// <summary>Loads a font asset (TTF or OTF) without blocking the frame. Await it only where continuing on a worker thread is fine.</summary>
     public static Task<Font> LoadFontAsync(AssetRef font) => System.LoadFontAsync(font);
+
+    /// <summary>Loads a font asset on a worker and calls <paramref name="loaded"/> on the game thread: the safe way to apply it to UI.</summary>
+    public static void LoadFont(AssetRef font, Action<Font> loaded, Action<Exception>? failed = null) => System.LoadFont(font, loaded, failed);
 
     private static UISystem System => UISystem.For(SceneManager.ActiveScene)
         ?? throw new InvalidOperationException("This scene has no UI system; the game host attaches one when the scene loads.");

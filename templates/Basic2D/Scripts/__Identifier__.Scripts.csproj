@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="{{EngineRoot}}/src/Engine/MNVTEngine.Scenes/MNVTEngine.Scenes.csproj" Private="false" />
+    <ProjectReference Include="{{EngineRoot}}/src/Engine/MNVTEngine.UI/MNVTEngine.UI.csproj" Private="false" />
   </ItemGroup>
 </Project>
