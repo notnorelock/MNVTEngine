@@ -19,8 +19,9 @@ public sealed partial class ResourceCache : IDisposable
     private readonly ILogger _logger;
     private readonly Dictionary<Guid, Texture2D> _textures = [];
     private readonly Dictionary<Guid, LoadedMaterial?> _materials = [];
+    private readonly Dictionary<string, Shader> _builtinShaders = new(StringComparer.Ordinal);
+    private readonly Dictionary<Graphics.Materials.DefaultTexture, Texture2D> _defaultTextures = [];
     private Texture2D? _missing;
-    private Shader? _spriteShader;
 
     public ResourceCache(IGraphicsDevice device, AssetDatabase assets, ILogger logger)
     {
@@ -93,7 +94,8 @@ public sealed partial class ResourceCache : IDisposable
 
     /// <summary>
     /// The material of a <c>.mnvtmat</c> asset, created on first use; null for none or (logged once) when the asset is
-    /// invalid or its shader does not compile, so the caller draws with the default material.
+    /// invalid or its shader does not compile, so the caller draws with the default material. Reloaded when the asset,
+    /// its shaders or its textures change.
     /// </summary>
     public Material? GetMaterial(AssetRef asset)
     {
@@ -117,25 +119,8 @@ public sealed partial class ResourceCache : IDisposable
             }
 
             var definition = MaterialDefinition.Parse(System.Text.Encoding.UTF8.GetString(_assets.ReadAllBytes(asset.Guid)), name);
-            Shader? owned = null;
-            if (definition.Shader is { } shaderAsset)
-            {
-                var fragment = System.Text.Encoding.UTF8.GetString(_assets.ReadAllBytes(shaderAsset));
-                owned = _device.CreateShader(new ShaderSource(name, BuiltinShaders.Sprite.VertexGlsl, fragment));
-            }
-
-            var material = new Material(owned ?? (_spriteShader ??= _device.CreateShader(BuiltinShaders.Sprite)), Enum.Parse<BlendMode>(definition.Blend), name);
-            foreach (var (uniform, value) in definition.Uniforms)
-            {
-                _ = value.Length switch
-                {
-                    1 => material.SetFloat(uniform, value[0]),
-                    2 => material.SetVector(uniform, new Vector2(value[0], value[1])),
-                    _ => material.SetVector(uniform, new Vector4(value[0], value[1], value[2], value[3])),
-                };
-            }
-
-            loaded = new LoadedMaterial(material, owned, definition.Shader);
+            var material = BuildMaterial(definition, name, out var owned);
+            loaded = new LoadedMaterial(material, owned, [.. definition.Dependencies]);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or SerializationException or ShaderCompilationException or KeyNotFoundException or ArgumentException)
         {
@@ -144,6 +129,97 @@ public sealed partial class ResourceCache : IDisposable
 
         _materials.Add(asset.Guid, loaded);
         return loaded?.Material;
+    }
+
+    /// <summary>
+    /// A material from a definition (assets, editor previews): its shader (built-in, or a custom one this call compiles
+    /// and the caller then owns), render settings with the defaults of its shader and blend mode, its values and
+    /// textures, and defaults for everything else.
+    /// </summary>
+    /// <exception cref="ShaderCompilationException">A custom shader does not compile.</exception>
+    public Material BuildMaterial(MaterialDefinition definition, string name, out Shader? ownedShader)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ownedShader = null;
+        Shader shader;
+        if (definition.Shader is { } fragmentAsset)
+        {
+            var fragment = System.Text.Encoding.UTF8.GetString(_assets.ReadAllBytes(fragmentAsset));
+            var vertex = definition.VertexShader is { } vertexAsset ? System.Text.Encoding.UTF8.GetString(_assets.ReadAllBytes(vertexAsset)) : BuiltinShaders.Sprite.VertexGlsl;
+            shader = ownedShader = _device.CreateShader(new ShaderSource(name, vertex, fragment));
+        }
+        else
+        {
+            shader = GetBuiltinShader(definition.Builtin ?? MaterialDefinition.BuiltinSprite);
+        }
+
+        var blend = Enum.Parse<BlendMode>(definition.Blend);
+        var mesh = definition.Builtin is MaterialDefinition.BuiltinStandard or MaterialDefinition.BuiltinUnlit || definition.VertexShader is not null;
+        var cutoff = definition.Properties.TryGetValue("_AlphaCutoff", out var c) && c.Numbers is { } n ? n[0] : 0f;
+        var material = new Material(shader, blend, name)
+        {
+            Cull = definition.Cull is { } cull ? Enum.Parse<CullMode>(cull) : mesh ? CullMode.Back : CullMode.None,
+            RenderQueue = definition.RenderQueue ?? (blend != BlendMode.Opaque ? Material.TransparentQueue : cutoff > 0f ? Material.AlphaTestQueue : Material.GeometryQueue),
+            DepthTest = definition.DepthTest ?? true,
+        };
+        material.DepthWrite = definition.DepthWrite ?? !material.IsTransparent;
+        foreach (var (property, value) in definition.Properties)
+        {
+            if (value.Texture is { } texture)
+            {
+                material.SetTexture(property, GetTexture(new AssetRef(texture)));
+            }
+            else
+            {
+                var v = value.Numbers!;
+                _ = v.Length switch
+                {
+                    1 => material.SetFloat(property, v[0]),
+                    2 => material.SetVector(property, new Vector2(v[0], v[1])),
+                    _ => material.SetVector(property, new Vector4(v[0], v[1], v[2], v[3])),
+                };
+            }
+        }
+
+        Graphics.Materials.MaterialShaders.ApplyDefaults(material, Graphics.Materials.MaterialShaders.PropertiesOf(definition.Builtin), GetDefaultTexture);
+        return material;
+    }
+
+    /// <summary>A built-in shader by id (<c>builtin:standard</c>, <c>builtin:unlit</c>, <c>builtin:sprite</c>), compiled once.</summary>
+    /// <exception cref="ArgumentException">Unknown id.</exception>
+    public Shader GetBuiltinShader(string id)
+    {
+        if (!_builtinShaders.TryGetValue(id, out var shader))
+        {
+            shader = _device.CreateShader(id switch
+            {
+                MaterialDefinition.BuiltinStandard => Graphics.Materials.MaterialShaders.Standard,
+                MaterialDefinition.BuiltinUnlit => Graphics.Materials.MaterialShaders.Unlit,
+                MaterialDefinition.BuiltinSprite => BuiltinShaders.Sprite,
+                _ => throw new ArgumentException($"Unknown built-in shader '{id}'.", nameof(id)),
+            });
+            _builtinShaders.Add(id, shader);
+        }
+
+        return shader;
+    }
+
+    /// <summary>The 1×1 texture an unassigned material slot uses.</summary>
+    public Texture2D GetDefaultTexture(Graphics.Materials.DefaultTexture kind)
+    {
+        if (!_defaultTextures.TryGetValue(kind, out var texture))
+        {
+            byte[] rgba = kind switch
+            {
+                Graphics.Materials.DefaultTexture.Black => [0, 0, 0, 255],
+                Graphics.Materials.DefaultTexture.FlatNormal => [128, 128, 255, 255],
+                _ => [255, 255, 255, 255],
+            };
+            texture = _device.CreateTexture(1, 1, rgba, SamplerState.PointRepeat, $"Default {kind}");
+            _defaultTextures.Add(kind, texture);
+        }
+
+        return texture;
     }
 
     /// <summary>Sets <c>uTime</c> (seconds) on every loaded material whose shader uses it.</summary>
@@ -177,7 +253,18 @@ public sealed partial class ResourceCache : IDisposable
         }
 
         _materials.Clear();
-        _spriteShader?.Dispose();
+        foreach (var shader in _builtinShaders.Values)
+        {
+            shader.Dispose();
+        }
+
+        _builtinShaders.Clear();
+        foreach (var texture in _defaultTextures.Values)
+        {
+            texture.Dispose();
+        }
+
+        _defaultTextures.Clear();
     }
 
     private void Evict(IReadOnlyCollection<Guid> changed)
@@ -196,8 +283,8 @@ public sealed partial class ResourceCache : IDisposable
             }
         }
 
-        // A material is stale when its own asset or its shader asset changed.
-        foreach (var (guid, loaded) in _materials.Where(m => changed.Contains(m.Key) || (m.Value?.ShaderAsset is { } s && changed.Contains(s))).ToList())
+        // A material is stale when its own asset, a shader or a texture it uses changed (its textures were just released).
+        foreach (var (guid, loaded) in _materials.Where(m => changed.Contains(m.Key) || (m.Value?.Dependencies.Any(changed.Contains) ?? false)).ToList())
         {
             loaded?.OwnedShader?.Dispose();
             _materials.Remove(guid);
@@ -209,9 +296,9 @@ public sealed partial class ResourceCache : IDisposable
         }
     }
 
-    private sealed record LoadedMaterial(Material Material, Shader? OwnedShader, Guid? ShaderAsset);
+    private sealed record LoadedMaterial(Material Material, Shader? OwnedShader, IReadOnlyCollection<Guid> Dependencies);
 
-    [LoggerMessage(EventId = 3003, Level = LogLevel.Error, Message = "Material '{Asset}' could not be loaded; using the default sprite material")]
+    [LoggerMessage(EventId = 3003, Level = LogLevel.Error, Message = "Material '{Asset}' could not be loaded; using the default material")]
     private static partial void LogMaterialFailed(ILogger logger, Exception exception, string asset);
 
     [LoggerMessage(EventId = 3000, Level = LogLevel.Error, Message = "Texture '{Asset}' could not be loaded; using the missing-texture placeholder")]

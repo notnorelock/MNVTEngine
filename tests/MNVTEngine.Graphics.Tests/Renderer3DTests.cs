@@ -16,7 +16,7 @@ public sealed class Renderer3DTests : IDisposable
     private (GpuMesh Mesh, Material Material, Texture2D Texture) Resources()
     {
         var mesh = GpuMesh.Upload(_device, MeshPrimitives.Cube());
-        return (mesh, new Material(_device.CreateShader(BuiltinShaders.Unlit3D), BlendMode.Opaque), _device.CreateTexture(1, 1, [255, 255, 255, 255], SamplerState.PointClamp));
+        return (mesh, new Material(_device.CreateShader(Materials.MaterialShaders.Standard), BlendMode.Opaque), _device.CreateTexture(1, 1, [255, 255, 255, 255], SamplerState.PointClamp));
     }
 
     [Fact]
@@ -24,8 +24,10 @@ public sealed class Renderer3DTests : IDisposable
     {
         var (mesh, material, texture) = Resources();
         var view = CameraAt(new Vector3(0f, 0f, 10f), Vector3.Zero);
-        MeshDrawItem At(float z, bool transparent = false, CullMode cull = CullMode.Back) =>
-            new(mesh, 0, material, texture, Matrix4x4.Translate(new Vector3(0f, 0f, z)), transparent, cull);
+        var glass = material.CreateInstance("Glass");
+        (glass.RenderQueue, glass.DepthWrite, glass.BlendMode) = (Material.TransparentQueue, false, BlendMode.Alpha);
+        MeshDrawItem At(float z, bool transparent = false, CullMode? cull = null) =>
+            new(mesh, 0, transparent ? glass : material, texture, Matrix4x4.Translate(new Vector3(0f, 0f, z)), cull);
 
         var stats = new Renderer3D(_device).Render(view, [
             At(-5f), At(5f), At(0f),                        // opaque: drawn nearest first

@@ -8,6 +8,9 @@ namespace MNVTEngine.Graphics.Vulkan.Pipelines;
 /// <summary>Where a material uniform goes: which stage block, and the reflected member.</summary>
 internal readonly record struct UniformSlot(ShaderStage Stage, SpirvUniformMember Member);
 
+/// <summary>A combined image sampler of a shader, at its descriptor binding.</summary>
+internal readonly record struct ShaderSampler(string Name, uint Binding);
+
 /// <summary>
 /// A compiled and linked program: two SPIR-V modules, the push-descriptor set layout derived from reflection, the
 /// pipeline layout, and the pipelines created for it so far (one per blend mode, topology, vertex layout and target
@@ -24,10 +27,17 @@ internal sealed unsafe class VulkanShader : Shader
         _device = device;
         VertexBlock = vertex.UniformBlocks.Count > 0 ? vertex.UniformBlocks[0] : null;
         FragmentBlock = fragment.UniformBlocks.Count > 0 ? fragment.UniformBlocks[0] : null;
-        UsesTexture = vertex.Samplers.Count + fragment.Samplers.Count > 0;
+        Samplers = MergeSamplers(vertex, fragment);
+        UsesTexture = Samplers.Count > 0;
         VertexInputs = [.. vertex.Inputs.Select(i => (int)i.Location)];
         AddUniforms(ShaderStage.Vertex, VertexBlock);
         AddUniforms(ShaderStage.Fragment, FragmentBlock);
+        Properties = [
+            .. _uniforms.Where(u => !Material.ReservedNames.Contains(u.Key) && u.Value[0].Member.Kind is not null)
+                .Select(u => new ShaderProperty(u.Key, (ShaderPropertyKind)(int)u.Value[0].Member.Kind!.Value))
+                .OrderBy(p => p.Name, StringComparer.Ordinal),
+            .. Samplers.Where(s => s.Name != "uTexture").Select(s => new ShaderProperty(s.Name, ShaderPropertyKind.Texture)),
+        ];
         try
         {
             CreateNative(name, vertex, fragment);
@@ -53,6 +63,11 @@ internal sealed unsafe class VulkanShader : Shader
 
     public bool UsesTexture { get; }
 
+    /// <summary>Every sampler of both stages, by binding (explicit, or assigned by the compiler); textures are bound by name.</summary>
+    public IReadOnlyList<ShaderSampler> Samplers { get; }
+
+    public override IReadOnlyList<ShaderProperty> Properties { get; }
+
     /// <summary>Attribute locations the vertex stage reads; pipelines feed only these from a (possibly wider) vertex layout.</summary>
     public HashSet<int> VertexInputs { get; }
 
@@ -75,11 +90,30 @@ internal sealed unsafe class VulkanShader : Shader
 
         var errors = new List<string>(SpirvModule.LinkByName(vertex, fragment));
         errors.AddRange(vertex.UnsupportedResources.Concat(fragment.UnsupportedResources).Select(r => $"Resource {r} is not supported; use loose uniforms and 'uTexture'."));
+        var byName = new Dictionary<string, uint>(StringComparer.Ordinal);
+        var byBinding = new Dictionary<uint, string>();
         foreach (var sampler in vertex.Samplers.Concat(fragment.Samplers))
         {
-            if (sampler.Set != 0 || sampler.Binding != ShaderCompiler.TextureBinding)
+            if (sampler.Set != 0)
             {
-                errors.Add($"Sampler '{sampler.Name}' must be 'layout(binding = 0) uniform sampler2D uTexture'; only one texture per draw is supported.");
+                errors.Add($"Sampler '{sampler.Name}' must be in descriptor set 0.");
+            }
+            else if (sampler.Binding is ShaderCompiler.VertexUniformBinding or ShaderCompiler.FragmentUniformBinding || sampler.Binding >= ShaderCompiler.MaxBindings)
+            {
+                errors.Add($"Sampler '{sampler.Name}' uses binding {sampler.Binding}; leave other samplers without a binding (the compiler assigns them).");
+            }
+            else if (byName.TryGetValue(sampler.Name, out var binding) && binding != sampler.Binding)
+            {
+                errors.Add($"Sampler '{sampler.Name}' has different bindings in the two stages; declare it in one stage.");
+            }
+            else if (byBinding.TryGetValue(sampler.Binding, out var other) && other != sampler.Name)
+            {
+                errors.Add($"Samplers '{other}' and '{sampler.Name}' share binding {sampler.Binding}.");
+            }
+            else
+            {
+                byName[sampler.Name] = sampler.Binding;
+                byBinding[sampler.Binding] = sampler.Name;
             }
         }
 
@@ -93,6 +127,9 @@ internal sealed unsafe class VulkanShader : Shader
 
     public IReadOnlyList<UniformSlot> Slots(string name) => _uniforms.TryGetValue(name, out var slots) ? slots : [];
 
+    private static List<ShaderSampler> MergeSamplers(SpirvModule vertex, SpirvModule fragment) =>
+        [.. vertex.Samplers.Concat(fragment.Samplers).GroupBy(s => s.Binding).Select(g => new ShaderSampler(g.First().Name, g.Key)).OrderBy(s => s.Binding)];
+
     public override bool HasUniform(string name) => _uniforms.ContainsKey(name);
 
     protected override void ReleaseCore() => _device.DestroyLater(this);
@@ -103,11 +140,11 @@ internal sealed unsafe class VulkanShader : Shader
         VertexModule = CreateModule(vertex.Words, $"{name}.vert");
         FragmentModule = CreateModule(fragment.Words, $"{name}.frag");
 
-        var bindings = stackalloc DescriptorSetLayoutBinding[3];
+        var bindings = stackalloc DescriptorSetLayoutBinding[Samplers.Count + 2];
         var count = 0u;
-        if (UsesTexture)
+        foreach (var sampler in Samplers)
         {
-            bindings[count++] = new DescriptorSetLayoutBinding(ShaderCompiler.TextureBinding, DescriptorType.CombinedImageSampler, 1, ShaderStageFlags.FragmentBit | ShaderStageFlags.VertexBit);
+            bindings[count++] = new DescriptorSetLayoutBinding(sampler.Binding, DescriptorType.CombinedImageSampler, 1, ShaderStageFlags.FragmentBit | ShaderStageFlags.VertexBit);
         }
 
         if (VertexBlock is not null)

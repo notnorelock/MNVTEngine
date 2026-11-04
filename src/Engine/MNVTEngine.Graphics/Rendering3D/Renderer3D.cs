@@ -9,9 +9,13 @@ public readonly record struct View3D(Matrix4x4 View, Matrix4x4 Projection, Vecto
     public Matrix4x4 ViewProjection => Projection * View;
 }
 
-/// <summary>One submesh to draw with a material.</summary>
-/// <param name="Transparent">Drawn after opaque geometry, back to front, without writing depth.</param>
-public readonly record struct MeshDrawItem(GpuMesh Mesh, int SubMesh, Material Material, Texture2D Texture, Matrix4x4 World, bool Transparent = false, CullMode Cull = CullMode.Back);
+/// <summary>
+/// One submesh to draw with a material. The material decides depth testing and writing, face culling, the render
+/// queue and transparency.
+/// </summary>
+/// <param name="Texture">The draw's <c>uTexture</c> (custom shaders); built-in shaders take their maps from the material.</param>
+/// <param name="Cull">Overrides the material's culling (e.g. a double-sided renderer).</param>
+public readonly record struct MeshDrawItem(GpuMesh Mesh, int SubMesh, Material Material, Texture2D Texture, Matrix4x4 World, CullMode? Cull = null);
 
 public readonly record struct Render3DStatistics(int Visible, int Culled, int DrawCalls, int Triangles);
 
@@ -19,8 +23,8 @@ public readonly record struct Render3DStatistics(int Visible, int Culled, int Dr
 /// Draws meshes for one camera, independent of the graphics backend:
 /// <list type="bullet">
 /// <item>frustum-culls each item by its world-space bounds;</item>
-/// <item>draws opaque items front to back (grouped by material within similar distances), depth-tested and written;</item>
-/// <item>then draws transparent items back to front, depth-tested but not written.</item>
+/// <item>draws opaque materials (render queue below 3000) by queue, then front to back;</item>
+/// <item>then transparent materials by queue, then back to front.</item>
 /// </list>
 /// The caller sets the target (with a depth buffer) and clears it.
 /// </summary>
@@ -47,21 +51,22 @@ public sealed class Renderer3D(IGraphicsDevice device)
             }
 
             var distance = Vector3.DistanceSquared(bounds.Center, view.Position);
-            (item.Transparent ? _transparent : _opaque).Add((item, distance));
+            (item.Material.IsTransparent ? _transparent : _opaque).Add((item, distance));
         }
 
         // Front to back saves fragment work; ties (same distance band) keep materials together.
-        _opaque.Sort((a, b) => a.Distance != b.Distance ? a.Distance.CompareTo(b.Distance) : MaterialOrder(a.Item.Material).CompareTo(MaterialOrder(b.Item.Material)));
-        _transparent.Sort((a, b) => b.Distance.CompareTo(a.Distance));
+        _opaque.Sort((a, b) => a.Item.Material.RenderQueue != b.Item.Material.RenderQueue ? a.Item.Material.RenderQueue.CompareTo(b.Item.Material.RenderQueue)
+            : a.Distance != b.Distance ? a.Distance.CompareTo(b.Distance) : MaterialOrder(a.Item.Material).CompareTo(MaterialOrder(b.Item.Material)));
+        _transparent.Sort((a, b) => a.Item.Material.RenderQueue != b.Item.Material.RenderQueue ? a.Item.Material.RenderQueue.CompareTo(b.Item.Material.RenderQueue) : b.Distance.CompareTo(a.Distance));
         var triangles = 0;
         foreach (var (item, _) in _opaque)
         {
-            triangles += Draw(item, viewProjection, RenderState.Opaque3D with { Cull = item.Cull });
+            triangles += Draw(item, viewProjection);
         }
 
         foreach (var (item, _) in _transparent)
         {
-            triangles += Draw(item, viewProjection, RenderState.Transparent3D with { Cull = item.Cull });
+            triangles += Draw(item, viewProjection);
         }
 
         return new Render3DStatistics(_opaque.Count + _transparent.Count, culled, _opaque.Count + _transparent.Count, triangles);
@@ -80,8 +85,10 @@ public sealed class Renderer3D(IGraphicsDevice device)
         return new Bounds(center, extents * 2f);
     }
 
-    private int Draw(in MeshDrawItem item, Matrix4x4 viewProjection, RenderState state)
+    private int Draw(in MeshDrawItem item, Matrix4x4 viewProjection)
     {
+        var material = item.Material;
+        var state = new RenderState(material.DepthTest, material.DepthWrite, item.Cull ?? material.Cull);
         var mesh = item.Mesh;
         if ((uint)item.SubMesh >= (uint)mesh.SubMeshes.Count)
         {

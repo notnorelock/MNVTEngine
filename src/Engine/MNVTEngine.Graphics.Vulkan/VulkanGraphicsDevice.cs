@@ -80,7 +80,8 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
     private (VkBuffer Buffer, ulong Offset) _boundIndices;
     private (VkBuffer Buffer, ulong Offset, int Size) _vertexUniforms;
     private (VkBuffer Buffer, ulong Offset, int Size) _fragmentUniforms;
-    private (ImageView View, Sampler Sampler) _pushedTexture;
+    private readonly (ImageView View, Sampler Sampler)[] _pushedTextures = new (ImageView, Sampler)[ShaderCompiler.MaxBindings];
+    private readonly List<(uint Binding, IVulkanTexture Texture)> _drawTextures = [];
 
     private VulkanGraphicsDevice(IVkSurface? surfaceSource, int width, int height, ILogger logger, VulkanDeviceOptions options)
     {
@@ -575,10 +576,14 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
             return;
         }
 
-        if (texture.Image.Layout != ImageLayout.ShaderReadOnlyOptimal)
+        CollectTextures(shader, texture, command);
+        foreach (var (_, sampled) in _drawTextures)
         {
-            EndRendering(); // layout transitions are not allowed inside a rendering instance
-            Barriers.Transition(Context.Vk, _cmd, texture.Image, ImageLayout.ShaderReadOnlyOptimal, Statistics);
+            if (sampled.Image.Layout != ImageLayout.ShaderReadOnlyOptimal)
+            {
+                EndRendering(); // layout transitions are not allowed inside a rendering instance
+                Barriers.Transition(Context.Vk, _cmd, sampled.Image, ImageLayout.ShaderReadOnlyOptimal, Statistics);
+            }
         }
 
         if (_renderingImage != target)
@@ -1178,7 +1183,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         _boundIndices = default;
         _vertexUniforms = default;
         _fragmentUniforms = default;
-        _pushedTexture = default;
+        Array.Clear(_pushedTextures);
         _viewportDirty = true;
         _scissor = default;
     }
@@ -1215,18 +1220,57 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         }
     }
 
+    /// <summary>The texture of every sampler the shader declares: <c>uTexture</c> from the draw, the rest from the material.</summary>
+    /// <exception cref="InvalidOperationException">The material has no texture for a sampler, or one cannot be sampled here.</exception>
+    private void CollectTextures(VulkanShader shader, IVulkanTexture drawTexture, in DrawCommand command)
+    {
+        _drawTextures.Clear();
+        foreach (var sampler in shader.Samplers)
+        {
+            IVulkanTexture sampled;
+            if (sampler.Name == "uTexture")
+            {
+                sampled = drawTexture;
+            }
+            else
+            {
+                var source = command.Material.GetTexture(sampler.Name)
+                    ?? throw new InvalidOperationException($"Material '{command.Material.Name}' has no texture for sampler '{sampler.Name}' of shader '{shader.DebugName}'.");
+                ObjectDisposedException.ThrowIf(source.IsDisposed, source);
+                if (ReferenceEquals(source, _currentTarget))
+                {
+                    throw new InvalidOperationException($"Cannot sample render target '{source.DebugName}' while drawing into it.");
+                }
+
+                sampled = source as IVulkanTexture ?? throw new ArgumentException($"Texture '{source.DebugName}' was not created by this device.", nameof(command));
+            }
+
+            _drawTextures.Add((sampler.Binding, sampled));
+        }
+    }
+
     private void BindDescriptors(VulkanShader shader, IVulkanTexture texture, in DrawCommand command)
     {
         var layoutChanged = shader.Layout.Handle != _pushedLayout.Handle;
-        var writes = stackalloc WriteDescriptorSet[3];
-        var imageInfo = new DescriptorImageInfo(texture.VkSampler, texture.Image.View, ImageLayout.ShaderReadOnlyOptimal);
+        var writes = stackalloc WriteDescriptorSet[_drawTextures.Count + 2];
+        var imageInfos = stackalloc DescriptorImageInfo[Math.Max(1, _drawTextures.Count)];
         DescriptorBufferInfo vertexInfo = default, fragmentInfo = default;
         var count = 0u;
-
-        if (shader.UsesTexture && (layoutChanged || _pushedTexture.View.Handle != texture.Image.View.Handle || _pushedTexture.Sampler.Handle != texture.VkSampler.Handle))
+        if (layoutChanged)
         {
-            writes[count++] = new WriteDescriptorSet { SType = StructureType.WriteDescriptorSet, DstBinding = ShaderCompiler.TextureBinding, DescriptorCount = 1, DescriptorType = DescriptorType.CombinedImageSampler, PImageInfo = &imageInfo };
-            _pushedTexture = (texture.Image.View, texture.VkSampler);
+            Array.Clear(_pushedTextures);
+        }
+
+        for (var i = 0; i < _drawTextures.Count; i++)
+        {
+            var (binding, sampled) = _drawTextures[i];
+            ref var pushed = ref _pushedTextures[binding];
+            if (pushed.View.Handle != sampled.Image.View.Handle || pushed.Sampler.Handle != sampled.VkSampler.Handle)
+            {
+                imageInfos[i] = new DescriptorImageInfo(sampled.VkSampler, sampled.Image.View, ImageLayout.ShaderReadOnlyOptimal);
+                writes[count++] = new WriteDescriptorSet { SType = StructureType.WriteDescriptorSet, DstBinding = binding, DescriptorCount = 1, DescriptorType = DescriptorType.CombinedImageSampler, PImageInfo = &imageInfos[i] };
+                pushed = (sampled.Image.View, sampled.VkSampler);
+            }
         }
 
         if (shader.VertexBlock is { } vertexBlock && WriteBlock(shader, ShaderStage.Vertex, vertexBlock, command, _vertexBlock, _lastVertexBlock, ref _vertexUniforms) | layoutChanged)

@@ -144,6 +144,8 @@ public static class ContentCompiler
     {
         using var precompiler = new VulkanShaderPrecompiler();
         precompiler.Add(BuiltinShaders.Sprite);
+        precompiler.Add(Graphics.Materials.MaterialShaders.Standard);
+        precompiler.Add(Graphics.Materials.MaterialShaders.Unlit);
         foreach (var material in assets.Assets.Where(a => a.Type == AssetTypes.Material).OrderBy(a => a.Path, StringComparer.Ordinal))
         {
             try
@@ -152,7 +154,8 @@ public static class ContentCompiler
                 if (definition.Shader is { } shader && assets.GetAssetType(shader) is not null)
                 {
                     // Decoded exactly as ResourceCache does, so the source text (and the precompiled entry's key) match.
-                    precompiler.Add(new ShaderSource(material.Path, BuiltinShaders.Sprite.VertexGlsl, Encoding.UTF8.GetString(assets.ReadAllBytes(shader))));
+                    var vertex = definition.VertexShader is { } vertexShader ? Encoding.UTF8.GetString(assets.ReadAllBytes(vertexShader)) : BuiltinShaders.Sprite.VertexGlsl;
+                    precompiler.Add(new ShaderSource(material.Path, vertex, Encoding.UTF8.GetString(assets.ReadAllBytes(shader))));
                 }
             }
             catch (ShaderCompilationException ex)

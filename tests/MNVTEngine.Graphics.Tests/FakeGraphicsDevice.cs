@@ -88,6 +88,8 @@ internal sealed class FakeGraphicsDevice : IGraphicsDevice
     {
         public override bool HasUniform(string name) => true;
 
+        public override IReadOnlyList<ShaderProperty> Properties { get; } = [];
+
         protected override void ReleaseCore()
         {
         }

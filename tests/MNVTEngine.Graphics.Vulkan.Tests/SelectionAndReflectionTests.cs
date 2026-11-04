@@ -91,7 +91,7 @@ public class SelectionAndReflectionTests
         Assert.Equal(UniformKind.Vector4, block.Members.Single(m => m.Name == "uGlow").Kind);
         Assert.Null(block.Members.Single(m => m.Name == "uUnsettable").Kind);
         Assert.Equal(0, block.Size % 16);
-        Assert.Equal(("uTexture", 0u), (Assert.Single(fragment.Samplers).Name, fragment.Samplers[0].Binding));
+        Assert.Equal(("uTexture", ShaderCompiler.FragmentSamplerBase), (Assert.Single(fragment.Samplers).Name, fragment.Samplers[0].Binding)); // sampler bindings are shifted past the uniform blocks
         Assert.Empty(SpirvModule.LinkByName(vertex, fragment));
     }
 

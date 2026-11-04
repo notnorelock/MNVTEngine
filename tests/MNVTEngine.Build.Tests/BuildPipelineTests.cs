@@ -244,9 +244,9 @@ public sealed class BuildPipelineTests : IDisposable
         Assert.Equal("resources.mnvtpak", content.ArchiveOf(Assets.AssetDatabase.CompiledEntry(Guid.Parse("a1000000-0000-4000-8000-000000000005")))); // bytecode follows its script
         Assert.Equal("globals.mnvtpak", content.ArchiveOf("Game.mnvtproj"));
 
-        // Built-in sprite shader (2 stages) + the material's fragment (its vertex stage is the built-in one).
-        Assert.Equal(3, result.Shaders);
-        Assert.Equal(3, content.Archives[1].Entries.Count(e => e.StartsWith("Shaders/", StringComparison.Ordinal)));
+        // Sprite vertex + fragment, the shared mesh vertex stage with the Standard and Unlit fragments, the custom fragment.
+        Assert.Equal(6, result.Shaders);
+        Assert.Equal(6, content.Archives[1].Entries.Count(e => e.StartsWith("Shaders/", StringComparison.Ordinal)));
         Assert.Equal(archives.Sum(a => a.Entries), content.Entries.Count());
 
         var index = Newtonsoft.Json.Linq.JObject.Parse(System.Text.Encoding.UTF8.GetString(content.Read(Assets.AssetDatabase.IndexEntry)));

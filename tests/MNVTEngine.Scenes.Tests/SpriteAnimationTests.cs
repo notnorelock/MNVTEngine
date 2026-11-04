@@ -139,6 +139,6 @@ public class SpriteAnimationTests
 
         var ex = Assert.Throws<SerializationException>(() => MaterialDefinition.Parse(
             """{ "schemaVersion": 1, "shader": "glow.frag", "blend": "Screen", "uniforms": { "uTime": 1, "bad name": 1, "uThree": [1, 2, 3] } }""", "bad.mnvtmat"));
-        Assert.Equal(["shader", "blend", "uniforms.uTime", "uniforms.bad name", "uniforms.uThree"], ex.Diagnostics.Select(d => d.Path));
+        Assert.Equal(["shader", "blend", "properties.uTime", "properties.bad name", "properties.uThree"], ex.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.Path));
     }
 }

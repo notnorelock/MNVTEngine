@@ -249,7 +249,7 @@ public sealed class AnimationImporter() : SimpleImporter("Animation", AssetTypes
     }
 }
 
-/// <summary>Sprite materials: validated with the runtime's parser; a custom shader is a dependency. GLSL compiles on first use (it needs a GPU).</summary>
+/// <summary>Materials: validated with the runtime's parser; shaders and textures are dependencies. GLSL compiles on first use (it needs a GPU).</summary>
 public sealed class MaterialImporter() : SimpleImporter("Material", AssetTypes.Material, MaterialDefinition.Extension)
 {
     public override void Import(AssetImportContext context)
@@ -258,13 +258,13 @@ public sealed class MaterialImporter() : SimpleImporter("Material", AssetTypes.M
         try
         {
             var material = MaterialDefinition.Parse(new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(context.Data), context.RelativePath);
-            if (material.Shader is { } shader)
+            foreach (var dependency in material.Dependencies)
             {
-                context.Dependencies.Add(shader);
+                context.Dependencies.Add(dependency);
             }
 
             context.Properties["blend"] = material.Blend;
-            context.Properties["shader"] = material.Shader is null ? "built-in sprite" : "custom";
+            context.Properties["shader"] = material.Builtin ?? "custom";
         }
         catch (SerializationException ex)
         {

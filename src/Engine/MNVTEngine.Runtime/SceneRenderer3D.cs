@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Meshes;
+using MNVTEngine.Graphics.Materials;
 using MNVTEngine.Graphics.Rendering3D;
 using MNVTEngine.Mathematics;
 
@@ -19,8 +20,6 @@ public sealed partial class SceneRenderer
     private readonly ConditionalWeakTable<MeshRenderer, Material> _rendererMaterials = [];
     private Renderer3D? _renderer3D;
     private GpuMeshCache? _meshes;
-    private Shader? _unlit;
-    private Texture2D? _white;
     private bool _warnedNoDepth;
 
     /// <summary>Mesh renderers drawn by the last 3D pass.</summary>
@@ -102,33 +101,31 @@ public sealed partial class SceneRenderer
     {
         var device = renderer.Device;
         _meshes ??= new GpuMeshCache(device);
-        _white ??= device.CreateTexture(1, 1, [255, 255, 255, 255], SamplerState.PointClamp, "Mesh white");
+        var white = resources.GetDefaultTexture(DefaultTexture.White);
         var mesh = _meshes.Get(GetPrimitive(meshRenderer.Primitive));
-        var texture = meshRenderer.Texture.IsNone ? _white : resources.GetTexture(meshRenderer.Texture);
-        var cull = meshRenderer.DoubleSided ? CullMode.None : CullMode.Back;
+        CullMode? cull = meshRenderer.DoubleSided ? CullMode.None : null;
         var world = meshRenderer.Transform.LocalToWorldMatrix;
-        if (resources.GetMaterial(meshRenderer.Material) is { } custom)
+        if (resources.GetMaterial(meshRenderer.Material) is { } asset)
         {
-            return new MeshDrawItem(mesh, 0, custom, texture, world, custom.BlendMode != BlendMode.Opaque, cull);
+            return new MeshDrawItem(mesh, 0, asset, white, world, cull);
         }
 
-        // The built-in material: one per renderer, because the color is a uniform.
-        _unlit ??= device.CreateShader(BuiltinShaders.Unlit3D);
-        var material = _rendererMaterials.GetValue(meshRenderer, _ => new Material(_unlit, BlendMode.Opaque, "Unlit3D"));
+        // The built-in material: Standard with the renderer's color and texture, one per renderer.
+        var material = _rendererMaterials.GetValue(meshRenderer, _ => new Material(resources.GetBuiltinShader(Serialization.MaterialDefinition.BuiltinStandard), BlendMode.Opaque, "Default"));
         var transparent = meshRenderer.Color.A < 1f;
         material.BlendMode = transparent ? BlendMode.Alpha : BlendMode.Opaque;
-        material.SetColor("uColor", meshRenderer.Color);
-        return new MeshDrawItem(mesh, 0, material, texture, world, transparent, cull);
+        material.RenderQueue = transparent ? Material.TransparentQueue : Material.GeometryQueue;
+        material.DepthWrite = !transparent;
+        material.SetColor("_BaseColor", meshRenderer.Color);
+        material.SetTexture("_BaseColorMap", meshRenderer.Texture.IsNone ? white : resources.GetTexture(meshRenderer.Texture));
+        MaterialShaders.ApplyDefaults(material, MaterialShaders.StandardProperties, resources.GetDefaultTexture);
+        return new MeshDrawItem(mesh, 0, material, white, world, cull);
     }
 
     private void Dispose3D()
     {
         _meshes?.Dispose();
         _meshes = null;
-        _unlit?.Dispose();
-        _unlit = null;
-        _white?.Dispose();
-        _white = null;
     }
 
     [LoggerMessage(EventId = 2104, Level = LogLevel.Warning, Message = "Render target '{Target}' has no depth buffer: 3D meshes are not drawn into it")]

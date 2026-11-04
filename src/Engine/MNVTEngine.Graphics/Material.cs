@@ -55,10 +55,26 @@ public readonly struct UniformValue
     public static UniformValue FromMatrix(Matrix4x4 value) => new(UniformKind.Matrix4x4, default, value, 0);
 }
 
-/// <summary>A shader plus fixed-function blend state and named uniform values.</summary>
+/// <summary>
+/// A shader with its fixed-function state (blend, culling, depth, render queue), named uniform values and named
+/// textures. Shared by everything drawn with it; <see cref="CreateInstance"/> makes an independent copy for per-object
+/// changes.
+/// </summary>
 public sealed class Material
 {
+    /// <summary>Render queue of opaque geometry; queues at or above <see cref="TransparentQueue"/> draw back to front without depth writes.</summary>
+    public const int GeometryQueue = 2000;
+
+    /// <summary>Alpha-tested (cutout) geometry: opaque, drawn after plain geometry.</summary>
+    public const int AlphaTestQueue = 2450;
+
+    public const int TransparentQueue = 3000;
+
+    /// <summary>Names the renderer supplies; materials cannot set them.</summary>
+    public static readonly IReadOnlySet<string> ReservedNames = new HashSet<string>(StringComparer.Ordinal) { "uViewProjection", "uTexture", "uModel", "uNormalMatrix" };
+
     private readonly Dictionary<string, UniformValue> _uniforms = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Texture2D> _textures = new(StringComparer.Ordinal);
 
     public Material(Shader shader, BlendMode blendMode = BlendMode.Alpha, string name = "Material")
     {
@@ -74,7 +90,73 @@ public sealed class Material
 
     public BlendMode BlendMode { get; set; }
 
+    /// <summary>Face culling for 3D drawing (2D drawing never culls).</summary>
+    public CullMode Cull { get; set; } = CullMode.Back;
+
+    /// <summary>3D: test against the depth buffer.</summary>
+    public bool DepthTest { get; set; } = true;
+
+    /// <summary>3D: write depth. Off for transparent materials by convention.</summary>
+    public bool DepthWrite { get; set; } = true;
+
+    /// <summary>Draw order between materials (see <see cref="GeometryQueue"/>); 3000 and above is transparent.</summary>
+    public int RenderQueue { get; set; } = GeometryQueue;
+
+    /// <summary>Drawn in the transparent pass (back to front, blended).</summary>
+    public bool IsTransparent => RenderQueue >= TransparentQueue;
+
     public IReadOnlyDictionary<string, UniformValue> Uniforms => _uniforms;
+
+    /// <summary>Textures by sampler name (e.g. <c>_BaseColorMap</c>); <c>uTexture</c> comes from the draw instead.</summary>
+    public IReadOnlyDictionary<string, Texture2D> Textures => _textures;
+
+    /// <exception cref="ArgumentException"><paramref name="name"/> is reserved for the renderer.</exception>
+    public Material SetTexture(string name, Texture2D? texture)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        if (ReservedNames.Contains(name))
+        {
+            throw new ArgumentException($"'{name}' is set by the renderer and cannot be a material texture.", nameof(name));
+        }
+
+        if (texture is null)
+        {
+            _textures.Remove(name);
+        }
+        else
+        {
+            _textures[name] = texture;
+        }
+
+        return this;
+    }
+
+    public Texture2D? GetTexture(string name) => _textures.GetValueOrDefault(name);
+
+    public bool TryGetUniform(string name, out UniformValue value) => _uniforms.TryGetValue(name, out value);
+
+    /// <summary>An independent copy (same shader and textures, own values), e.g. for one object's color.</summary>
+    public Material CreateInstance(string? name = null)
+    {
+        var copy = new Material(Shader, BlendMode, name ?? Name + " (instance)")
+        {
+            Cull = Cull,
+            DepthTest = DepthTest,
+            DepthWrite = DepthWrite,
+            RenderQueue = RenderQueue,
+        };
+        foreach (var (key, value) in _uniforms)
+        {
+            copy._uniforms[key] = value;
+        }
+
+        foreach (var (key, value) in _textures)
+        {
+            copy._textures[key] = value;
+        }
+
+        return copy;
+    }
 
     public Material SetFloat(string name, float value) => Set(name, UniformValue.FromFloat(value));
     public Material SetInt(string name, int value) => Set(name, UniformValue.FromInt(value));
@@ -86,7 +168,7 @@ public sealed class Material
     private Material Set(string name, UniformValue value)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
-        if (name is "uViewProjection" or "uTexture" or "uModel" or "uNormalMatrix")
+        if (ReservedNames.Contains(name))
         {
             throw new ArgumentException($"'{name}' is set by the renderer and cannot be a material uniform.", nameof(name));
         }

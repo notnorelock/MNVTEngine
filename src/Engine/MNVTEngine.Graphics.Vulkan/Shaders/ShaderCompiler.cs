@@ -31,6 +31,17 @@ internal sealed unsafe partial class ShaderCompiler : IDisposable
     public const uint VertexUniformBinding = 1;
     public const uint FragmentUniformBinding = 2;
 
+    /// <summary>
+    /// Sampler bindings are shifted by this (fragment stage) or <see cref="VertexSamplerBase"/> (vertex): shaderc's binding
+    /// base shifts explicit bindings too, so samplers never collide with the uniform blocks. Textures bind by name.
+    /// </summary>
+    public const uint FragmentSamplerBase = 3;
+
+    public const uint VertexSamplerBase = 24;
+
+    /// <summary>Bindings at or above are rejected (push descriptors are limited per set).</summary>
+    public const uint MaxBindings = 32;
+
     /// <summary>Archive folder of precompiled SPIR-V.</summary>
     public const string EntryFolder = "Shaders/";
 
@@ -140,6 +151,8 @@ internal sealed unsafe partial class ShaderCompiler : IDisposable
         api.CompileOptionsSetAutoBindUniforms(_options, true);
         api.CompileOptionsSetBindingBaseForStage(_options, ShaderKind.VertexShader, ShadercUniformKind.Buffer, VertexUniformBinding);
         api.CompileOptionsSetBindingBaseForStage(_options, ShaderKind.FragmentShader, ShadercUniformKind.Buffer, FragmentUniformBinding);
+        api.CompileOptionsSetBindingBaseForStage(_options, ShaderKind.FragmentShader, ShadercUniformKind.Texture, FragmentSamplerBase);
+        api.CompileOptionsSetBindingBaseForStage(_options, ShaderKind.VertexShader, ShadercUniformKind.Texture, VertexSamplerBase);
         api.CompileOptionsSetOptimizationLevel(_options, OptimizationLevel.Zero); // the optimizer strips the names reflection and linking need; drivers optimize anyway
         return _api = api;
     }
