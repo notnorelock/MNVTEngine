@@ -205,9 +205,9 @@ public sealed partial class GameRuntime(
             _options.Profiler?.BeginFrame();
         }
 
-        if (!IsLoading && _splash is null)
+        if (!IsLoading && _splash is null && _loadingView is null)
         {
-            _frames++; // --frames counts frames of the running game, not of loading or splash screens
+            _frames++; // --frames counts frames of the running game, not of loading or splash screens (fade-out included)
         }
 
         var exiting = _options.ExitAfterFrames is { } limit && _frames >= limit;

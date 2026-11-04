@@ -20,7 +20,7 @@ public sealed class RuntimeTests : IDisposable
     private string WriteProject(string startupScene = "Scenes/First.mnvt", string extra = "")
     {
         var path = Path.Combine(_root, "Test.mnvtproj");
-        File.WriteAllText(path, $$"""{ "schemaVersion": 1, "name": "Test", "startupScene": "{{startupScene}}" {{extra}} }""");
+        File.WriteAllText(path, $$"""{ "schemaVersion": 1, "name": "Test", "startupScene": "{{startupScene}}", "loadingScreen": { "enabled": false } {{extra}} }""");
         return path;
     }
 

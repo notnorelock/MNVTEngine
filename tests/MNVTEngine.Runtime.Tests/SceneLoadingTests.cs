@@ -99,6 +99,28 @@ public sealed class SceneLoadingTests : IDisposable
     }
 
     [Fact]
+    public void LoadingScreen_IsOpaqueAtOnce_AndOnlyFadesOut()
+    {
+        using var font = Graphics.Text.Font.LoadDefault();
+        using var view = new LoadingScreenView(new LoadingScreenOptions { FadeSeconds = 0.5f }, new StartupAssets(font, _ => null, _ => null));
+        var size = new Mathematics.Vector2(640, 360);
+        Assert.Equal(1f, view.Opacity); // the game must not show through while loading
+        view.Update(null, "Loading", size, 1f, 0.016f);
+        Assert.Equal(1f, view.Opacity);
+
+        view.Closing = true;
+        view.Update(1f, null, size, 1f, 0.25f);
+        Assert.Equal(0.5f, view.Opacity, 3);
+        view.Closing = false; // a new load while fading out
+        view.Update(null, null, size, 1f, 0.016f);
+        Assert.Equal(1f, view.Opacity);
+
+        view.Closing = true;
+        view.Update(1f, null, size, 1f, 1f);
+        Assert.False(view.IsVisible);
+    }
+
+    [Fact]
     public void MissingScene_Fails_AndCancelledLoads_ProduceNothing()
     {
         Asset("Scenes/Ok.mnvt", """{ "schemaVersion": 2, "name": "Ok", "gameObjects": [] }"""u8.ToArray(), "c2000000-0000-4000-8000-000000000001");

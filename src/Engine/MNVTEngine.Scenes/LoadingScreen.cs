@@ -32,7 +32,7 @@ public sealed class LoadingScreenOptions
 
     public float TipSeconds { get; set; } = 5f;
 
-    /// <summary>Fade in and out, in seconds.</summary>
+    /// <summary>Fade-out when the screen closes, in seconds; it always appears at full opacity.</summary>
     public float FadeSeconds { get; set; } = 0.25f;
 
     public LoadingScreenOptions Clone() => (LoadingScreenOptions)MemberwiseClone();

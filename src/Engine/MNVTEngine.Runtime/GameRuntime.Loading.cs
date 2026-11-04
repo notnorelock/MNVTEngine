@@ -177,8 +177,11 @@ public sealed partial class GameRuntime : ILoadingScreenHost
         _splash?.Render(_ui, _window.FramebufferWidth, _window.FramebufferHeight);
     }
 
-    /// <summary>True when an opaque screen hides the scene completely (no need to draw it).</summary>
-    private bool PresentationCoversScene => _splash is { IsOpaque: true };
+    /// <summary>
+    /// True when the scene must not be drawn: while a scene loads (the game view stays hidden until its assets are
+    /// loaded, whether or not a loading screen is enabled) or while the splash covers the screen.
+    /// </summary>
+    private bool PresentationCoversScene => _load is not null || _splash is { IsOpaque: true };
 
     private Scene DeserializeScene(string json, string path)
     {

@@ -18,8 +18,8 @@ internal static class NoInputSource
 
 /// <summary>
 /// A loading screen drawn with the game UI, from a standalone context: it works before any scene exists. Shows real
-/// progress (or an indeterminate bar while the amount of work is unknown), the current task and rotating tips, and
-/// fades in and out.
+/// progress (or an indeterminate bar while the amount of work is unknown), the current task and rotating tips. It
+/// appears at full opacity (the game must not show through while loading) and fades out when closed.
 /// </summary>
 public sealed class LoadingScreenView : IDisposable
 {
@@ -31,7 +31,7 @@ public sealed class LoadingScreenView : IDisposable
     private readonly Panel _root;
     private float _tipTime;
     private int _tipIndex;
-    private float _alpha;
+    private float _alpha = 1f;
 
     public LoadingScreenView(LoadingScreenOptions options, StartupAssets assets)
     {
@@ -49,7 +49,6 @@ public sealed class LoadingScreenView : IDisposable
             Justify = Justify.Center,
             AlignItems = Align.Center,
             Gap = 14,
-            Opacity = 0f,
         });
         if (!options.Logo.IsNone && assets.Texture(options.Logo) is { } logo)
         {
@@ -75,6 +74,9 @@ public sealed class LoadingScreenView : IDisposable
         }
     }
 
+    /// <summary>Current opacity: 1 while open, falling to 0 while closing.</summary>
+    public float Opacity => _alpha;
+
     /// <summary>True while visible or fading.</summary>
     public bool IsVisible => _alpha > 0f || !Closing;
 
@@ -85,7 +87,7 @@ public sealed class LoadingScreenView : IDisposable
     public void Update(float? progress, string? task, Vector2 windowSize, float framebufferScale, float deltaSeconds)
     {
         var fade = _options.FadeSeconds <= 0f ? 1f : deltaSeconds / _options.FadeSeconds;
-        _alpha = Math.Clamp(_alpha + (Closing ? -fade : fade), 0f, 1f);
+        _alpha = Closing ? Math.Max(0f, _alpha - fade) : 1f; // reopened while fading out: opaque again at once
         _root.Opacity = _alpha;
         if (_bar is not null)
         {

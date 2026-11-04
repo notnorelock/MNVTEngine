@@ -142,7 +142,7 @@ They are validated when the project loads. At runtime, `Application.Window` expo
   - Workers read the scene file and decode the textures it references.
   - The game thread uploads the textures and deserializes the scene, within 6 ms per frame.
   - Progress counts completed steps. It is indeterminate until the amount of work is known, and is never invented.
-- **While loading.** Gameplay is frozen and the window keeps presenting.
+- **While loading.** Gameplay is frozen and the window keeps presenting. The scene and its UI are not drawn until the load has finished; the loading screen appears at full opacity (no fade-in) and fades out over the loaded scene.
 - **Failures.** A failed startup load ends the game with exit code 2. A failed later load is logged and keeps the current scene. A newer `SceneManager.LoadScene` replaces a load in progress.
 - **`splashScreen`** (project file, off by default):
   - `background`, `backgroundImage`, `logo`, `title`, `subtitle`;
