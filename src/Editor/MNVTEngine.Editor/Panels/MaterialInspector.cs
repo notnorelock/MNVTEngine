@@ -135,7 +135,7 @@ internal sealed class MaterialInspector(EditorContext context) : IDisposable
         var sphere = _meshes.Get(MeshPrimitives.Sphere(0.5f, 48, 24));
         var eye = new Vector3(0f, 0.4f, 1.9f);
         var view = new View3D(Matrix4x4.LookAt(eye, Vector3.Zero, Vector3.Up), Matrix4x4.PerspectiveZeroToOne(35f, 1f, 0.05f, 20f), eye);
-        _renderer.Render(view, [new MeshDrawItem(sphere, 0, _material, context.Resources.GetDefaultTexture(DefaultTexture.White), Matrix4x4.Identity)]);
+        _renderer.Render(view, [new MeshDrawItem(sphere, 0, _material, context.Resources.GetDefaultTexture(DefaultTexture.White), Matrix4x4.Identity)], SceneLighting.Preview);
         device.SetRenderTarget(null);
     }
 
@@ -196,7 +196,7 @@ internal sealed class MaterialInspector(EditorContext context) : IDisposable
         if (IsMeshMaterial(document.Definition))
         {
             Gui.Image(_preview.Id, _preview.Target, new SysVector2(PreviewSize, PreviewSize));
-            Gui.Muted("Shown at full ambient light until the scene has lights.");
+            Gui.Muted("Lit by a preview key light and fill.");
         }
         else
         {

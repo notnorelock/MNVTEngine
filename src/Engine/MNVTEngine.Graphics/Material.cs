@@ -73,6 +73,12 @@ public sealed class Material
     /// <summary>Names the renderer supplies; materials cannot set them.</summary>
     public static readonly IReadOnlySet<string> ReservedNames = new HashSet<string>(StringComparer.Ordinal) { "uViewProjection", "uTexture", "uModel", "uNormalMatrix" };
 
+    /// <summary>
+    /// Values a renderer sets on materials every pass (lighting, see <c>LightingUniforms</c>): not material properties,
+    /// so they are not listed by <see cref="Shader.Properties"/> or saved in material files.
+    /// </summary>
+    public static IReadOnlySet<string> RendererNames { get; } = new HashSet<string>(Rendering3D.LightingUniforms.Names, StringComparer.Ordinal);
+
     private readonly Dictionary<string, UniformValue> _uniforms = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Texture2D> _textures = new(StringComparer.Ordinal);
 

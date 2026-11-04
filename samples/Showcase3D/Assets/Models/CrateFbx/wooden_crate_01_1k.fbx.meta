@@ -8,6 +8,8 @@
     "optimizeMeshes": true,
     "importMaterials": true,
     "importAnimations": true,
-    "importSkins": true
+    "importSkins": true,
+    "materials": {},
+    "textures": {}
   }
 }

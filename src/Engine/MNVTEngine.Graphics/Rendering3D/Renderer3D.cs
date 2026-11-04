@@ -26,16 +26,22 @@ public readonly record struct Render3DStatistics(int Visible, int Culled, int Dr
 /// <item>draws opaque materials (render queue below 3000) by queue, then front to back;</item>
 /// <item>then transparent materials by queue, then back to front.</item>
 /// </list>
-/// The caller sets the target (with a depth buffer) and clears it.
+/// Materials whose shader reads the lighting uniforms (the Standard shader) get the pass's lights and shadow map
+/// (<see cref="LightingUniforms"/>); without lighting they show unlit. The caller sets the target (with a depth buffer)
+/// and clears it.
 /// </summary>
 public sealed class Renderer3D(IGraphicsDevice device)
 {
     private readonly List<(MeshDrawItem Item, float Distance)> _opaque = [];
     private readonly List<(MeshDrawItem Item, float Distance)> _transparent = [];
+    private readonly HashSet<Material> _lit = new(ReferenceEqualityComparer.Instance);
 
-    public Render3DStatistics Render(in View3D view, IReadOnlyList<MeshDrawItem> items)
+    /// <param name="lighting">The pass's lights; null draws lit materials unlit (<see cref="SceneLighting.Unlit"/>).</param>
+    /// <param name="shadow">The directional shadow map rendered for this pass, if any.</param>
+    public Render3DStatistics Render(in View3D view, IReadOnlyList<MeshDrawItem> items, SceneLighting? lighting = null, ShadowState? shadow = null)
     {
         ArgumentNullException.ThrowIfNull(items);
+        ApplyLighting(items, lighting ?? SceneLighting.Unlit, view.Position, shadow ?? ShadowState.None);
         var viewProjection = view.ViewProjection;
         var frustum = Frustum.FromViewProjection(viewProjection);
         _opaque.Clear();
@@ -101,4 +107,18 @@ public sealed class Renderer3D(IGraphicsDevice device)
     }
 
     private static int MaterialOrder(Material material) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(material);
+
+    /// <summary>Sets the lighting uniforms once per lit material (uniforms are copied at each draw, so passes do not interfere).</summary>
+    private void ApplyLighting(IReadOnlyList<MeshDrawItem> items, SceneLighting lighting, Vector3 camera, in ShadowState shadow)
+    {
+        _lit.Clear();
+        foreach (var item in items)
+        {
+            // The draw's texture stands in for the shadow map when there is none: the sampler must be bound, and is not read.
+            if (_lit.Add(item.Material) && LightingUniforms.Uses(item.Material))
+            {
+                LightingUniforms.Apply(item.Material, lighting, camera, shadow, item.Texture);
+            }
+        }
+    }
 }

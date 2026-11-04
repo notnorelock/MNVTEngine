@@ -1,5 +1,6 @@
 using ImGuiNET;
 using MNVTEngine.DebugUI.ImGuiBackend;
+using MNVTEngine.Mathematics;
 
 namespace MNVTEngine.Editor.Panels;
 
@@ -73,6 +74,41 @@ internal sealed class HierarchyPanel(EditorContext context)
         if (ImGui.MenuItem("Create Camera"))
         {
             context.CreateGameObject("Camera", parent).AddComponent<Camera>();
+        }
+
+        if (ImGui.BeginMenu("3D Object"))
+        {
+            foreach (var primitive in Enum.GetValues<PrimitiveMesh>().Where(p => p != PrimitiveMesh.None))
+            {
+                if (ImGui.MenuItem(primitive.ToString()))
+                {
+                    context.CreateGameObject(primitive.ToString(), parent).AddComponent<MeshRenderer>().Primitive = primitive;
+                }
+            }
+
+            ImGui.EndMenu();
+        }
+
+        if (ImGui.BeginMenu("Light"))
+        {
+            foreach (var type in Enum.GetValues<LightType>())
+            {
+                if (ImGui.MenuItem($"{type} Light"))
+                {
+                    var gameObject = context.CreateGameObject($"{type} Light", parent);
+                    gameObject.AddComponent<Light>().Type = type;
+                    // Directional and spot lights shine along -Z: point them down at the scene.
+                    gameObject.Transform.LocalRotation = type == LightType.Point ? Quaternion.Identity : Quaternion.Euler(type == LightType.Directional ? -50f : -90f, type == LightType.Directional ? 30f : 0f, 0f);
+                    gameObject.Transform.LocalPosition = type == LightType.Point ? new Vector3(0f, 2f, 0f) : new Vector3(0f, 4f, 0f);
+                }
+            }
+
+            if (ImGui.MenuItem("Ambient Light"))
+            {
+                context.CreateGameObject("Ambient Light", parent).AddComponent<AmbientLight>();
+            }
+
+            ImGui.EndMenu();
         }
     }
 

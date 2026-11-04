@@ -746,6 +746,176 @@
           }
         }
       ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000041",
+      "name": "Sun",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0,
+          "y": 6,
+          "z": 0
+        },
+        "localRotation": {
+          "x": -0.403058,
+          "y": 0.272532,
+          "z": 0.127084,
+          "w": 0.864361
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.Light",
+          "data": {
+            "type": "Directional",
+            "color": {
+              "r": 1,
+              "g": 0.96,
+              "b": 0.88,
+              "a": 1
+            },
+            "intensity": 1.1,
+            "shadows": true,
+            "shadowStrength": 0.85,
+            "shadowDistance": 30
+          },
+          "id": "d3100000-0000-0000-0041-000000000000",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000042",
+      "name": "Ambient",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.AmbientLight",
+          "data": {
+            "color": {
+              "r": 0.3,
+              "g": 0.33,
+              "b": 0.4,
+              "a": 1
+            },
+            "intensity": 1
+          },
+          "id": "d3100000-0000-0000-0042-000000000000",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000043",
+      "name": "Orange Point Light",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": -3,
+          "y": 1.6,
+          "z": 1.4
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.Light",
+          "data": {
+            "type": "Point",
+            "color": {
+              "r": 1,
+              "g": 0.55,
+              "b": 0.2,
+              "a": 1
+            },
+            "intensity": 2.5,
+            "range": 5
+          },
+          "id": "d3100000-0000-0000-0043-000000000000",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000044",
+      "name": "Blue Spot Light",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 3.2,
+          "y": 4,
+          "z": 0.5
+        },
+        "localRotation": {
+          "x": -0.707107,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.707107
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.Light",
+          "data": {
+            "type": "Spot",
+            "color": {
+              "r": 0.35,
+              "g": 0.6,
+              "b": 1,
+              "a": 1
+            },
+            "intensity": 4,
+            "range": 8,
+            "spotAngle": 45,
+            "innerSpotAngle": 30
+          },
+          "id": "d3100000-0000-0000-0044-000000000000",
+          "enabled": true
+        }
+      ]
     }
   ]
 }

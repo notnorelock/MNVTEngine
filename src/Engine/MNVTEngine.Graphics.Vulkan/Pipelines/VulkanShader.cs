@@ -33,10 +33,10 @@ internal sealed unsafe class VulkanShader : Shader
         AddUniforms(ShaderStage.Vertex, VertexBlock);
         AddUniforms(ShaderStage.Fragment, FragmentBlock);
         Properties = [
-            .. _uniforms.Where(u => !Material.ReservedNames.Contains(u.Key) && u.Value[0].Member.Kind is not null)
+            .. _uniforms.Where(u => !Material.ReservedNames.Contains(u.Key) && !Material.RendererNames.Contains(u.Key) && u.Value[0].Member.Kind is not null)
                 .Select(u => new ShaderProperty(u.Key, (ShaderPropertyKind)(int)u.Value[0].Member.Kind!.Value))
                 .OrderBy(p => p.Name, StringComparer.Ordinal),
-            .. Samplers.Where(s => s.Name != "uTexture").Select(s => new ShaderProperty(s.Name, ShaderPropertyKind.Texture)),
+            .. Samplers.Where(s => s.Name != "uTexture" && !Material.RendererNames.Contains(s.Name)).Select(s => new ShaderProperty(s.Name, ShaderPropertyKind.Texture)),
         ];
         try
         {

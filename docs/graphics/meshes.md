@@ -70,7 +70,7 @@ half of a rotated mesh (the GPU mesh test covers this case). Every engine render
   - draws opaque items front to back;
   - then draws transparent items back to front.
   - It returns statistics: visible, culled, draw calls and triangles.
-- **Built-in shader.** `BuiltinShaders.Unlit3D` draws texture (UV0) × vertex color × `uColor`. Lit PBR shading comes with lights (Phase 7).
+- **Built-in shaders.** Materials use the Standard (lit PBR, see [3D lighting](materials-and-lighting.md#3d-lighting)) or Unlit shader. `BuiltinShaders.Unlit3D` draws texture (UV0) × vertex color × `uColor`.
 
 ### MeshRenderer
 

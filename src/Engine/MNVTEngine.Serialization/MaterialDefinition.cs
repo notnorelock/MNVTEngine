@@ -66,7 +66,12 @@ public sealed partial class MaterialDefinition
     public static readonly IReadOnlyList<string> CullModes = ["Back", "Front", "None"];
 
     /// <summary>Supplied by the engine; materials may not set them.</summary>
-    public static readonly IReadOnlyList<string> ReservedUniforms = ["uViewProjection", "uTexture", "uTime", "uModel", "uNormalMatrix"];
+    public static readonly IReadOnlyList<string> ReservedUniforms =
+    [
+        "uViewProjection", "uTexture", "uTime", "uModel", "uNormalMatrix",
+        "uCameraPosition", "uAmbient", "uLightCount", "uLight0", "uLight1", "uLight2", "uLight3", "uLight4", "uLight5", "uLight6", "uLight7",
+        "uShadowMatrix", "uShadowParams", "uShadowMap",
+    ];
 
     /// <summary>A built-in shader id (<see cref="BuiltinShaders"/>), or null when <see cref="Shader"/> is a custom one.</summary>
     public string? Builtin { get; set; } = BuiltinSprite;

@@ -195,6 +195,7 @@ public static class ContentCompiler
         precompiler.Add(BuiltinShaders.Sprite);
         precompiler.Add(Graphics.Materials.MaterialShaders.Standard);
         precompiler.Add(Graphics.Materials.MaterialShaders.Unlit);
+        precompiler.Add(Graphics.Materials.MaterialShaders.ShadowCaster);
         foreach (var material in assets.Assets.Where(a => a.Type == AssetTypes.Material).OrderBy(a => a.Path, StringComparer.Ordinal))
         {
             try

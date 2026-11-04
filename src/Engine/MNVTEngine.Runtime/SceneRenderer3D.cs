@@ -21,7 +21,9 @@ public sealed partial class SceneRenderer
     private readonly ConditionalWeakTable<MeshRenderer, Material> _rendererMaterials = [];
     private Renderer3D? _renderer3D;
     private GpuMeshCache? _meshes;
+    private ShadowMap? _shadowMap;
     private bool _warnedNoDepth;
+    private bool _warnedTooManyLights;
 
     /// <summary>Mesh renderers drawn by the last 3D pass.</summary>
     public int MeshesDrawn { get; private set; }
@@ -31,6 +33,12 @@ public sealed partial class SceneRenderer
 
     /// <summary>Triangles drawn by the last 3D pass.</summary>
     public int MeshTriangles { get; private set; }
+
+    /// <summary>Lights used by the last 3D pass (at most <see cref="SceneLighting.MaxLights"/>).</summary>
+    public int LightsUsed { get; private set; }
+
+    /// <summary>Whether the last 3D pass rendered a directional shadow map.</summary>
+    public bool ShadowsRendered { get; private set; }
 
     /// <summary>GPU memory of the uploaded meshes.</summary>
     public long MeshBytes => _meshes?.SizeInBytes ?? 0;
@@ -94,9 +102,24 @@ public sealed partial class SceneRenderer
 
         using var sample = Core.Diagnostics.Profiler.Sample("Render.Meshes");
         var device = renderer.Device;
-        device.ClearDepth();
         _renderer3D ??= new Renderer3D(device);
-        var stats = _renderer3D.Render(new View3D(camera.ViewMatrix, camera.ProjectionMatrix, camera.Transform.Position), _items);
+        var view = new View3D(camera.ViewMatrix, camera.ProjectionMatrix, camera.Transform.Position);
+        var lighting = CollectLighting(scene, view.Position);
+        ShadowState? shadow = null;
+        if (lighting.Lights.Select((light, index) => (light, index)).FirstOrDefault(l => l.light.Kind == LightKind.Directional && l.light.Shadows) is { light.Shadows: true } caster)
+        {
+            using (Core.Diagnostics.Profiler.Sample("Render.Shadows"))
+            {
+                _shadowMap ??= new ShadowMap(device);
+                shadow = _shadowMap.Render(caster.light, caster.index, view.ViewProjection, camera.NearClip, camera.FarClip, _items,
+                    resources.GetBuiltinShader(MaterialShaders.ShadowCasterId));
+                device.SetRenderTarget(target);
+            }
+        }
+
+        (LightsUsed, ShadowsRendered) = (lighting.Lights.Count, shadow is not null);
+        device.ClearDepth();
+        var stats = _renderer3D.Render(view, _items, lighting, shadow);
         (MeshesDrawn, MeshesCulled, MeshTriangles) = (stats.Visible, stats.Culled, stats.Triangles);
         Core.Diagnostics.Profiler.Count("Meshes drawn", MeshesDrawn);
         Core.Diagnostics.Profiler.Count("Meshes culled", MeshesCulled);
@@ -166,8 +189,49 @@ public sealed partial class SceneRenderer
         return material;
     }
 
+    /// <summary>The scene's lights for this camera; unlit when it has neither <see cref="Light"/> nor <see cref="AmbientLight"/>.</summary>
+    private SceneLighting CollectLighting(Scene scene, Vector3 camera)
+    {
+        var all = new List<LightData>();
+        foreach (var light in scene.World.Pool<Light>().Components)
+        {
+            if (light.IsActiveAndEnabled && light.Intensity > 0f)
+            {
+                var kind = light.Type switch { LightType.Point => LightKind.Point, LightType.Spot => LightKind.Spot, _ => LightKind.Directional };
+                all.Add(new LightData(kind, light.Transform.Position, light.Transform.Forward, light.Color, light.Intensity, light.Range,
+                    light.SpotAngle, light.InnerSpotAngle, light.Shadows && kind == LightKind.Directional, light.ShadowStrength, light.ShadowDistance));
+            }
+        }
+
+        AmbientLight? ambient = null;
+        foreach (var candidate in scene.World.Pool<AmbientLight>().Components)
+        {
+            if (candidate.IsActiveAndEnabled)
+            {
+                ambient = candidate;
+                break;
+            }
+        }
+
+        if (all.Count == 0 && ambient is null)
+        {
+            return SceneLighting.Unlit;
+        }
+
+        var (lights, dropped) = SceneLighting.Select(all, camera);
+        if (dropped > 0 && !_warnedTooManyLights)
+        {
+            LogTooManyLights(logger, scene.Name, all.Count, SceneLighting.MaxLights);
+            _warnedTooManyLights = true;
+        }
+
+        return ambient is null ? new SceneLighting { Lights = lights } : new SceneLighting { Lights = lights, Ambient = ambient.Color, AmbientIntensity = ambient.Intensity };
+    }
+
     private void Dispose3D()
     {
+        _shadowMap?.Dispose();
+        _shadowMap = null;
         if (_meshes is not null)
         {
             resources.MeshesEvicted -= OnMeshesEvicted;
@@ -176,6 +240,9 @@ public sealed partial class SceneRenderer
         _meshes?.Dispose();
         _meshes = null;
     }
+
+    [LoggerMessage(EventId = 2105, Level = LogLevel.Warning, Message = "Scene '{Scene}' has {Count} lights; only the {Max} that matter most for the camera are used")]
+    private static partial void LogTooManyLights(ILogger logger, string scene, int count, int max);
 
     [LoggerMessage(EventId = 2104, Level = LogLevel.Warning, Message = "Render target '{Target}' has no depth buffer: 3D meshes are not drawn into it")]
     private static partial void LogNoDepth(ILogger logger, string target);

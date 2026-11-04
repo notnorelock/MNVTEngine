@@ -236,6 +236,33 @@ public sealed class RuntimeTests : IDisposable
     }
 
     [Fact]
+    public void Lights_LightTheScene_CastShadows_AndTheBrightestEightAreUsed()
+    {
+        string Object(string name, string position, string rotation, string components) =>
+            $$"""{ "id": "{{Guid.NewGuid()}}", "name": "{{name}}", "transform": { "localPosition": {{position}}, "localRotation": {{rotation}}, "localScale": { "x": 1, "y": 1, "z": 1 } }, "components": [ {{components}} ] }""";
+        const string Identity = """{ "x": 0, "y": 0, "z": 0, "w": 1 }""", Down = """{ "x": -0.7071068, "y": 0, "z": 0, "w": 0.7071068 }""";
+        var points = string.Join(",", Enumerable.Range(0, 9).Select(i => Object($"Point {i}", $$"""{ "x": {{i * 3}}, "y": 1, "z": 0 }""", Identity, """{ "type": "MNVTEngine.Light", "data": { "type": "Point", "intensity": 0.2 } }""")));
+        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt"), $$"""
+            { "schemaVersion": 3, "name": "Lit", "gameObjects": [
+              {{Object("Camera", """{ "x": 0, "y": 3, "z": 0 }""", Down, """{ "type": "MNVTEngine.Camera", "data": { "projection": "Perspective", "fieldOfView": 60.0, "backgroundColor": { "r": 0, "g": 0, "b": 0, "a": 1 } } }""")}},
+              {{Object("Floor", """{ "x": 0, "y": 0, "z": 0 }""", Identity, """{ "type": "MNVTEngine.MeshRenderer", "data": { "primitive": "Plane" } }""")}},
+              {{Object("Blocker", """{ "x": 0, "y": 5, "z": 0 }""", Identity, """{ "type": "MNVTEngine.MeshRenderer", "data": { "primitive": "Cube" } }""")}},
+              {{Object("Sun", """{ "x": 0, "y": 10, "z": 0 }""", Down, """{ "type": "MNVTEngine.Light", "data": { "type": "Directional", "shadows": true, "shadowDistance": 10 } }""")}},
+              {{points}} ] }
+            """);
+        var screenshot = Path.Combine(_root, "lit.png");
+        using var logs = new InMemoryLoggerProvider(minimumLevel: LogLevel.Debug);
+        using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
+        var runtime = RunHidden(GameProject.Load(WriteProject()), EngineComponents.CreateRegistry(), factory, frames: 3, screenshot);
+
+        Assert.Equal(0, runtime.ExitCode); // the shadow map is released
+        Assert.Single(logs.Snapshot(), e => e.Message.Contains("has 10 lights; only the 8", StringComparison.Ordinal)); // warned once
+        var image = Graphics.Image.Load(screenshot);
+        byte Red(int x, int y) => image.Pixels[((y * image.Width) + x) * 4];
+        Assert.True(Red(image.Width / 2, image.Height / 2) < Red(2, 2), "the floor under the blocker is in its shadow");
+    }
+
+    [Fact]
     public void Profiler_RecordsRealFrames_WithRendererCounters()
     {
         WriteScene("First", """{ "type": "MNVTEngine.SpriteRenderer", "data": {} }""");

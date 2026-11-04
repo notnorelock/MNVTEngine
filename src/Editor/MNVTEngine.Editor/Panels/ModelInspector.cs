@@ -131,7 +131,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         var rotation = Quaternion.Euler(-_pitch, _yaw, 0f);
         var eye = center + (rotation * new Vector3(0f, 0f, distance));
         var view = new View3D(Matrix4x4.LookAt(eye, center, Vector3.Up), Matrix4x4.PerspectiveZeroToOne(35f, 1f, MathF.Max(distance - (radius * 2f), distance * 0.01f), distance + (radius * 2f)), eye);
-        _renderer.Render(view, items);
+        _renderer.Render(view, items, SceneLighting.Preview);
         device.SetRenderTarget(null);
     }
 
@@ -222,7 +222,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
             _pitch = Math.Clamp(_pitch + (delta.Y * 0.5f), -85f, 85f);
         }
 
-        Gui.Muted("Drag to orbit. Shown at full ambient light until the scene has lights.");
+        Gui.Muted("Drag to orbit. Lit by a preview key light and fill.");
     }
 
     private void DrawSettings(ModelWorkflow workflow)

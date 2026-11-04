@@ -26,6 +26,8 @@ public sealed class ComponentRegistry
         registry.Register<Light2D>();
         registry.Register<GlobalLight2D>();
         registry.Register<MeshRenderer>();
+        registry.Register<Light>();
+        registry.Register<AmbientLight>();
         return registry;
     }
 
