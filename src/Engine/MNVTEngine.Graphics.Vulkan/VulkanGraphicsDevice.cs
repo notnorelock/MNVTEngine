@@ -337,6 +337,45 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         }
     }
 
+    public void UpdateTexture(Texture2D texture, int x, int y, int width, int height, ReadOnlySpan<byte> rgba)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(texture);
+        ObjectDisposedException.ThrowIf(texture.IsDisposed, texture);
+        if (texture is not VulkanTexture vulkan)
+        {
+            throw new ArgumentException(texture is VulkanRenderTarget ? "Render targets cannot be updated; draw into them." : "Texture was not created by this device.", nameof(texture));
+        }
+
+        if (x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > texture.Width || y + height > texture.Height)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), $"Rectangle {x},{y} {width}x{height} is outside the {texture.Width}x{texture.Height} texture.");
+        }
+
+        var bytes = width * height * 4;
+        ArgumentOutOfRangeException.ThrowIfLessThan(rgba.Length, bytes, nameof(rgba));
+        if (vulkan.Image.MipLevels > 1)
+        {
+            throw new NotSupportedException($"Texture '{texture.DebugName}' has mipmaps; updating a region would leave the smaller levels stale.");
+        }
+
+        var staging = _allocator.CreateBuffer((ulong)bytes, BufferUsageFlags.TransferSrcBit, MemoryUsage.Upload);
+        rgba[..bytes].CopyTo(new Span<byte>(staging.Mapped, bytes));
+        _allocator.Flush(staging, 0, (ulong)bytes);
+        DestroyLater(staging);
+        var cmd = UploadCommands();
+        Barriers.Transition(Context.Vk, cmd, vulkan.Image, ImageLayout.TransferDstOptimal);
+        var region = new BufferImageCopy
+        {
+            ImageSubresource = new ImageSubresourceLayers(ImageAspectFlags.ColorBit, 0, 0, 1),
+            ImageOffset = new Offset3D(x, y, 0),
+            ImageExtent = new Extent3D((uint)width, (uint)height, 1),
+        };
+        Context.Vk.CmdCopyBufferToImage(cmd, staging.Handle, vulkan.Image.Handle, ImageLayout.TransferDstOptimal, 1, &region);
+        Barriers.Transition(Context.Vk, cmd, vulkan.Image, ImageLayout.ShaderReadOnlyOptimal);
+        Statistics.RecordTextureUpload(bytes);
+    }
+
     public RenderTarget2D CreateRenderTarget(int width, int height, SamplerState sampler, string debugName = "RenderTarget")
     {
         ThrowIfDisposed();

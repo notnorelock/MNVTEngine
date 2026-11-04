@@ -13,7 +13,8 @@ public readonly record struct GraphicsFrameStatistics(
     int PipelineSwitches = 0,
     int DescriptorWrites = 0,
     int Barriers = 0,
-    int Submits = 0);
+    int Submits = 0,
+    long TextureBytesUploaded = 0);
 
 /// <summary>Live GPU objects by kind; texture bytes are estimated as width × height × 4 (RGBA8, no mipmaps).</summary>
 public readonly record struct GraphicsResourceCounts(int Textures, int RenderTargets, int Shaders, int Buffers, long TextureBytes);
@@ -36,11 +37,12 @@ public sealed class GraphicsStatistics
     private int _descriptorWrites;
     private int _barriers;
     private int _submits;
+    private long _textureBytes;
 
     public GraphicsFrameStatistics LastFrame { get; private set; }
 
     /// <summary>Counts so far in the frame being rendered.</summary>
-    public GraphicsFrameStatistics Current => new(_drawCalls, _indices, _triangles, _lines, _vertices, _textureSwitches, _shaderSwitches, _targetSwitches, _pipelineSwitches, _descriptorWrites, _barriers, _submits);
+    public GraphicsFrameStatistics Current => new(_drawCalls, _indices, _triangles, _lines, _vertices, _textureSwitches, _shaderSwitches, _targetSwitches, _pipelineSwitches, _descriptorWrites, _barriers, _submits, _textureBytes);
 
     public void RecordDraw(PrimitiveTopology topology, int indexCount)
     {
@@ -76,11 +78,14 @@ public sealed class GraphicsStatistics
     /// <summary>A batch of command buffers was submitted to the GPU queue.</summary>
     public void RecordSubmit() => _submits++;
 
+    /// <summary>Texture data copied to the GPU (texture creation and region updates).</summary>
+    public void RecordTextureUpload(long bytes) => _textureBytes += bytes;
+
     public void EndFrame()
     {
         LastFrame = Current;
         (_drawCalls, _indices, _triangles, _lines, _vertices, _textureSwitches, _shaderSwitches, _targetSwitches) = (0, 0, 0, 0, 0, 0, 0, 0);
-        (_pipelineSwitches, _descriptorWrites, _barriers, _submits) = (0, 0, 0, 0);
+        (_pipelineSwitches, _descriptorWrites, _barriers, _submits, _textureBytes) = (0, 0, 0, 0, 0);
     }
 }
 

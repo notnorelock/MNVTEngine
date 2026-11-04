@@ -269,4 +269,49 @@ public class VulkanDeviceTests
             Assert.InRange(memory.AvailableBytes!.Value, 0, memory.TotalBytes!.Value);
         });
     }
+
+    [Fact]
+    public void Text_RendersFromAnAtlasUpdatedInPlace_OverSeveralFrames()
+    {
+        Run(device =>
+        {
+            using var renderer = new Renderer2D(device);
+            using var font = Text.Font.LoadDefault();
+            using var atlas = new Text.GlyphAtlas(device);
+            var style = new Text.TextStyle(font, 20f);
+            var page = atlas.Pages[0];
+            byte[] pixels = [];
+            foreach (var text in (string[])["Zażółć", "gęślą jaźń"]) // the second frame adds glyphs to a page already drawn from
+            {
+                using var target = device.CreateRenderTarget(Size, Size, SamplerState.PointClamp);
+                var batch = renderer.Begin(PixelCamera(), target: target);
+                device.Clear(Color.Black);
+                Text.TextDrawing.DrawText(batch, atlas, Text.TextLayout.Create(text, style), new Vector2(2, Size - 2), Color.White);
+                atlas.Flush();
+                renderer.End();
+                pixels = new byte[Size * Size * 4];
+                device.ReadPixels(pixels);
+                device.SetRenderTarget(null);
+                device.Present();
+            }
+
+            Assert.Same(page, atlas.Pages[0]); // updated in place, never recreated
+            Assert.Equal(1, atlas.PageCount);
+            var lit = 0;
+            for (var y = 0; y < Size; y++)
+            {
+                for (var x = 0; x < Size; x++)
+                {
+                    var p = Pixel(pixels, Size, x, y);
+                    if (p.R > 0.5f)
+                    {
+                        lit++;
+                        Assert.True(y < 30, $"text pixel at y={y}, expected near the top"); // one 20 px line
+                    }
+                }
+            }
+
+            Assert.InRange(lit, 40, 1500);
+        });
+    }
 }

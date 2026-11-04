@@ -44,6 +44,15 @@ public interface IGraphicsDevice : IDisposable
 
     RenderTarget2D CreateRenderTarget(int width, int height, SamplerState sampler, string debugName = "RenderTarget");
 
+    /// <summary>
+    /// Replaces a rectangle of a texture (not a render target) with RGBA8 pixels, row 0 = top of the rectangle. Queued
+    /// with the frame's uploads: no GPU wait. Draws recorded earlier in the same frame may see the new pixels, so only
+    /// write regions nothing has drawn from yet (a glyph atlas fills empty space).
+    /// </summary>
+    /// <exception cref="NotSupportedException">The backend cannot update textures.</exception>
+    void UpdateTexture(Texture2D texture, int x, int y, int width, int height, ReadOnlySpan<byte> rgba) =>
+        throw new NotSupportedException("This graphics backend cannot update textures.");
+
     /// <exception cref="ShaderCompilationException">Compilation or linking failed.</exception>
     Shader CreateShader(ShaderSource source);
 

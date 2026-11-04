@@ -1,9 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="StbImageSharp" />
+    <PackageReference Include="StbTrueTypeSharp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MNVTEngine.Core\MNVTEngine.Core.csproj" />
     <ProjectReference Include="..\MNVTEngine.Mathematics\MNVTEngine.Mathematics.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Built-in UI and debug font: Source Sans 3 (SIL Open Font License 1.1, see Text/Fonts/SourceSans3-LICENSE.md). -->
+    <EmbeddedResource Include="Text\Fonts\SourceSans3-Regular.ttf" LogicalName="MNVTEngine.DefaultFont.ttf" />
   </ItemGroup>
 </Project>
