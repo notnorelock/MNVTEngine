@@ -9,6 +9,9 @@
     "importMaterials": true,
     "importAnimations": true,
     "importSkins": true,
+    "importLights": true,
+    "importCameras": true,
+    "meshAliases": {},
     "materials": {},
     "textures": {}
   }
