@@ -45,82 +45,13 @@ public sealed class TextureLayerData
     public double Tiling { get; set; } = 8;
 }
 
-public sealed class BuildingSegmentData
-{
-    public double X { get; set; }
-
-    public double Y { get; set; }
-
-    public double Z { get; set; }
-
-    public double Width { get; set; }
-
-    public double Depth { get; set; }
-
-    public double? WallHeight { get; set; }
-
-    public double? RoofRidgeHeight { get; set; }
-
-    public double? RoofOverhang { get; set; }
-
-    public string? RoofDirection { get; set; }
-
-    public string? RoofType { get; set; }
-
-    public double? HipRidgeRatio { get; set; }
-
-    public int? GambrelSegments { get; set; }
-
-    public double? GambrelRoundness { get; set; }
-
-    public bool? RailingEnabled { get; set; }
-
-    public double? RailingHeight { get; set; }
-
-    public double? RailingThickness { get; set; }
-}
-
-public sealed class BuildingOpeningData
-{
-    public double X { get; set; }
-
-    public double Y { get; set; }
-
-    public double Z { get; set; }
-
-    public string Type { get; set; } = "window";
-
-    public double Width { get; set; }
-
-    public double Height { get; set; }
-
-    public double Depth { get; set; }
-}
-
-public sealed class BuildingRoofWindowData
-{
-    public double X { get; set; }
-
-    public double Y { get; set; }
-
-    public double Z { get; set; }
-
-    public double? Width { get; set; }
-
-    public double? Depth { get; set; }
-
-    public double? WallHeight { get; set; }
-
-    public double? RidgeHeight { get; set; }
-}
-
 /// <summary>
 /// One element of a TerrainHeaven project file, field for field: the element type, its nodes and textures, and the
 /// type-specific settings (absent fields keep the element's defaults, so older files still load).
 /// </summary>
 public sealed class ElementData
 {
-    /// <summary>road, intersection, terrain, terrainCutSpline, river, fence, stairs, terrainPolygon or building.</summary>
+    /// <summary>road, intersection, terrain, terrainCutSpline, river, fence, stairs, or terrainPolygon (TerrainHeaven buildings are not supported).</summary>
     public string Type { get; set; } = "";
 
     public int Id { get; set; }
@@ -297,27 +228,4 @@ public sealed class ElementData
     public bool? StairsMidRail { get; set; }
 
     public bool? StairsCutTerrain { get; set; }
-
-    // Building
-    public List<BuildingSegmentData>? BuildingSegments { get; set; }
-
-    public double? BuildingWallHeight { get; set; }
-
-    public string? BuildingRoofType { get; set; }
-
-    public double? BuildingRoofOverhang { get; set; }
-
-    public double? BuildingRoofRidgeHeight { get; set; }
-
-    public double? BuildingRoofThickness { get; set; }
-
-    public double? BuildingRailingHeight { get; set; }
-
-    public double? BuildingRailingThickness { get; set; }
-
-    public bool? BuildingCutInGround { get; set; }
-
-    public List<BuildingOpeningData>? BuildingOpenings { get; set; }
-
-    public List<BuildingRoofWindowData>? BuildingRoofWindows { get; set; }
 }
