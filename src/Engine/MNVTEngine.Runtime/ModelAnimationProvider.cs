@@ -9,7 +9,7 @@ namespace MNVTEngine.Runtime;
 /// Gives scenes the animation clips of imported models (<see cref="Scene.ModelAnimations"/>), read from model artifacts
 /// on first use and dropped when the model reimports. A missing model or clip is logged once.
 /// </summary>
-public sealed partial class ModelAnimationProvider : IModelAnimationProvider, IDisposable
+public sealed partial class ModelAnimationProvider : IModelAnimationProvider, IMeshDataProvider, IDisposable
 {
     private readonly AssetDatabase _assets;
     private readonly ILogger _logger;
@@ -68,6 +68,14 @@ public sealed partial class ModelAnimationProvider : IModelAnimationProvider, ID
         }
 
         return data.FindMesh(sub.StartsWith(ResourceCache.MeshSubAssetPrefix, StringComparison.Ordinal) ? sub[ResourceCache.MeshSubAssetPrefix.Length..] : sub);
+    }
+
+    /// <summary>A renderer's triangles: its model mesh (bind pose), or its primitive.</summary>
+    public MeshData? GetMeshData(MeshRenderer renderer)
+    {
+        ArgumentNullException.ThrowIfNull(renderer);
+        var mesh = !renderer.Mesh.IsNone ? MeshOf(renderer.Mesh)?.Mesh : renderer.Primitive != PrimitiveMesh.None ? SceneRenderer.GetPrimitive(renderer.Primitive) : null;
+        return mesh is null ? null : new MeshData(mesh.Positions, [.. mesh.IndexSpan.ToArray().Select(i => (int)i)]);
     }
 
     public void Dispose() => _assets.AssetsChanged -= Evict;

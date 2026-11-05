@@ -54,6 +54,9 @@ public sealed partial class Scene
     /// <summary>Host service for <see cref="ModelAnimator"/>: the animation clips of imported models.</summary>
     public IModelAnimationProvider? ModelAnimations { get; set; }
 
+    /// <summary>Host service for systems that need a renderer's triangles on the CPU (mesh colliders).</summary>
+    public IMeshDataProvider? MeshData { get; set; }
+
     /// <summary>Exceptions from component callbacks are logged and the frame continues; set true to rethrow (tests, debugging).</summary>
     public bool RethrowScriptExceptions { get; set; }
 

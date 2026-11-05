@@ -123,8 +123,10 @@ internal sealed class HierarchyPanel(EditorContext context)
                 gameObject.AddComponent<SphereCollider>();
                 break;
             case PrimitiveMesh.Capsule:
-            case PrimitiveMesh.Cylinder:
                 gameObject.AddComponent<CapsuleCollider>();
+                break;
+            case PrimitiveMesh.Cylinder:
+                gameObject.AddComponent<CylinderCollider>();
                 break;
             case PrimitiveMesh.Plane:
                 var plane = gameObject.AddComponent<BoxCollider>();

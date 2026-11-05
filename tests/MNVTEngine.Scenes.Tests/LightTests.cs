@@ -41,6 +41,7 @@ public sealed class LightTests
             """{ "schemaVersion": 2, "shader": "builtin:standard", "blend": "Opaque", "properties": { "uLight0": [1, 2, 3, 4] } }""", "Bad.mnvtmat"));
         Assert.Contains("uLight0", error.Message, StringComparison.Ordinal);
     }
+
     [Fact]
     public void EnvironmentAndCameraToneMapping_SurviveSerialization()
     {

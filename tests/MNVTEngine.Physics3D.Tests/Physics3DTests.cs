@@ -241,4 +241,41 @@ public class Physics3DTests
         Assert.Equal(2f, copy.GetComponent<SphereCollider>()!.Radius);
         Assert.Equal((0.25f, 1.5f), (copy.GetComponent<CapsuleCollider>()!.Radius, copy.GetComponent<CapsuleCollider>()!.Height));
     }
+
+    [Fact]
+    public void ColliderLayers_JointsAndCharacters_SurviveSerialization()
+    {
+        var scene = new Scene();
+        var other = scene.CreateGameObject("Other").AddComponent<Rigidbody>();
+        var go = scene.CreateGameObject("Body");
+        var cylinder = go.AddComponent<CylinderCollider>();
+        (cylinder.Radius, cylinder.Height, cylinder.Layer) = (0.3f, 1.2f, 5);
+        go.AddComponent<MeshCollider>().Convex = true;
+        var hinge = go.AddComponent<HingeJoint>();
+        (hinge.ConnectedBody, hinge.Anchor, hinge.Axis) = (other, new Vector3(1f, 0f, 0f), Vector3.UnitX);
+        var distance = go.AddComponent<DistanceJoint>();
+        (distance.MinDistance, distance.MaxDistance) = (0.5f, 3f);
+        var spring = go.AddComponent<SpringJoint>();
+        (spring.Distance, spring.Frequency, spring.DampingRatio) = (2f, 4f, 0.7f);
+        go.AddComponent<FixedJoint>();
+        go.AddComponent<BallJoint>();
+        var character = go.AddComponent<CharacterController>();
+        (character.Radius, character.Height, character.Center, character.SlopeLimit, character.StepOffset, character.SkinWidth, character.Layer) = (0.3f, 1.6f, new Vector3(0f, 0.8f, 0f), 30f, 0.25f, 0.05f, 3);
+
+        var serializer = new SceneSerializer(Physics3DComponents.Register(ComponentRegistry.CreateDefault()));
+        var copy = serializer.Deserialize(serializer.Serialize(scene)).Scene;
+        var body = copy.Find("Body")!;
+        var c = body.GetComponent<CylinderCollider>()!;
+        Assert.Equal((0.3f, 1.2f, 5), (c.Radius, c.Height, c.Layer));
+        Assert.True(body.GetComponent<MeshCollider>()!.Convex);
+        var h = body.GetComponent<HingeJoint>()!;
+        Assert.Equal((copy.Find("Other")!.GetComponent<Rigidbody>(), new Vector3(1f, 0f, 0f), Vector3.UnitX), (h.ConnectedBody, h.Anchor, h.Axis));
+        Assert.Equal((0.5f, 3f), (body.GetComponent<DistanceJoint>()!.MinDistance, body.GetComponent<DistanceJoint>()!.MaxDistance));
+        var s = body.GetComponent<SpringJoint>()!;
+        Assert.Equal((2f, 4f, 0.7f), (s.Distance, s.Frequency, s.DampingRatio));
+        Assert.NotNull(body.GetComponent<FixedJoint>());
+        Assert.NotNull(body.GetComponent<BallJoint>());
+        var k = body.GetComponent<CharacterController>()!;
+        Assert.Equal((0.3f, 1.6f, new Vector3(0f, 0.8f, 0f), 30f, 0.25f, 0.05f, 3), (k.Radius, k.Height, k.Center, k.SlopeLimit, k.StepOffset, k.SkinWidth, k.Layer));
+    }
 }

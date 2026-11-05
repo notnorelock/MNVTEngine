@@ -3,6 +3,15 @@ using MNVTEngine.Serialization;
 
 namespace MNVTEngine;
 
+/// <summary>Triangles of a mesh in its local space: positions, and three indices per triangle.</summary>
+public sealed record MeshData(Mathematics.Vector3[] Positions, int[] Indices);
+
+/// <summary>Implemented by the host: the triangles a <see cref="MeshRenderer"/> draws (primitive or model mesh), or null.</summary>
+public interface IMeshDataProvider
+{
+    MeshData? GetMeshData(MeshRenderer renderer);
+}
+
 /// <summary>Built-in meshes (see <c>MeshPrimitives</c>; unit-sized and centered on the origin).</summary>
 public enum PrimitiveMesh
 {

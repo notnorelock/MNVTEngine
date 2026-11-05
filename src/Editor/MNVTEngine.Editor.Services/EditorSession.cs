@@ -122,6 +122,7 @@ public sealed class EditorSession
         scene.Prefabs = Prefabs;
         scene.TextAssets = Prefabs;
         scene.ModelAnimations = ModelAnimations;
+        scene.MeshData = ModelAnimations;
         Scene = scene;
         SceneReplaced?.Invoke();
     }
@@ -138,6 +139,7 @@ public sealed class EditorSession
         scene.Prefabs = Prefabs;
         scene.TextAssets = Prefabs;
         scene.ModelAnimations = ModelAnimations;
+        scene.MeshData = ModelAnimations;
         Scene = scene;
         ScenePath = path;
         IsDirty = false;
@@ -154,6 +156,7 @@ public sealed class EditorSession
         restored.Prefabs = Prefabs;
         restored.TextAssets = Prefabs;
         restored.ModelAnimations = ModelAnimations;
+        restored.MeshData = ModelAnimations;
         Scene = restored;
         IsDirty = snapshot != _savedSnapshot;
         if (Selection.Id is { } id && restored.FindById(id) is null)
@@ -171,6 +174,7 @@ public sealed class EditorSession
         scene.Prefabs = Prefabs;
         scene.TextAssets = Prefabs;
         scene.ModelAnimations = ModelAnimations;
+        scene.MeshData = ModelAnimations;
         return scene;
     }
 }

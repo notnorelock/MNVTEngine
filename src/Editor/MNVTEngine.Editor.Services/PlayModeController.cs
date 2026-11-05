@@ -263,6 +263,7 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         scene.Prefabs = session.Prefabs;
         scene.TextAssets = session.Prefabs;
         scene.ModelAnimations = session.ModelAnimations;
+        scene.MeshData = session.ModelAnimations;
         if (Audio is { } audio)
         {
             AudioSystem.Attach(scene, audio, clip => session.Assets.ReadAllBytes(clip.Guid));

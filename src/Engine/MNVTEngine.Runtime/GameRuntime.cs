@@ -297,6 +297,7 @@ public sealed partial class GameRuntime(
         next.Prefabs = _prefabs;
         next.TextAssets = _prefabs;
         next.ModelAnimations = _animations;
+        next.MeshData = _animations;
         if (_options.Audio is { } audio)
         {
             AudioSystem.Attach(next, audio, clip => _assets.ReadAllBytes(clip.Guid));
