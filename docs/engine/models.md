@@ -112,6 +112,14 @@ Who imports:
 - **`ModelAnimator`** plays a model's animation clips on its GameObject hierarchy. Adding a model with clips to a scene puts one on the root, playing the first clip on start and looping.
   - Settings: `Model`, `Clip` (empty = first), `Speed` (negative plays backwards), `Loop`, `PlayOnStart`.
   - Game code: `Play(clip, restart)`, `Pause`, `Resume`, `Stop`, `Sample(seconds)`, `PlaybackTime`, `Duration`, `ClipNames` and the `Finished` event for clips that do not loop.
+  - **Crossfades:** `CrossFade(clip, seconds)` blends from what plays to the new clip; both keep playing while their weights cross (`IsCrossFading`). Positions and scales are blended linearly, rotations as sign-aligned quaternion sums.
+  - **Layers:** `SetLayer(layer, clip, weight, maskRoot)` plays a clip over the base on layer 1 and up, applied in order.
+    - `maskRoot` limits a layer to a node and its descendants, e.g. an upper-body wave from `"Spine"`.
+    - `SetLayerWeight` fades a layer; `SetLayer(layer, null)` removes it.
+  - **Root motion:** `ApplyRootMotion` with `RootMotionNode` (empty = the model's root):
+    - The node's animated movement moves the GameObject instead, converted to world space, and keeps going forward across loops.
+    - The node stays in place. With `RootMotionHorizontalOnly`, the default, it keeps its vertical bob.
+    - Rotation is not extracted yet.
   - Each animated node is the descendant GameObject of the same name (node names are unique within a model), and the model's root node is the animator's own GameObject. Its local position, rotation and scale follow the clip. Nodes the clip animates but that are missing (renamed or deleted) stay still, with one warning.
 - **Sampling** follows glTF: values hold before the first key and after the last. Step holds the previous key; linear interpolates, with rotations by shortest-path slerp. Cubic splines are Hermite curves whose tangents are scaled by the key interval.
 - **Skinning.** A `MeshRenderer` whose mesh is skinned deforms with the joints of its skin. The joints are the GameObjects of the joint nodes, found by name under the model's root, so animating or moving them by hand both work.
@@ -144,7 +152,8 @@ squash and stretch.
 
 ## Not yet
 
-- **Animation blending, layers, state machines and root motion.** One clip plays at a time.
+- **Animation state machines** (graphs of states and transitions): drive `Play`, `CrossFade` and layers from game code.
+- **Root motion rotation** (turning in place from the animation).
 - **Lights and cameras** in model files are reported and skipped.
 - **Metallic and roughness maps** are used only as a combined glTF-style map; separate FBX maps are not combined.
 - **Texture UV sets.** Textures on UV set 1 are sampled with UV set 0 (a warning says so).
