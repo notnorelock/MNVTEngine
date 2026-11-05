@@ -29,7 +29,7 @@ using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.T
 GameLog.Factory = loggerFactory;
 var logger = loggerFactory.CreateLogger("Editor");
 
-var projectArg = args.Where((a, i) => !a.StartsWith("--", StringComparison.Ordinal) && (i == 0 || args[i - 1] is not ("--frames" or "--screenshot" or "--select" or "--focus" or "--break" or "--edit"))).FirstOrDefault();
+var projectArg = args.Where((a, i) => !a.StartsWith("--", StringComparison.Ordinal) && (i == 0 || args[i - 1] is not ("--frames" or "--screenshot" or "--select" or "--focus" or "--break" or "--edit" or "--build"))).FirstOrDefault();
 var recent = new MNVTEngine.Editor.Services.RecentProjects(MNVTEngine.Editor.Services.RecentProjects.DefaultFile);
 if (projectArg is null)
 {
@@ -73,7 +73,8 @@ var options = new EditorOptions(
     Value("--select"),
     Value("--focus"),
     [.. args.Select((a, i) => (a, i)).Where(p => p.a == "--break" && p.i + 1 < args.Length).Select(p => args[p.i + 1])],
-    Value("--edit"));
+    Value("--edit"),
+    Value("--build"));
 
 using var window = new GameWindow(new GameWindowOptions
 {

@@ -80,7 +80,8 @@ internal sealed unsafe partial class VulkanContext : IDisposable
         queueInfos[1] = new DeviceQueueCreateInfo { SType = StructureType.DeviceQueueCreateInfo, QueueFamilyIndex = PresentFamily, QueueCount = 1, PQueuePriorities = &priority };
 
         var features14 = new PhysicalDeviceVulkan14Features { SType = StructureType.PhysicalDeviceVulkan14Features, PushDescriptor = true };
-        var features13 = new PhysicalDeviceVulkan13Features { SType = StructureType.PhysicalDeviceVulkan13Features, PNext = &features14, DynamicRendering = true, Synchronization2 = true };
+        // shaderDemoteToHelperInvocation is required by Vulkan 1.3: SPIR-V may use it for discard (overlay layers' shaders do).
+        var features13 = new PhysicalDeviceVulkan13Features { SType = StructureType.PhysicalDeviceVulkan13Features, PNext = &features14, DynamicRendering = true, Synchronization2 = true, ShaderDemoteToHelperInvocation = true };
         var features12 = new PhysicalDeviceVulkan12Features { SType = StructureType.PhysicalDeviceVulkan12Features, PNext = &features13, HostQueryReset = true };
         var features = new PhysicalDeviceFeatures2 { SType = StructureType.PhysicalDeviceFeatures2, PNext = &features12 };
         var extensionNames = (byte**)SilkMarshal.StringArrayToPtr(enabled);

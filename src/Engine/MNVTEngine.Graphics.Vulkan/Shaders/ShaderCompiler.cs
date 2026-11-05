@@ -46,7 +46,13 @@ internal sealed unsafe partial class ShaderCompiler : IDisposable
     public const string EntryFolder = "Shaders/";
 
     /// <summary>Bump when compile options change, so cached SPIR-V from older options is not reused.</summary>
-    private const string OptionsVersion = "vk1.3env-spv1.6-relaxed-b012-o0";
+    // Part of every cache key: bump it when the options or the output change, so old cache entries are not used. "-2":
+    // caches written before compiles were serialized can hold SPIR-V that was not compiled with these options.
+    private const string OptionsVersion = "vk1.3env-spv1.6-relaxed-b012-o0-2";
+
+    // shaderc is used from several threads in one process (the editor's device on the main thread, builds on a worker).
+    // glslang keeps process-wide state, so compiles run one at a time; they are rare (a few per shader, then cached).
+    private static readonly Lock CompileLock = new();
 
     private readonly string? _cacheDirectory;
     private readonly Func<string, byte[]?>? _precompiled;
@@ -158,6 +164,14 @@ internal sealed unsafe partial class ShaderCompiler : IDisposable
     }
 
     private uint[] CompileCore(string shaderName, ShaderStage stage, string glsl)
+    {
+        lock (CompileLock)
+        {
+            return CompileLocked(shaderName, stage, glsl);
+        }
+    }
+
+    private uint[] CompileLocked(string shaderName, ShaderStage stage, string glsl)
     {
         var api = Api();
         var source = Encoding.UTF8.GetBytes(glsl);

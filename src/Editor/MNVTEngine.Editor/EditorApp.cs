@@ -20,7 +20,8 @@ namespace MNVTEngine.Editor;
 /// <param name="FocusWindow">Panel brought to the front on start (e.g. "Profiler"), for automated screenshots.</param>
 /// <param name="Breakpoints">Script breakpoints set on start, as "path/relative/to/Assets.mnvts:line".</param>
 /// <param name="EditFile">File opened in the Script Editor on start (absolute, or relative to the project folder).</param>
-internal sealed record EditorOptions(int? ExitAfterFrames, string? ScreenshotPath, bool PlayOnStart, string? SelectOnStart = null, string? FocusWindow = null, IReadOnlyList<string>? Breakpoints = null, string? EditFile = null);
+/// <param name="BuildProfile">Builds the game with this profile once the editor has started (automation, as Build > Build does).</param>
+internal sealed record EditorOptions(int? ExitAfterFrames, string? ScreenshotPath, bool PlayOnStart, string? SelectOnStart = null, string? FocusWindow = null, IReadOnlyList<string>? Breakpoints = null, string? EditFile = null, string? BuildProfile = null);
 
 /// <summary>
 /// The editor application: dockable workspace (menu, toolbar, panels), scene file commands with unsaved-change
@@ -255,6 +256,12 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         }
 
         _animator.Draw();
+        if (options.BuildProfile is { } buildProfile && _frames == 30 && !_build.IsBusy)
+        {
+            _build.Profile = buildProfile;
+            _build.StartBuild(runWhenDone: false);
+        }
+
         if (options.FocusWindow is { } focus && _frames == 10) // after the dock layout and Play Mode focus settle
         {
             ImGui.SetWindowFocus(focus);

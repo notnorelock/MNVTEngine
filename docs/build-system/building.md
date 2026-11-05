@@ -139,7 +139,7 @@ Content is split over several archives, like the data folder of other engines, i
 
 - **Index.** The asset index records each asset's archive (`"archive"`), and `mnvt validate` checks it against where the asset really is (MNVB516).
 - **Unique entries.** Every entry lives in exactly one archive, and opening fails if two archives hold the same entry.
-- **Shader errors fail the build.** Every material's shader is compiled and linked as the device would (MNVB210).
+- **Shader errors fail the build.** Every material's shader is compiled and linked as the device would (MNVB210). The engine's built-in shaders are precompiled too; one failing is reported as MNVB212 (a toolchain problem) instead of stopping the build tooling.
 - **Older builds** that have a single `content.mnvtpak` and no archive list in `package.json` still open: that one archive is the whole content.
 
 ## Content encryption

@@ -192,16 +192,24 @@ public static class ContentCompiler
     private static int PrecompileShaders(AssetDatabase assets, List<BuildDiagnostic> diagnostics, ContentArchive.Writer? defaultResources)
     {
         using var precompiler = new VulkanShaderPrecompiler();
-        precompiler.Add(BuiltinShaders.Sprite);
-        precompiler.Add(Graphics.Materials.MaterialShaders.Standard);
-        precompiler.Add(Graphics.Materials.MaterialShaders.Unlit);
-        precompiler.Add(Graphics.Materials.MaterialShaders.ShadowCaster);
-        precompiler.Add(Graphics.Materials.MaterialShaders.StandardSkinned);
-        precompiler.Add(Graphics.Materials.MaterialShaders.UnlitSkinned);
-        precompiler.Add(Graphics.Materials.MaterialShaders.ShadowCasterSkinned);
-        precompiler.Add(Graphics.Materials.MaterialShaders.StandardInstanced);
-        precompiler.Add(Graphics.Materials.MaterialShaders.UnlitInstanced);
-        precompiler.Add(Graphics.Materials.MaterialShaders.Sky);
+        ShaderSource[] builtins =
+        [
+            BuiltinShaders.Sprite, Graphics.Materials.MaterialShaders.Standard, Graphics.Materials.MaterialShaders.Unlit, Graphics.Materials.MaterialShaders.ShadowCaster,
+            Graphics.Materials.MaterialShaders.StandardSkinned, Graphics.Materials.MaterialShaders.UnlitSkinned, Graphics.Materials.MaterialShaders.ShadowCasterSkinned,
+            Graphics.Materials.MaterialShaders.StandardInstanced, Graphics.Materials.MaterialShaders.UnlitInstanced, Graphics.Materials.MaterialShaders.Sky,
+        ];
+        foreach (var builtin in builtins)
+        {
+            try
+            {
+                precompiler.Add(builtin);
+            }
+            catch (ShaderCompilationException ex)
+            {
+                // An engine shader failing is an engine or toolchain problem (shaderc), reported like a material's: the build fails with the message.
+                diagnostics.Add(BuildDiagnostic.Error("MNVB212", $"Built-in shader failed to compile: {ex.Message}", builtin.Name));
+            }
+        }
         foreach (var material in assets.Assets.Where(a => a.Type == AssetTypes.Material).OrderBy(a => a.Path, StringComparer.Ordinal))
         {
             try
