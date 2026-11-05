@@ -22,6 +22,15 @@ public sealed class HierarchyLookTests
     }
 
     [Fact]
+    public void NativeMenuText_EscapesAmpersands_AndShowsShortcutsAfterATab()
+    {
+        Assert.Equal("Save Scene	Ctrl+S", NativeMenuBar.ItemText(new MenuEntry("Save Scene", "Ctrl+S")));
+        Assert.Equal("Build && Run", NativeMenuBar.ItemText(new MenuEntry("Build & Run")));
+        Assert.True(MenuEntry.Separator.IsSeparator);
+        Assert.False(new MenuEntry("-").IsSeparator); // only the shared instance is a separator
+    }
+
+    [Fact]
     public void IconFont_IsEmbeddedInTheEditor()
     {
         var (ttf, first, last) = Icons.Font;

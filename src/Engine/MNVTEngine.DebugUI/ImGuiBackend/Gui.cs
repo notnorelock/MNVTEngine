@@ -27,6 +27,13 @@ public static class Gui
 
         return new StyleColorScope(when);
     }
+
+    /// <summary>Pushes a style variable (padding, alignment...) for the lifetime of the returned scope.</summary>
+    public static StyleVarScope StyleVar(ImGuiStyleVar variable, SysVector2 value)
+    {
+        ImGui.PushStyleVar(variable, value);
+        return default;
+    }
     public const string AssetPayload = "MNVT_ASSET";
 
     public static SysVector2 ToSys(this Vector2 v) => new(v.X, v.Y);
@@ -250,4 +257,9 @@ public readonly struct StyleColorScope(bool pushed) : IDisposable
             ImGui.PopStyleColor();
         }
     }
+}
+
+public readonly struct StyleVarScope : IDisposable
+{
+    public void Dispose() => ImGui.PopStyleVar();
 }

@@ -47,6 +47,7 @@ internal static class Icons
     public const string Dumbbell = "\uE3A1"; // dumbbell
     public const string Eraser = "\uE28F"; // eraser
     public const string ExternalLink = "\uE0B9"; // external-link
+    public const string EllipsisVertical = "\uE0B7"; // ellipsis-vertical
     public const string Eye = "\uE0BA"; // eye
     public const string EyeOff = "\uE0BB"; // eye-off
     public const string File = "\uE0C0"; // file

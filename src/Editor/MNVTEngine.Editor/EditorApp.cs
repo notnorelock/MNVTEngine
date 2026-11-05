@@ -35,6 +35,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private readonly ILogger _logger = loggerFactory.CreateLogger("Editor");
     private EditorContext _context = null!;
     private HierarchyPanel _hierarchy = null!;
+    private NativeMenuBar? _nativeMenu;
     private InspectorPanel _inspector = null!;
     private SceneViewPanel _sceneView = null!;
     private GameViewPanel _gameView = null!;
@@ -166,6 +167,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             }
         }
         window.CloseRequested = OnCloseRequested;
+        _nativeMenu = NativeMenuBar.TryCreate(window.Win32Handle, Menus());
         _selectOnStart = options.SelectOnStart;
 
         if (options.PlayOnStart)
@@ -223,6 +225,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
         _lastTick = time.UnscaledTotalTime;
 
+        _nativeMenu?.RunPending(); // items chosen in the native menu bar, inside this ImGui frame
         DrawWorkspace();
         _hierarchy.Draw();
         _inspector.Draw();
@@ -348,6 +351,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             return; // the graphics device could not be created
         }
 
+        _nativeMenu?.Dispose();
         SaveLayout();
         _context.PlayMode.Stop();
         _scripts.Dispose();
@@ -436,12 +440,16 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 0f);
         ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0f);
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new SysVector2(4f, 4f));
-        const ImGuiWindowFlags Flags = ImGuiWindowFlags.MenuBar | ImGuiWindowFlags.NoDocking | ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoCollapse
+        const ImGuiWindowFlags Flags = ImGuiWindowFlags.NoDocking | ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoCollapse
             | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoBringToFrontOnFocus | ImGuiWindowFlags.NoNavFocus;
-        ImGui.Begin("##Workspace", Flags);
+        ImGui.Begin("##Workspace", _nativeMenu is null ? Flags | ImGuiWindowFlags.MenuBar : Flags);
         ImGui.PopStyleVar(3);
 
-        DrawMenuBar();
+        if (_nativeMenu is null)
+        {
+            ImGuiMenus.DrawBar(Menus());
+        }
+
         DrawToolbar();
 
         var dockId = ImGui.GetID(DockSpaceName);
@@ -478,134 +486,69 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         DockBuilder.Finish(dockId);
     }
 
-    private void DrawMenuBar()
-    {
-        if (!ImGui.BeginMenuBar())
-        {
-            return;
-        }
-
-        if (ImGui.BeginMenu("File"))
-        {
-            if (ImGui.MenuItem("New Scene", "Ctrl+N"))
-            {
-                GuardUnsaved(() => _context.Session.NewScene());
-            }
-
-            if (ImGui.MenuItem("Open Scene...", "Ctrl+O"))
-            {
-                _openScenePicker = true;
-            }
-
-            if (ImGui.MenuItem("Save Scene", "Ctrl+S", false, !_context.PlayMode.IsPlaying))
-            {
-                Save();
-            }
-
-            if (ImGui.MenuItem("Save Scene As...", null, false, !_context.PlayMode.IsPlaying))
-            {
-                _openSaveAs = true;
-            }
-
-            ImGui.Separator();
-            if (ImGui.MenuItem("Project Hub...", null, false))
-            {
-                OpenProjectHub();
-            }
-
-            ImGui.Separator();
-            if (ImGui.MenuItem("Exit"))
-            {
-                GuardUnsaved(_context.Window.Close);
-            }
-
-            ImGui.EndMenu();
-        }
-
-        if (ImGui.BeginMenu("Edit"))
+    /// <summary>The editor's menus: shown in the native menu bar on Windows, else as an ImGui menu bar.</summary>
+    private IReadOnlyList<TopMenu> Menus() =>
+    [
+        new("File", () =>
+        [
+            new("New Scene", "Ctrl+N", () => GuardUnsaved(() => _context.Session.NewScene())),
+            new("Open Scene...", "Ctrl+O", () => _openScenePicker = true),
+            new("Save Scene", "Ctrl+S", () => Save(), Enabled: !_context.PlayMode.IsPlaying),
+            new("Save Scene As...", Action: () => _openSaveAs = true, Enabled: !_context.PlayMode.IsPlaying),
+            MenuEntry.Separator,
+            new("Project Hub...", Action: OpenProjectHub),
+            MenuEntry.Separator,
+            new("Exit", "Alt+F4", () => GuardUnsaved(_context.Window.Close)),
+        ]),
+        new("Edit", () =>
         {
             var history = _context.Session.History;
             var editing = !_context.PlayMode.IsPlaying;
-            if (ImGui.MenuItem(history.UndoLabel is { } undo ? $"Undo {undo}" : "Undo", "Ctrl+Z", false, editing && history.CanUndo))
+            return
+            [
+                new(history.UndoLabel is { } undo ? $"Undo {undo}" : "Undo", "Ctrl+Z", () => history.Undo(), editing && history.CanUndo),
+                new(history.RedoLabel is { } redo ? $"Redo {redo}" : "Redo", "Ctrl+Y", () => history.Redo(), editing && history.CanRedo),
+            ];
+        }),
+        new("GameObject", () =>
+        [
+            .. _hierarchy.CreateEntries(_context.Selected?.Transform),
+            MenuEntry.Separator,
+            new("Delete", "Del", () =>
             {
-                history.Undo();
-            }
-
-            if (ImGui.MenuItem(history.RedoLabel is { } redo ? $"Redo {redo}" : "Redo", "Ctrl+Y", false, editing && history.CanRedo))
-            {
-                history.Redo();
-            }
-
-            ImGui.EndMenu();
-        }
-
-        if (ImGui.BeginMenu("GameObject"))
-        {
-            _hierarchy.DrawCreateMenu(_context.Selected?.Transform);
-            ImGui.Separator();
-            if (ImGui.MenuItem("Delete", "Del", false, _context.Selected is not null))
-            {
-                _context.Delete(_context.Selected!);
-            }
-
-            ImGui.EndMenu();
-        }
-
-        if (ImGui.BeginMenu("Build"))
+                if (_context.Selected is { } selected)
+                {
+                    _context.Delete(selected);
+                }
+            }, _context.Selected is not null),
+        ]),
+        new("Build", () =>
         {
             var idle = !_build.IsBusy;
-            if (ImGui.MenuItem("Build Settings..."))
-            {
-                _showBuildSettings = true;
-            }
-
-            ImGui.Separator();
-            if (ImGui.MenuItem($"Build ({_build.Profile})", "Ctrl+B", false, idle))
-            {
-                StartBuild(run: false);
-            }
-
-            if (ImGui.MenuItem($"Build and Run ({_build.Profile})", "Ctrl+Shift+B", false, idle))
-            {
-                StartBuild(run: true);
-            }
-
-            if (ImGui.MenuItem("Run Last Build", null, false, idle) && !_build.RunLastBuild())
-            {
-                EditorLog.Warning(_logger, $"Profile '{_build.Profile}' has not been built yet.");
-            }
-
-            if (ImGui.MenuItem("Validate Project", null, false, idle))
-            {
-                GuardUnsaved(_build.StartValidation);
-            }
-
-            ImGui.Separator();
-            if (ImGui.MenuItem("Open Build Folder", null, false, Directory.Exists(_build.OutputDirectory)))
-            {
-                OpenFolder(_build.OutputDirectory);
-            }
-
-            ImGui.EndMenu();
-        }
-
-        if (ImGui.BeginMenu("Window"))
-        {
-            if (ImGui.MenuItem("Diagnostics Settings", null, _diagnosticsWindow.Open))
-            {
-                _diagnosticsWindow.Open = !_diagnosticsWindow.Open;
-            }
-
-            if (ImGui.MenuItem("Reset Layout"))
-            {
-                _resetLayout = true;
-            }
-
-            ImGui.EndMenu();
-        }
-
-        ImGui.EndMenuBar();
-    }
+            return
+            [
+                new("Build Settings...", Action: () => _showBuildSettings = true),
+                MenuEntry.Separator,
+                new($"Build ({_build.Profile})", "Ctrl+B", () => StartBuild(run: false), idle),
+                new($"Build and Run ({_build.Profile})", "Ctrl+Shift+B", () => StartBuild(run: true), idle),
+                new("Run Last Build", Action: () =>
+                {
+                    if (!_build.RunLastBuild())
+                    {
+                        EditorLog.Warning(_logger, $"Profile '{_build.Profile}' has not been built yet.");
+                    }
+                }, Enabled: idle),
+                new("Validate Project", Action: () => GuardUnsaved(_build.StartValidation), Enabled: idle),
+                MenuEntry.Separator,
+                new("Open Build Folder", Action: () => OpenFolder(_build.OutputDirectory), Enabled: Directory.Exists(_build.OutputDirectory)),
+            ];
+        }),
+        new("Window", () =>
+        [
+            new("Diagnostics Settings", Action: () => _diagnosticsWindow.Open = !_diagnosticsWindow.Open, Checked: _diagnosticsWindow.Open),
+            new("Reset Layout", Action: () => _resetLayout = true),
+        ]),
+    ];
 
     private void DrawToolbar()
     {

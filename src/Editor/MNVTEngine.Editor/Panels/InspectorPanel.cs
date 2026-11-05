@@ -5,10 +5,15 @@ using MNVTEngine.Editor.Services;
 using MNVTEngine.Mathematics;
 using MNVTEngine.Scenes;
 using SysVector2 = System.Numerics.Vector2;
+using SysVector4 = System.Numerics.Vector4;
 
 namespace MNVTEngine.Editor.Panels;
 
-/// <summary>Edits the selected GameObject: name, active state, Transform, and every component's persisted members.</summary>
+/// <summary>
+/// Edits the selected GameObject, laid out like Unity's Inspector: a header (icon, active state, name), then a foldable
+/// section per component (icon, enabled toggle, name, a menu) whose rows have the label on the left and the value on the
+/// right; vectors as X/Y/Z fields, colors as swatches, references as object fields with a picker.
+/// </summary>
 internal sealed partial class InspectorPanel(EditorContext context) : IDisposable
 {
     private readonly Dictionary<Type, IReadOnlyList<InspectableMember>> _members = [];
@@ -62,11 +67,23 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
 
     private void DrawHeader(GameObject gameObject)
     {
+        // A large icon of what the object is, beside the active toggle and the name (two rows high).
+        var (icon, iconColor) = HierarchyIcons.Primary(gameObject, open: false);
+        var start = ImGui.GetCursorScreenPos();
+        var iconSize = ImGui.GetFrameHeight() * 1.6f;
+        ImGui.GetWindowDrawList().AddText(ImGui.GetFont(), ImGui.GetFontSize() * 1.9f, start + new SysVector2(2f, 2f), ImGui.GetColorU32(iconColor), icon);
+        ImGui.SetCursorScreenPos(start + new SysVector2(iconSize + 8f, 0f));
+
         var active = gameObject.ActiveSelf;
         if (ImGui.Checkbox("##active", ref active))
         {
             gameObject.SetActive(active);
             context.Changed("Toggle Active");
+        }
+
+        if (ImGui.IsItemHovered())
+        {
+            Gui.Tooltip("Active: inactive objects and their children are not updated or drawn.");
         }
 
         ImGui.SameLine();
@@ -78,37 +95,204 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
             context.Changed("Rename");
         }
 
+        ImGui.SetCursorScreenPos(new SysVector2(start.X + iconSize + 8f, ImGui.GetCursorScreenPos().Y));
         Gui.Muted($"id {gameObject.Id}");
+        ImGui.Spacing();
+    }
+
+    /// <summary>
+    /// A component's foldout header: arrow, icon, enabled toggle (when it can be disabled), name and a menu button. The
+    /// header's context menu and the menu button open the same menu. Returns whether it is unfolded.
+    /// </summary>
+    private bool ComponentHeader(Component component, string title, bool canDisable)
+    {
+        var open = ImGui.CollapsingHeader("##header", ImGuiTreeNodeFlags.DefaultOpen | ImGuiTreeNodeFlags.AllowOverlap | ImGuiTreeNodeFlags.SpanAvailWidth);
+        var (min, max) = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        if (ImGui.BeginPopupContextItem("##component_menu"))
+        {
+            DrawComponentMenu(component);
+            ImGui.EndPopup();
+        }
+
+        var (icon, color) = HierarchyIcons.For(component);
+        var font = ImGui.GetFontSize();
+        var y = min.Y + ((max.Y - min.Y - font) * 0.5f);
+        var x = min.X + ImGui.GetTreeNodeToLabelSpacing();
+        var drawList = ImGui.GetWindowDrawList();
+        drawList.AddText(new SysVector2(x, y), ImGui.GetColorU32(color), icon);
+        x += font + 6f;
+        if (canDisable)
+        {
+            ImGui.SetCursorScreenPos(new SysVector2(x, min.Y));
+            var enabled = component.Enabled;
+            using (Gui.StyleVar(ImGuiStyleVar.FramePadding, new SysVector2(2f, 2f)))
+            {
+                if (ImGui.Checkbox("##enabled", ref enabled))
+                {
+                    component.Enabled = enabled;
+                    context.Changed("Toggle Component");
+                }
+            }
+
+            x = ImGui.GetItemRectMax().X + 6f;
+        }
+
+        // The name in bold: drawn twice, one pixel apart.
+        var textColor = ImGui.GetColorU32(ImGuiCol.Text);
+        drawList.AddText(new SysVector2(x, y), textColor, title);
+        drawList.AddText(new SysVector2(x + 0.6f, y), textColor, title);
+
+        ImGui.SetCursorScreenPos(new SysVector2(max.X - ImGui.GetFrameHeight(), min.Y));
+        if (Gui.IconButton(Icons.EllipsisVertical, "Component menu"))
+        {
+            ImGui.OpenPopup("##component_menu");
+        }
+
+        if (ImGui.BeginPopup("##component_menu"))
+        {
+            DrawComponentMenu(component);
+            ImGui.EndPopup();
+        }
+
+        ImGui.SetCursorScreenPos(new SysVector2(min.X - ImGui.GetStyle().FramePadding.X + ImGui.GetStyle().FramePadding.X, max.Y + ImGui.GetStyle().ItemSpacing.Y));
+        ImGui.Dummy(SysVector2.Zero);
+        return open;
+    }
+
+    /// <summary>
+    /// Starts a property row: the label in the left column (clipped to it), the cursor in the right column with the next
+    /// item filling it.
+    /// </summary>
+    private static void Row(string label, string? tooltip = null)
+    {
+        var width = MathF.Max(100f, ImGui.GetContentRegionAvail().X * 0.38f);
+        var start = ImGui.GetCursorScreenPos();
+        ImGui.AlignTextToFramePadding();
+        ImGui.PushClipRect(start, start + new SysVector2(width - 6f, ImGui.GetFrameHeight()), true);
+        ImGui.TextUnformatted(label);
+        ImGui.PopClipRect();
+        if (tooltip is not null && ImGui.IsItemHovered())
+        {
+            Gui.Tooltip(tooltip);
+        }
+
+        ImGui.SameLine(ImGui.GetCursorStartPos().X + width + (start.X - ImGui.GetWindowPos().X - ImGui.GetCursorStartPos().X));
+        ImGui.SetNextItemWidth(-1f);
+    }
+
+    private static readonly SysVector4[] AxisColors = [new(0.95f, 0.45f, 0.42f, 1f), new(0.55f, 0.85f, 0.4f, 1f), new(0.45f, 0.65f, 1f, 1f), new(0.75f, 0.75f, 0.78f, 1f)];
+
+    /// <summary>X/Y/Z(/W) number fields side by side, each with its axis letter; drag a field or type into it.</summary>
+    private static bool VectorFields(Span<float> values, float speed)
+    {
+        var changed = false;
+        var letter = ImGui.CalcTextSize("X").X + 4f;
+        var spacing = 4f;
+        var width = (ImGui.GetContentRegionAvail().X - (values.Length * letter) - ((values.Length - 1) * spacing)) / values.Length;
+        for (var i = 0; i < values.Length; i++)
+        {
+            if (i > 0)
+            {
+                ImGui.SameLine(0f, spacing);
+            }
+
+            Gui.TextColored(AxisColors[i], "XYZW"[i].ToString());
+            ImGui.SameLine(0f, 4f);
+            ImGui.SetNextItemWidth(MathF.Max(width, 20f));
+            changed |= ImGui.DragFloat($"##axis{i}", ref values[i], speed, 0f, 0f, "%.4g");
+        }
+
+        return changed;
+    }
+
+    /// <summary>A color as a swatch filling the field; click for a picker.</summary>
+    private static bool ColorField(ref SysVector4 color)
+    {
+        var changed = false;
+        if (ImGui.ColorButton("##swatch", color, ImGuiColorEditFlags.AlphaPreviewHalf, new SysVector2(ImGui.GetContentRegionAvail().X, ImGui.GetFrameHeight())))
+        {
+            ImGui.OpenPopup("##picker");
+        }
+
+        if (ImGui.BeginPopup("##picker"))
+        {
+            changed = ImGui.ColorPicker4("##color", ref color, ImGuiColorEditFlags.Float | ImGuiColorEditFlags.AlphaBar | ImGuiColorEditFlags.AlphaPreviewHalf);
+            ImGui.EndPopup();
+        }
+
+        return changed;
+    }
+
+    /// <summary>
+    /// An object field: the referenced object's icon and name in a field, and a picker button on its right. Returns
+    /// whether the picker was clicked (the caller opens its menu, the same one as the field's context menu).
+    /// </summary>
+    private static bool ObjectField(string icon, string text, bool missing, string? tooltip)
+    {
+        var picker = ImGui.GetFrameHeight();
+        var width = ImGui.GetContentRegionAvail().X - picker - 2f;
+        using (Gui.StyleColor(ImGuiCol.Text, new SysVector4(1f, 0.45f, 0.45f, 1f), missing))
+        {
+            using (Gui.StyleVar(ImGuiStyleVar.ButtonTextAlign, new SysVector2(0f, 0.5f)))
+            {
+                using (Gui.StyleColor(ImGuiCol.Button, ImGui.GetStyle().Colors[(int)ImGuiCol.FrameBg]))
+                {
+                    ImGui.Button($"{icon}  {text}##field", new SysVector2(width, 0f));
+                }
+            }
+        }
+
+        if (tooltip is not null && ImGui.IsItemHovered())
+        {
+            Gui.Tooltip(tooltip);
+        }
+
+        return false;
     }
 
     private void DrawTransform(Transform transform)
     {
-        if (!ImGui.CollapsingHeader("Transform", ImGuiTreeNodeFlags.DefaultOpen))
+        ImGui.PushID("transform");
+        if (ComponentHeader(transform, "Transform", canDisable: false))
         {
-            return;
+            Span<float> v = stackalloc float[3];
+            (v[0], v[1], v[2]) = (transform.LocalPosition.X, transform.LocalPosition.Y, transform.LocalPosition.Z);
+            ImGui.PushID("position");
+            Row("Position");
+            if (VectorFields(v, 0.05f))
+            {
+                transform.LocalPosition = new Vector3(v[0], v[1], v[2]);
+                context.Changed("Move");
+            }
+
+            ImGui.PopID();
+
+            // Euler angles in degrees; the transform remembers them, so editing one does not disturb the others.
+            var euler = transform.LocalEulerAngles;
+            (v[0], v[1], v[2]) = (euler.X, euler.Y, euler.Z);
+            ImGui.PushID("rotation");
+            Row("Rotation");
+            if (VectorFields(v, 0.5f))
+            {
+                transform.LocalEulerAngles = new Vector3(v[0], v[1], v[2]);
+                context.Changed("Rotate");
+            }
+
+            ImGui.PopID();
+            (v[0], v[1], v[2]) = (transform.LocalScale.X, transform.LocalScale.Y, transform.LocalScale.Z);
+            ImGui.PushID("scale");
+            Row("Scale");
+            if (VectorFields(v, 0.01f))
+            {
+                transform.LocalScale = new Vector3(v[0], v[1], v[2]);
+                context.Changed("Scale");
+            }
+
+            ImGui.PopID();
+            ImGui.Spacing();
         }
 
-        var position = transform.LocalPosition.ToSys();
-        if (ImGui.DragFloat3("Position", ref position, 0.05f))
-        {
-            transform.LocalPosition = position.ToEngine();
-            context.Changed("Move");
-        }
-
-        // Euler angles in degrees; the transform remembers them, so editing one does not disturb the others.
-        var rotation = transform.LocalEulerAngles.ToSys();
-        if (ImGui.DragFloat3("Rotation", ref rotation, 0.5f))
-        {
-            transform.LocalEulerAngles = rotation.ToEngine();
-            context.Changed("Rotate");
-        }
-
-        var scale = transform.LocalScale.ToSys();
-        if (ImGui.DragFloat3("Scale", ref scale, 0.01f))
-        {
-            transform.LocalScale = scale.ToEngine();
-            context.Changed("Scale");
-        }
+        ImGui.PopID();
     }
 
     private void DrawComponent(Component component)
@@ -116,9 +300,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
         ImGui.PushID(component.Id.ToString());
         if (component is MissingComponent missing)
         {
-            var open = ImGui.CollapsingHeader($"Missing: {missing.TypeId}", ImGuiTreeNodeFlags.DefaultOpen);
-            DrawComponentContextMenu(component);
-            if (open)
+            if (ComponentHeader(component, $"Missing: {missing.TypeId}", canDisable: false))
             {
                 Gui.TextColored(new System.Numerics.Vector4(1f, 0.7f, 0.3f, 1f), "Type is not registered. Data is kept and saved unchanged.");
                 Gui.Muted(missing.Data.ToString(Newtonsoft.Json.Formatting.None));
@@ -128,17 +310,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
             return;
         }
 
-        var enabled = component.Enabled;
-        if (ImGui.Checkbox("##enabled", ref enabled))
-        {
-            component.Enabled = enabled;
-            context.Changed("Toggle Component");
-        }
-
-        ImGui.SameLine();
-        var expanded = ImGui.CollapsingHeader(component.GetType().Name, ImGuiTreeNodeFlags.DefaultOpen | ImGuiTreeNodeFlags.AllowOverlap);
-        DrawComponentContextMenu(component);
-        if (expanded)
+        if (ComponentHeader(component, InspectableMember.Nicify(component.GetType().Name), canDisable: true))
         {
             foreach (var member in MembersOf(component.GetType()))
             {
@@ -159,6 +331,8 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
             {
                 DrawMixer(mixer);
             }
+
+            ImGui.Spacing();
         }
 
         ImGui.PopID();
@@ -342,31 +516,28 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
         }
     }
 
-    private void DrawComponentContextMenu(Component component)
+    private void DrawComponentMenu(Component component)
     {
-        if (ImGui.BeginPopupContextItem())
+        if (ImGui.MenuItem($"{Icons.Trash2}  Remove Component", null, false, component is not Transform))
         {
-            if (ImGui.MenuItem("Remove Component"))
-            {
-                _pendingRemove = component;
-            }
-
-            ImGui.EndPopup();
+            _pendingRemove = component;
         }
     }
 
     private void DrawMember(Component component, InspectableMember member)
     {
-        var label = member.DisplayName;
+        var label = $"##{member.DisplayName}";
         var value = member.GetValue(component);
         object? updated = null;
         var changed = false;
 
+        ImGui.PushID(member.DisplayName);
+        Row(member.DisplayName);
         switch (member.Kind)
         {
             case MemberKind.Float:
                 var f = (float)value!;
-                changed = ImGui.DragFloat(label, ref f, 0.05f);
+                changed = ImGui.DragFloat(label, ref f, 0.05f, 0f, 0f, "%.4g");
                 updated = f;
                 break;
             case MemberKind.Int:
@@ -401,18 +572,26 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
 
                 break;
             case MemberKind.Vector2:
-                var v = ((Vector2)value!).ToSys();
-                changed = ImGui.DragFloat2(label, ref v, 0.05f);
-                updated = v.ToEngine();
-                break;
+                {
+                    var v2 = (Vector2)value!;
+                    Span<float> xy = [v2.X, v2.Y];
+                    changed = VectorFields(xy, 0.05f);
+                    updated = new Vector2(xy[0], xy[1]);
+                    break;
+                }
+
             case MemberKind.Vector3:
-                var v3 = ((Vector3)value!).ToSys();
-                changed = ImGui.DragFloat3(label, ref v3, 0.05f);
-                updated = v3.ToEngine();
-                break;
+                {
+                    var v3 = (Vector3)value!;
+                    Span<float> xyz = [v3.X, v3.Y, v3.Z];
+                    changed = VectorFields(xyz, 0.05f);
+                    updated = new Vector3(xyz[0], xyz[1], xyz[2]);
+                    break;
+                }
+
             case MemberKind.Color:
                 var c = ((Color)value!).ToSys();
-                changed = ImGui.ColorEdit4(label, ref c, ImGuiColorEditFlags.Float | ImGuiColorEditFlags.AlphaBar);
+                changed = ColorField(ref c);
                 updated = c.ToColor();
                 break;
             case MemberKind.Enum:
@@ -433,10 +612,12 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
                 break;
             default:
                 Gui.TextDisabled(value is System.Collections.ICollection items
-                    ? $"{label}: {items.Count} items"
-                    : $"{label}: {value?.ToString() ?? "none"} (not editable)");
+                    ? $"{items.Count} items"
+                    : $"{value?.ToString() ?? "none"} (not editable)");
                 break;
         }
+
+        ImGui.PopID();
 
         if (changed)
         {
@@ -460,7 +641,14 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
             _ => $"None ({member.Type.Name})",
         };
 
-        ImGui.Button($"{text}##ref", new SysVector2(ImGui.CalcItemWidth(), 0f));
+        var icon = value switch
+        {
+            GameObject g => HierarchyIcons.Primary(g, open: false).Icon,
+            Component c => HierarchyIcons.For(c).Icon,
+            _ => Icons.CircleDashed,
+        };
+
+        ObjectField(icon, text, missing: false, tooltip: "Drop an object from the Hierarchy; right-click to clear.");
         var result = (false, value);
         if (ImGui.BeginDragDropTarget())
         {
@@ -489,8 +677,12 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
             ImGui.EndPopup();
         }
 
-        ImGui.SameLine();
-        ImGui.TextUnformatted(member.DisplayName);
+        ImGui.SameLine(0f, 2f);
+        using (Gui.StyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]))
+        {
+            Gui.IconButton(Icons.CircleDot, "Drag an object here from the Hierarchy");
+        }
+
         return result;
     }
 
@@ -524,16 +716,8 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
         var assets = context.Session.Assets;
         var record = value.IsNone ? null : assets.Get(value.Guid);
         var text = value.IsNone ? $"None ({member.AssetType ?? "Asset"})" : (record?.Name ?? $"Missing ({value.Guid})") + (value.SubAsset is { } sub ? $" #{sub}" : "");
-        using (Gui.StyleColor(ImGuiCol.Text, new System.Numerics.Vector4(1f, 0.45f, 0.45f, 1f), record is null && !value.IsNone))
-        {
-            ImGui.Button($"{text}##asset", new SysVector2(ImGui.CalcItemWidth(), 0f));
-        }
-
-        if (record is not null && ImGui.IsItemHovered())
-        {
-            Gui.Tooltip(value.SubAsset is { } tip ? $"{record.Path}#{tip}" : record.Path);
-        }
-
+        var icon = record is null ? Icons.CircleDashed : ProjectPanel.AssetIcon(record.Type);
+        ObjectField(icon, text, record is null && !value.IsNone, record is null ? null : value.SubAsset is { } tip ? $"{record.Path}#{tip}" : record.Path);
         var result = (false, (object?)value);
         if (ImGui.BeginDragDropTarget())
         {
@@ -552,7 +736,21 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
             ImGui.EndDragDropTarget();
         }
 
-        if (ImGui.BeginPopupContextItem())
+        if (ImGui.IsItemClicked(ImGuiMouseButton.Right))
+        {
+            ImGui.OpenPopup("##pick_asset");
+        }
+
+        ImGui.SameLine(0f, 2f);
+        using (Gui.StyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]))
+        {
+            if (Gui.IconButton(Icons.CircleDot, $"Pick a {member.AssetType ?? "asset"}"))
+            {
+                ImGui.OpenPopup("##pick_asset");
+            }
+        }
+
+        if (ImGui.BeginPopup("##pick_asset"))
         {
             if (ImGui.MenuItem("Clear"))
             {
@@ -588,14 +786,14 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
             ImGui.EndPopup();
         }
 
-        ImGui.SameLine();
-        ImGui.TextUnformatted(member.DisplayName);
         return result;
     }
 
     private void DrawAddComponent(GameObject gameObject)
     {
-        if (ImGui.Button($"{Icons.Plus}  Add Component", new SysVector2(-1f, 0f)))
+        var width = MathF.Min(260f, ImGui.GetContentRegionAvail().X);
+        ImGui.SetCursorPosX(ImGui.GetCursorPosX() + ((ImGui.GetContentRegionAvail().X - width) * 0.5f));
+        if (ImGui.Button($"{Icons.Plus}  Add Component", new SysVector2(width, 0f)))
         {
             ImGui.OpenPopup("add_component");
         }

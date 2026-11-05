@@ -37,7 +37,7 @@ internal sealed class HierarchyPanel(EditorContext context)
 
             if (ImGui.BeginPopup("##hierarchy_create"))
             {
-                DrawCreateMenu(context.Selected?.Transform);
+                ImGuiMenus.Draw(CreateEntries(context.Selected?.Transform));
                 ImGui.EndPopup();
             }
 
@@ -97,7 +97,7 @@ internal sealed class HierarchyPanel(EditorContext context)
 
             if (ImGui.BeginPopupContextItem("##hierarchy_context"))
             {
-                DrawCreateMenu(null);
+                ImGuiMenus.Draw(CreateEntries(null));
                 ImGui.EndPopup();
             }
         }
@@ -111,65 +111,35 @@ internal sealed class HierarchyPanel(EditorContext context)
         }
     }
 
-    public void DrawCreateMenu(Transform? parent)
-    {
-        if (ImGui.MenuItem($"{Icons.Box}  Create Empty"))
-        {
-            context.CreateGameObject("GameObject", parent);
-        }
-
-        if (ImGui.MenuItem($"{Icons.Heading}  Create Header"))
-        {
-            context.CreateGameObject("Header", parent).AddComponent<HierarchyStyle>().Kind = HierarchyStyleKind.Header;
-        }
-
-        if (ImGui.MenuItem("Create Sprite"))
-        {
-            context.CreateGameObject("Sprite", parent).AddComponent<SpriteRenderer>();
-        }
-
-        if (ImGui.MenuItem("Create Camera"))
-        {
-            context.CreateGameObject("Camera", parent).AddComponent<Camera>();
-        }
-
-        if (ImGui.BeginMenu("3D Object"))
-        {
-            foreach (var primitive in Enum.GetValues<PrimitiveMesh>().Where(p => p != PrimitiveMesh.None))
+    /// <summary>The "create" items, for the GameObject menu and the Hierarchy's context menus.</summary>
+    public IReadOnlyList<MenuEntry> CreateEntries(Transform? parent) =>
+    [
+        new("Create Empty", Action: () => context.CreateGameObject("GameObject", parent)),
+        new("Create Header", Action: () => context.CreateGameObject("Header", parent).AddComponent<HierarchyStyle>().Kind = HierarchyStyleKind.Header),
+        new("Create Sprite", Action: () => context.CreateGameObject("Sprite", parent).AddComponent<SpriteRenderer>()),
+        new("Create Camera", Action: () => context.CreateGameObject("Camera", parent).AddComponent<Camera>()),
+        MenuEntry.Submenu("3D Object",
+        [
+            .. Enum.GetValues<PrimitiveMesh>().Where(p => p != PrimitiveMesh.None).Select(primitive => new MenuEntry(primitive.ToString(), Action: () =>
             {
-                if (ImGui.MenuItem(primitive.ToString()))
-                {
-                    var gameObject = context.CreateGameObject(primitive.ToString(), parent);
-                    gameObject.AddComponent<MeshRenderer>().Primitive = primitive;
-                    AddCollider(gameObject, primitive);
-                }
-            }
-
-            ImGui.EndMenu();
-        }
-
-        if (ImGui.BeginMenu("Light"))
-        {
-            foreach (var type in Enum.GetValues<LightType>())
+                var gameObject = context.CreateGameObject(primitive.ToString(), parent);
+                gameObject.AddComponent<MeshRenderer>().Primitive = primitive;
+                AddCollider(gameObject, primitive);
+            })),
+        ]),
+        MenuEntry.Submenu("Light",
+        [
+            .. Enum.GetValues<LightType>().Select(type => new MenuEntry($"{type} Light", Action: () =>
             {
-                if (ImGui.MenuItem($"{type} Light"))
-                {
-                    var gameObject = context.CreateGameObject($"{type} Light", parent);
-                    gameObject.AddComponent<Light>().Type = type;
-                    // Directional and spot lights shine along -Z: point them down at the scene.
-                    gameObject.Transform.LocalRotation = type == LightType.Point ? Quaternion.Identity : Quaternion.Euler(type == LightType.Directional ? -50f : -90f, type == LightType.Directional ? 30f : 0f, 0f);
-                    gameObject.Transform.LocalPosition = type == LightType.Point ? new Vector3(0f, 2f, 0f) : new Vector3(0f, 4f, 0f);
-                }
-            }
-
-            if (ImGui.MenuItem("Ambient Light"))
-            {
-                context.CreateGameObject("Ambient Light", parent).AddComponent<AmbientLight>();
-            }
-
-            ImGui.EndMenu();
-        }
-    }
+                var gameObject = context.CreateGameObject($"{type} Light", parent);
+                gameObject.AddComponent<Light>().Type = type;
+                // Directional and spot lights shine along -Z: point them down at the scene.
+                gameObject.Transform.LocalRotation = type == LightType.Point ? Quaternion.Identity : Quaternion.Euler(type == LightType.Directional ? -50f : -90f, type == LightType.Directional ? 30f : 0f, 0f);
+                gameObject.Transform.LocalPosition = type == LightType.Point ? new Vector3(0f, 2f, 0f) : new Vector3(0f, 4f, 0f);
+            })),
+            new("Ambient Light", Action: () => context.CreateGameObject("Ambient Light", parent).AddComponent<AmbientLight>()),
+        ]),
+    ];
 
     /// <summary>A collider matching a primitive's shape, as Unity adds one (add a Rigidbody to make it fall).</summary>
     private static void AddCollider(GameObject gameObject, PrimitiveMesh primitive)
@@ -306,7 +276,7 @@ internal sealed class HierarchyPanel(EditorContext context)
         if (ImGui.BeginPopupContextItem())
         {
             context.Session.Selection.Select(gameObject);
-            DrawCreateMenu(gameObject.Transform);
+            ImGuiMenus.Draw(CreateEntries(gameObject.Transform));
             ImGui.Separator();
             DrawStyleMenu(gameObject);
             ImGui.Separator();

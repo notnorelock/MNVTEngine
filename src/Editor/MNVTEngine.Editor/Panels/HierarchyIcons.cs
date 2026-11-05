@@ -70,7 +70,7 @@ internal static class HierarchyIcons
                 continue;
             }
 
-            var (icon, color) = Of(component);
+            var (icon, color) = For(component);
             var existing = badges.FindIndex(b => b.Item1 == icon);
             if (existing >= 0)
             {
@@ -85,8 +85,19 @@ internal static class HierarchyIcons
         return badges;
     }
 
-    private static (string Icon, SysVector4 Color) Of(Component component)
+    /// <summary>A component's icon (the Inspector's component headers use it too).</summary>
+    public static (string Icon, SysVector4 Color) For(Component component)
     {
+        if (component is Transform)
+        {
+            return (Icons.Move3D, new SysVector4(0.55f, 0.72f, 1f, 1f));
+        }
+
+        if (component is HierarchyStyle)
+        {
+            return (Icons.Palette, Muted);
+        }
+
         foreach (var (type, icon, color) in Looks)
         {
             if (Is(component, type))

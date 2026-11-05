@@ -115,6 +115,9 @@ public sealed partial class GameWindow
         _window.SetWindowIcon(raw);
     }
 
+    /// <summary>The Win32 window handle (HWND) on Windows, for native integrations such as a menu bar; 0 elsewhere.</summary>
+    public nint Win32Handle => _window.Native?.Win32 is { } win32 ? win32.Hwnd : 0;
+
     /// <summary>Size limits in screen coordinates (0 = none). GLFW applies them to resizable windows.</summary>
     public unsafe void SetSizeLimits(int minWidth, int minHeight, int maxWidth, int maxHeight)
     {
