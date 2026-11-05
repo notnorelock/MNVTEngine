@@ -83,7 +83,7 @@ internal static class ModelProcessing
             }
         }
 
-        model.Meshes.RemoveAll(m => m.Mesh.Validate().Count > 0);
+        RemoveInvalidMeshes(model, warnings);
         foreach (var (alias, current) in settings.MeshAliases)
         {
             if (model.Meshes.Exists(m => m.Name == alias))
@@ -256,6 +256,55 @@ internal static class ModelProcessing
 
     private static string Clean(string? name) =>
         new string((name ?? "").Trim().Select(c => c is '#' or '"' or '/' or '\\' || char.IsControl(c) ? '_' : c).ToArray());
+
+    /// <summary>
+    /// Drops meshes that cannot be drawn (reported above) and renumbers the nodes' mesh indices to match. Nodes of a
+    /// dropped mesh draw nothing: they lose the mesh, its skin and their blend shape weight channels.
+    /// </summary>
+    private static void RemoveInvalidMeshes(ModelData model, ICollection<string> warnings)
+    {
+        var newIndex = new int[model.Meshes.Count];
+        var kept = new List<ModelMesh>();
+        for (var i = 0; i < model.Meshes.Count; i++)
+        {
+            newIndex[i] = model.Meshes[i].Mesh.Validate().Count == 0 ? kept.Count : -1;
+            if (newIndex[i] >= 0)
+            {
+                kept.Add(model.Meshes[i]);
+            }
+        }
+
+        if (kept.Count == model.Meshes.Count)
+        {
+            return;
+        }
+
+        for (var n = 0; n < model.Nodes.Count; n++)
+        {
+            var node = model.Nodes[n];
+            if (node.Mesh < 0 || node.Mesh >= newIndex.Length)
+            {
+                continue;
+            }
+
+            if (newIndex[node.Mesh] < 0)
+            {
+                warnings.Add($"Node '{node.Name}' draws nothing: its mesh '{model.Meshes[node.Mesh].Name}' is invalid.");
+                model.Nodes[n] = node with { Mesh = -1, Skin = -1 };
+                foreach (var animation in model.Animations)
+                {
+                    animation.Channels.RemoveAll(c => c.Node == n && c.Path == AnimationPath.Weights);
+                }
+            }
+            else
+            {
+                model.Nodes[n] = node with { Mesh = newIndex[node.Mesh] };
+            }
+        }
+
+        model.Meshes.Clear();
+        model.Meshes.AddRange(kept);
+    }
 
     /// <summary>A linear color component (glTF light colors) to sRGB (engine colors).</summary>
     public static float LinearToSrgb(float c) => c <= 0.0031308f ? 12.92f * c : (1.055f * MathF.Pow(c, 1f / 2.4f)) - 0.055f;

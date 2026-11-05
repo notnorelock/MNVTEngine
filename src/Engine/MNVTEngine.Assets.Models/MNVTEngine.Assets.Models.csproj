@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="SharpGLTF.Core" />
     <PackageReference Include="StbImageWriteSharp" />
+    <InternalsVisibleTo Include="MNVTEngine.Assets.Models.Tests" />
     <PackageReference Include="Silk.NET.Assimp" />
   </ItemGroup>
 </Project>
