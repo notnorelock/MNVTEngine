@@ -65,6 +65,7 @@ half of a rotated mesh (the GPU mesh test covers this case). Every engine render
   - Front faces are counter-clockwise on screen.
   - Drawing with depth state into a target without depth throws.
 - **Per-draw data.** `DrawCommand.World` reaches shaders as `uModel`, and its inverse transpose as `uNormalMatrix`; both are names reserved for the renderer. Pipelines feed only the vertex attributes a shader reads.
+- **GPU skinning.** `GpuMesh.UploadSkinned` adds four joints and weights per vertex (`SkinnedMeshVertex`, 104 bytes, locations 6 and 7). `DrawCommand.Joints` (and `MeshDrawItem.Joints`) reach shaders as the `mat4 uJoints[128]` array, which shader reflection reads with its length and stride. Per-stage uniform blocks hold up to 16 KB.
 - **`Renderer3D`** (backend-independent):
   - frustum-culls each `MeshDrawItem` by its world-space bounds;
   - draws opaque items front to back;

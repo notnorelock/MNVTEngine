@@ -116,14 +116,13 @@ public sealed class Material
     /// <summary>Textures by sampler name (e.g. <c>_BaseColorMap</c>); <c>uTexture</c> comes from the draw instead.</summary>
     public IReadOnlyDictionary<string, Texture2D> Textures => _textures;
 
-    /// <summary>Takes every value, texture and render state of <paramref name="source"/> (same shader), replacing its own.</summary>
+    /// <summary>
+    /// Takes every value, texture and render state of <paramref name="source"/>, replacing its own. Values are kept by
+    /// name, so a shader variant with the same properties (a skinned twin) draws the same way.
+    /// </summary>
     public void CopyFrom(Material source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (!ReferenceEquals(source.Shader, Shader))
-        {
-            throw new ArgumentException("Materials of different shaders cannot be copied.", nameof(source));
-        }
 
         _uniforms.Clear();
         foreach (var (name, value) in source._uniforms)

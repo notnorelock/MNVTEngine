@@ -46,6 +46,16 @@ public static class MaterialShaders
     /// <summary>Id of the built-in shadow caster shader (<see cref="ShadowCaster"/>); not selectable in material files.</summary>
     public const string ShadowCasterId = "builtin:shadow-caster";
 
+    /// <summary>Ids of the GPU-skinning variants (same fragment stages, skinned vertex stage); renderers pick them, materials never name them.</summary>
+    public const string StandardSkinnedId = "builtin:standard-skinned";
+
+    public const string UnlitSkinnedId = "builtin:unlit-skinned";
+
+    public const string ShadowCasterSkinnedId = "builtin:shadow-caster-skinned";
+
+    /// <summary>Joints a GPU-skinned mesh can have (the <c>uJoints</c> array); meshes with more are skinned on the CPU.</summary>
+    public const int MaxJoints = 128;
+
     private const string MeshVertex = """
         #version 450 core
         layout(location = 0) in vec3 aPosition;
@@ -72,6 +82,45 @@ public static class MaterialShaders
             vWorldPosition = world.xyz;
             vNormal = normalize(mat3(uNormalMatrix) * aNormal);
             vTangent = vec4(normalize(mat3(uModel) * aTangent.xyz), aTangent.w);
+            vTexCoord = aTexCoord;
+            vTexCoord1 = aTexCoord1;
+            vColor = aColor;
+            gl_Position = uViewProjection * world;
+        }
+        """;
+
+    private const string SkinnedMeshVertex = """
+        #version 450 core
+        layout(location = 0) in vec3 aPosition;
+        layout(location = 1) in vec3 aNormal;
+        layout(location = 2) in vec4 aTangent;
+        layout(location = 3) in vec2 aTexCoord;
+        layout(location = 4) in vec2 aTexCoord1;
+        layout(location = 5) in vec4 aColor;
+        layout(location = 6) in vec4 aJoints;
+        layout(location = 7) in vec4 aWeights;
+
+        uniform mat4 uViewProjection;
+        uniform mat4 uModel;
+        uniform mat4 uNormalMatrix;
+        uniform mat4 uJoints[128];
+
+        out vec3 vWorldPosition;
+        out vec3 vNormal;
+        out vec4 vTangent;
+        out vec2 vTexCoord;
+        out vec2 vTexCoord1;
+        out vec4 vColor;
+
+        void main()
+        {
+            // Linear blend skinning: the joints' matrices take bind-pose vertices to where the skeleton is now.
+            mat4 skin = aWeights.x * uJoints[int(aJoints.x)] + aWeights.y * uJoints[int(aJoints.y)]
+                + aWeights.z * uJoints[int(aJoints.z)] + aWeights.w * uJoints[int(aJoints.w)];
+            vec4 world = uModel * skin * vec4(aPosition, 1.0);
+            vWorldPosition = world.xyz;
+            vNormal = normalize(mat3(uNormalMatrix) * mat3(skin) * aNormal);
+            vTangent = vec4(normalize(mat3(uModel) * mat3(skin) * aTangent.xyz), aTangent.w);
             vTexCoord = aTexCoord;
             vTexCoord1 = aTexCoord1;
             vColor = aColor;
@@ -367,6 +416,9 @@ public static class MaterialShaders
         }
         """);
 
+    /// <summary>The Standard shader for GPU-skinned meshes (<see cref="SkinnedMeshVertex"/>, <c>uJoints</c>).</summary>
+    public static ShaderSource StandardSkinned { get; } = new("Builtin/StandardSkinned", SkinnedMeshVertex, Standard.FragmentGlsl);
+
     /// <summary>
     /// Writes the depth seen from a light into an RGBA8 target, 8 bits per channel (see <c>ShadowMap</c>); the Standard
     /// shader unpacks it. Built in; not a material shader.
@@ -414,6 +466,34 @@ public static class MaterialShaders
             fragColor = packed;
         }
         """);
+
+    /// <summary>The shadow caster for GPU-skinned meshes (<see cref="SkinnedMeshVertex"/>).</summary>
+    public static ShaderSource ShadowCasterSkinned { get; } = new("Builtin/ShadowCasterSkinned", SkinnedCasterVertex, ShadowCaster.FragmentGlsl);
+
+    private const string SkinnedCasterVertex =
+        """
+        #version 450 core
+        layout(location = 0) in vec3 aPosition;
+        layout(location = 3) in vec2 aTexCoord;
+        layout(location = 4) in vec2 aTexCoord1;
+        layout(location = 6) in vec4 aJoints;
+        layout(location = 7) in vec4 aWeights;
+
+        uniform mat4 uViewProjection;
+        uniform mat4 uModel;
+        uniform mat4 uJoints[128];
+        uniform float _BaseColorUVSet;
+
+        out vec2 vTexCoord;
+
+        void main()
+        {
+            vTexCoord = _BaseColorUVSet > 0.5 ? aTexCoord1 : aTexCoord;
+            mat4 skin = aWeights.x * uJoints[int(aJoints.x)] + aWeights.y * uJoints[int(aJoints.y)]
+                + aWeights.z * uJoints[int(aJoints.z)] + aWeights.w * uJoints[int(aJoints.w)];
+            gl_Position = uViewProjection * uModel * skin * vec4(aPosition, 1.0);
+        }
+        """;
 
     /// <summary>
     /// The sky: an equirectangular environment image around the camera (drawn on a large cube behind everything).
@@ -485,6 +565,9 @@ public static class MaterialShaders
             fragColor = color;
         }
         """);
+
+    /// <summary>The Unlit shader for GPU-skinned meshes.</summary>
+    public static ShaderSource UnlitSkinned { get; } = new("Builtin/UnlitSkinned", SkinnedMeshVertex, Unlit.FragmentGlsl);
 
     private static readonly Vector4 One = new(1f, 1f, 1f, 1f);
 

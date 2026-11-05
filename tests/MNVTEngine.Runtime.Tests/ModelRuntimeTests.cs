@@ -230,7 +230,7 @@ public sealed class ModelRuntimeTests : IDisposable
         camera.Transform.LocalPosition = new Mathematics.Vector3(0f, 0.8f, 3f);
         var view = camera.AddComponent<Camera>();
         (view.Projection, view.BackgroundColor) = (CameraProjection.Perspective, new Mathematics.Color(0f, 0f, 0f, 1f));
-        ModelInstantiation.Instantiate(scene, guid, model, "Cesium Man");
+        ModelInstantiation.Instantiate(scene, guid, model, "Cesium Man").GetComponent<ModelAnimator>()!.Speed = 0f; // the walk's first pose, the same in every run
         File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt"), new SceneSerializer(EngineComponents.CreateRegistry()).Serialize(scene));
         File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt.meta"), $$"""{ "schemaVersion": 1, "guid": "{{Guid.NewGuid()}}", "settings": {} }""");
         File.WriteAllText(Path.Combine(_root, "Test.mnvtproj"), """{ "schemaVersion": 1, "name": "Test", "startupScene": "Scenes/First.mnvt", "loadingScreen": { "enabled": false } }""");
@@ -243,9 +243,16 @@ public sealed class ModelRuntimeTests : IDisposable
         Assert.Equal(0, runtime.ExitCode); // the skinned dynamic mesh is released
         var warnings = logs.Snapshot().Where(e => e.Level >= LogLevel.Warning && e.Category != "Graphics").Select(e => $"{e.Category}: {e.Message}").ToList();
         Assert.True(warnings.Count == 0, string.Join("\n", warnings));
-        Assert.Contains(logs.Snapshot(), e => e.Message.Contains("1 meshes drawn", StringComparison.Ordinal));
+        Assert.Contains(logs.Snapshot(), e => e.Message.Contains("1 meshes drawn", StringComparison.Ordinal) && e.Message.Contains("1 GPU-skinned", StringComparison.Ordinal));
         var image = Graphics.Image.Load(screenshot);
         Assert.Contains(Enumerable.Range(0, image.Width * image.Height), i => image.Pixels[i * 4] + image.Pixels[(i * 4) + 1] + image.Pixels[(i * 4) + 2] > 60); // the character is on screen
+
+        // The CPU skins the same pose to the same picture.
+        var cpuShot = Path.Combine(_root, "walk-cpu.png");
+        Assert.Equal(0, RunHidden(GameProject.Load(_root), factory, cpuShot, gpuSkinning: false).ExitCode);
+        var cpu = Graphics.Image.Load(cpuShot);
+        var different = Enumerable.Range(0, image.Pixels.Length).Count(i => Math.Abs(image.Pixels[i] - cpu.Pixels[i]) > 8);
+        Assert.True(different <= image.Pixels.Length / 200, $"{different} of {image.Pixels.Length} channels differ between GPU and CPU skinning");
     }
 
     [Fact]
@@ -284,7 +291,7 @@ public sealed class ModelRuntimeTests : IDisposable
         }
     }
 
-    private static GameRuntime RunHidden(GameProject project, ILoggerFactory factory, string screenshot)
+    private static GameRuntime RunHidden(GameProject project, ILoggerFactory factory, string screenshot, bool gpuSkinning = true)
     {
         GameWindow window;
         try
@@ -299,7 +306,7 @@ public sealed class ModelRuntimeTests : IDisposable
 
         var runtime = new GameRuntime(project, EngineComponents.CreateRegistry(),
             (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }),
-            factory, new GameRuntimeOptions { ExitAfterFrames = 3, ScreenshotPath = screenshot });
+            factory, new GameRuntimeOptions { ExitAfterFrames = 3, ScreenshotPath = screenshot, GpuSkinning = gpuSkinning });
         using (window)
         {
             try

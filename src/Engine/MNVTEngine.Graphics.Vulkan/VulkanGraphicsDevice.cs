@@ -44,10 +44,11 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
     private readonly VulkanGpuTimer? _timer;
     private readonly Dictionary<SamplerState, Sampler> _samplers = [];
     private readonly Queue<(long Frame, Action Destroy)> _destroyQueue = new();
-    private readonly byte[] _vertexBlock = new byte[4096];
-    private readonly byte[] _fragmentBlock = new byte[4096];
-    private readonly byte[] _lastVertexBlock = new byte[4096];
-    private readonly byte[] _lastFragmentBlock = new byte[4096];
+    // 16 KB per stage: the default uniforms, plus GPU skinning's 128 joint matrices (8 KB) in the vertex stage.
+    private readonly byte[] _vertexBlock = new byte[16384];
+    private readonly byte[] _fragmentBlock = new byte[16384];
+    private readonly byte[] _lastVertexBlock = new byte[16384];
+    private readonly byte[] _lastFragmentBlock = new byte[16384];
     private SurfaceKHR _surface;
     private VulkanSwapchain? _swapchain;
     private VulkanImage? _headlessBackBuffer;
@@ -1330,6 +1331,21 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
                 if (slot.Stage == stage && slot.Member.Kind == UniformKind.Matrix4x4)
                 {
                     MemoryMarshal.Write(data[slot.Member.Offset..], in normalMatrix);
+                }
+            }
+        }
+
+        if (!command.Joints.IsEmpty)
+        {
+            foreach (var slot in shader.Slots("uJoints"))
+            {
+                if (slot.Stage == stage && slot.Member.ElementKind == UniformKind.Matrix4x4)
+                {
+                    var joints = command.Joints.Span;
+                    for (var j = 0; j < Math.Min(joints.Length, slot.Member.ArrayLength); j++)
+                    {
+                        MemoryMarshal.Write(data[(slot.Member.Offset + (j * slot.Member.ArrayStride))..], in joints[j]);
+                    }
                 }
             }
         }

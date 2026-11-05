@@ -21,6 +21,7 @@ public sealed partial class SceneRenderer
     private readonly List<MeshDrawItem> _items = [];
     private readonly ConditionalWeakTable<MeshRenderer, Material> _rendererMaterials = [];
     private readonly ConditionalWeakTable<MeshRenderer, Dictionary<Material, Material>> _overriddenMaterials = [];
+    private readonly ConditionalWeakTable<Material, Material> _skinnedMaterials = [];
     private readonly ConditionalWeakTable<MeshRenderer, HashSet<string>> _warnedOverrides = [];
     private Renderer3D? _renderer3D;
     private GpuMeshCache? _meshes;
@@ -35,6 +36,16 @@ public sealed partial class SceneRenderer
 
     /// <summary>Mesh renderers drawn by the last 3D pass.</summary>
     public int MeshesDrawn { get; private set; }
+
+    /// <summary>
+    /// Skins meshes on the GPU (default): the skinned shader variants move the vertices by the joint matrices, so the
+    /// CPU only computes the matrices. Meshes with blend shapes, more than <see cref="MaterialShaders.MaxJoints"/> joints,
+    /// or materials other than the built-in Standard and Unlit are skinned on the CPU. Off skins every mesh on the CPU.
+    /// </summary>
+    public bool GpuSkinning { get; set; } = true;
+
+    /// <summary>Skinned meshes the GPU skinned in the last 3D pass.</summary>
+    public int GpuSkinnedMeshes { get; private set; }
 
     /// <summary>Mesh renderers outside the camera's view in the last 3D pass.</summary>
     public int MeshesCulled { get; private set; }
@@ -84,7 +95,7 @@ public sealed partial class SceneRenderer
 
     private void Render3D(Scene scene, Camera camera, RenderTarget2D? target)
     {
-        MeshesDrawn = MeshesCulled = MeshTriangles = 0;
+        MeshesDrawn = MeshesCulled = MeshTriangles = GpuSkinnedMeshes = 0;
         _items.Clear();
         _frame++;
         foreach (var meshRenderer in scene.World.Pool<MeshRenderer>().Components)
@@ -133,6 +144,7 @@ public sealed partial class SceneRenderer
         Core.Diagnostics.Profiler.Count("Material switches", MaterialSwitches);
         Core.Diagnostics.Profiler.Count("Lights 3D", LightsUsed);
         Core.Diagnostics.Profiler.Count("Skinned meshes", SkinnedMeshes);
+        Core.Diagnostics.Profiler.Count("GPU skinned meshes", GpuSkinnedMeshes);
     }
 
     /// <summary>One item per submesh of a model mesh, with the renderer's material or the model's material of each submesh.</summary>
@@ -143,18 +155,54 @@ public sealed partial class SceneRenderer
             return;
         }
 
-        var (mesh, world) = (modelMesh.Joints is not null || modelMesh.BlendShapes.Count > 0) && Deform(meshRenderer, modelMesh) is { } deformed
-            ? (deformed.Mesh, deformed.WorldSpace ? Matrix4x4.Identity : meshRenderer.Transform.LocalToWorldMatrix) // skinned vertices are in world space
-            : (Meshes().Get(modelMesh.Mesh), meshRenderer.Transform.LocalToWorldMatrix);
-        var white = resources.GetDefaultTexture(DefaultTexture.White);
-        CullMode? cull = meshRenderer.DoubleSided ? CullMode.None : null;
         var custom = resources.GetMaterial(meshRenderer.Material);
-        for (var i = 0; i < mesh.SubMeshes.Count; i++)
+        var materials = new Material[modelMesh.Mesh.SubMeshes.Count];
+        for (var i = 0; i < materials.Length; i++)
         {
             var index = i < modelMesh.SubMeshMaterials.Count ? modelMesh.SubMeshMaterials[i] : -1;
-            var material = custom ?? resources.GetModelMaterial(meshRenderer.Mesh.Guid, index) ?? BuiltinMaterial(meshRenderer);
-            _items.Add(new MeshDrawItem(mesh, i, WithOverrides(meshRenderer, material), white, world, cull));
+            materials[i] = WithOverrides(meshRenderer, custom ?? resources.GetModelMaterial(meshRenderer.Mesh.Guid, index) ?? BuiltinMaterial(meshRenderer));
         }
+
+        var gpuSkin = GpuSkinning && modelMesh.Joints is not null && modelMesh.BlendShapes.Count == 0 && materials.All(m => SkinnedVariant(m) is not null);
+        var (mesh, world, joints, bounds) = (modelMesh.Joints is not null || modelMesh.BlendShapes.Count > 0) && Deform(meshRenderer, modelMesh, gpuSkin) is { } deformed
+            ? (deformed.Mesh, deformed.WorldSpace ? Matrix4x4.Identity : meshRenderer.Transform.LocalToWorldMatrix, deformed.Joints, deformed.Bounds) // skinned vertices are in world space
+            : (Meshes().Get(modelMesh.Mesh), meshRenderer.Transform.LocalToWorldMatrix, null, (Bounds?)null);
+        var white = resources.GetDefaultTexture(DefaultTexture.White);
+        CullMode? cull = meshRenderer.DoubleSided ? CullMode.None : null;
+        if (joints is not null)
+        {
+            GpuSkinnedMeshes++;
+        }
+
+        for (var i = 0; i < mesh.SubMeshes.Count; i++)
+        {
+            var material = joints is not null ? SkinnedVariant(materials[i])! : materials[i];
+            _items.Add(new MeshDrawItem(mesh, i, material, white, world, cull, joints ?? default(ReadOnlyMemory<Matrix4x4>), bounds));
+        }
+    }
+
+    /// <summary>
+    /// The GPU-skinning twin of a built-in Standard or Unlit material: the skinned shader with the material's values,
+    /// copied every frame (inspector edits show). Null for other shaders, which only the CPU can skin.
+    /// </summary>
+    private Material? SkinnedVariant(Material material)
+    {
+        var id = ReferenceEquals(material.Shader, resources.GetBuiltinShader(Serialization.MaterialDefinition.BuiltinStandard)) ? MaterialShaders.StandardSkinnedId
+            : ReferenceEquals(material.Shader, resources.GetBuiltinShader(Serialization.MaterialDefinition.BuiltinUnlit)) ? MaterialShaders.UnlitSkinnedId : null;
+        if (id is null)
+        {
+            return null;
+        }
+
+        var shader = resources.GetBuiltinShader(id);
+        if (!_skinnedMaterials.TryGetValue(material, out var twin) || !ReferenceEquals(twin.Shader, shader))
+        {
+            twin = new Material(shader, material.BlendMode, material.Name + " (skinned)");
+            _skinnedMaterials.AddOrUpdate(material, twin);
+        }
+
+        twin.CopyFrom(material);
+        return twin;
     }
 
     /// <summary>
@@ -167,7 +215,7 @@ public sealed partial class SceneRenderer
     /// defaults), then skinning with the joints' current pose. Recomputed when the pose or the weights change. Null when
     /// a skin's joints cannot be found (the mesh then draws undeformed).
     /// </summary>
-    private (GpuMesh Mesh, bool WorldSpace)? Deform(MeshRenderer meshRenderer, ModelMesh modelMesh)
+    private (GpuMesh Mesh, bool WorldSpace, Matrix4x4[]? Joints, Bounds? Bounds)? Deform(MeshRenderer meshRenderer, ModelMesh modelMesh, bool gpu)
     {
         if (!_skins.TryGetValue(meshRenderer, out var state) || !ReferenceEquals(state.Source, modelMesh) || state.Joints.Any(j => j is null || j.GameObject.IsDestroyed))
         {
@@ -184,6 +232,30 @@ public sealed partial class SceneRenderer
 
         state.LastFrame = _frame;
         var skinned = state.Skin is not null;
+        if (gpu && skinned && state.Joints.Length <= MaterialShaders.MaxJoints)
+        {
+            // The GPU moves the vertices: only the joint matrices, and bounds for culling, are computed here.
+            Bounds? box = null;
+            for (var j = 0; j < state.Joints.Length; j++)
+            {
+                state.Matrices[j] = state.Joints[j]!.LocalToWorldMatrix * state.Skin!.InverseBindMatrices[j];
+                var moved = Renderer3D.TransformBounds(modelMesh.Mesh.Bounds, state.Matrices[j]);
+                if (box is { } b)
+                {
+                    b.Encapsulate(moved);
+                    box = b;
+                }
+                else
+                {
+                    box = moved;
+                }
+            }
+
+            // shortcut: one GPU copy per renderer (crowds of one model upload it once each); share it per model mesh if that matters.
+            state.GpuSkinned ??= GpuMesh.UploadSkinned(renderer.Device, modelMesh.Mesh, modelMesh.Joints, modelMesh.Weights);
+            return (state.GpuSkinned, true, state.Matrices, box);
+        }
+
         var weightsChanged = state.WeightsVersion != meshRenderer.BlendShapeVersion || state.SkinnedFrame < 0;
         if (state.SkinnedFrame != _frame && (skinned || weightsChanged))
         {
@@ -223,7 +295,7 @@ public sealed partial class SceneRenderer
             state.Gpu.UpdateVertices(state.Morphed, state.Gpu.Bounds); // dynamic buffers are uploaded each frame they are drawn
         }
 
-        return (state.Gpu, skinned);
+        return (state.Gpu, skinned, null, null);
     }
 
     private SkinState? BindDeformation(MeshRenderer meshRenderer, ModelMesh modelMesh)
@@ -322,7 +394,14 @@ public sealed partial class SceneRenderer
 
         public int SkinnedFrame { get; set; } = -1;
 
-        public void Dispose() => Gpu.Dispose();
+        /// <summary>The bind pose with joints and weights, for GPU skinning (created on first use).</summary>
+        public GpuMesh? GpuSkinned { get; set; }
+
+        public void Dispose()
+        {
+            Gpu.Dispose();
+            GpuSkinned?.Dispose();
+        }
     }
 
     private GpuMeshCache Meshes()
@@ -435,17 +514,17 @@ public sealed partial class SceneRenderer
             switch (light.Kind)
             {
                 case LightKind.Directional when directional is null:
-                    _shadowMap ??= new ShadowMap(device);
+                    _shadowMap ??= new ShadowMap(device) { SkinnedCasterShader = resources.GetBuiltinShader(MaterialShaders.ShadowCasterSkinnedId) };
                     directional = _shadowMap.Render(light, index, view.ViewProjection, camera.NearClip, camera.FarClip, _items, shader);
                     count += _shadowMap.CasterCount;
                     break;
                 case LightKind.Spot when spots.Count < ShadowSet.MaxSpotShadows:
-                    var map = _spotShadowMaps[spots.Count] ??= new ShadowMap(device, 1024);
+                    var map = _spotShadowMaps[spots.Count] ??= new ShadowMap(device, 1024) { SkinnedCasterShader = resources.GetBuiltinShader(MaterialShaders.ShadowCasterSkinnedId) };
                     spots.Add(map.RenderSpot(light, index, _items, shader));
                     count += map.CasterCount;
                     break;
                 case LightKind.Point when point is null:
-                    _pointShadowMap ??= new PointShadowMap(device);
+                    _pointShadowMap ??= new PointShadowMap(device) { SkinnedCasterShader = resources.GetBuiltinShader(MaterialShaders.ShadowCasterSkinnedId) };
                     point = _pointShadowMap.Render(light, index, _items, shader);
                     count += _pointShadowMap.CasterCount;
                     break;

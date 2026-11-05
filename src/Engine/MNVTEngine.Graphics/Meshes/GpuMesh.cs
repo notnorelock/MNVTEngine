@@ -30,6 +30,25 @@ public struct MeshVertex
 }
 
 /// <summary>
+/// A <see cref="MeshVertex"/> with four joint indices (as floats) and weights, for GPU skinning (104 bytes). Shader
+/// locations 0–5 as <see cref="MeshVertex"/>, 6 joints, 7 weights.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct SkinnedMeshVertex
+{
+    public MeshVertex Vertex;
+    public Vector4 Joints;
+    public Vector4 Weights;
+
+    public static readonly VertexLayout Layout = new(Marshal.SizeOf<SkinnedMeshVertex>(),
+    [
+        .. MeshVertex.Layout.Elements,
+        new VertexElement(6, 4, VertexElementType.Float32, 72),
+        new VertexElement(7, 4, VertexElementType.Float32, 88),
+    ]);
+}
+
+/// <summary>
 /// A mesh in GPU memory: one static vertex buffer and one index buffer (16-bit when the vertex count allows), shared by
 /// every renderer that draws the mesh. Owned by whoever uploaded it (normally a <see cref="GpuMeshCache"/>).
 /// <see cref="CreateDynamic"/> makes one whose vertices are rewritten by the CPU (skinned meshes).
@@ -101,6 +120,55 @@ public sealed class GpuMesh : IDisposable
             }
 
             return new GpuMesh(mesh.Name, vertexBuffer, indexBuffer, [.. mesh.SubMeshes], mesh.Bounds, mesh.Version, vertexBytes.Length + indexBytes);
+        }
+        catch
+        {
+            vertexBuffer.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// A static mesh with four joints and weights per vertex (<see cref="SkinnedMeshVertex"/>), skinned on the GPU by the
+    /// skinned shaders with the draw's joint matrices. Owned by the caller.
+    /// </summary>
+    /// <exception cref="InvalidDataException">The mesh is invalid, or the skin data does not have four entries per vertex.</exception>
+    public static GpuMesh UploadSkinned(IGraphicsDevice device, Mesh mesh, ReadOnlySpan<ushort> joints, ReadOnlySpan<float> weights)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+        ArgumentNullException.ThrowIfNull(mesh);
+        if (mesh.Validate() is { Count: > 0 } problems)
+        {
+            throw new InvalidDataException($"Mesh '{mesh.Name}' cannot be uploaded: {string.Join(" ", problems)}");
+        }
+
+        if (joints.Length != mesh.VertexCount * 4 || weights.Length != joints.Length)
+        {
+            throw new InvalidDataException($"Mesh '{mesh.Name}' needs 4 joints and weights per vertex for GPU skinning.");
+        }
+
+        var plain = Interleave(mesh);
+        var vertices = new SkinnedMeshVertex[plain.Length];
+        for (var i = 0; i < vertices.Length; i++)
+        {
+            var j = i * 4;
+            vertices[i] = new SkinnedMeshVertex
+            {
+                Vertex = plain[i],
+                Joints = new Vector4(joints[j], joints[j + 1], joints[j + 2], joints[j + 3]),
+                Weights = new Vector4(weights[j], weights[j + 1], weights[j + 2], weights[j + 3]),
+            };
+        }
+
+        var vertexBytes = MemoryMarshal.AsBytes<SkinnedMeshVertex>(vertices);
+        var vertexBuffer = device.CreateStaticVertexBuffer(SkinnedMeshVertex.Layout, vertexBytes, mesh.Name + " skinned vertices");
+        try
+        {
+            var indexBuffer = mesh.IndexFormat == IndexFormat.UInt16
+                ? device.CreateIndexBuffer([.. mesh.IndexSpan.ToArray().Select(i => (ushort)i)], mesh.Name + " indices")
+                : device.CreateIndexBuffer(mesh.IndexSpan, mesh.Name + " indices");
+            return new GpuMesh(mesh.Name, vertexBuffer, indexBuffer, [.. mesh.SubMeshes], mesh.Bounds, mesh.Version,
+                vertexBytes.Length + (mesh.IndexSpan.Length * (mesh.IndexFormat == IndexFormat.UInt16 ? 2 : 4)));
         }
         catch
         {

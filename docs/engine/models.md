@@ -171,8 +171,12 @@ engine's -Z goes on a child GameObject with that rotation.
   - Each animated node is the descendant GameObject of the same name (node names are unique within a model), and the model's root node is the animator's own GameObject. Its local position, rotation and scale follow the clip. Nodes the clip animates but that are missing (renamed or deleted) stay still, with one warning.
 - **Sampling** follows glTF: values hold before the first key and after the last. Step holds the previous key; linear interpolates, with rotations by shortest-path slerp. Cubic splines are Hermite curves whose tangents are scaled by the key interval.
 - **Skinning.** A `MeshRenderer` whose mesh is skinned deforms with the joints of its skin. The joints are the GameObjects of the joint nodes, found by name under the model's root, so animating or moving them by hand both work.
-  - Skinning is linear blend skinning on the CPU (up to four joints per vertex) into a dynamic vertex buffer per renderer. It runs once per frame and is shared by the shadow and main passes. Bounds follow the deformed mesh for culling.
-  - Per frame it costs about the vertex count times four matrix blends. GPU skinning is a later optimization.
+  - Skinning is linear blend skinning with up to four joints per vertex.
+  - **On the GPU** (the default). The mesh is uploaded once with its joints and weights. Each frame the CPU computes only the joint matrices (joint world matrix times inverse bind matrix), and the skinned variants of the Standard, Unlit and shadow caster shaders move the vertices.
+    - Culling uses the mesh's bounds moved by every joint matrix, which is conservative.
+    - Up to 128 joints (`MaterialShaders.MaxJoints`).
+  - **On the CPU**, into a dynamic vertex buffer per renderer, for meshes with blend shapes, more joints, or a material with another shader. It runs once per frame and is shared by the shadow and main passes. Bounds follow the deformed mesh. It costs about the vertex count times four matrix blends per frame.
+  - `SceneRenderer.GpuSkinning = false` (`GameRuntimeOptions.GpuSkinning`) skins everything on the CPU. Both give the same picture; a test compares them.
 - **Hosts** give scenes the clips through `Scene.ModelAnimations` (`ModelAnimationProvider`, which reads model artifacts), like `Scene.TextAssets`. The runtime and editor Play Mode set it.
 - **Tested** with the Khronos CesiumMan (GLB, and as FBX written by Assimp's exporter) and BoxAnimated. Assimp's FBX exporter tags meter data as centimeters, so such files need `"scale": 100`; FBX files from Blender or Maya carry their real units.
 

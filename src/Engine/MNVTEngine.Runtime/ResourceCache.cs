@@ -197,6 +197,9 @@ public sealed partial class ResourceCache : IDisposable
                 MaterialDefinition.BuiltinUnlit => Graphics.Materials.MaterialShaders.Unlit,
                 MaterialDefinition.BuiltinSprite => BuiltinShaders.Sprite,
                 Graphics.Materials.MaterialShaders.ShadowCasterId => Graphics.Materials.MaterialShaders.ShadowCaster,
+                Graphics.Materials.MaterialShaders.StandardSkinnedId => Graphics.Materials.MaterialShaders.StandardSkinned,
+                Graphics.Materials.MaterialShaders.UnlitSkinnedId => Graphics.Materials.MaterialShaders.UnlitSkinned,
+                Graphics.Materials.MaterialShaders.ShadowCasterSkinnedId => Graphics.Materials.MaterialShaders.ShadowCasterSkinned,
                 Graphics.Materials.MaterialShaders.SkyId => Graphics.Materials.MaterialShaders.Sky,
                 _ => throw new ArgumentException($"Unknown built-in shader '{id}'.", nameof(id)),
             });

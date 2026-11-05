@@ -15,7 +15,13 @@ public readonly record struct View3D(Matrix4x4 View, Matrix4x4 Projection, Vecto
 /// </summary>
 /// <param name="Texture">The draw's <c>uTexture</c> (custom shaders); built-in shaders take their maps from the material.</param>
 /// <param name="Cull">Overrides the material's culling (e.g. a double-sided renderer).</param>
-public readonly record struct MeshDrawItem(GpuMesh Mesh, int SubMesh, Material Material, Texture2D Texture, Matrix4x4 World, CullMode? Cull = null);
+/// <param name="Joints">GPU skinning: the joint matrices of a mesh uploaded with <see cref="GpuMesh.UploadSkinned"/>, drawn with a skinned shader.</param>
+/// <param name="WorldBounds">Bounds for culling when the mesh's own bounds moved by <see cref="World"/> do not hold (GPU-skinned meshes).</param>
+public readonly record struct MeshDrawItem(GpuMesh Mesh, int SubMesh, Material Material, Texture2D Texture, Matrix4x4 World, CullMode? Cull = null, ReadOnlyMemory<Matrix4x4> Joints = default, Bounds? WorldBounds = null)
+{
+    /// <summary>Where the item is in world space, for culling.</summary>
+    public Bounds CullBounds => WorldBounds ?? Renderer3D.TransformBounds(Mesh.Bounds, World);
+}
 
 /// <param name="MaterialSwitches">Draws that used a different material than the draw before (pipeline and descriptor changes).</param>
 public readonly record struct Render3DStatistics(int Visible, int Culled, int DrawCalls, int Triangles, int MaterialSwitches = 0);
@@ -51,7 +57,7 @@ public sealed class Renderer3D(IGraphicsDevice device)
         var culled = 0;
         foreach (var item in items)
         {
-            var bounds = TransformBounds(item.Mesh.Bounds, item.World);
+            var bounds = item.CullBounds;
             if (!frustum.Intersects(bounds))
             {
                 culled++;
@@ -107,7 +113,7 @@ public sealed class Renderer3D(IGraphicsDevice device)
         }
 
         var sub = mesh.SubMeshes[item.SubMesh];
-        device.Draw(new DrawCommand(item.Material, item.Texture, mesh.Vertices, mesh.Indices, sub.IndexStart, sub.IndexCount, viewProjection, State: state, World: item.World));
+        device.Draw(new DrawCommand(item.Material, item.Texture, mesh.Vertices, mesh.Indices, sub.IndexStart, sub.IndexCount, viewProjection, State: state, World: item.World, Joints: item.Joints));
         return sub.IndexCount / 3;
     }
 

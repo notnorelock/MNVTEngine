@@ -246,8 +246,8 @@ public sealed class BuildPipelineTests : IDisposable
 
         // Sprite vertex + fragment, the shared mesh vertex stage with the Standard, Unlit and Sky fragments, the shadow
         // caster's two stages, the custom fragment.
-        Assert.Equal(9, result.Shaders);
-        Assert.Equal(9, content.Archives[1].Entries.Count(e => e.StartsWith("Shaders/", StringComparison.Ordinal)));
+        Assert.Equal(11, result.Shaders); // unique stages: the skinned variants add two vertex stages and reuse their fragment stages
+        Assert.Equal(11, content.Archives[1].Entries.Count(e => e.StartsWith("Shaders/", StringComparison.Ordinal)));
         Assert.Equal(archives.Sum(a => a.Entries), content.Entries.Count());
 
         var index = Newtonsoft.Json.Linq.JObject.Parse(System.Text.Encoding.UTF8.GetString(content.Read(Assets.AssetDatabase.IndexEntry)));

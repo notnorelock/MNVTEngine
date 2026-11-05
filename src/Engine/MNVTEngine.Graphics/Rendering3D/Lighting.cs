@@ -247,6 +247,12 @@ public sealed class ShadowCasters(IGraphicsDevice device)
 
     public void ResetCount() => Count = 0;
 
+    /// <summary>
+    /// The caster shader for GPU-skinned items (<see cref="MeshDrawItem.Joints"/>), <see cref="MaterialShaders.ShadowCasterSkinned"/>.
+    /// Without one they cast their bind pose.
+    /// </summary>
+    public Shader? SkinnedCasterShader { get; set; }
+
     /// <summary>Draws the casters inside <paramref name="viewProjection"/> into the current target and viewport.</summary>
     public void Draw(Matrix4x4 viewProjection, IReadOnlyList<MeshDrawItem> items, Shader casterShader)
     {
@@ -256,17 +262,32 @@ public sealed class ShadowCasters(IGraphicsDevice device)
         foreach (var item in items)
         {
             var source = item.Material;
-            if (source.IsTransparent || !source.DepthWrite || !frustum.Intersects(Renderer3D.TransformBounds(item.Mesh.Bounds, item.World)))
+            if (source.IsTransparent || !source.DepthWrite || !frustum.Intersects(item.CullBounds))
             {
                 continue;
             }
 
-            var caster = CasterFor(source, casterShader, item.Texture);
+            var skinned = !item.Joints.IsEmpty && SkinnedCasterShader is not null;
+            var caster = skinned ? SkinnedCasterFor(source, item.Texture) : CasterFor(source, casterShader, item.Texture);
             var sub = item.Mesh.SubMeshes[item.SubMesh];
             Count++;
             device.Draw(new DrawCommand(caster, item.Texture, item.Mesh.Vertices, item.Mesh.Indices, sub.IndexStart, sub.IndexCount, viewProjection,
-                State: new RenderState(true, true, item.Cull ?? source.Cull), World: item.World));
+                State: new RenderState(true, true, item.Cull ?? source.Cull), World: item.World, Joints: skinned ? item.Joints : default));
         }
+    }
+
+    private readonly Dictionary<Material, Material> _skinnedCasters = new(ReferenceEqualityComparer.Instance);
+
+    private Material SkinnedCasterFor(Material source, Texture2D white)
+    {
+        var shader = SkinnedCasterShader!;
+        if (!_skinnedCasters.TryGetValue(source, out var caster) || !ReferenceEquals(caster.Shader, shader))
+        {
+            caster = new Material(shader, BlendMode.Opaque, source.Name + " (skinned shadow caster)");
+            _skinnedCasters[source] = caster;
+        }
+
+        return Mirror(caster, source, white);
     }
 
     private Material CasterFor(Material source, Shader casterShader, Texture2D white)
@@ -277,7 +298,12 @@ public sealed class ShadowCasters(IGraphicsDevice device)
             _casters[source] = caster;
         }
 
-        // Mirrored every draw: the source material may change (inspector edits, scripts).
+        return Mirror(caster, source, white);
+    }
+
+    /// <summary>Mirrored every draw: the source material may change (inspector edits, scripts).</summary>
+    private static Material Mirror(Material caster, Material source, Texture2D white)
+    {
         caster.SetTexture("_BaseColorMap", source.GetTexture("_BaseColorMap") ?? white);
         caster.SetVector("_BaseColor", source.TryGetUniform("_BaseColor", out var color) ? color.Vector : new Vector4(1f, 1f, 1f, 1f));
         caster.SetFloat("_AlphaCutoff", source.TryGetUniform("_AlphaCutoff", out var cutoff) ? cutoff.Vector.X : 0f);
@@ -303,6 +329,9 @@ public sealed class ShadowMap(IGraphicsDevice device, int size = 2048) : IDispos
     private RenderTarget2D? _target;
 
     public int Size { get; } = size;
+
+    /// <inheritdoc cref="ShadowCasters.SkinnedCasterShader"/>
+    public Shader? SkinnedCasterShader { get => _casters.SkinnedCasterShader; set => _casters.SkinnedCasterShader = value; }
 
     /// <summary>Meshes drawn into the shadow map by the last render.</summary>
     public int CasterCount => _casters.Count;
@@ -411,6 +440,9 @@ public sealed class PointShadowMap(IGraphicsDevice device, int faceSize = 512) :
     private RenderTarget2D? _atlas;
 
     public int FaceSize { get; } = faceSize;
+
+    /// <inheritdoc cref="ShadowCasters.SkinnedCasterShader"/>
+    public Shader? SkinnedCasterShader { get => _casters.SkinnedCasterShader; set => _casters.SkinnedCasterShader = value; }
 
     public int CasterCount => _casters.Count;
 

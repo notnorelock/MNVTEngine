@@ -37,6 +37,9 @@ public sealed record GameRuntimeOptions
     /// <summary>TrueType font of the debug UI; null for the built-in one.</summary>
     public string? DebugFontPath { get; init; }
 
+    /// <summary>Skin meshes on the GPU (default); false skins them on the CPU (comparison, debugging).</summary>
+    public bool GpuSkinning { get; init; } = true;
+
     /// <summary>Log entries shown in the debug console.</summary>
     public Core.Logging.InMemoryLoggerProvider? DebugLogs { get; init; }
 
@@ -100,7 +103,7 @@ public sealed partial class GameRuntime(
         _prefabs = new PrefabProvider(_serializer, _assets, loggerFactory.CreateLogger("Prefabs"));
         _animations = new ModelAnimationProvider(_assets, loggerFactory.CreateLogger("Animation"));
         _resources = new ResourceCache(_device, _assets, loggerFactory.CreateLogger("Resources"));
-        _sceneRenderer = new SceneRenderer(_renderer, _resources, _logger);
+        _sceneRenderer = new SceneRenderer(_renderer, _resources, _logger) { GpuSkinning = _options.GpuSkinning };
         Application.SetHostWindow(new RuntimeWindow(window, _device, _assets));
         LogStarting(_logger, project.Name, project.StartupScene);
 
@@ -223,7 +226,7 @@ public sealed partial class GameRuntime(
         _device.Present();
         if (exiting)
         {
-            LogAutoExit(_logger, _frames, _sceneRenderer.SpritesDrawn, _sceneRenderer.SpritesCulled, _sceneRenderer.MeshesDrawn, _sceneRenderer.MeshesCulled);
+            LogAutoExit(_logger, _frames, _sceneRenderer.SpritesDrawn, _sceneRenderer.SpritesCulled, _sceneRenderer.MeshesDrawn, _sceneRenderer.MeshesCulled, _sceneRenderer.GpuSkinnedMeshes);
             _window.Close();
         }
     }
@@ -337,8 +340,8 @@ public sealed partial class GameRuntime(
     [LoggerMessage(EventId = 3103, Level = LogLevel.Error, Message = "Could not load scene '{Scene}'; staying in the current scene")]
     private static partial void LogSceneSwitchFailed(ILogger logger, Exception exception, string scene);
 
-    [LoggerMessage(EventId = 3104, Level = LogLevel.Information, Message = "Exiting after {Frames} frames ({Drawn} sprites drawn, {Culled} culled; {Meshes} meshes drawn, {MeshesCulled} culled)")]
-    private static partial void LogAutoExit(ILogger logger, int frames, int drawn, int culled, int meshes, int meshesCulled);
+    [LoggerMessage(EventId = 3104, Level = LogLevel.Information, Message = "Exiting after {Frames} frames ({Drawn} sprites drawn, {Culled} culled; {Meshes} meshes drawn, {MeshesCulled} culled, {GpuSkinned} GPU-skinned)")]
+    private static partial void LogAutoExit(ILogger logger, int frames, int drawn, int culled, int meshes, int meshesCulled, int gpuSkinned);
 
     [LoggerMessage(EventId = 3105, Level = LogLevel.Error, Message = "{Count} GPU resources leaked")]
     private static partial void LogLeaks(ILogger logger, int count);

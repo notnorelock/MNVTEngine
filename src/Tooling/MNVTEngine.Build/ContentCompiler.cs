@@ -196,6 +196,9 @@ public static class ContentCompiler
         precompiler.Add(Graphics.Materials.MaterialShaders.Standard);
         precompiler.Add(Graphics.Materials.MaterialShaders.Unlit);
         precompiler.Add(Graphics.Materials.MaterialShaders.ShadowCaster);
+        precompiler.Add(Graphics.Materials.MaterialShaders.StandardSkinned);
+        precompiler.Add(Graphics.Materials.MaterialShaders.UnlitSkinned);
+        precompiler.Add(Graphics.Materials.MaterialShaders.ShadowCasterSkinned);
         precompiler.Add(Graphics.Materials.MaterialShaders.Sky);
         foreach (var material in assets.Assets.Where(a => a.Type == AssetTypes.Material).OrderBy(a => a.Path, StringComparer.Ordinal))
         {

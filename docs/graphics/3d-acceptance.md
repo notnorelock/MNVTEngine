@@ -21,7 +21,7 @@ one project, with the services the editor uses. GPU tests and real-app runs cove
 | 13 | Reimport modified FBX and GLB | Source and settings hashes; staged artifacts; import inputs | Acceptance test (re-saved FBX, changed GLB); `CorruptModel_*`, `ChangingABuffer_*` |
 | 14 | Valid references after reimport | Sub-asset names: FBX meshes are named after their node, glTF meshes by name | Acceptance test (every scene reference resolves after reimport; remaps and extracted textures kept) |
 | 15+ | Blend shapes | Morph targets from glTF and FBX, `MeshRenderer` weights, weight animation | `BlendShapeImportTests`; `ModelAnimator_DrivesBlendShapeWeights_*`; `BlendShapes_DeformTheRenderedMesh` |
-| 15 | Skeletal models and animations | Skins, clips, `ModelAnimator`, CPU skinning | Acceptance test; `SkinnedAnimatedFbx_*`; `SkinnedCharacter_*` (GLB and FBX, rendered); Player screenshots |
+| 15 | Skeletal models and animations | Skins, clips, `ModelAnimator`, GPU skinning (CPU for blend shapes) | Acceptance test; `SkinnedAnimatedFbx_*`; `SkinnedCharacter_*` (GLB and FBX, rendered); Player screenshots |
 | 16 | Instantiate in a scene | Drag onto the Hierarchy or the Scene view, **Add to scene** | Acceptance test; `ModelRuntimeTests` |
 | 17 | Render with Vulkan 1.4 | Vulkan backend, `Renderer3D`, dynamic rendering | `VulkanLightingTests`, `VulkanMeshTests`, runtime render tests with validation on |
 | 18 | PBR materials and textures | Standard shader (GGX, metallic-roughness, normal, occlusion, emission) | `VulkanLightingTests`; `ModelMesh_RendersFromTheArtifact_*`; material and model previews |

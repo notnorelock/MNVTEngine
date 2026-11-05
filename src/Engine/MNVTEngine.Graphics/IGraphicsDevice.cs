@@ -13,6 +13,7 @@ public enum PrimitiveTopology
 /// <param name="State">Depth testing and face culling; the default (both off) is what 2D drawing uses.</param>
 /// <param name="World">Object-to-world matrix, given to shaders as <c>uModel</c> (and its inverse transpose as
 /// <c>uNormalMatrix</c>); identity when null.</param>
+/// <param name="Joints">Skinning matrices, given to shaders as the <c>mat4 uJoints[]</c> array (GPU skinning); empty otherwise.</param>
 public readonly record struct DrawCommand(
     Material Material,
     Texture2D Texture,
@@ -24,7 +25,8 @@ public readonly record struct DrawCommand(
     PrimitiveTopology Topology = PrimitiveTopology.Triangles,
     Rect? Scissor = null,
     RenderState State = default,
-    Matrix4x4? World = null);
+    Matrix4x4? World = null,
+    ReadOnlyMemory<Matrix4x4> Joints = default);
 
 public enum CullMode
 {

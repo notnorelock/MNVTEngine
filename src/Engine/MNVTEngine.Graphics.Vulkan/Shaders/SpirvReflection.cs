@@ -4,7 +4,10 @@ using System.Text;
 namespace MNVTEngine.Graphics.Vulkan.Shaders;
 
 /// <summary>One member of a uniform block. <see cref="Kind"/> is null for types materials cannot set (arrays, vec3, structs...).</summary>
-internal sealed record SpirvUniformMember(string Name, int Offset, int Size, UniformKind? Kind);
+/// <param name="ArrayLength">For arrays (such as <c>mat4 uJoints[128]</c>): the element count; 0 otherwise.</param>
+/// <param name="ArrayStride">For arrays: bytes from one element to the next.</param>
+/// <param name="ElementKind">For arrays: the kind of each element, when it is one materials know.</param>
+internal sealed record SpirvUniformMember(string Name, int Offset, int Size, UniformKind? Kind, int ArrayLength = 0, int ArrayStride = 0, UniformKind? ElementKind = null);
 
 internal sealed record SpirvUniformBlock(uint Set, uint Binding, int Size, IReadOnlyList<SpirvUniformMember> Members);
 
@@ -171,7 +174,10 @@ internal sealed class SpirvModule
                         var offset = memberOffsets.GetValueOrDefault((pointer.Element, m));
                         var memberType = types[type.Members[m]];
                         var size = SizeOf(memberType, types, constants, arrayStrides, type.Members[m], matrixStrides.GetValueOrDefault((pointer.Element, m), 16));
-                        members.Add(new SpirvUniformMember(memberNames.GetValueOrDefault((pointer.Element, m), $"member{m}"), offset, size, KindOf(memberType, types)));
+                        var memberName = memberNames.GetValueOrDefault((pointer.Element, m), $"member{m}");
+                        members.Add(memberType.Kind == SpirvTypeKind.Array
+                            ? new SpirvUniformMember(memberName, offset, size, null, (int)constants.GetValueOrDefault(memberType.Members[0], 1u), arrayStrides.GetValueOrDefault(type.Members[m]), KindOf(types[memberType.Element], types))
+                            : new SpirvUniformMember(memberName, offset, size, KindOf(memberType, types)));
                     }
 
                     var blockSize = members.Count == 0 ? 0 : members.Max(m => m.Offset + m.Size);
