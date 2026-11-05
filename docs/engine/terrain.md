@@ -77,3 +77,9 @@ File.WriteAllText("world.terrain.json", project.Save());
 - `FoliageStore` holds foliage presets and one layer of placed billboard instances per preset. An instance stores its scale and color as normalized 0..1 factors, so editing a preset resizes and recolors every instance.
 - `MeshStore` holds prop assets and their placed instances. An asset references a mesh library file and has a scale and pivot calibration. An instance has a full Euler rotation and a uniform scale.
 - Removing a preset or asset renumbers the layers after it.
+
+**Prop meshes.**
+
+- `MeshCalibration` applies an asset's scale, then its offset, to loaded `MeshGroup`s (triangle soups per material). `ComputeGroundedCenterOffset` centers a prop on X/Z and rests it on Y = 0.
+- `MeshLodGenerator` builds LOD1 to LOD3 by decimating LOD0 to 40 %, 15 % and 5 % of its vertices, and caches the result per asset path. It uses `MeshSimplifier`, a port of three.js's SimplifyModifier (Melax edge collapse).
+- The ratio counts welded vertices. TerrainHeaven counted soup vertices, which emptied every LOD of a closed mesh.
