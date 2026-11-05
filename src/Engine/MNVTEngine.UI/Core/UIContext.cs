@@ -17,7 +17,7 @@ namespace MNVTEngine.UI;
 /// </summary>
 public sealed partial class UIContext : IDisposable
 {
-    private readonly UISystem? _system;
+    private UISystem? _system;
     private readonly UIInputRouter _input;
     private UITheme _theme = UITheme.Dark;
     private float _scale = 1f;
@@ -234,6 +234,14 @@ public sealed partial class UIContext : IDisposable
 
     /// <summary>The scene whose context game event handlers run in; null for standalone contexts.</summary>
     internal Scene? Scene => _system?.Scene;
+
+    /// <summary>Moves this context to another scene's UI system (a DontDestroyOnLoad UIDocument).</summary>
+    internal void MoveTo(UISystem target)
+    {
+        _system?.Remove(this);
+        _system = target;
+        target.Add(this);
+    }
 
     /// <summary>A texture asset through the scene's UI services (null without a UI system or when missing).</summary>
     internal Texture2D? LoadTexture(AssetRef asset) => _system?.Services.LoadTexture?.Invoke(asset);

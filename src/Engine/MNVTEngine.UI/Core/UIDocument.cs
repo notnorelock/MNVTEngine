@@ -60,6 +60,26 @@ public sealed class UIDocument : Component
 
     public override void OnDisable() => Context?.Visible = false;
 
+    /// <summary>Moved by DontDestroyOnLoad: the context joins the new scene's UI (with the fonts it may use).</summary>
+    protected override void OnMovedToScene(Scene previous)
+    {
+        if (Context is null || UISystem.For(previous) is not { } old)
+        {
+            return;
+        }
+
+        if (UISystem.For(GameObject.Scene) is { } current)
+        {
+            current.AdoptFonts(old);
+            Context.MoveTo(current);
+        }
+        else
+        {
+            Context.Dispose(); // no UI in the new scene
+            (Context, Root) = (null, null);
+        }
+    }
+
     public override void OnDestroy()
     {
         Context?.Dispose();

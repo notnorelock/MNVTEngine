@@ -50,6 +50,32 @@ public class PhysicsTests
     }
 
     [Fact]
+    public void DontDestroyOnLoad_BodyMovesToTheNewScene_KeepingItsVelocity()
+    {
+        var first = NewScene();
+        var ball = Box(first, "Ball", new Vector2(0f, 10f), Vector2.One, RigidbodyType2D.Dynamic);
+        ball.GetComponent<Rigidbody2D>()!.GravityScale = 0f;
+        ball.GetComponent<Rigidbody2D>()!.Velocity = new Vector2(3f, 0f);
+        first.Start();
+        Simulate(first, 0.5f);
+        ball.DontDestroyOnLoad();
+
+        var second = NewScene();
+        var wall = Box(second, "Wall", new Vector2(4f, 10f), new Vector2(1f, 4f), body: null);
+        first.MovePersistentObjectsTo(second);
+        first.Unload();
+        second.Start();
+
+        var rigidbody = ball.GetComponent<Rigidbody2D>()!;
+        second.FixedUpdate(Step);
+        Assert.Equal(2, PhysicsWorld2D.For(second).BodyCount); // rebuilt in the new world, not left behind with the old one
+        Assert.Equal(3f, rigidbody.Velocity.X, 2);
+        Simulate(second, 1.5f);
+        Assert.Equal(2, PhysicsWorld2D.For(second).BodyCount);
+        Assert.True(ball.Transform.Position.X < wall.Transform.Position.X); // it collides with the new scene's wall
+    }
+
+    [Fact]
     public void DynamicBody_FallsUnderGravity()
     {
         var scene = NewScene();

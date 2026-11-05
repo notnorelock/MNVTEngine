@@ -136,6 +136,8 @@ public sealed class Rigidbody2D : Component
 
     public override void OnDestroy() => PhysicsWorld2D.Refresh(this);
 
+    protected override void OnMovedToScene(Scene previous) => PhysicsWorld2D.Moved(this, previous);
+
     /// <summary>Applies pending component changes first, so the body reflects them.</summary>
     private bool Bound
     {
@@ -191,6 +193,8 @@ public abstract class Collider2D : Component
     public override void OnDisable() => PhysicsWorld2D.Refresh(this);
 
     public override void OnDestroy() => PhysicsWorld2D.Refresh(this);
+
+    protected override void OnMovedToScene(Scene previous) => PhysicsWorld2D.Moved(this, previous);
 
     internal abstract IEnumerable<B2ShapeId> CreateShapes(B2BodyId body, B2ShapeDef definition, Vector2 scale);
 

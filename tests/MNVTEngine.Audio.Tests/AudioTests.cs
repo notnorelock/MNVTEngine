@@ -90,6 +90,31 @@ public class AudioTests
     }
 
     [Fact]
+    public void DontDestroyOnLoad_SourceKeepsPlaying_InTheNewScene()
+    {
+        var (first, device, system, _) = NewScene();
+        var source = first.CreateGameObject("Music").AddComponent<AudioSource>();
+        (source.Clip, source.Loop, source.PlayOnStart) = (Beep, true, true);
+        first.Start();
+        Frames(first, 1);
+        Assert.True(source.IsPlaying);
+        source.GameObject.DontDestroyOnLoad();
+
+        var second = new Scene { RethrowScriptExceptions = true };
+        var next = AudioSystem.Attach(second, device, _ => Sine(0.5f));
+        first.MovePersistentObjectsTo(second);
+        first.Unload();
+        second.Start();
+        Frames(second, 3);
+
+        Assert.True(source.IsPlaying);
+        Assert.Equal((0, 1), (system.VoiceCount, next.VoiceCount));
+        Assert.Equal(1, device.LiveBuffers); // the clip it plays was handed over, not released
+        second.Unload();
+        Assert.Equal((0, 0), (device.LiveVoices, device.LiveBuffers));
+    }
+
+    [Fact]
     public void Source_PlaysPausesResumesAndFinishes()
     {
         var (scene, device, system, reads) = NewScene();

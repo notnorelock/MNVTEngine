@@ -123,5 +123,20 @@ return GameApplication.Run(args,
 - **Options:** `--frames N` exits after N frames, `--screenshot file.png` saves the last frame, and `--gpu-validation` enables the Vulkan validation layer. Exit code 4 means no Vulkan 1.4 GPU or driver was found.
 - **Exit codes:** 0 ok, 1 GPU resource leak, 2 project or startup scene unreadable.
 - **Scene switching:** `SceneManager.LoadScene(path)` switches at the end of the frame. A broken target scene is logged and the current scene keeps running.
+- **DontDestroyOnLoad:** `gameObject.DontDestroyOnLoad()` (in a component: `DontDestroyOnLoad(GameObject)` or
+  `DontDestroyOnLoad(this)`) keeps a root object and its children when a scene loads. The host moves them into the new
+  scene before unloading the old one (`Scene.MovePersistentObjectsTo`).
+  - They are the same objects and components, with their state, and they get no second Awake or OnEnable. A pending
+    Start and a destroy queued that frame still happen. They keep persisting through later loads.
+  - Engine services move with them, through `Component.OnMovedToScene(previous)`:
+    - physics bodies, keeping their velocity, now colliding with the new scene;
+    - a playing `AudioSource` keeps playing (its voice and clip move);
+    - a `UIDocument` keeps its context and the fonts it uses.
+  - Unlike Unity there is no separate "DontDestroyOnLoad" scene: the objects are part of the new scene (`Find`,
+    `FindObjectsOfType`, the editor's Hierarchy in Play Mode).
+  - Only roots persist: for a child it logs a warning and does nothing.
+  - Loading a scene that contains the same object again gives the carried one a new id. Avoid duplicates as in Unity:
+    a singleton that destroys the newcomer.
+  - The flag is runtime state: it is not saved in scene files. Play Mode keeps it across a C# code reload.
 - **Missing textures:** each missing or corrupt texture is logged once and drawn as a magenta checkerboard.
 - **Rendering:** `SceneRenderer` draws every active `SpriteRenderer` through `Scene.MainCamera` (the first active camera). Sprites are sorted by `SortingOrder`, higher on top. Off-screen sprites are culled with a conservative bounding circle.

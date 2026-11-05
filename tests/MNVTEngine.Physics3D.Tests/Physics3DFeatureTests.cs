@@ -35,6 +35,31 @@ public class Physics3DFeatureTests
         return go;
     }
 
+    [Fact]
+    public void DontDestroyOnLoad_BodyMovesToTheNewScene_KeepingItsVelocity()
+    {
+        var first = NewScene();
+        var ball = Box(first, "Ball", new Vector3(0f, 5f, 0f), Vector3.One, RigidbodyType.Dynamic);
+        var rigidbody = ball.GetComponent<Rigidbody>()!;
+        (rigidbody.UseGravity, rigidbody.Velocity) = (false, new Vector3(2f, 0f, 0f));
+        first.Start();
+        Simulate(first, 0.5f);
+        ball.DontDestroyOnLoad();
+
+        var second = NewScene();
+        Floor(second);
+        first.MovePersistentObjectsTo(second);
+        first.Unload();
+        second.Start();
+        second.FixedUpdate(Step);
+
+        Assert.Equal(2, PhysicsWorld3D.For(second).BodyCount);
+        Assert.Equal(2f, rigidbody.Velocity.X, 1);
+        var x = ball.Transform.Position.X;
+        Simulate(second, 0.5f);
+        Assert.Equal(x + 1f, ball.Transform.Position.X, 1); // still moving at 2 m/s in the new world
+    }
+
     private static GameObject Floor(Scene scene, int layer = 0) => Box(scene, "Floor", new Vector3(0f, -0.5f, 0f), new Vector3(40f, 1f, 40f), body: null, layer);
 
     private static void Simulate(Scene scene, float seconds, Action? everyStep = null)

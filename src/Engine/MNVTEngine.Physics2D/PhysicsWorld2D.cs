@@ -30,6 +30,7 @@ public sealed class PhysicsWorld2D : GameSystem
     private readonly HashSet<Pair> _touching = [];
     private readonly HashSet<Pair> _overlapping = [];
     private readonly HashSet<GameObject> _dirty = [];
+    private readonly Dictionary<GameObject, (Vector2 Velocity, float AngularVelocity)> _carried = [];
     private bool _flushing;
     private B2WorldId _world;
     private bool _hasWorld;
@@ -130,6 +131,31 @@ public sealed class PhysicsWorld2D : GameSystem
         }
     }
 
+    /// <summary>
+    /// A DontDestroyOnLoad object moved in from <paramref name="previous"/>: its body leaves that world (keeping its
+    /// velocity) and is built in this scene's world.
+    /// </summary>
+    internal static void Moved(Component component, Scene previous)
+    {
+        var owner = component.GameObject;
+        if (previous.Systems.Get<PhysicsWorld2D>() is { } old)
+        {
+            old._dirty.Remove(owner);
+            if (old._bindings.Remove(owner, out var binding))
+            {
+                if (binding.Rigidbody is not null && b2Body_IsValid(binding.Body))
+                {
+                    For(owner.Scene)._carried[owner] = (Rigidbody2D.Convert(b2Body_GetLinearVelocity(binding.Body)), b2Body_GetAngularVelocity(binding.Body) * Mathf.Rad2Deg);
+                }
+
+                old.DestroyBinding(binding);
+            }
+        }
+
+        // Hosts move objects before the new scene starts: build the body at its first step either way.
+        For(owner.Scene)._dirty.Add(owner);
+    }
+
     /// <summary>Brings bodies up to date before a component reads or drives its body.</summary>
     internal static void Flush(Component component)
     {
@@ -176,6 +202,10 @@ public sealed class PhysicsWorld2D : GameSystem
             }
 
             DestroyBinding(old);
+        }
+        else if (_carried.Remove(owner, out var carried))
+        {
+            (velocity, angularVelocity) = carried;
         }
 
         var rigidbody = owner.IsDestroyed || !owner.ActiveInHierarchy ? null : owner.GetComponent<Rigidbody2D>();
@@ -273,6 +303,7 @@ public sealed class PhysicsWorld2D : GameSystem
     {
         scene.Unloaded -= OnSceneUnloaded;
         _dirty.Clear();
+        _carried.Clear();
         foreach (var binding in _bindings.Values)
         {
             if (binding.Rigidbody is { } rigidbody)

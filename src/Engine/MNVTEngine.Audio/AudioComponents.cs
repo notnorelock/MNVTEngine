@@ -100,6 +100,25 @@ public sealed class AudioSource : Component
         }
     }
 
+    /// <summary>Moved by DontDestroyOnLoad: the voice and its clip go to the new scene's audio, so playback continues.</summary>
+    protected override void OnMovedToScene(Scene previous)
+    {
+        if (_voice is null || AudioSystem.For(previous) is not { } old)
+        {
+            return;
+        }
+
+        if (System is { } current)
+        {
+            current.Adopt(old, _voice, Clip);
+        }
+        else
+        {
+            old.Release(_voice); // no audio in the new scene
+            _voice = null;
+        }
+    }
+
     /// <summary>Keeps spatial voices at the GameObject's position and applies the mixer (called each frame).</summary>
     internal void Follow(AudioSystem system)
     {
@@ -158,6 +177,7 @@ public sealed partial class AudioSystem : GameSystem
     private readonly Dictionary<Guid, IAudioBuffer?> _buffers = [];
     private readonly List<IAudioVoice> _voices = [];
     private readonly List<(IAudioVoice Voice, float Volume, string Group)> _oneShots = [];
+    private readonly List<IAudioBuffer> _adoptedBuffers = [];
     private AudioMixer? _mixer;
 
     private AudioSystem(Scene scene, IAudioDevice device, Func<AssetRef, byte[]> readClip)
@@ -173,7 +193,7 @@ public sealed partial class AudioSystem : GameSystem
     /// <summary>Voices alive in this scene (sources plus one-shots still playing).</summary>
     public int VoiceCount => _voices.Count;
 
-    /// <summary>Decoded PCM held by this scene's audio buffers.</summary>
+    /// <summary>Decoded PCM this scene's audio decoded (buffers adopted from a previous scene are not counted).</summary>
     public long BufferBytes { get; private set; }
 
     /// <summary>Clips uploaded (or attempted) by this scene.</summary>
@@ -240,6 +260,26 @@ public sealed partial class AudioSystem : GameSystem
         var voice = Device.CreateVoice();
         _voices.Add(voice);
         return voice;
+    }
+
+    /// <summary>
+    /// Takes over a voice from another scene's audio (a DontDestroyOnLoad source), with the buffer it plays: that scene
+    /// releases its own voices and buffers when it unloads.
+    /// </summary>
+    internal void Adopt(AudioSystem from, IAudioVoice voice, AssetRef clip)
+    {
+        if (from._voices.Remove(voice))
+        {
+            _voices.Add(voice);
+        }
+
+        if (!clip.IsNone && from._buffers.Remove(clip.Guid, out var buffer) && buffer is not null)
+        {
+            if (!_buffers.TryAdd(clip.Guid, buffer))
+            {
+                _adoptedBuffers.Add(buffer); // this scene loaded the clip too; keep the playing copy alive until unload
+            }
+        }
     }
 
     internal void Release(IAudioVoice voice)
@@ -310,6 +350,12 @@ public sealed partial class AudioSystem : GameSystem
         }
 
         _buffers.Clear();
+        foreach (var buffer in _adoptedBuffers)
+        {
+            buffer.Dispose();
+        }
+
+        _adoptedBuffers.Clear();
         BufferBytes = 0;
         scene.Systems.Remove(this);
     }

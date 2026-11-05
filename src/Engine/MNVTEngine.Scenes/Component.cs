@@ -93,6 +93,28 @@ public abstract class Component
     /// <summary>Destroys this component at the end of the frame (immediately in edit mode).</summary>
     public void Destroy() => GameObject.Scene.Destroy(this);
 
+    /// <summary>Keeps <paramref name="target"/> (a root object) when a new scene loads; see <see cref="GameObject.DontDestroyOnLoad"/>.</summary>
+    public static void DontDestroyOnLoad(GameObject target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        target.DontDestroyOnLoad();
+    }
+
+    /// <summary>Keeps the component's GameObject (a root object) when a new scene loads.</summary>
+    public static void DontDestroyOnLoad(Component target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        target.GameObject.DontDestroyOnLoad();
+    }
+
+    /// <summary>
+    /// Called after <see cref="GameObject.DontDestroyOnLoad"/> carried this component into a newly loaded scene, inside
+    /// that scene's context; engine components move their scene services (physics bodies, audio voices, UI) here.
+    /// </summary>
+    protected internal virtual void OnMovedToScene(Scene previous)
+    {
+    }
+
     public override string ToString() => $"{GetType().Name} on '{GameObject?.Name}'";
 }
 

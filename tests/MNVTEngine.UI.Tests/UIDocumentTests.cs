@@ -53,6 +53,30 @@ public sealed class UIDocumentTests
     }
 
     [Fact]
+    public void DontDestroyOnLoad_DocumentKeepsItsContext_InTheNewScenesUI()
+    {
+        var services = new UIServices(UIHarness.Font, null, _ => System.Text.Encoding.UTF8.GetBytes(Menu()), null);
+        var first = new Scene();
+        var old = UISystem.Attach(first, services);
+        var document = first.CreateGameObject("HUD").AddComponent<UIDocument>();
+        document.Layout = Layout;
+        first.Start();
+        var context = document.Context!;
+        document.GameObject.DontDestroyOnLoad();
+
+        var second = new Scene();
+        var current = UISystem.Attach(second, services);
+        first.MovePersistentObjectsTo(second);
+        first.Unload();
+        second.Start();
+
+        Assert.Same(context, document.Context);
+        Assert.Equal((0, 1), (old.Contexts.Count, current.Contexts.Count));
+        Assert.Same(second, context.Scene);
+        Assert.NotNull(document.Root!.Find<Button>("Play"));
+    }
+
+    [Fact]
     public void Handlers_RunInTheScenesContext_AndAThrowingHandlerIsLoggedNotFatal()
     {
         var scene = new Scene();

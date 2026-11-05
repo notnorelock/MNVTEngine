@@ -23,6 +23,7 @@ public sealed class UISystem : GameSystem
     private readonly List<UIContext> _contexts = [];
     private static readonly GameLog Log = GameLog.For<UISystem>();
     private readonly Dictionary<AssetRef, Task<Font>> _fonts = [];
+    private readonly List<Task<Font>> _adoptedFonts = [];
     private readonly List<(Task<Font> Task, Action<Font> Loaded, Action<Exception>? Failed)> _pending = [];
 
     private UISystem(Scene scene, UIServices services)
@@ -129,6 +130,27 @@ public sealed class UISystem : GameSystem
 
     internal void Remove(UIContext context) => _contexts.Remove(context);
 
+    internal void Add(UIContext context) => _contexts.Add(context);
+
+    /// <summary>
+    /// Takes over the fonts another scene's UI loaded, before it unloads and disposes them: a context moved here by
+    /// DontDestroyOnLoad may still draw with them. Fonts this scene loaded too stay alive until it unloads.
+    /// </summary>
+    internal void AdoptFonts(UISystem from)
+    {
+        foreach (var (asset, task) in from._fonts)
+        {
+            if (!_fonts.TryAdd(asset, task))
+            {
+                _adoptedFonts.Add(task);
+            }
+        }
+
+        from._fonts.Clear();
+        _adoptedFonts.AddRange(from._adoptedFonts);
+        from._adoptedFonts.Clear();
+    }
+
     private void CompleteLoads()
     {
         for (var i = _pending.Count - 1; i >= 0; i--)
@@ -164,10 +186,12 @@ public sealed class UISystem : GameSystem
             context.Dispose();
         }
 
-        foreach (var task in _fonts.Values.Where(t => t.IsCompletedSuccessfully))
+        foreach (var task in _fonts.Values.Concat(_adoptedFonts).Where(t => t.IsCompletedSuccessfully))
         {
             task.Result.Dispose();
         }
+
+        _adoptedFonts.Clear();
 
         _fonts.Clear();
     }

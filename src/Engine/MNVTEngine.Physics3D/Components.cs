@@ -108,6 +108,8 @@ public sealed class Rigidbody : Component
 
     public override void OnDestroy() => PhysicsWorld3D.Refresh(this);
 
+    protected override void OnMovedToScene(Scene previous) => PhysicsWorld3D.Moved(this, previous);
+
     private void Set<T>(ref T field, T value)
     {
         if (!EqualityComparer<T>.Default.Equals(field, value))
@@ -154,6 +156,8 @@ public abstract class Collider : Component
     public override void OnDisable() => PhysicsWorld3D.Refresh(this);
 
     public override void OnDestroy() => PhysicsWorld3D.Refresh(this);
+
+    protected override void OnMovedToScene(Scene previous) => PhysicsWorld3D.Moved(this, previous);
 
     private protected void Set<T>(ref T field, T value)
     {
@@ -251,6 +255,8 @@ public abstract class Joint : Component
     public override void OnDisable() => PhysicsWorld3D.RefreshJoints(this);
 
     public override void OnDestroy() => PhysicsWorld3D.RefreshJoints(this);
+
+    protected override void OnMovedToScene(Scene previous) => PhysicsWorld3D.Moved(this, previous);
 
     private protected void Set<T>(ref T field, T value)
     {
@@ -381,6 +387,8 @@ public sealed class CharacterController : Component
     public override void OnDisable() => PhysicsWorld3D.RemoveCharacter(this);
 
     public override void OnDestroy() => PhysicsWorld3D.RemoveCharacter(this);
+
+    protected override void OnMovedToScene(Scene previous) => PhysicsWorld3D.Moved(this, previous);
 }
 
 /// <summary>A contact between a collider of this GameObject and another collider.</summary>

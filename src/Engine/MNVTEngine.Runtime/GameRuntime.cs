@@ -303,7 +303,6 @@ public sealed partial class GameRuntime(
 
     private void SwitchTo(Scene next)
     {
-        CurrentScene?.Unload();
         next.Logger = loggerFactory.CreateLogger($"Scene.{next.Name}");
         next.Input = _window.Input;
         next.Loader = this;
@@ -318,6 +317,9 @@ public sealed partial class GameRuntime(
 
         UI.UISystem.Attach(next, new UI.UIServices(_uiFont, new WindowClipboard(_window), asset => _assets.ReadAllBytes(asset.Guid), asset => _resources.GetTexture(asset)));
 
+        // DontDestroyOnLoad objects move in once the new scene's services exist, before the old scene is torn down.
+        CurrentScene?.MovePersistentObjectsTo(next);
+        CurrentScene?.Unload();
         CurrentScene = next;
         next.Start();
         LogSceneStarted(_logger, next.Name, next.GameObjects.Count);

@@ -151,6 +151,25 @@ public sealed class EditorServicesTests : IDisposable
     }
 
     [Fact]
+    public void PlayMode_DontDestroyOnLoad_CarriesObjectsIntoTheLoadedScene()
+    {
+        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "Other.mnvt"), """{ "schemaVersion": 1, "name": "Other", "gameObjects": [] }""");
+        _session.Scene.CreateGameObject("Score");
+        _session.Scene.CreateGameObject("Level");
+        var play = NewPlayMode();
+        play.Play();
+        var score = play.PlayScene!.Find("Score")!;
+        score.DontDestroyOnLoad();
+        play.RequestLoad("Scenes/Other.mnvt");
+        play.Tick(0.1);
+
+        Assert.Equal("Other", play.PlayScene!.Name);
+        Assert.Same(score, play.PlayScene.Find("Score"));
+        Assert.Null(play.PlayScene.Find("Level"));
+        Assert.False(score.IsDestroyed);
+    }
+
+    [Fact]
     public void Inspector_ListsMembersWithKindsAndNames()
     {
         var members = MemberInspector.GetMembers(typeof(Holder)).ToDictionary(m => m.DisplayName);

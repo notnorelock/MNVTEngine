@@ -29,6 +29,7 @@ public sealed partial class PhysicsWorld3D : GameSystem, IDisposable
     private readonly Dictionary<BodyHandle, Binding> _bodies = [];
     private readonly Dictionary<StaticHandle, Binding> _statics = [];
     private readonly HashSet<GameObject> _dirty = [];
+    private readonly Dictionary<GameObject, (Vector3 Velocity, Vector3 AngularVelocity)> _carried = [];
     private readonly Dictionary<Pair, (Vector3 Normal, Vector3 Point)> _stepContacts = [];
     private readonly HashSet<Pair> _stepOverlaps = [];
     private readonly HashSet<Pair> _touching = [];
@@ -446,6 +447,55 @@ public sealed partial class PhysicsWorld3D : GameSystem, IDisposable
         }
     }
 
+    /// <summary>
+    /// A DontDestroyOnLoad object moved in from <paramref name="previous"/>: its body, capsule and joints leave that
+    /// world (keeping the body's velocity) and are built in this scene's world.
+    /// </summary>
+    internal static void Moved(Component component, Scene previous)
+    {
+        var owner = component.GameObject;
+        if (previous.Systems.Get<PhysicsWorld3D>() is { } old && old._simulation is { } simulation)
+        {
+            old._dirty.Remove(owner);
+            if (old._bindings.Remove(owner, out var binding))
+            {
+                if (binding.Body is { } handle && simulation.Bodies.BodyExists(handle))
+                {
+                    var v = simulation.Bodies[handle].Velocity;
+                    For(owner.Scene)._carried[owner] = (E(v.Linear), E(v.Angular) * Mathf.Rad2Deg);
+                }
+
+                old.DestroyBinding(binding);
+            }
+
+            if (component is CharacterController controller && old._characters.Remove(controller, out var entry))
+            {
+                old._characterBodies.Remove(entry.Body);
+                if (simulation.Bodies.BodyExists(entry.Body))
+                {
+                    simulation.Shapes.RecursivelyRemoveAndDispose(simulation.Bodies[entry.Body].Collidable.Shape, old._pool!);
+                    simulation.Bodies.Remove(entry.Body);
+                }
+            }
+
+            old._jointsDirty = true;
+        }
+
+        // Hosts move objects before the new scene starts: build them at its first step either way.
+        var world = For(owner.Scene);
+        switch (component)
+        {
+            case Joint:
+                world._jointsDirty = true;
+                break;
+            case CharacterController:
+                break; // its capsule is created in this world on the next Move
+            default:
+                world._dirty.Add(owner);
+                break;
+        }
+    }
+
     /// <summary>Marks the body of a component's GameObject for rebuilding (no-op outside running scenes).</summary>
     internal static void Refresh(Component component)
     {
@@ -589,6 +639,10 @@ public sealed partial class PhysicsWorld3D : GameSystem, IDisposable
             }
 
             DestroyBinding(old);
+        }
+        else if (_carried.Remove(owner, out var carried))
+        {
+            (velocity, angularVelocity) = carried;
         }
 
         var alive = !owner.IsDestroyed && owner.ActiveInHierarchy;
@@ -855,6 +909,7 @@ public sealed partial class PhysicsWorld3D : GameSystem, IDisposable
     {
         scene.Unloaded -= OnSceneUnloaded;
         _dirty.Clear();
+        _carried.Clear();
         _bindings.Clear();
         _bodies.Clear();
         _statics.Clear();

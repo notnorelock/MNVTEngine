@@ -205,6 +205,13 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
             }
         }
 
+        // The copy is a new scene: re-mark what was DontDestroyOnLoad (the flag is not saved in scene files).
+        var persistent = PlayScene.PersistentObjects.Select(g => g.Id).ToHashSet();
+        foreach (var root in result.Scene.RootObjects.Where(r => persistent.Contains(r.Id)))
+        {
+            root.DontDestroyOnLoad();
+        }
+
         PlayScene.Unload();
         Input.ReleaseAll();
         Start(result.Scene);
@@ -235,8 +242,7 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         try
         {
             var result = session.Serializer.Deserialize(File.ReadAllText(session.Project.ResolveAsset(path)), path);
-            PlayScene?.Unload();
-            Start(result.Scene);
+            Start(result.Scene, carryFrom: PlayScene);
         }
         catch (Exception ex) when (ex is SerializationException or IOException or ArgumentException)
         {
@@ -255,7 +261,8 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
     /// <summary>Size of the Game view in pixels: the game UI lays out to it.</summary>
     public Mathematics.Vector2 ViewportSize { get; set; }
 
-    private void Start(Scene scene)
+    /// <param name="carryFrom">The scene being replaced: its DontDestroyOnLoad objects move in, then it is unloaded.</param>
+    private void Start(Scene scene, Scene? carryFrom = null)
     {
         scene.Logger = loggerFactory.CreateLogger($"Scene.{scene.Name}");
         scene.Input = Input;
@@ -274,6 +281,8 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
             UI.UISystem.Attach(scene, ui);
         }
 
+        carryFrom?.MovePersistentObjectsTo(scene);
+        carryFrom?.Unload();
         PlayScene = scene;
         scene.Start();
     }

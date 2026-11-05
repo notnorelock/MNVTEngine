@@ -22,18 +22,22 @@ public sealed class GameObject
     }
 
     /// <summary>Stable identity, persisted in scene files. The Transform shares this id.</summary>
-    public Guid Id { get; }
+    public Guid Id { get; internal set; }
 
     public string Name { get; set; }
 
-    public Scene Scene { get; }
+    /// <summary>The scene this object is in; changes when <see cref="DontDestroyOnLoad"/> carries it into a newly loaded scene.</summary>
+    public Scene Scene { get; internal set; }
 
     /// <summary>ECS handle, for adding struct components and querying from systems.</summary>
-    public Entity Entity { get; }
+    public Entity Entity { get; internal set; }
 
     public Transform Transform { get; }
 
     public bool IsDestroyed { get; internal set; }
+
+    /// <summary>Set by <see cref="DontDestroyOnLoad"/>: the object (a root) survives <see cref="SceneManager.LoadScene(string)"/>.</summary>
+    public bool PersistsAcrossLoads { get; internal set; }
 
     public bool ActiveSelf => _activeSelf;
 
@@ -117,6 +121,13 @@ public sealed class GameObject
 
     /// <summary>Destroys this object and its children at the end of the frame (immediately in edit mode).</summary>
     public void Destroy() => Scene.Destroy(this);
+
+    /// <summary>
+    /// Keeps this object and its children when a new scene is loaded: they move into the new scene with their state
+    /// (no second Awake or OnEnable), like Unity's DontDestroyOnLoad. Only root objects can persist; for a child this
+    /// logs a warning and does nothing.
+    /// </summary>
+    public void DontDestroyOnLoad() => Scene.DontDestroyOnLoad(this);
 
     public override string ToString() => $"GameObject '{Name}'";
 
