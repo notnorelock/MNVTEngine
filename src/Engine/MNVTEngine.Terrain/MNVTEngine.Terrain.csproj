@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The world/terrain toolkit ported from TerrainHeaven (https://github.com/borsuczyna/TerrainHeaven, used with its
+    author's permission): roads, intersections, rivers, terrain cuts, stairs, fences, buildings and the adaptive terrain
+    mesher. Pure geometry in double precision, no rendering or platform dependencies. See THIRD-PARTY-NOTICES.md.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Clipper2" />
+    <PackageReference Include="Newtonsoft.Json" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Mathematics\MNVTEngine.Mathematics.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.Terrain.Tests" />
+  </ItemGroup>
+</Project>

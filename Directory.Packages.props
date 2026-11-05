@@ -9,6 +9,8 @@
     <PackageVersion Include="BepuPhysics" Version="2.4.0" />
     <PackageVersion Include="ImGui.NET" Version="1.91.6.1" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
+    <!-- Terrain: polygon booleans for the terrain mesher and buildings (BSL-1.0) -->
+    <PackageVersion Include="Clipper2" Version="2.0.0" />
     <PackageVersion Include="Silk.NET.Input.Glfw" Version="2.23.0" />
     <PackageVersion Include="NVorbis" Version="0.10.5" />
     <!-- Model import (edit time only; exported games read artifacts): Assimp 6 for FBX (BSD-3, natives via Ultz.Native.Assimp), SharpGLTF for glTF (MIT) -->
