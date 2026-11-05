@@ -5,6 +5,8 @@
   <ItemGroup>
     <!-- Engine -->
     <PackageVersion Include="Box2D.NET" Version="3.1.654" />
+    <!-- 3D physics: BepuPhysics v2 (Apache-2.0, pure C#) -->
+    <PackageVersion Include="BepuPhysics" Version="2.4.0" />
     <PackageVersion Include="ImGui.NET" Version="1.91.6.1" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageVersion Include="Silk.NET.Input.Glfw" Version="2.23.0" />

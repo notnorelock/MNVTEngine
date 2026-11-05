@@ -6,7 +6,7 @@ namespace MNVTEngine.Runtime;
 public static class EngineComponents
 {
     public static ComponentRegistry CreateRegistry() =>
-        UI.UIComponents.Register(AudioComponents.Register(Physics2DComponents.Register(ScriptingComponents.Register(ComponentRegistry.CreateDefault()))));
+        UI.UIComponents.Register(AudioComponents.Register(Physics3DComponents.Register(Physics2DComponents.Register(ScriptingComponents.Register(ComponentRegistry.CreateDefault())))));
 }
 
 /// <summary>Creates the host's audio output (backend chosen by the host, e.g. OpenAL).</summary>

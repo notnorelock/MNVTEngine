@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 3D physics: Rigidbody and collider components over BepuPhysics v2 (Apache-2.0, pure C#). No rendering dependencies. -->
+  <PropertyGroup>
+    <!-- The gameplay facade is MNVTEngine.Physics; components live in MNVTEngine like the rest of the gameplay API. -->
+    <RootNamespace>MNVTEngine</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="BepuPhysics" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+  </ItemGroup>
+</Project>

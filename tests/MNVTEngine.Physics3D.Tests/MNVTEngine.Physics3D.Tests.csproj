@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- MNVTEngine.Physics is a type (the gameplay facade), so it cannot also be a namespace. -->
+    <RootNamespace>MNVTEngine.Physics3DTests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Physics3D\MNVTEngine.Physics3D.csproj" />
+  </ItemGroup>
+</Project>

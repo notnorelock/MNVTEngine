@@ -84,7 +84,7 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 - [.mnvts language reference: grammar, semantics, VM limits, errors](docs/scripting/language.md)
 - [Missions: lifecycle, script API, persistence](docs/scripting/missions.md)
 - [Building and exporting games: CLI, profiles, packaging, validation](docs/build-system/building.md)
-- [Physics2D: rigidbodies, colliders, callbacks, ray casts](docs/engine/physics2d.md)
+- [Physics2D: rigidbodies, colliders, callbacks, ray casts](docs/engine/physics2d.md); [Physics 3D (BepuPhysics v2)](docs/engine/physics3d.md)
 - [Audio: sources, listener, spatial audio, decoding](docs/engine/audio.md)
 - [Sprite animation](docs/engine/animation.md) and [tilemaps](docs/engine/tilemaps.md)
 - [Materials, 3D lighting and shadows, 2D lighting](docs/graphics/materials-and-lighting.md)

@@ -61,6 +61,7 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.Scripting** | M6 | `.mnvts` lexer, parser, AST, semantic checks, compiler, bytecode format and verifier, coroutine VM, debugger hooks | nothing (enforced) |
 | **MNVTEngine.Scripting.Missions** | M6 | Standard API declarations, mission/objective lifecycle, save data with schema version | Scripting, Serialization; never Scenes/Graphics (enforced) |
 | **MNVTEngine.Scripting.Bindings** | M6 | `MissionRunner` component, scene API implementation (player, entity, marker, scene, dialogue, input) | Scenes, Scripting.Missions |
+| **MNVTEngine.Physics3D** | 3D P8 | Rigidbody, Box/Sphere/Capsule colliders, collision and trigger callbacks, ray casts, per-scene BepuPhysics v2 simulation (Apache-2.0, pure C#). See [physics 3D](../engine/physics3d.md) | Scenes, BepuPhysics; never Graphics, Platform, Assets or Physics2D (enforced) |
 | **MNVTEngine.Physics2D** | M8 | Rigidbody2D, Box/Circle/Tilemap colliders, collision and trigger callbacks, ray casts, per-scene Box2D world (Box2D.NET, MIT). See [physics](../engine/physics2d.md) | Scenes, Box2D.NET; never Graphics, Platform or Assets (enforced) |
 | **MNVTEngine.Audio** | M8 | Audio device abstraction, WAV/Ogg decoding, AudioSource/AudioListener, per-scene AudioSystem, silent device. See [audio](../engine/audio.md) | Scenes, NVorbis; never OpenAL (enforced) |
 | **MNVTEngine.Audio.OpenAL** | M8 | OpenAL Soft backend, chosen by hosts | Audio, Silk.NET.OpenAL |
@@ -94,7 +95,7 @@ Deviations from the original proposal, and why:
 7. Graphics never references Graphics.Vulkan; Runtime never references Graphics.Vulkan directly (backend chosen at the host).
    Graphics and Platform never reference each other, and Graphics.Vulkan never references Platform; the host wires them.
    Scenes never references Graphics or Platform; ECS never references Scenes; Input depends only on Mathematics.
-8. Scripting projects and Physics2D never reference Graphics, Graphics.Vulkan or ImGui.
+8. Scripting projects, Physics2D and Physics3D never reference Graphics, Graphics.Vulkan or ImGui.
 
 ## Key decisions
 

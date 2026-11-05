@@ -81,7 +81,7 @@ engine-side `ImportedModel`, so everything after parsing is shared.
   - The build validator checks that release exports do not contain it.
   - The license text is added to third-party notices.
 - **SharpGLTF:** managed, MIT. It is also edit-time only.
-- **3D physics** (Phase 8): candidate JoltPhysicsSharp (MIT, prebuilt natives). It is evaluated then.
+- **3D physics** (Phase 8): decided (2026-11-05, at the user's request) for BepuPhysics v2 2.4.0 (Apache-2.0, pure C#, no natives to ship) instead of JoltPhysicsSharp.
 
 ## 7. Material and texture extraction
 
@@ -136,7 +136,7 @@ Each phase ships with tests, documentation, validation-layer runs and a commit.
 | 5 | Sub-assets, artifacts, staged imports; FBX and glTF readers; meshes, hierarchy, materials, textures; diagnostics | Real CC0/CC-BY fixtures (FBX binary + ASCII, GLB) import and render. **Done** ([models](../engine/models.md); the ASCII FBX is written by Assimp's exporter from the binary fixture in the test; skins and animations are imported, played in Phase 8). |
 | 6 | Model import inspector, extraction, remapping, reimport, model preview, drag into scene | Spec workflow end to end in the editor. **Done** ([model inspector](../engine/models.md#model-inspector)). Not done from section 8: recording sub-asset names in the meta for manual re-linking, and background (threaded) imports; imports still run on the editor's thread. |
 | 7 | Directional/point/spot lights, PBR shading, directional shadow maps (then spot and point) | Lit, shadowed scene; GPU tests. **Done** for lights, PBR and directional shadows ([3D lighting](materials-and-lighting.md#3d-lighting); `samples/Showcase3D`). Not done: spot and point light shadows, tone mapping, image-based lighting. |
-| 8 | Skeletons, skinning, clips, `Animator`; 3D physics | Animated skinned FBX and GLB characters; physics tests. Animation **done** ([animation and skinning](../engine/models.md#animation-and-skinning)): sampling lives in Assets next to the model data, `ModelAnimator` in Scenes, CPU skinning in the 3D pass, so no `MNVTEngine.Animation` project was needed. |
+| 8 | Skeletons, skinning, clips, `Animator`; 3D physics | Animated skinned FBX and GLB characters; physics tests. Animation **done** ([animation and skinning](../engine/models.md#animation-and-skinning)): sampling lives in Assets next to the model data, `ModelAnimator` in Scenes, CPU skinning in the 3D pass, so no `MNVTEngine.Animation` project was needed. 3D physics **done** with BepuPhysics v2 ([physics 3D](../engine/physics3d.md); `MNVTEngine.Physics3D`). |
 | 9 | 3D scene view, gizmos, picking, preview polish, batching, profiling, docs | Acceptance criteria 1–20 |
 
 **Fixtures.** The tests use real assets with compatible licenses, committed with their license files:

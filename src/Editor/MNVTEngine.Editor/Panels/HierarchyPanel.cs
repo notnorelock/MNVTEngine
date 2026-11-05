@@ -82,7 +82,9 @@ internal sealed class HierarchyPanel(EditorContext context)
             {
                 if (ImGui.MenuItem(primitive.ToString()))
                 {
-                    context.CreateGameObject(primitive.ToString(), parent).AddComponent<MeshRenderer>().Primitive = primitive;
+                    var gameObject = context.CreateGameObject(primitive.ToString(), parent);
+                    gameObject.AddComponent<MeshRenderer>().Primitive = primitive;
+                    AddCollider(gameObject, primitive);
                 }
             }
 
@@ -109,6 +111,31 @@ internal sealed class HierarchyPanel(EditorContext context)
             }
 
             ImGui.EndMenu();
+        }
+    }
+
+    /// <summary>A collider matching a primitive's shape, as Unity adds one (add a Rigidbody to make it fall).</summary>
+    private static void AddCollider(GameObject gameObject, PrimitiveMesh primitive)
+    {
+        switch (primitive)
+        {
+            case PrimitiveMesh.Sphere:
+                gameObject.AddComponent<SphereCollider>();
+                break;
+            case PrimitiveMesh.Capsule:
+            case PrimitiveMesh.Cylinder:
+                gameObject.AddComponent<CapsuleCollider>();
+                break;
+            case PrimitiveMesh.Plane:
+                var plane = gameObject.AddComponent<BoxCollider>();
+                (plane.Size, plane.Center) = (new Vector3(10f, 0.02f, 10f), new Vector3(0f, -0.01f, 0f));
+                break;
+            case PrimitiveMesh.Quad:
+                gameObject.AddComponent<BoxCollider>().Size = new Vector3(1f, 1f, 0.02f);
+                break;
+            default:
+                gameObject.AddComponent<BoxCollider>(); // cube, cone (its bounding box)
+                break;
         }
     }
 

@@ -77,6 +77,23 @@
           },
           "id": "d3100000-0000-0000-0002-000000000000",
           "enabled": true
+        },
+        {
+          "type": "MNVTEngine.BoxCollider",
+          "data": {
+            "size": {
+              "x": 10,
+              "y": 0.02,
+              "z": 10
+            },
+            "center": {
+              "x": 0,
+              "y": -0.01,
+              "z": 0
+            }
+          },
+          "id": "d3100000-0000-0000-0002-000000000001",
+          "enabled": true
         }
       ]
     },
@@ -1697,6 +1714,219 @@
             "material": null,
             "doubleSided": false
           }
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000061",
+      "name": "Physics Cube 1",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.6,
+          "z": -3
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0.0,
+          "z": 0,
+          "w": 1.0
+        },
+        "localScale": {
+          "x": 0.9,
+          "y": 0.9,
+          "z": 0.9
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "data": {
+            "primitive": "Cube",
+            "color": {
+              "r": 0.95,
+              "g": 0.55,
+              "b": 0.2,
+              "a": 1
+            }
+          },
+          "id": "d3100000-0000-0000-0061-000000000000",
+          "enabled": true
+        },
+        {
+          "type": "MNVTEngine.BoxCollider",
+          "data": {},
+          "id": "d3100000-0000-0000-0061-000000000001",
+          "enabled": true
+        },
+        {
+          "type": "MNVTEngine.Rigidbody",
+          "data": {
+            "mass": 1
+          },
+          "id": "d3100000-0000-0000-0061-000000000002",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000062",
+      "name": "Physics Cube 2",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.15,
+          "y": 1.65,
+          "z": -3
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0.104528,
+          "z": 0,
+          "w": 0.994522
+        },
+        "localScale": {
+          "x": 0.9,
+          "y": 0.9,
+          "z": 0.9
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "data": {
+            "primitive": "Cube",
+            "color": {
+              "r": 0.3,
+              "g": 0.75,
+              "b": 0.4,
+              "a": 1
+            }
+          },
+          "id": "d3100000-0000-0000-0062-000000000000",
+          "enabled": true
+        },
+        {
+          "type": "MNVTEngine.BoxCollider",
+          "data": {},
+          "id": "d3100000-0000-0000-0062-000000000001",
+          "enabled": true
+        },
+        {
+          "type": "MNVTEngine.Rigidbody",
+          "data": {
+            "mass": 1
+          },
+          "id": "d3100000-0000-0000-0062-000000000002",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000063",
+      "name": "Physics Cube 3",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.3,
+          "y": 2.7,
+          "z": -3
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0.207912,
+          "z": 0,
+          "w": 0.978148
+        },
+        "localScale": {
+          "x": 0.9,
+          "y": 0.9,
+          "z": 0.9
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "data": {
+            "primitive": "Cube",
+            "color": {
+              "r": 0.85,
+              "g": 0.3,
+              "b": 0.6,
+              "a": 1
+            }
+          },
+          "id": "d3100000-0000-0000-0063-000000000000",
+          "enabled": true
+        },
+        {
+          "type": "MNVTEngine.BoxCollider",
+          "data": {},
+          "id": "d3100000-0000-0000-0063-000000000001",
+          "enabled": true
+        },
+        {
+          "type": "MNVTEngine.Rigidbody",
+          "data": {
+            "mass": 1
+          },
+          "id": "d3100000-0000-0000-0063-000000000002",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "d3000000-0000-0000-0000-000000000064",
+      "name": "Bouncy Ball",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.6,
+          "y": 6,
+          "z": -2.6
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 0.8,
+          "y": 0.8,
+          "z": 0.8
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "data": {
+            "primitive": "Sphere",
+            "material": "asset:d3000000-0000-4000-8000-000000000012"
+          },
+          "id": "d3100000-0000-0000-0064-000000000000",
+          "enabled": true
+        },
+        {
+          "type": "MNVTEngine.SphereCollider",
+          "data": {
+            "bounciness": 0.7
+          },
+          "id": "d3100000-0000-0000-0064-000000000001",
+          "enabled": true
+        },
+        {
+          "type": "MNVTEngine.Rigidbody",
+          "data": {
+            "mass": 2
+          },
+          "id": "d3100000-0000-0000-0064-000000000002",
+          "enabled": true
         }
       ]
     }
