@@ -179,7 +179,7 @@ internal sealed class ProjectPanel(EditorContext context)
                         context.OpenUILayoutRequest = context.Session.Assets.FullPath(guid);
                     }
                     else if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && record.Type is AssetTypes.Script or AssetTypes.Text or AssetTypes.Json
-                        or AssetTypes.Shader or AssetTypes.Animation or AssetTypes.Material)
+                        or AssetTypes.Shader or AssetTypes.Animation or AssetTypes.Material or AssetTypes.AnimatorController)
                     {
                         context.OpenScriptRequest = context.Session.Assets.FullPath(guid); // text assets open in the Script Editor
                     }

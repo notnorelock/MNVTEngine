@@ -55,6 +55,7 @@ public sealed partial class ModelAnimator : Component
     private readonly Dictionary<Transform, Accumulator> _blend = new(ReferenceEqualityComparer.Instance);
     private Dictionary<string, Transform>? _nodes;
     private Vector3? _rootAnchor;
+    private float? _rootYawAnchor;
     private bool _warnedMissing;
 
     /// <summary>The model whose clips play (usually the model this GameObject was created from).</summary>
@@ -90,6 +91,14 @@ public sealed partial class ModelAnimator : Component
     /// <summary>Root motion moves the GameObject only horizontally (XZ); the node keeps its vertical motion (bobbing).</summary>
     [SerializeField]
     public bool RootMotionHorizontalOnly { get; set; } = true;
+
+    /// <summary>
+    /// Root motion also turns: the node's turn around the up axis turns this GameObject (a turn-in-place clip turns it),
+    /// the node keeps facing the way it did on the first frame, and the movement follows the GameObject's new heading.
+    /// Up to half a turn per clip cycle is carried across loops.
+    /// </summary>
+    [SerializeField]
+    public bool RootMotionRotation { get; set; }
 
     public bool IsPlaying { get; private set; }
 
@@ -328,6 +337,7 @@ public sealed partial class ModelAnimator : Component
 
         var motionNode = ApplyRootMotion ? RootMotionTransform() : null;
         var motion = Vector3.Zero;
+        var turn = 0f;
         var totalWeight = _base.Sum(t => t.Weight);
         foreach (var track in _base)
         {
@@ -341,7 +351,18 @@ public sealed partial class ModelAnimator : Component
             Accumulate(track, weight, overlay: false);
             if (motionNode is not null && dt != 0f)
             {
-                motion += RootDelta(track, motionNode) * weight;
+                var delta = RootDelta(track, motionNode);
+                if (RootMotionRotation && RootYaw(track, motionNode) is var (yaw, yawDelta))
+                {
+                    // The clip moves the node along its own heading; the movement follows the GameObject's heading instead:
+                    // the first-frame heading for a child node (the GameObject's turn is in the parent space already), the
+                    // GameObject's current heading when it is the node.
+                    var heading = ReferenceEquals(motionNode, Transform) ? Yaw(Transform.LocalRotation) : _rootYawAnchor ??= yaw;
+                    delta = Quaternion.AngleAxis(Mathf.DeltaAngle(yaw, heading), Vector3.Up) * delta;
+                    turn += yawDelta * weight;
+                }
+
+                motion += delta * weight;
             }
         }
 
@@ -369,6 +390,41 @@ public sealed partial class ModelAnimator : Component
             var world = parent.MultiplyVector(motion);
             Transform.Position += RootMotionHorizontalOnly ? new Vector3(world.X, 0f, world.Z) : world;
         }
+
+        if (turn != 0f)
+        {
+            Transform.Rotation = Quaternion.AngleAxis(turn, Vector3.Up) * Transform.Rotation;
+        }
+    }
+
+    /// <summary>The node's heading in a track now and how far it turned this frame (degrees around +Y, across loop wraps).</summary>
+    private static (float Yaw, float Delta)? RootYaw(Track track, Transform node)
+    {
+        var index = Array.IndexOf(track.Bound, node);
+        if (index < 0 || track.Poses[index].Rotation is not { } now)
+        {
+            return null;
+        }
+
+        var previous = track.SampleNodeRotation(index, track.PreviousTime) ?? now;
+        float Turn(Quaternion from, Quaternion to) => Mathf.DeltaAngle(Yaw(from), Yaw(to));
+        if (track.Wraps == 0)
+        {
+            return (Yaw(now), Turn(previous, now));
+        }
+
+        var start = track.SampleNodeRotation(index, 0f) ?? now;
+        var end = track.SampleNodeRotation(index, track.Clip.Duration) ?? now;
+        var cycle = Turn(start, end);
+        var delta = track.Wraps > 0 ? Turn(previous, end) + (cycle * (track.Wraps - 1)) + Turn(start, now) : Turn(previous, start) + (cycle * (track.Wraps + 1)) + Turn(end, now);
+        return (Yaw(now), delta);
+    }
+
+    /// <summary>The heading of a rotation: the angle around +Y that turns -Z towards where it points.</summary>
+    private static float Yaw(Quaternion rotation)
+    {
+        var forward = rotation * Vector3.Forward;
+        return MathF.Atan2(-forward.X, -forward.Z) * Mathf.Rad2Deg;
     }
 
     /// <summary>How far the root motion node moved this frame in one track (including across loop wraps).</summary>
@@ -420,7 +476,8 @@ public sealed partial class ModelAnimator : Component
             if (ReferenceEquals(transform, motionNode))
             {
                 // The movement went to the GameObject: keep the node at its first-frame spot (and its bobbing if asked).
-                var anchor = _rootAnchor ??= position;
+                // When the node is the GameObject itself, it keeps where the movement took it.
+                var anchor = ReferenceEquals(transform, Transform) ? transform.LocalPosition : _rootAnchor ??= position;
                 position = RootMotionHorizontalOnly ? new Vector3(anchor.X, position.Y, anchor.Z) : anchor;
             }
 
@@ -429,6 +486,14 @@ public sealed partial class ModelAnimator : Component
 
         if (a.Rotation is { } rotation)
         {
+            if (RootMotionRotation && ReferenceEquals(transform, motionNode))
+            {
+                // The turn went to the GameObject: the node keeps its first-frame heading (the GameObject itself keeps its own).
+                var yaw = Yaw(rotation);
+                var keep = ReferenceEquals(transform, Transform) ? Yaw(transform.LocalRotation) : _rootYawAnchor ??= yaw;
+                rotation = Quaternion.AngleAxis(Mathf.DeltaAngle(yaw, keep), Vector3.Up) * rotation;
+            }
+
             transform.LocalRotation = rotation;
         }
 
@@ -559,6 +624,13 @@ public sealed partial class ModelAnimator : Component
             _probe ??= new NodePose[Bound.Length];
             Clip.Sample(time, _probe);
             return _probe[index].Position;
+        }
+
+        public Quaternion? SampleNodeRotation(int index, float time)
+        {
+            _probe ??= new NodePose[Bound.Length];
+            Clip.Sample(time, _probe);
+            return _probe[index].Rotation;
         }
     }
 

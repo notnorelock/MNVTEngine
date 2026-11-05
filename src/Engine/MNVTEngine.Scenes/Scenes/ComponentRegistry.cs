@@ -29,6 +29,7 @@ public sealed class ComponentRegistry
         registry.Register<Light>();
         registry.Register<AmbientLight>();
         registry.Register<ModelAnimator>();
+        registry.Register<ModelAnimatorController>();
         registry.Register<SceneEnvironment>();
         return registry;
     }

@@ -278,4 +278,19 @@ public sealed class AssetDatabaseTests : IDisposable
         Assert.Contains(broken.Messages, m => m.Contains("texture", StringComparison.Ordinal));
         Assert.Contains(broken.Messages, m => m.Contains("frames", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void AnimatorControllers_AreValidated()
+    {
+        var db = OpenEditing();
+        Write("Anim/hero.mnvtanimator", """{ "schemaVersion": 1, "parameters": { "speed": { "type": "float" } }, "states": [ { "name": "Idle", "clip": "Idle" }, { "name": "Run", "clip": "Run" } ], "transitions": [ { "from": "Idle", "to": "Run", "conditions": [ { "parameter": "speed", "greater": 0.1 } ] } ] }""");
+        Write("Anim/broken.mnvtanimator", """{ "schemaVersion": 1, "states": [ { "name": "Idle", "clip": "Idle" } ], "transitions": [ { "from": "Idle", "to": "Fly", "exitTime": 1 } ] }""");
+        db.Refresh();
+
+        var hero = db.Assets.Single(a => a.Path == "Anim/hero.mnvtanimator");
+        Assert.Equal((AssetTypes.AnimatorController, AssetImportStatus.Imported, "2", "1"), (hero.Type, hero.Status, hero.Properties["states"], hero.Properties["transitions"]));
+        var broken = db.Assets.Single(a => a.Path == "Anim/broken.mnvtanimator");
+        Assert.Equal(AssetImportStatus.Failed, broken.Status);
+        Assert.Contains(broken.Messages, m => m.Contains("'Fly' is not a state", StringComparison.Ordinal));
+    }
 }

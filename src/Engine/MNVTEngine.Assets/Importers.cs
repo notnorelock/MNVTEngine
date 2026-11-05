@@ -93,6 +93,7 @@ public static class AssetImporters
         new ModelPlaceholderImporter(),
         new JsonImporter(),
         new AnimationImporter(),
+        new AnimatorControllerImporter(),
         new MaterialImporter(),
         new TextImporter("Shader", AssetTypes.Shader, ".glsl", ".vert", ".frag"),
         new ScriptImporter(),
@@ -274,6 +275,30 @@ public sealed class AnimationImporter() : SimpleImporter("Animation", AssetTypes
             context.Dependencies.Add(clip.Texture);
             context.Properties["frames"] = clip.Frames.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
             context.Properties["duration"] = clip.Duration.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + " s";
+        }
+        catch (SerializationException ex)
+        {
+            context.Errors.AddRange(ex.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => $"{d.Path}: {d.Message}").DefaultIfEmpty(ex.Message));
+        }
+        catch (DecoderFallbackException ex)
+        {
+            context.Errors.Add($"Not valid UTF-8 text: {ex.Message}");
+        }
+    }
+}
+
+/// <summary>Animator controllers: validated with the runtime's parser (clip names are checked when they play, against the model).</summary>
+public sealed class AnimatorControllerImporter() : SimpleImporter("AnimatorController", AssetTypes.AnimatorController, AnimatorControllerDefinition.Extension)
+{
+    public override void Import(AssetImportContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        try
+        {
+            var controller = AnimatorControllerDefinition.Parse(new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(context.Data), context.RelativePath);
+            context.Properties["states"] = controller.States.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            context.Properties["parameters"] = controller.Parameters.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            context.Properties["transitions"] = controller.Transitions.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
         catch (SerializationException ex)
         {

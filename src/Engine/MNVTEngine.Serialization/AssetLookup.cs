@@ -34,5 +34,8 @@ public static class AssetTypes
 
     /// <summary>A saved UI tree (<c>.mnvtui</c>).</summary>
     public const string UILayout = "UILayout";
+
+    /// <summary>A state machine of model clips (<c>.mnvtanimator</c>), played by <c>ModelAnimatorController</c>.</summary>
+    public const string AnimatorController = "AnimatorController";
     public const string Unknown = "Unknown";
 }

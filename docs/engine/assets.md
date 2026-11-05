@@ -56,6 +56,7 @@ do. `OpenReadOnly(assetsDir, artifactsLibrary: libraryDir)` reads imported model
 | Texture | .png .jpg .jpeg .bmp .tga | Texture | Decodes the image; width and height. Settings: filter, wrap, mipmaps, pixels per unit |
 | Scene / Prefab | .mnvt / .mnvtprefab | Scene / Prefab | Readable JSON with `gameObjects`; a prefab needs exactly one root; dependencies |
 | Json | .json | Json | Valid JSON; dependencies |
+| AnimatorController | .mnvtanimator | AnimatorController | The state machine is valid (states, parameters, conditions, transitions); counts. See [models](models.md#animator-controllers). |
 | Shader / Script / Text | .glsl .vert .frag / .mnvts / .txt .md | Shader / Script / Text | Valid UTF-8; line count. Script compilation arrives with the `.mnvts` compiler (Milestone 6). |
 | Audio | .wav .ogg | Audio | RIFF/WAVE or OggS signature. Decoding arrives with the audio subsystem. |
 | Font | .ttf .otf | Font | TrueType/OpenType signature |

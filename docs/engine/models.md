@@ -166,7 +166,8 @@ engine's -Z goes on a child GameObject with that rotation.
   - **Root motion:** `ApplyRootMotion` with `RootMotionNode` (empty = the model's root):
     - The node's animated movement moves the GameObject instead, converted to world space, and keeps going forward across loops.
     - The node stays in place. With `RootMotionHorizontalOnly`, the default, it keeps its vertical bob.
-    - Rotation is not extracted yet.
+    - With `RootMotionRotation`, the node's turn around the up axis turns the GameObject too, so a turn-in-place clip turns it. The node keeps its first-frame heading, and the movement follows the GameObject's new heading, so a clip walking an arc walks the arc. Up to half a turn per clip cycle is carried across loops.
+    - With `RootMotionNode` empty, the node is the GameObject itself: its animated position adds up instead of resetting.
   - Each animated node is the descendant GameObject of the same name (node names are unique within a model), and the model's root node is the animator's own GameObject. Its local position, rotation and scale follow the clip. Nodes the clip animates but that are missing (renamed or deleted) stay still, with one warning.
 - **Sampling** follows glTF: values hold before the first key and after the last. Step holds the previous key; linear interpolates, with rotations by shortest-path slerp. Cubic splines are Hermite curves whose tangents are scaled by the key interval.
 - **Skinning.** A `MeshRenderer` whose mesh is skinned deforms with the joints of its skin. The joints are the GameObjects of the joint nodes, found by name under the model's root, so animating or moving them by hand both work.
@@ -197,7 +198,37 @@ squash and stretch.
   - Shadows, picking bounds and culling follow the deformed shape.
 - **Tested** with the Khronos AnimatedMorphCube (CC0) and MorphPrimitivesTest (CC-BY), from GLB and as FBX written by Assimp's exporter.
 
-## Not yet
+## Animator controllers
 
-- **Animation state machines** (graphs of states and transitions): drive `Play`, `CrossFade` and layers from game code.
-- **Root motion rotation** (turning in place from the animation).
+A `.mnvtanimator` asset is a state machine of a model's clips, like Unity's Animator Controller. Put a
+`ModelAnimatorController` next to the `ModelAnimator`, set its `Controller`, and drive it from game code:
+
+```json
+{ "schemaVersion": 1,
+  "parameters": { "speed": { "type": "float" }, "grounded": { "type": "bool", "default": true }, "jump": { "type": "trigger" } },
+  "defaultState": "Idle",
+  "states": [ { "name": "Idle", "clip": "Idle" }, { "name": "Run", "clip": "Run", "speed": 1.2 }, { "name": "Jump", "clip": "Jump", "loop": false } ],
+  "transitions": [
+    { "from": "Idle", "to": "Run", "duration": 0.2, "conditions": [ { "parameter": "speed", "greater": 0.1 }, { "parameter": "grounded", "is": true } ] },
+    { "from": "Run", "to": "Idle", "duration": 0.2, "conditions": [ { "parameter": "speed", "less": 0.1 } ] },
+    { "from": "*", "to": "Jump", "duration": 0.1, "conditions": [ { "parameter": "jump" } ] },
+    { "from": "Jump", "to": "Idle", "duration": 0.25, "exitTime": 1 } ] }
+```
+
+```csharp
+var controller = GetComponent<ModelAnimatorController>()!;
+controller.SetFloat("speed", velocity.Magnitude);
+if (Input.GetKeyDown(Key.Space)) controller.SetTrigger("jump");
+controller.StateChanged += (_, from, to) => Log.Info($"{from} -> {to}");
+```
+
+- **Parameters:** `float`, `int`, `bool` and `trigger`, with optional defaults. `SetFloat`, `SetInteger`, `SetBool`, `SetTrigger` and `ResetTrigger` set them, and the getters read them. An unknown name or a wrong type throws once the controller is loaded. Values set before it loads are kept, and unknown ones are reported then.
+- **States** play one clip each, with their own `speed` and `loop`. Entering a state sets the animator's clip, speed and looping. The first state is the default unless `defaultState` says otherwise.
+- **Transitions** are checked every frame in file order: the current state's first, then the "any state" (`"from": "*"`) ones.
+  - The first transition whose conditions all hold, and whose `exitTime` has passed (in clip lengths: 1 is the end of the first cycle), crossfades to its state over `duration` seconds.
+  - Conditions: `greater`, `less`, `equals` and `notEquals` compare numbers, `is` compares bools, and a trigger takes no comparison. A trigger is reset by the transition that uses it.
+  - A transition needs a condition or an exit time, and an "any state" transition needs a condition.
+- **Validation.** The importer checks state, parameter and condition kinds and names and reports every mistake on the asset. Clip names are checked against the model when they play.
+- **From code:** `Use(AnimatorControllerDefinition.Create(...))` runs a controller built in code, and `Play(state, fade)` forces a state. `CurrentState`, `StateTime` and `NormalizedTime` tell where it is.
+- **Layers** stay in game code (`ModelAnimator.SetLayer`); a controller drives the base layer.
+- **Editing.** Edit the JSON in the Script Editor; double-click the asset to open it. There is no graph editor yet.

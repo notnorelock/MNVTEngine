@@ -69,7 +69,7 @@ The game's debug interface runs inside the Game view during Play Mode, with its 
 
 The Script Editor is docked next to the Scene and Game views.
 
-- **Opening files:** double-click a script or text asset in the Project panel, or press **Edit in Script Editor** in a script's inspector. Assets that open here include `.mnvts`, `.json`, shaders, `.mnvtanim` and `.mnvtmat`. The **C# scripts** list opens files from `Scripts/`.
+- **Opening files:** double-click a script or text asset in the Project panel, or press **Edit in Script Editor** in a script's inspector. Assets that open here include `.mnvts`, `.json`, shaders, `.mnvtanim`, `.mnvtanimator` and `.mnvtmat`. The **C# scripts** list opens files from `Scripts/`.
 - **Saving:** Ctrl+S saves the file while the Script Editor has focus (and saves the scene otherwise). Tabs mark unsaved files.
 - **Changes from outside:** a clean tab reloads when the file changes on disk; a tab with unsaved edits keeps them and shows a warning.
 - **Checking:**
