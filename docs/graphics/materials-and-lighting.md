@@ -50,8 +50,9 @@ Schema 1 files, which named properties `uniforms`, load and are migrated; saving
 - **Defaults.** Every slot a material leaves empty gets its default: a 1×1 white, black or flat-normal texture, or the default number.
 
 **Textures and samplers.** A shader can declare any number of `sampler2D`s. Textures are bound by name: `uTexture` is the
-draw's texture (the sprite, or the mesh renderer's), and every other sampler comes from the material. Leave their
-bindings to the compiler; two samplers on one explicit binding are an error.
+draw's texture (the sprite, or the mesh renderer's), and every other sampler comes from the material. The engine
+assigns every binding itself when it links a shader (`uTexture` 0, the uniform blocks 1 and 2, then the samplers in
+declaration order), so explicit `layout(binding = ...)` on other samplers is replaced, and two can never collide.
 
 **Custom shaders.** A custom shader is the **fragment stage** for the built-in sprite vertex shader:
 

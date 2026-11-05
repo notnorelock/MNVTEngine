@@ -9,9 +9,11 @@ namespace MNVTEngine.Graphics.Vulkan.Shaders;
 /// <param name="ElementKind">For arrays: the kind of each element, when it is one materials know.</param>
 internal sealed record SpirvUniformMember(string Name, int Offset, int Size, UniformKind? Kind, int ArrayLength = 0, int ArrayStride = 0, UniformKind? ElementKind = null);
 
-internal sealed record SpirvUniformBlock(uint Set, uint Binding, int Size, IReadOnlyList<SpirvUniformMember> Members);
+/// <param name="BindingWord">Index of the Binding decoration's value in the module's words (-1: undecorated), for re-binding.</param>
+internal sealed record SpirvUniformBlock(uint Set, uint Binding, int Size, IReadOnlyList<SpirvUniformMember> Members, int BindingWord = -1);
 
-internal sealed record SpirvSampler(string Name, uint Set, uint Binding);
+/// <param name="BindingWord">Index of the Binding decoration's value in the module's words (-1: undecorated), for re-binding.</param>
+internal sealed record SpirvSampler(string Name, uint Set, uint Binding, int BindingWord = -1);
 
 /// <param name="LocationWord">Index of the Location literal in the module's words, for re-linking.</param>
 internal sealed record SpirvInterfaceVariable(string Name, uint Location, int LocationWord);
@@ -159,10 +161,11 @@ internal sealed class SpirvModule
             var name = names.GetValueOrDefault(id, $"%{id}");
             var set = decorations.TryGetValue((id, 34), out var s) ? s.Value : 0;
             var binding = decorations.TryGetValue((id, 33), out var b) ? b.Value : 0;
+            var bindingWord = decorations.ContainsKey((id, 33)) ? b.Word : -1;
             switch (storage)
             {
                 case 0 when type.Kind == SpirvTypeKind.SampledImage: // UniformConstant
-                    samplers.Add(new SpirvSampler(name, set, binding));
+                    samplers.Add(new SpirvSampler(name, set, binding, bindingWord));
                     break;
                 case 0:
                     unsupported.Add($"'{name}' ({type.Kind})");
@@ -181,7 +184,7 @@ internal sealed class SpirvModule
                     }
 
                     var blockSize = members.Count == 0 ? 0 : members.Max(m => m.Offset + m.Size);
-                    blocks.Add(new SpirvUniformBlock(set, binding, (blockSize + 15) & ~15, members));
+                    blocks.Add(new SpirvUniformBlock(set, binding, (blockSize + 15) & ~15, members, bindingWord));
                     break;
                 case 1 or 3 when !decorations.ContainsKey((id, 11)) && decorations.TryGetValue((id, 30), out var location): // Input/Output, not BuiltIn
                     (storage == 1 ? inputs : outputs).Add(new SpirvInterfaceVariable(name, location.Value, location.Word));
@@ -193,6 +196,56 @@ internal sealed class SpirvModule
         }
 
         return new SpirvModule(words, blocks, samplers, inputs, outputs, unsupported);
+    }
+
+    /// <summary>
+    /// Gives every descriptor its binding in set 0, the layout the device's push descriptors use, by rewriting the
+    /// Binding decorations: <c>uTexture</c> 0, the vertex uniform block 1, the fragment block 2, fragment samplers from
+    /// <paramref name="fragmentSamplerBase"/> in declaration order and vertex-only samplers from
+    /// <paramref name="vertexSamplerBase"/> (a sampler in both stages gets the fragment's binding). The engine assigns
+    /// these itself rather than trusting the compiler's auto-binding, so every module gets the same layout however it was
+    /// compiled (or cached). Returns new modules parsed from the rewritten words.
+    /// </summary>
+    public static (SpirvModule Vertex, SpirvModule Fragment) AssignBindings(SpirvModule vertex, SpirvModule fragment, uint textureBinding, uint vertexUniformBinding, uint fragmentUniformBinding, uint fragmentSamplerBase, uint vertexSamplerBase)
+    {
+        ArgumentNullException.ThrowIfNull(vertex);
+        ArgumentNullException.ThrowIfNull(fragment);
+        var byName = new Dictionary<string, uint>(StringComparer.Ordinal);
+        var next = fragmentSamplerBase;
+        foreach (var sampler in fragment.Samplers)
+        {
+            var binding = sampler.Name == "uTexture" ? textureBinding : byName.TryGetValue(sampler.Name, out var known) ? known : next++;
+            byName[sampler.Name] = binding;
+            Rebind(fragment.Words, sampler.BindingWord, binding);
+        }
+
+        next = vertexSamplerBase;
+        foreach (var sampler in vertex.Samplers)
+        {
+            var binding = sampler.Name == "uTexture" ? textureBinding : byName.TryGetValue(sampler.Name, out var known) ? known : next++;
+            byName[sampler.Name] = binding;
+            Rebind(vertex.Words, sampler.BindingWord, binding);
+        }
+
+        foreach (var block in vertex.UniformBlocks)
+        {
+            Rebind(vertex.Words, block.BindingWord, vertexUniformBinding);
+        }
+
+        foreach (var block in fragment.UniformBlocks)
+        {
+            Rebind(fragment.Words, block.BindingWord, fragmentUniformBinding);
+        }
+
+        return (Parse(vertex.Words), Parse(fragment.Words));
+
+        static void Rebind(uint[] words, int word, uint binding)
+        {
+            if (word >= 0)
+            {
+                words[word] = binding;
+            }
+        }
     }
 
     /// <summary>

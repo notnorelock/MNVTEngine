@@ -72,18 +72,20 @@ public class VulkanMaterialTextureTests
     }
 
     [Fact]
-    public void SamplersSharingABinding_AreRejected()
+    public void ExplicitSamplerBindings_AreReassigned_SoTheyCannotCollide()
     {
         Run(device =>
         {
-            var bad = ThreeTextures with
+            // The engine owns set 0's layout: bindings a shader declares (here a shared one) are replaced at link time.
+            var shared = ThreeTextures with
             {
                 FragmentGlsl = ThreeTextures.FragmentGlsl
                     .Replace("uniform sampler2D _RedMap;", "layout(binding = 5) uniform sampler2D _RedMap;", StringComparison.Ordinal)
                     .Replace("uniform sampler2D _GreenMap;", "layout(binding = 5) uniform sampler2D _GreenMap;", StringComparison.Ordinal),
             };
-            var error = Assert.Throws<ShaderCompilationException>(() => device.CreateShader(bad));
-            Assert.Contains("_RedMap", error.Log, StringComparison.Ordinal);
+            using var shader = device.CreateShader(shared);
+            Assert.Contains(shader.Properties, p => p.Name == "_RedMap");
+            Assert.Contains(shader.Properties, p => p.Name == "_GreenMap");
         });
     }
 }

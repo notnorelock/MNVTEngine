@@ -87,6 +87,7 @@ internal sealed unsafe class VulkanShader : Shader
     {
         var vertex = SpirvModule.Parse(compiler.Compile(source.Name, ShaderStage.Vertex, source.VertexGlsl));
         var fragment = SpirvModule.Parse(compiler.Compile(source.Name, ShaderStage.Fragment, source.FragmentGlsl));
+        (vertex, fragment) = SpirvModule.AssignBindings(vertex, fragment, ShaderCompiler.TextureBinding, ShaderCompiler.VertexUniformBinding, ShaderCompiler.FragmentUniformBinding, ShaderCompiler.FragmentSamplerBase, ShaderCompiler.VertexSamplerBase);
 
         var errors = new List<string>(SpirvModule.LinkByName(vertex, fragment));
         errors.AddRange(vertex.UnsupportedResources.Concat(fragment.UnsupportedResources).Select(r => $"Resource {r} is not supported; use loose uniforms and 'uTexture'."));
