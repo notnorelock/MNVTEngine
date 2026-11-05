@@ -41,6 +41,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
     private (Vector3 Center, float Radius) _bounds;
     private float _yaw = 30f;
     private float _pitch = 20f;
+    private float _zoom = 1f;
     private bool _visible;
 
     public void Draw(Guid guid)
@@ -127,7 +128,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         }
 
         var (center, radius) = _bounds;
-        var distance = radius / MathF.Sin(17.5f * MathF.PI / 180f) * 1.1f;
+        var distance = radius / MathF.Sin(17.5f * MathF.PI / 180f) * 1.1f * _zoom;
         var rotation = Quaternion.Euler(-_pitch, _yaw, 0f);
         var eye = center + (rotation * new Vector3(0f, 0f, distance));
         var view = new View3D(Matrix4x4.LookAt(eye, center, Vector3.Up), Matrix4x4.PerspectiveZeroToOne(35f, 1f, MathF.Max(distance - (radius * 2f), distance * 0.01f), distance + (radius * 2f)), eye);
@@ -181,7 +182,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         if (_workflow?.Guid != guid)
         {
             _report = [];
-            (_yaw, _pitch) = (30f, 20f);
+            (_yaw, _pitch, _zoom) = (30f, 20f, 1f);
         }
 
         _modelHash = hash;
@@ -214,7 +215,11 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
             return;
         }
 
+        // An image is not interactive: an invisible button over it receives the drag and the wheel.
+        var at = ImGui.GetCursorScreenPos();
         Gui.Image(_preview.Id, _preview.Target, new SysVector2(PreviewSize, PreviewSize));
+        ImGui.SetCursorScreenPos(at);
+        ImGui.InvisibleButton("##model_preview", new SysVector2(PreviewSize, PreviewSize));
         if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left))
         {
             var delta = ImGui.GetIO().MouseDelta;
@@ -222,7 +227,12 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
             _pitch = Math.Clamp(_pitch + (delta.Y * 0.5f), -85f, 85f);
         }
 
-        Gui.Muted("Drag to orbit. Lit by a preview key light and fill.");
+        if (ImGui.IsItemHovered() && ImGui.GetIO().MouseWheel != 0f)
+        {
+            _zoom = Math.Clamp(_zoom * MathF.Pow(0.85f, ImGui.GetIO().MouseWheel), 0.2f, 5f);
+        }
+
+        Gui.Muted("Drag to orbit, wheel to zoom. Lit by a preview key light and fill.");
     }
 
     private void DrawSettings(ModelWorkflow workflow)

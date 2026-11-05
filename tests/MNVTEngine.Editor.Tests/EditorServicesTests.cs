@@ -168,6 +168,13 @@ public sealed class EditorServicesTests : IDisposable
         Assert.Contains("Orthographic Size", error, StringComparison.Ordinal);
         Assert.True(camera.TrySetValue(component, 3f, out _));
         Assert.Equal(3f, component.OrthographicSize);
+
+        // 3D components: Vector3 members (collider sizes and centers) are editable.
+        var size = MemberInspector.GetMembers(typeof(BoxCollider)).Single(m => m.DisplayName == "Size");
+        Assert.Equal(MemberKind.Vector3, size.Kind);
+        var box = _session.Scene.CreateGameObject("Box").AddComponent<BoxCollider>();
+        Assert.True(size.TrySetValue(box, new Mathematics.Vector3(2f, 3f, 4f), out _));
+        Assert.Equal(new Mathematics.Vector3(2f, 3f, 4f), box.Size);
     }
 
     [Fact]

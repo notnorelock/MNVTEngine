@@ -153,7 +153,7 @@ public sealed class ModelImporter(IReadOnlyList<IModelReader> readers) : IAssetI
     public string Name => "Model";
 
     /// <summary>Bump when the artifact or conversion changes, so models reimport.</summary>
-    public int Version => 2;
+    public int Version => 3; // 3: FBX meshes are named after their node
 
     public string AssetType => AssetTypes.Model;
 

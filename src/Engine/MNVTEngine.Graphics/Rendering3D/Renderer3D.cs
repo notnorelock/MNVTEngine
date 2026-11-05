@@ -17,13 +17,15 @@ public readonly record struct View3D(Matrix4x4 View, Matrix4x4 Projection, Vecto
 /// <param name="Cull">Overrides the material's culling (e.g. a double-sided renderer).</param>
 public readonly record struct MeshDrawItem(GpuMesh Mesh, int SubMesh, Material Material, Texture2D Texture, Matrix4x4 World, CullMode? Cull = null);
 
-public readonly record struct Render3DStatistics(int Visible, int Culled, int DrawCalls, int Triangles);
+/// <param name="MaterialSwitches">Draws that used a different material than the draw before (pipeline and descriptor changes).</param>
+public readonly record struct Render3DStatistics(int Visible, int Culled, int DrawCalls, int Triangles, int MaterialSwitches = 0);
 
 /// <summary>
 /// Draws meshes for one camera, independent of the graphics backend:
 /// <list type="bullet">
 /// <item>frustum-culls each item by its world-space bounds;</item>
-/// <item>draws opaque materials (render queue below 3000) by queue, then front to back;</item>
+/// <item>draws opaque materials (render queue below 3000) by queue, then front to back in distance bands, and within a
+/// band by material and mesh, so draws that share state follow each other (fewer pipeline and descriptor changes);</item>
 /// <item>then transparent materials by queue, then back to front.</item>
 /// </list>
 /// Materials whose shader reads the lighting uniforms (the Standard shader) get the pass's lights and shadow map
@@ -60,22 +62,25 @@ public sealed class Renderer3D(IGraphicsDevice device)
             (item.Material.IsTransparent ? _transparent : _opaque).Add((item, distance));
         }
 
-        // Front to back saves fragment work; ties (same distance band) keep materials together.
+        // Front to back saves fragment work; within a distance band (a factor of about 1.4 in distance) draws with the
+        // same material and mesh are grouped, which saves state changes without losing much early depth rejection.
         _opaque.Sort((a, b) => a.Item.Material.RenderQueue != b.Item.Material.RenderQueue ? a.Item.Material.RenderQueue.CompareTo(b.Item.Material.RenderQueue)
-            : a.Distance != b.Distance ? a.Distance.CompareTo(b.Distance) : MaterialOrder(a.Item.Material).CompareTo(MaterialOrder(b.Item.Material)));
+            : Band(a.Distance) != Band(b.Distance) ? Band(a.Distance).CompareTo(Band(b.Distance))
+            : MaterialOrder(a.Item.Material) != MaterialOrder(b.Item.Material) ? MaterialOrder(a.Item.Material).CompareTo(MaterialOrder(b.Item.Material))
+            : MeshOrder(a.Item.Mesh) != MeshOrder(b.Item.Mesh) ? MeshOrder(a.Item.Mesh).CompareTo(MeshOrder(b.Item.Mesh))
+            : a.Distance.CompareTo(b.Distance));
         _transparent.Sort((a, b) => a.Item.Material.RenderQueue != b.Item.Material.RenderQueue ? a.Item.Material.RenderQueue.CompareTo(b.Item.Material.RenderQueue) : b.Distance.CompareTo(a.Distance));
         var triangles = 0;
-        foreach (var (item, _) in _opaque)
+        var switches = 0;
+        Material? previous = null;
+        foreach (var (item, _) in _opaque.Concat(_transparent))
         {
+            switches += ReferenceEquals(item.Material, previous) ? 0 : 1;
+            previous = item.Material;
             triangles += Draw(item, viewProjection);
         }
 
-        foreach (var (item, _) in _transparent)
-        {
-            triangles += Draw(item, viewProjection);
-        }
-
-        return new Render3DStatistics(_opaque.Count + _transparent.Count, culled, _opaque.Count + _transparent.Count, triangles);
+        return new Render3DStatistics(_opaque.Count + _transparent.Count, culled, _opaque.Count + _transparent.Count, triangles, switches);
     }
 
     /// <summary>World-space box around a transformed box (its eight corners).</summary>
@@ -107,6 +112,11 @@ public sealed class Renderer3D(IGraphicsDevice device)
     }
 
     private static int MaterialOrder(Material material) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(material);
+
+    private static int MeshOrder(GpuMesh mesh) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(mesh);
+
+    /// <summary>Distance bands (the distances are squared): each band spans about 1.4 times the distance of the previous.</summary>
+    private static int Band(float squaredDistance) => (int)MathF.Log2(1f + squaredDistance);
 
     /// <summary>Sets the lighting uniforms once per lit material (uniforms are copied at each draw, so passes do not interfere).</summary>
     private void ApplyLighting(IReadOnlyList<MeshDrawItem> items, SceneLighting lighting, Vector3 camera, in ShadowState shadow)

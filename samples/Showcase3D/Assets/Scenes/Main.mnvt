@@ -662,7 +662,7 @@
           "enabled": true,
           "data": {
             "primitive": "none",
-            "mesh": "asset:d3000000-0000-4000-8000-000000000032#mesh/Cube.002",
+            "mesh": "asset:d3000000-0000-4000-8000-000000000032#mesh/wooden_crate_01_lid",
             "color": {
               "r": 1.0,
               "g": 1.0,
@@ -706,7 +706,7 @@
           "enabled": true,
           "data": {
             "primitive": "none",
-            "mesh": "asset:d3000000-0000-4000-8000-000000000032#mesh/Cube.003",
+            "mesh": "asset:d3000000-0000-4000-8000-000000000032#mesh/wooden_crate_01",
             "color": {
               "r": 1.0,
               "g": 1.0,
@@ -750,7 +750,7 @@
           "enabled": true,
           "data": {
             "primitive": "none",
-            "mesh": "asset:d3000000-0000-4000-8000-000000000032#mesh/Cube.004",
+            "mesh": "asset:d3000000-0000-4000-8000-000000000032#mesh/wooden_crate_01_latch",
             "color": {
               "r": 1.0,
               "g": 1.0,

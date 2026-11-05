@@ -361,6 +361,11 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
                 changed = ImGui.DragFloat2(label, ref v, 0.05f);
                 updated = v.ToEngine();
                 break;
+            case MemberKind.Vector3:
+                var v3 = ((Vector3)value!).ToSys();
+                changed = ImGui.DragFloat3(label, ref v3, 0.05f);
+                updated = v3.ToEngine();
+                break;
             case MemberKind.Color:
                 var c = ((Color)value!).ToSys();
                 changed = ImGui.ColorEdit4(label, ref c, ImGuiColorEditFlags.Float | ImGuiColorEditFlags.AlphaBar);

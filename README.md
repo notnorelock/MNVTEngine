@@ -76,7 +76,7 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 - [JSON serialization](docs/serialization/json.md)
 - [2D rendering, frame loop, resource ownership](docs/graphics/rendering.md)
 - [Vulkan 1.4 backend: audit, decisions, synchronization model](docs/graphics/vulkan-migration.md)
-- [3D engine and model pipeline: audit, library choices, plan](docs/graphics/3d-plan.md); [meshes, 3D cameras and 3D rendering](docs/graphics/meshes.md)
+- [3D engine and model pipeline: audit, library choices, plan](docs/graphics/3d-plan.md); [acceptance evidence](docs/graphics/3d-acceptance.md); [meshes, 3D cameras and 3D rendering](docs/graphics/meshes.md)
 - [Scenes, ECS, lifecycle, scene format, standalone runtime](docs/engine/scenes-and-runtime.md)
 - [Editor: panels, Play Mode, ImGui integration](docs/editor/editor.md)
 - [Assets: metas, GUIDs, importers, prefabs](docs/engine/assets.md); [models: FBX, glTF and GLB import](docs/engine/models.md)

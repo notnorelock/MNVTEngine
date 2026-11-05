@@ -164,6 +164,9 @@ public sealed class ShadowMap(IGraphicsDevice device, int size = 2048) : IDispos
 
     public int Size { get; } = size;
 
+    /// <summary>Meshes drawn into the shadow map by the last <see cref="Render"/>.</summary>
+    public int CasterCount { get; private set; }
+
     /// <summary>Renders the casters for a directional light and returns the state the main pass needs.</summary>
     public ShadowState Render(in LightData light, int lightIndex, Matrix4x4 cameraViewProjection, float cameraNear, float cameraFar, IReadOnlyList<MeshDrawItem> items, Shader casterShader)
     {
@@ -193,6 +196,7 @@ public sealed class ShadowMap(IGraphicsDevice device, int size = 2048) : IDispos
         device.Clear(Far);
         device.ClearDepth();
         var frustum = Frustum.FromViewProjection(viewProjection);
+        CasterCount = 0;
         foreach (var item in items)
         {
             if (item.Material.IsTransparent || !item.Material.DepthWrite || !frustum.Intersects(Renderer3D.TransformBounds(item.Mesh.Bounds, item.World)))
@@ -201,6 +205,7 @@ public sealed class ShadowMap(IGraphicsDevice device, int size = 2048) : IDispos
             }
 
             var sub = item.Mesh.SubMeshes[item.SubMesh];
+            CasterCount++;
             device.Draw(new DrawCommand(_caster, item.Texture, item.Mesh.Vertices, item.Mesh.Indices, sub.IndexStart, sub.IndexCount, viewProjection,
                 State: new RenderState(true, true, item.Cull ?? item.Material.Cull), World: item.World));
         }

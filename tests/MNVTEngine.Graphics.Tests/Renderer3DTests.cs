@@ -70,4 +70,20 @@ public sealed class Renderer3DTests : IDisposable
         Assert.Equal(2f * MathF.Sqrt(2f), bounds.Size.X, 4); // the diagonal after a 45° turn
         Assert.Equal(6f, bounds.Size.Y, 4);
     }
+    [Fact]
+    public void OpaqueDraws_AtSimilarDistances_AreGroupedByMaterial()
+    {
+        var (mesh, red, texture) = Resources();
+        var blue = red.CreateInstance("Blue");
+        var view = CameraAt(new Vector3(0f, 0f, 100f), Vector3.Zero);
+        MeshDrawItem At(float x, Material material) => new(mesh, 0, material, texture, Matrix4x4.Translate(new Vector3(x, 0f, 0f)));
+
+        // Alternating materials side by side, all about 100 units away: one distance band.
+        var stats = new Renderer3D(_device).Render(view, [At(-3f, red), At(-1f, blue), At(1f, red), At(3f, blue)]);
+
+        Assert.Equal(2, stats.MaterialSwitches); // red, red, blue, blue (or the reverse)
+        var materials = _device.Draws.Select(d => d.Material).ToList();
+        Assert.Same(materials[0], materials[1]);
+        Assert.Same(materials[2], materials[3]);
+    }
 }

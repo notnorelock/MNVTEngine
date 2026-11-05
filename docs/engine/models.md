@@ -21,6 +21,9 @@ project so the runtime can read it without the importer):
 - **Skins** (joints and inverse bind matrices) and **animations** (translation, rotation and scale channels; step, linear or cubic spline). They play with [`ModelAnimator`](#animation-and-skinning).
 
 Names are made unique (`Body`, `Body_1`, ...) and stripped of `#`, `/`, `\` and `"`, so they are safe in references.
+FBX meshes are named after their node (the object name in the modelling tool), not the FBX geometry name, which tools
+rename freely; glTF meshes keep their mesh names. A renamed node or mesh breaks references to it: they log a warning
+and draw nothing until they are re-pointed.
 
 ## Import settings
 

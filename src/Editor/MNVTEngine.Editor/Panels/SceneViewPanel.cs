@@ -7,7 +7,8 @@ using MNVTEngine.Mathematics;
 namespace MNVTEngine.Editor.Panels;
 
 /// <summary>
-/// Free editor camera over the active scene. Left click selects or drags gizmo handles; right/middle drag pans;
+/// Free editor camera over the active scene, in 2D or 3D (toolbar toggle; 3D is chosen for scenes with meshes or
+/// lights, see <see cref="SceneView3D"/> for its controls). In 2D: left click selects or drags gizmo handles; right/middle drag pans;
 /// wheel zooms at the cursor; W/E/R pick the tool, F frames the selection, Delete removes it. Dropping a texture
 /// from the Project panel creates a sprite at the drop point. With a Tilemap selected and painting on (B), left drag
 /// paints the palette tile and Ctrl + left drag erases.
@@ -20,6 +21,8 @@ internal sealed class SceneViewPanel : IDisposable
     private readonly ViewTarget _view;
     private readonly Camera2D _camera = new(1, 1) { OrthographicSize = 6f };
     private readonly TransformGizmo _gizmo = new();
+    private readonly SceneView3D _view3D;
+    private bool? _mode3D;
     private GizmoHandle _hovered;
     private Vector2? _lastPaint;
     private Vector2 _mouseWorld;
@@ -28,7 +31,10 @@ internal sealed class SceneViewPanel : IDisposable
     {
         _context = context;
         _view = new ViewTarget(context, "SceneView");
+        _view3D = new SceneView3D(context);
     }
+
+    private bool Is3D => _mode3D ??= _context.ActiveScene.FindObjectsOfType<MeshRenderer>().Any() || _context.ActiveScene.FindObjectsOfType<Light>().Any();
 
     public void Draw()
     {
@@ -43,12 +49,24 @@ internal sealed class SceneViewPanel : IDisposable
             var height = Math.Max(1, (int)size.Y);
             _view.Request(width, height);
             _camera.SetViewportSize(width, height);
+            _view3D.SetViewport(width, height);
 
             var origin = ImGui.GetCursorScreenPos();
             Gui.Image(_view.Id, _view.Target, new System.Numerics.Vector2(width, height));
             ImGui.SetCursorScreenPos(origin);
             ImGui.InvisibleButton("##scene_canvas", new System.Numerics.Vector2(width, height), ImGuiButtonFlags.MouseButtonLeft | ImGuiButtonFlags.MouseButtonRight | ImGuiButtonFlags.MouseButtonMiddle);
-            HandleInput(origin.ToEngine(), ImGui.IsItemHovered(), ImGui.IsWindowFocused());
+            if (Is3D)
+            {
+                _view3D.Tool = _gizmo.Tool;
+                _view3D.HandleInput(origin.ToEngine(), ImGui.IsItemHovered(), ImGui.IsWindowFocused());
+                _gizmo.Tool = _view3D.Tool;
+                _view3D.DrawOverlay(origin.ToEngine());
+            }
+            else
+            {
+                HandleInput(origin.ToEngine(), ImGui.IsItemHovered(), ImGui.IsWindowFocused());
+            }
+
             HandleDrop(origin.ToEngine());
         }
 
@@ -60,6 +78,12 @@ internal sealed class SceneViewPanel : IDisposable
     {
         _view.EnsureSize();
         var scene = _context.ActiveScene;
+        if (Is3D)
+        {
+            _view3D.Render(scene, _view.Target, Background);
+            return;
+        }
+
         _context.SceneRenderer.RenderView(scene, _camera, Background, _view.Target);
 
         var batch = _context.Renderer.Begin(_camera, SpriteSortMode.BackToFront, target: _view.Target);
@@ -90,7 +114,11 @@ internal sealed class SceneViewPanel : IDisposable
         _context.Renderer.End();
     }
 
-    public void Dispose() => _view.Dispose();
+    public void Dispose()
+    {
+        _view3D.Dispose();
+        _view.Dispose();
+    }
 
     private void DrawToolbar()
     {
@@ -105,7 +133,20 @@ internal sealed class SceneViewPanel : IDisposable
             ImGui.SameLine();
         }
 
-        Gui.Muted($"zoom {_camera.Zoom:0.##}x");
+        var is3D = Is3D;
+        if (ImGui.RadioButton("2D", !is3D))
+        {
+            _mode3D = false;
+        }
+
+        ImGui.SameLine();
+        if (ImGui.RadioButton("3D", is3D))
+        {
+            _mode3D = true;
+        }
+
+        ImGui.SameLine();
+        Gui.Muted(is3D ? "Alt+drag orbit, middle pan, right look + WASD, F frame" : $"zoom {_camera.Zoom:0.##}x");
         ImGui.Spacing();
     }
 
@@ -237,14 +278,20 @@ internal sealed class SceneViewPanel : IDisposable
 
         if (Gui.AcceptStringPayload(Gui.AssetPayload) is { } path && _context.ResolveAsset(path) is { } asset)
         {
-            var world = _camera.ScreenToWorld(ImGui.GetIO().MousePos.ToEngine() - origin);
+            var mouse = ImGui.GetIO().MousePos.ToEngine() - origin;
+            var world = _camera.ScreenToWorld(mouse);
+            var world3D = Is3D ? _view3D.DropPoint(mouse) : new Mathematics.Vector3(world.X, world.Y, 0f);
             if (asset.Type == Serialization.AssetTypes.Prefab)
             {
-                _context.InstantiatePrefab(asset.Guid, null, world);
+                var instance = _context.InstantiatePrefab(asset.Guid, null, world);
+                if (instance is not null && Is3D)
+                {
+                    instance.Transform.Position = world3D;
+                }
             }
             else if (asset.Type == Serialization.AssetTypes.Model)
             {
-                _context.InstantiateModel(asset.Guid, null, new Mathematics.Vector3(world.X, world.Y, 0f));
+                _context.InstantiateModel(asset.Guid, null, world3D);
             }
             else if (asset.Type == Serialization.AssetTypes.Texture)
             {

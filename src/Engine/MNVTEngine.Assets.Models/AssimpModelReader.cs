@@ -113,7 +113,9 @@ public sealed unsafe class AssimpModelReader : IModelReader
         {
             var node = (AiNode*)queue[q].Node;
             nodeIndex.TryAdd(node->MName.AsString, q);
-            meshNames.Add(node->MNumMeshes > 0 ? (node->MNumMeshes == 1 ? scene->MMeshes[node->MMeshes[0]]->MName.AsString : null) ?? uniqueNodeNames[q] : null);
+            // Meshes are named after their node (the object name artists keep), not the FBX geometry name, which tools
+            // rename freely ("Cube.002"): references to the mesh then survive a re-save of the file.
+            meshNames.Add(node->MNumMeshes > 0 ? uniqueNodeNames[q] : null);
         }
 
         var uniqueMeshNames = ModelProcessing.UniqueNames(meshNames.Where(n => n is not null), "Mesh");

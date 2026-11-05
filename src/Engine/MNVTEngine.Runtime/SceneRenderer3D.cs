@@ -43,6 +43,12 @@ public sealed partial class SceneRenderer
     /// <summary>Whether the last 3D pass rendered a directional shadow map.</summary>
     public bool ShadowsRendered { get; private set; }
 
+    /// <summary>Material changes between consecutive mesh draws in the last 3D pass.</summary>
+    public int MaterialSwitches { get; private set; }
+
+    /// <summary>Skinned meshes deformed in the last 3D pass.</summary>
+    public int SkinnedMeshes { get; private set; }
+
     /// <summary>GPU memory of the uploaded meshes.</summary>
     public long MeshBytes => _meshes?.SizeInBytes ?? 0;
 
@@ -118,6 +124,7 @@ public sealed partial class SceneRenderer
                 shadow = _shadowMap.Render(caster.light, caster.index, view.ViewProjection, camera.NearClip, camera.FarClip, _items,
                     resources.GetBuiltinShader(MaterialShaders.ShadowCasterId));
                 device.SetRenderTarget(target);
+                Core.Diagnostics.Profiler.Count("Shadow casters", _shadowMap.CasterCount);
             }
         }
 
@@ -125,9 +132,13 @@ public sealed partial class SceneRenderer
         (LightsUsed, ShadowsRendered) = (lighting.Lights.Count, shadow is not null);
         device.ClearDepth();
         var stats = _renderer3D.Render(view, _items, lighting, shadow);
-        (MeshesDrawn, MeshesCulled, MeshTriangles) = (stats.Visible, stats.Culled, stats.Triangles);
+        (MeshesDrawn, MeshesCulled, MeshTriangles, MaterialSwitches, SkinnedMeshes) = (stats.Visible, stats.Culled, stats.Triangles, stats.MaterialSwitches, _skins.Count);
         Core.Diagnostics.Profiler.Count("Meshes drawn", MeshesDrawn);
         Core.Diagnostics.Profiler.Count("Meshes culled", MeshesCulled);
+        Core.Diagnostics.Profiler.Count("Mesh triangles", MeshTriangles);
+        Core.Diagnostics.Profiler.Count("Material switches", MaterialSwitches);
+        Core.Diagnostics.Profiler.Count("Lights 3D", LightsUsed);
+        Core.Diagnostics.Profiler.Count("Skinned meshes", SkinnedMeshes);
     }
 
     /// <summary>One item per submesh of a model mesh, with the renderer's material or the model's material of each submesh.</summary>
