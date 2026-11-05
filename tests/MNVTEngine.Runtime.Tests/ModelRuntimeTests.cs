@@ -130,6 +130,65 @@ public sealed class ModelRuntimeTests : IDisposable
         Assert.True(Mathematics.Vector3.Distance(AnimationSampling.SampleVector3(channel, 1.5f), animated.LocalPosition) < 1e-4f, "the node follows its channel");
     }
 
+    [Fact]
+    public void ModelAnimator_DrivesBlendShapeWeights_FromTheClip()
+    {
+        var guid = ImportFixture("Khronos", "AnimatedMorphCube.glb", out var model);
+        var assets = AssetDatabase.OpenForEditing(Path.Combine(_root, "Assets"), Path.Combine(_root, "Library"), ModelImporters.WithDefaults());
+        using var provider = new ModelAnimationProvider(assets, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        var scene = new Scene { ModelAnimations = provider, RethrowScriptExceptions = true };
+        ModelInstantiation.Instantiate(scene, guid, model, "Cube");
+        var renderer = scene.FindObjectsOfType<MeshRenderer>().Single();
+        Assert.Equal(model.Meshes[0].BlendShapes.Select(s => s.Name), renderer.BlendShapeNames);
+
+        var channel = model.Animations[0].Channels.Single(c => c.Path == AnimationPath.Weights);
+        var time = channel.Times[^1] * 0.37f;
+        scene.Start();
+        scene.Update(new Core.Timing.FrameTime(time, time, time, time, 1));
+
+        var expected = new float[2];
+        AnimationSampling.SampleWeights(channel, time, expected);
+        Assert.Equal(expected[0], renderer.GetBlendShapeWeight(0), 4);
+        Assert.Equal(expected[1], renderer.GetBlendShapeWeight(1), 4);
+    }
+
+    [Fact]
+    public void BlendShapes_DeformTheRenderedMesh()
+    {
+        var guid = ImportFixture("Khronos", "AnimatedMorphCube.glb", out var model);
+        string Render(float weight)
+        {
+            var scene = new Scene { Name = "Morph" };
+            var camera = scene.CreateGameObject("Camera");
+            camera.Transform.LocalPosition = new Mathematics.Vector3(0f, 0f, 4f);
+            var view = camera.AddComponent<Camera>();
+            (view.Projection, view.BackgroundColor) = (CameraProjection.Perspective, new Mathematics.Color(0f, 0f, 0f, 1f));
+            var root = ModelInstantiation.Instantiate(scene, guid, model, "Cube");
+            root.GetComponent<ModelAnimator>()!.PlayOnStart = false;
+            var renderer = scene.FindObjectsOfType<MeshRenderer>().Single();
+            renderer.SetBlendShapeWeight(0, weight);
+            renderer.SetBlendShapeWeight(1, 0f);
+            File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt"), new SceneSerializer(EngineComponents.CreateRegistry()).Serialize(scene));
+            File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt.meta"), """{ "schemaVersion": 1, "guid": "e9000000-0000-4000-8000-000000000001", "settings": {} }""");
+            File.WriteAllText(Path.Combine(_root, "Test.mnvtproj"), """{ "schemaVersion": 1, "name": "Test", "startupScene": "Scenes/First.mnvt", "loadingScreen": { "enabled": false } }""");
+            var screenshot = Path.Combine(_root, $"morph{weight}.png");
+            using var factory = LoggerFactory.Create(_ => { });
+            Assert.Equal(0, RunHidden(GameProject.Load(_root), factory, screenshot).ExitCode); // the deformed mesh is released
+            return screenshot;
+        }
+
+        static int Lit(string png)
+        {
+            var image = Graphics.Image.Load(png);
+            return Enumerable.Range(0, image.Width * image.Height).Count(i => image.Pixels[i * 4] + image.Pixels[(i * 4) + 1] + image.Pixels[(i * 4) + 2] > 30);
+        }
+
+        var rest = Lit(Render(0f));
+        var morphed = Lit(Render(1f));
+        Assert.True(rest > 0, "the cube is visible");
+        Assert.NotEqual(rest, morphed); // the full shape covers a different area of the screen
+    }
+
     [Theory]
     [InlineData("CesiumMan.glb")]
     [InlineData("CesiumMan.fbx")] // written by Assimp's FBX exporter from the glTF character

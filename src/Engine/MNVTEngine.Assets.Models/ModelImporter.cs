@@ -152,8 +152,14 @@ public sealed class ModelImporter(IReadOnlyList<IModelReader> readers) : IAssetI
 {
     public string Name => "Model";
 
-    /// <summary>Bump when the artifact or conversion changes, so models reimport.</summary>
-    public int Version => 3; // 3: FBX meshes are named after their node
+    /// <summary>
+    /// Changes with the artifact format (so models imported with an older format reimport by themselves) and with
+    /// <see cref="ConversionRevision"/> (bump it when the conversion changes).
+    /// </summary>
+    public int Version => (ModelArtifact.Version * 100) + ConversionRevision;
+
+    /// <summary>1: FBX meshes are named after their node.</summary>
+    private const int ConversionRevision = 1;
 
     public string AssetType => AssetTypes.Model;
 

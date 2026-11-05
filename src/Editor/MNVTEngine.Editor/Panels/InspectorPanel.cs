@@ -150,6 +150,11 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
                 DrawTilePalette(tilemap);
             }
 
+            if (component is MeshRenderer meshRenderer)
+            {
+                DrawBlendShapes(meshRenderer);
+            }
+
             if (component is AudioMixer mixer)
             {
                 DrawMixer(mixer);
@@ -240,6 +245,45 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
     }
 
     /// <summary>Paint toggle, eraser and the sheet's tiles as buttons; the Scene view paints with the chosen tile.</summary>
+    /// <summary>A slider per blend shape of the renderer's model mesh (0–1), with Reset back to the model's defaults.</summary>
+    private void DrawBlendShapes(MeshRenderer renderer)
+    {
+        if (context.Resources.GetModelMesh(renderer.Mesh) is not { BlendShapes.Count: > 0 } mesh)
+        {
+            return;
+        }
+
+        ImGui.SeparatorText($"Blend shapes ({mesh.BlendShapes.Count})");
+        for (var i = 0; i < mesh.BlendShapes.Count; i++)
+        {
+            var weight = renderer.GetBlendShapeWeightOrDefault(i, mesh.DefaultBlendShapeWeights);
+            ImGui.PushID(i);
+            if (ImGui.SliderFloat(mesh.BlendShapes[i].Name, ref weight, 0f, 1f, "%.2f"))
+            {
+                // Unset shapes keep their defaults when a later one is set.
+                for (var s = renderer.BlendShapeWeights.Count; s < i; s++)
+                {
+                    renderer.SetBlendShapeWeight(s, renderer.GetBlendShapeWeightOrDefault(s, mesh.DefaultBlendShapeWeights));
+                }
+
+                renderer.SetBlendShapeWeight(i, weight);
+            }
+
+            if (ImGui.IsItemDeactivatedAfterEdit())
+            {
+                context.Changed("Blend Shape");
+            }
+
+            ImGui.PopID();
+        }
+
+        if (ImGui.SmallButton("Reset to model defaults"))
+        {
+            renderer.ResetBlendShapeWeights();
+            context.Changed("Blend Shape");
+        }
+    }
+
     private void DrawTilePalette(Tilemap tilemap)
     {
         var brush = context.Tiles;

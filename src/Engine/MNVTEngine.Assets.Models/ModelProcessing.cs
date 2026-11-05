@@ -67,9 +67,15 @@ internal static class ModelProcessing
                 warnings.Add($"Mesh '{mesh.Name}': {problem}");
             }
 
-            if (mesh.MorphTargetCount > 0)
+            var shapeNames = UniqueNames(mesh.BlendShapes.Select(s => s.Name), "Shape");
+            for (var i = 0; i < mesh.BlendShapes.Count; i++)
             {
-                warnings.Add($"Mesh '{mesh.Name}' has {mesh.MorphTargetCount} morph target(s) (blend shapes); they are not imported yet, the mesh keeps its base shape.");
+                mesh.BlendShapes[i].Name = shapeNames[i];
+            }
+
+            while (mesh.DefaultBlendShapeWeights.Count < mesh.BlendShapes.Count)
+            {
+                mesh.DefaultBlendShapeWeights.Add(0f);
             }
         }
 

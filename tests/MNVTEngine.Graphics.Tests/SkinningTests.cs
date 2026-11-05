@@ -31,4 +31,24 @@ public sealed class SkinningTests
     [Fact]
     public void AJointOutOfRange_IsRejected() =>
         Assert.Throws<ArgumentException>(() => Skinning.Apply(new MeshVertex[1], [3, 0, 0, 0], [1f, 0f, 0f, 0f], [Matrix4x4.Identity], new MeshVertex[1]));
+
+    [Fact]
+    public void BlendShapes_AddWeightedOffsets_AndSkipZeroWeights()
+    {
+        MeshVertex[] bind = [new() { Position = Vector3.Zero, Normal = Vector3.Up, Tangent = new Vector4(1f, 0f, 0f, 1f) }];
+        List<(Vector3[] Positions, Vector3[]? Normals, Vector3[]? Tangents)> shapes =
+        [
+            ([new Vector3(2f, 0f, 0f)], null, null),
+            ([new Vector3(0f, 4f, 0f)], [new Vector3(1f, -1f, 0f)], null),
+        ];
+        var output = new MeshVertex[1];
+
+        var bounds = Skinning.Morph(bind, shapes, [0.5f, 0.25f], output);
+
+        Assert.Equal(new Vector3(1f, 1f, 0f), output[0].Position);
+        Assert.Equal(1f, output[0].Normal.Magnitude, 4); // renormalized after the normal offset
+        Assert.Equal(new Vector3(1f, 1f, 0f), bounds.Center);
+        Skinning.Morph(bind, shapes, [0f, 0f], output);
+        Assert.Equal(Vector3.Zero, output[0].Position);
+    }
 }

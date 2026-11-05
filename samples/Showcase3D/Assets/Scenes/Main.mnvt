@@ -1929,6 +1929,92 @@
           "enabled": true
         }
       ]
+    },
+    {
+      "id": "fad3db82-8e93-4916-be0c-7c100d9a4602",
+      "name": "Morph Cube",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 2.6,
+          "y": 0.6,
+          "z": 2.2
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "localScale": {
+          "x": 0.5,
+          "y": 0.5,
+          "z": 0.5
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.ModelAnimator",
+          "id": "91851fe8-28be-46aa-a725-fc7d143d95c0",
+          "enabled": true,
+          "data": {
+            "model": "asset:d3000000-0000-4000-8000-000000000053",
+            "clip": "",
+            "speed": 1.0,
+            "loop": true,
+            "playOnStart": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "0b003c63-924d-4dc8-8a47-e4668fdf9398",
+      "name": "AnimatedMorphCube_1",
+      "active": true,
+      "parent": "fad3db82-8e93-4916-be0c-7c100d9a4602",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.7071067,
+          "z": -0.7071068,
+          "w": 0.0
+        },
+        "localScale": {
+          "x": 100.0,
+          "y": 100.0,
+          "z": 100.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "id": "91c26369-d395-452f-8add-8f048689c12c",
+          "enabled": true,
+          "data": {
+            "primitive": "none",
+            "mesh": "asset:d3000000-0000-4000-8000-000000000053#mesh/Cube",
+            "color": {
+              "r": 1.0,
+              "g": 1.0,
+              "b": 1.0,
+              "a": 1.0
+            },
+            "texture": null,
+            "material": null,
+            "doubleSided": false,
+            "blendShapeWeights": [
+              0.0,
+              0.0
+            ]
+          }
+        }
+      ]
     }
   ]
 }

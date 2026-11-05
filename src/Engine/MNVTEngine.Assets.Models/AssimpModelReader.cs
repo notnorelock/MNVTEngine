@@ -121,6 +121,8 @@ public sealed unsafe class AssimpModelReader : IModelReader
         var uniqueMeshNames = ModelProcessing.UniqueNames(meshNames.Where(n => n is not null), "Mesh");
         var meshCursor = 0;
         var skinnedMeshes = new List<(int Mesh, List<nint> Parts)>();
+        // Morph animation channels name a node or an Assimp mesh; their key values index that mesh's anim meshes.
+        var morphTargets = new Dictionary<string, (int Node, int[] ShapeOf)>(StringComparer.Ordinal);
         for (var q = 0; q < queue.Count; q++)
         {
             var node = (AiNode*)queue[q].Node;
@@ -130,7 +132,17 @@ public sealed unsafe class AssimpModelReader : IModelReader
             {
                 var parts = Enumerable.Range(0, (int)node->MNumMeshes).Select(i => (nint)scene->MMeshes[node->MMeshes[i]]).ToList();
                 meshIndex = model.Meshes.Count;
-                model.Meshes.Add(ConvertMesh(parts, uniqueMeshNames[meshCursor++], settings, warnings));
+                var converted = ConvertMesh(parts, uniqueMeshNames[meshCursor++], settings, warnings);
+                model.Meshes.Add(converted);
+                foreach (var part in parts)
+                {
+                    var aiMesh = (AiMesh*)part;
+                    var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+                    var shapeOf = Enumerable.Range(0, (int)aiMesh->MNumAnimMeshes).Select(s => ShapeName(aiMesh, s, seen))
+                        .Select(shapeName => converted.BlendShapes.FindIndex(b => b.Name == shapeName)).ToArray();
+                    morphTargets.TryAdd(aiMesh->MName.AsString, (q, shapeOf));
+                    morphTargets.TryAdd(node->MName.AsString, (q, shapeOf));
+                }
                 if (settings.ImportSkins && parts.Any(p => ((AiMesh*)p)->MNumBones > 0))
                 {
                     skinnedMeshes.Add((meshIndex, parts));
@@ -156,7 +168,9 @@ public sealed unsafe class AssimpModelReader : IModelReader
             var names = ModelProcessing.UniqueNames(Enumerable.Range(0, (int)scene->MNumAnimations).Select(i => scene->MAnimations[i]->MName.AsString), "Animation");
             for (var i = 0; i < scene->MNumAnimations; i++)
             {
-                model.Animations.Add(ConvertAnimation(scene->MAnimations[i], names[i], nodeIndex, warnings));
+                var animation = ConvertAnimation(scene->MAnimations[i], names[i], nodeIndex, warnings);
+                AddMorphChannels(scene->MAnimations[i], animation, model, morphTargets, warnings);
+                model.Animations.Add(animation);
             }
         }
 
@@ -185,7 +199,7 @@ public sealed unsafe class AssimpModelReader : IModelReader
         var subMeshes = new List<SubMesh>();
         var materials = new List<int>();
         bool hasNormals = true, hasTangents = true, hasUv0 = true, hasUv1 = true, hasColors = true;
-        var morphTargets = 0;
+        var ranges = new List<(nint Part, int BaseVertex)>();
         foreach (var part in parts)
         {
             var m = (AiMesh*)part;
@@ -194,7 +208,6 @@ public sealed unsafe class AssimpModelReader : IModelReader
             hasUv0 &= m->MTextureCoords.Element0 is not null;
             hasUv1 &= m->MTextureCoords.Element1 is not null;
             hasColors &= m->MColors.Element0 is not null;
-            morphTargets += (int)m->MNumAnimMeshes;
         }
 
         foreach (var part in parts)
@@ -207,6 +220,7 @@ public sealed unsafe class AssimpModelReader : IModelReader
             }
 
             var baseVertex = (uint)positions.Count;
+            ranges.Add((part, (int)baseVertex));
             for (var v = 0; v < m->MNumVertices; v++)
             {
                 positions.Add(V3(m->MVertices[v]));
@@ -268,9 +282,75 @@ public sealed unsafe class AssimpModelReader : IModelReader
             Colors = hasColors ? [.. colors] : null,
         };
         mesh.SetIndices([.. indices], [.. subMeshes]);
-        var result = new ModelMesh(name, mesh) { MorphTargetCount = morphTargets };
+        var result = new ModelMesh(name, mesh);
         result.SubMeshMaterials.AddRange(materials);
+        AddBlendShapes(result, ranges, hasNormals, hasTangents);
         return result;
+    }
+
+    /// <summary>
+    /// The name of anim mesh <paramref name="index"/>: its own, with "_2", "_3"... when the part repeats it (exporters may
+    /// write the same name for every shape), or "Shape{index}" when empty. Parts of a node then match by these names.
+    /// </summary>
+    private static string ShapeName(AiMesh* mesh, int index, Dictionary<string, int> seen)
+    {
+        var name = mesh->MAnimMeshes[index]->MName.AsString is { Length: > 0 } n ? n : $"Shape{index}";
+        var count = seen.GetValueOrDefault(name) + 1;
+        seen[name] = count;
+        return count == 1 ? name : $"{name}_{count}";
+    }
+
+    /// <summary>
+    /// Blend shapes from Assimp's anim meshes, which hold replacement positions (base + offset): converted to offsets.
+    /// The parts of a node (one per material) are matched by shape name; a part without a shape gets zero offsets.
+    /// </summary>
+    private static void AddBlendShapes(ModelMesh result, List<(nint Part, int BaseVertex)> ranges, bool hasNormals, bool hasTangents)
+    {
+        var vertexCount = result.Mesh.VertexCount;
+        var order = new List<string>();
+        var shapes = new Dictionary<string, (Vector3[] Positions, Vector3[]? Normals, Vector3[]? Tangents, float Weight)>(StringComparer.Ordinal);
+        foreach (var (part, baseVertex) in ranges)
+        {
+            var m = (AiMesh*)part;
+            var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+            for (var s = 0; s < m->MNumAnimMeshes; s++)
+            {
+                var shapeName = ShapeName(m, s, seen);
+                var anim = m->MAnimMeshes[s];
+                if (!shapes.TryGetValue(shapeName, out var shape))
+                {
+                    shape = (new Vector3[vertexCount], hasNormals ? new Vector3[vertexCount] : null, hasTangents ? new Vector3[vertexCount] : null, anim->MWeight);
+                    shapes[shapeName] = shape;
+                    order.Add(shapeName);
+                }
+
+                var count = Math.Min((int)m->MNumVertices, (int)anim->MNumVertices);
+                for (var v = 0; v < count; v++)
+                {
+                    if (anim->MVertices is not null)
+                    {
+                        shape.Positions[baseVertex + v] = V3(anim->MVertices[v]) - V3(m->MVertices[v]);
+                    }
+
+                    if (shape.Normals is not null && anim->MNormals is not null && m->MNormals is not null)
+                    {
+                        shape.Normals[baseVertex + v] = V3(anim->MNormals[v]).Normalized - V3(m->MNormals[v]).Normalized;
+                    }
+
+                    if (shape.Tangents is not null && anim->MTangents is not null && m->MTangents is not null)
+                    {
+                        shape.Tangents[baseVertex + v] = V3(anim->MTangents[v]) - V3(m->MTangents[v]);
+                    }
+                }
+            }
+        }
+
+        foreach (var shapeName in order)
+        {
+            var (positions, normals, tangents, weight) = shapes[shapeName];
+            result.BlendShapes.Add(new BlendShape(shapeName, positions) { NormalDeltas = normals, TangentDeltas = tangents });
+            result.DefaultBlendShapeWeights.Add(weight);
+        }
     }
 
     private static ModelSkin? ConvertSkin(ModelData model, ModelMesh mesh, List<nint> parts, Dictionary<string, int> nodeIndex, ICollection<string> warnings)
@@ -350,6 +430,46 @@ public sealed unsafe class AssimpModelReader : IModelReader
         mesh.Joints = joints;
         mesh.Weights = weights;
         return skin;
+    }
+
+    /// <summary>Blend shape weight keys (sparse per key in Assimp) as dense weight channels, linearly interpolated.</summary>
+    private static void AddMorphChannels(Animation* animation, ModelAnimation result, ModelData model, Dictionary<string, (int Node, int[] ShapeOf)> targets, ICollection<string> warnings)
+    {
+        var ticks = animation->MTicksPerSecond > 0 ? animation->MTicksPerSecond : 25.0;
+        for (var c = 0; c < animation->MNumMorphMeshChannels; c++)
+        {
+            var channel = animation->MMorphMeshChannels[c];
+            var targetName = channel->MName.AsString;
+            if (!targets.TryGetValue(targetName, out var target) && !targets.TryGetValue(targetName.Split('*')[0], out target))
+            {
+                warnings.Add($"Animation '{result.Name}': blend shape channel for '{targetName}' targets no mesh; skipped.");
+                continue;
+            }
+
+            var shapeCount = model.Meshes[model.Nodes[target.Node].Mesh].BlendShapes.Count;
+            if (shapeCount == 0 || channel->MNumKeys == 0)
+            {
+                continue;
+            }
+
+            var times = new float[channel->MNumKeys];
+            var values = new float[channel->MNumKeys * shapeCount];
+            for (var k = 0; k < channel->MNumKeys; k++)
+            {
+                var key = channel->MKeys[k];
+                times[k] = (float)(key.MTime / ticks);
+                for (var v = 0; v < key.MNumValuesAndWeights; v++)
+                {
+                    var index = (int)key.MValues[v];
+                    if (index >= 0 && index < target.ShapeOf.Length && target.ShapeOf[index] >= 0)
+                    {
+                        values[(k * shapeCount) + target.ShapeOf[index]] = (float)key.MWeights[v];
+                    }
+                }
+            }
+
+            result.Channels.Add(new AnimationChannel(target.Node, AnimationPath.Weights, AnimationInterpolation.Linear, times, values));
+        }
     }
 
     private static ModelAnimation ConvertAnimation(Animation* animation, string name, Dictionary<string, int> nodeIndex, ICollection<string> warnings)

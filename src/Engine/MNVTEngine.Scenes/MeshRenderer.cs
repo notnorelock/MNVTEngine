@@ -68,4 +68,95 @@ public sealed class MeshRenderer : Component
     /// <summary>Draw both sides of each face (thin surfaces such as planes seen from below).</summary>
     [SerializeField]
     public bool DoubleSided { get; set; }
+
+    private float[] _blendShapeWeights = [];
+
+    /// <summary>
+    /// Blend shape (morph target) weights of a model mesh, by shape index: 0 is the base shape, 1 the full shape (values
+    /// outside 0–1 extrapolate). Shapes without an entry use the model's default weight. Animated by
+    /// <see cref="ModelAnimator"/> clips that have weight channels.
+    /// </summary>
+    [SerializeField]
+    [HideInInspector] // edited as named sliders
+    [Newtonsoft.Json.JsonProperty(ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace)]
+    public IReadOnlyList<float> BlendShapeWeights { get => _blendShapeWeights; set => _blendShapeWeights = [.. value ?? []]; }
+
+    /// <summary>The blend shape names of <see cref="Mesh"/> (empty for primitives, or when the host cannot tell).</summary>
+    public IReadOnlyList<string> BlendShapeNames => GameObject.Scene.ModelAnimations?.BlendShapeNames(Mesh) ?? [];
+
+    /// <summary>Changes whenever a weight is set, so renderers know when to deform again.</summary>
+    public int BlendShapeVersion { get; private set; }
+
+    /// <summary>A shape's current weight: the one set, else the model's default, else 0.</summary>
+    public float GetBlendShapeWeight(int index) =>
+        index >= 0 && index < _blendShapeWeights.Length ? _blendShapeWeights[index] : DefaultWeight(index);
+
+    public float GetBlendShapeWeight(string name) => GetBlendShapeWeight(IndexOf(name));
+
+    /// <summary>For renderers: the weight set for a shape, else <paramref name="defaults"/>, else 0 (no host lookup).</summary>
+    public float GetBlendShapeWeightOrDefault(int index, IReadOnlyList<float> defaults)
+    {
+        ArgumentNullException.ThrowIfNull(defaults);
+        return index >= 0 && index < _blendShapeWeights.Length ? _blendShapeWeights[index] : index >= 0 && index < defaults.Count ? defaults[index] : 0f;
+    }
+
+    /// <summary>Sets a shape's weight by index (shapes below it that were never set take their default weight).</summary>
+    public void SetBlendShapeWeight(int index, float weight)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+        if (index >= _blendShapeWeights.Length)
+        {
+            var grown = new float[index + 1];
+            _blendShapeWeights.CopyTo(grown, 0);
+            for (var i = _blendShapeWeights.Length; i < grown.Length; i++)
+            {
+                grown[i] = DefaultWeight(i);
+            }
+
+            _blendShapeWeights = grown;
+        }
+
+        if (_blendShapeWeights[index] != weight)
+        {
+            _blendShapeWeights[index] = weight;
+            BlendShapeVersion++;
+        }
+    }
+
+    /// <summary>Sets a shape's weight by name; false (and nothing changes) when the mesh has no such shape.</summary>
+    public bool SetBlendShapeWeight(string name, float weight)
+    {
+        var index = IndexOf(name);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        SetBlendShapeWeight(index, weight);
+        return true;
+    }
+
+    /// <summary>Back to the model's default weights.</summary>
+    public void ResetBlendShapeWeights()
+    {
+        _blendShapeWeights = [];
+        BlendShapeVersion++;
+    }
+
+    private float DefaultWeight(int index) =>
+        GameObject.Scene.ModelAnimations?.BlendShapeDefaults(Mesh) is { } defaults && index >= 0 && index < defaults.Count ? defaults[index] : 0f;
+
+    private int IndexOf(string name)
+    {
+        var names = BlendShapeNames;
+        for (var i = 0; i < names.Count; i++)
+        {
+            if (names[i] == name)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
 }

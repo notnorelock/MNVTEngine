@@ -181,7 +181,12 @@ public sealed class GltfModelReader : IModelReader
         bool Has(string attribute) => triangles.All(p => p.GetVertexAccessor(attribute) is not null);
         bool hasNormals = Has("NORMAL"), hasTangents = Has("TANGENT"), hasUv0 = Has("TEXCOORD_0"), hasUv1 = Has("TEXCOORD_1"), hasColors = Has("COLOR_0");
         var skinned = settings.ImportSkins && Has("JOINTS_0") && Has("WEIGHTS_0");
-        var morphTargets = 0;
+        // Morph targets: every primitive of a mesh has the same targets (glTF rule); deltas are concatenated like the vertices.
+        var targetCount = triangles.Max(p => p.MorphTargetsCount);
+        var positionDeltas = Enumerable.Range(0, targetCount).Select(_ => new List<Vector3>()).ToArray();
+        var normalDeltas = Enumerable.Range(0, targetCount).Select(_ => new List<Vector3>()).ToArray();
+        var tangentDeltas = Enumerable.Range(0, targetCount).Select(_ => new List<Vector3>()).ToArray();
+        bool hasNormalDeltas = false, hasTangentDeltas = false;
         foreach (var primitive in triangles)
         {
             var baseVertex = (uint)positions.Count;
@@ -228,7 +233,28 @@ public sealed class GltfModelReader : IModelReader
                 }
             }
 
-            morphTargets = Math.Max(morphTargets, primitive.MorphTargetsCount);
+            for (var t = 0; t < targetCount; t++)
+            {
+                var target = t < primitive.MorphTargetsCount ? primitive.GetMorphTargetAccessors(t) : null;
+                void Add(List<Vector3> into, string attribute, ref bool present)
+                {
+                    if (target is not null && target.TryGetValue(attribute, out var accessor))
+                    {
+                        into.AddRange(accessor.AsVector3Array().Select(V3));
+                        present = true;
+                    }
+                    else
+                    {
+                        into.AddRange(Enumerable.Repeat(Vector3.Zero, count));
+                    }
+                }
+
+                var positionPresent = false;
+                Add(positionDeltas[t], "POSITION", ref positionPresent);
+                Add(normalDeltas[t], "NORMAL", ref hasNormalDeltas);
+                Add(tangentDeltas[t], "TANGENT", ref hasTangentDeltas);
+            }
+
             var start = indices.Count;
             var primitiveIndices = primitive.GetIndices();
             if (primitiveIndices is null)
@@ -257,12 +283,23 @@ public sealed class GltfModelReader : IModelReader
             Colors = hasColors ? [.. colors] : null,
         };
         mesh.SetIndices([.. indices], [.. subMeshes]);
-        var result = new ModelMesh(name, mesh) { MorphTargetCount = morphTargets };
+        var result = new ModelMesh(name, mesh);
         result.SubMeshMaterials.AddRange(materials);
         if (skinned)
         {
             result.Joints = [.. joints];
             result.Weights = [.. weights];
+        }
+
+        var names = TargetNames(source);
+        for (var t = 0; t < targetCount; t++)
+        {
+            result.BlendShapes.Add(new BlendShape(t < names.Count && !string.IsNullOrWhiteSpace(names[t]) ? names[t] : $"Shape{t}", [.. positionDeltas[t]])
+            {
+                NormalDeltas = hasNormalDeltas && hasNormals ? [.. normalDeltas[t]] : null,
+                TangentDeltas = hasTangentDeltas && hasTangents ? [.. tangentDeltas[t]] : null,
+            });
+            result.DefaultBlendShapeWeights.Add(t < source.MorphWeights.Count ? source.MorphWeights[t] : 0f);
         }
 
         return result;
@@ -404,8 +441,8 @@ public sealed class GltfModelReader : IModelReader
                 case PropertyPath.rotation when channel.GetRotationSampler() is { } s:
                     result.Channels.Add(RotationChannel(node, s));
                     break;
-                case PropertyPath.weights:
-                    warnings.Add($"Animation '{name}': morph target weights are not imported yet.");
+                case PropertyPath.weights when channel.GetMorphSampler() is { } s:
+                    result.Channels.Add(WeightsChannel(node, s));
                     break;
             }
         }
@@ -439,6 +476,32 @@ public sealed class GltfModelReader : IModelReader
         var linear = sampler.GetLinearKeys().ToList();
         return new AnimationChannel(node, AnimationPath.Rotation, sampler.InterpolationMode == AnimationInterpolationMode.STEP ? AnimationInterpolation.Step : AnimationInterpolation.Linear,
             [.. linear.Select(k => k.Key)], [.. linear.SelectMany(k => new[] { k.Value.X, k.Value.Y, k.Value.Z, k.Value.W })]);
+    }
+
+    /// <summary>Blend shape names: the de facto <c>extras.targetNames</c> of the mesh (Blender and most exporters write it).</summary>
+    private static List<string> TargetNames(GltfMesh mesh)
+    {
+        var names = new List<string>();
+        if (mesh.Extras is System.Text.Json.Nodes.JsonObject extras && extras["targetNames"] is System.Text.Json.Nodes.JsonArray array)
+        {
+            names.AddRange(array.Select(n => n?.GetValueKind() == System.Text.Json.JsonValueKind.String ? n.GetValue<string>() : ""));
+        }
+
+        return names;
+    }
+
+    private static AnimationChannel WeightsChannel(int node, IAnimationSampler<float[]> sampler)
+    {
+        if (sampler.InterpolationMode == AnimationInterpolationMode.CUBICSPLINE)
+        {
+            var keys = sampler.GetCubicKeys().ToList();
+            return new AnimationChannel(node, AnimationPath.Weights, AnimationInterpolation.CubicSpline, [.. keys.Select(k => k.Key)],
+                [.. keys.SelectMany(k => k.Value.TangentIn.Concat(k.Value.Value).Concat(k.Value.TangentOut))]);
+        }
+
+        var linear = sampler.GetLinearKeys().ToList();
+        return new AnimationChannel(node, AnimationPath.Weights, sampler.InterpolationMode == AnimationInterpolationMode.STEP ? AnimationInterpolation.Step : AnimationInterpolation.Linear,
+            [.. linear.Select(k => k.Key)], [.. linear.SelectMany(k => k.Value)]);
     }
 
     /// <summary>System.Numerics uses row vectors (translation in M41..M43); the engine uses column vectors.</summary>

@@ -3,7 +3,8 @@ using MNVTEngine.Mathematics;
 namespace MNVTEngine.Graphics.Meshes;
 
 /// <summary>
-/// Linear blend skinning on the CPU: each vertex moves with up to four joints, weighted. The result is in the space the
+/// Mesh deformation on the CPU: blend shapes (<see cref="Morph"/>) and linear blend skinning (<see cref="Apply"/>).
+/// Linear blend skinning: each vertex moves with up to four joints, weighted. The result is in the space the
 /// joint matrices map to (world space when they are joint world × inverse bind), so a skinned mesh is drawn with an
 /// identity world matrix. Normals and tangents use the same matrices (renormalized).
 /// </summary>
@@ -58,6 +59,73 @@ public static class Skinning
         }
 
         return bindPose.Length == 0 ? default : Bounds.FromMinMax(min, max);
+    }
+
+    /// <summary>
+    /// Blend shapes: each vertex moves by the weighted sum of the shapes' offsets (normals and tangents too, then
+    /// renormalized). Shapes with weight 0 cost nothing. Returns the box around the result.
+    /// </summary>
+    /// <param name="shapes">Per shape: position offsets, and optional normal and tangent offsets (one per vertex).</param>
+    public static Bounds Morph(ReadOnlySpan<MeshVertex> bindPose, IReadOnlyList<(Vector3[] Positions, Vector3[]? Normals, Vector3[]? Tangents)> shapes, ReadOnlySpan<float> weights, Span<MeshVertex> output)
+    {
+        ArgumentNullException.ThrowIfNull(shapes);
+        if (output.Length != bindPose.Length)
+        {
+            throw new ArgumentException("The output does not match the vertex count.", nameof(output));
+        }
+
+        bindPose.CopyTo(output);
+        var normalsChanged = false;
+        for (var s = 0; s < shapes.Count && s < weights.Length; s++)
+        {
+            var w = weights[s];
+            if (w == 0f)
+            {
+                continue;
+            }
+
+            var (positions, normals, tangents) = shapes[s];
+            if (positions.Length != bindPose.Length)
+            {
+                throw new ArgumentException($"Blend shape {s} has {positions.Length} offsets for {bindPose.Length} vertices.", nameof(shapes));
+            }
+
+            for (var v = 0; v < output.Length; v++)
+            {
+                ref var vertex = ref output[v];
+                vertex.Position += positions[v] * w;
+                if (normals is not null)
+                {
+                    vertex.Normal += normals[v] * w;
+                }
+
+                if (tangents is not null)
+                {
+                    var t = tangents[v] * w;
+                    vertex.Tangent = new Vector4(vertex.Tangent.X + t.X, vertex.Tangent.Y + t.Y, vertex.Tangent.Z + t.Z, vertex.Tangent.W);
+                }
+            }
+
+            normalsChanged |= normals is not null || tangents is not null;
+        }
+
+        var min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+        var max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+        for (var v = 0; v < output.Length; v++)
+        {
+            ref var vertex = ref output[v];
+            if (normalsChanged)
+            {
+                vertex.Normal = vertex.Normal.Normalized;
+                var t = new Vector3(vertex.Tangent.X, vertex.Tangent.Y, vertex.Tangent.Z).Normalized;
+                vertex.Tangent = new Vector4(t.X, t.Y, t.Z, vertex.Tangent.W);
+            }
+
+            min = Vector3.Min(min, vertex.Position);
+            max = Vector3.Max(max, vertex.Position);
+        }
+
+        return output.Length == 0 ? default : Bounds.FromMinMax(min, max);
     }
 
     private static void Accumulate(ref Matrix4x4 sum, in Matrix4x4 m, float w)

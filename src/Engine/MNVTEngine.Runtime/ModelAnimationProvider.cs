@@ -50,6 +50,26 @@ public sealed partial class ModelAnimationProvider : IModelAnimationProvider, ID
         return result;
     }
 
+    public IReadOnlyList<string> BlendShapeNames(AssetRef mesh) => MeshOf(mesh) is { } m ? [.. m.BlendShapes.Select(s => s.Name)] : [];
+
+    public IReadOnlyList<float> BlendShapeDefaults(AssetRef mesh) => MeshOf(mesh)?.DefaultBlendShapeWeights ?? [];
+
+    /// <summary>A mesh by reference (<c>#mesh/&lt;name&gt;</c>, or a model with exactly one mesh).</summary>
+    private ModelMesh? MeshOf(AssetRef mesh)
+    {
+        if (Load(mesh.Guid) is not { } data)
+        {
+            return null;
+        }
+
+        if (mesh.SubAsset is not { } sub)
+        {
+            return data.Meshes.Count == 1 ? data.Meshes[0] : null;
+        }
+
+        return data.FindMesh(sub.StartsWith(ResourceCache.MeshSubAssetPrefix, StringComparison.Ordinal) ? sub[ResourceCache.MeshSubAssetPrefix.Length..] : sub);
+    }
+
     public void Dispose() => _assets.AssetsChanged -= Evict;
 
     private ModelData? Load(Guid guid)
@@ -111,6 +131,7 @@ public sealed partial class ModelAnimationProvider : IModelAnimationProvider, ID
     {
         private readonly ModelAnimation _animation;
         private readonly int[] _targetOf; // channel -> target index
+        private readonly float[]?[] _weights; // per target with a weights channel: one value per blend shape (reused)
 
         public Clip(ModelData model, ModelAnimation animation)
         {
@@ -118,6 +139,13 @@ public sealed partial class ModelAnimationProvider : IModelAnimationProvider, ID
             var nodes = animation.Channels.Select(c => c.Node).Distinct().ToList();
             Targets = [.. nodes.Select(n => n == 0 ? null : model.Nodes[n].Name)];
             _targetOf = [.. animation.Channels.Select(c => nodes.IndexOf(c.Node))];
+            _weights = new float[]?[nodes.Count];
+            foreach (var channel in animation.Channels.Where(c => c.Path == AnimationPath.Weights))
+            {
+                var mesh = model.Nodes[channel.Node].Mesh;
+                _weights[nodes.IndexOf(channel.Node)] = new float[mesh >= 0 ? model.Meshes[mesh].BlendShapes.Count : 0];
+            }
+
             Duration = animation.Duration;
         }
 
@@ -149,6 +177,10 @@ public sealed partial class ModelAnimationProvider : IModelAnimationProvider, ID
                         break;
                     case AnimationPath.Scale:
                         pose = pose with { Scale = AnimationSampling.SampleVector3(channel, time) };
+                        break;
+                    case AnimationPath.Weights when _weights[_targetOf[i]] is { Length: > 0 } weights:
+                        AnimationSampling.SampleWeights(channel, time, weights);
+                        pose = pose with { Weights = weights };
                         break;
                 }
             }

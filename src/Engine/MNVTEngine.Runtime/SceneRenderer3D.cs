@@ -149,8 +149,8 @@ public sealed partial class SceneRenderer
             return;
         }
 
-        var (mesh, world) = modelMesh.Joints is not null && Skin(meshRenderer, modelMesh) is { } skinned
-            ? (skinned, Matrix4x4.Identity) // skinned vertices are already in world space
+        var (mesh, world) = (modelMesh.Joints is not null || modelMesh.BlendShapes.Count > 0) && Deform(meshRenderer, modelMesh) is { } deformed
+            ? (deformed.Mesh, deformed.WorldSpace ? Matrix4x4.Identity : meshRenderer.Transform.LocalToWorldMatrix) // skinned vertices are in world space
             : (Meshes().Get(modelMesh.Mesh), meshRenderer.Transform.LocalToWorldMatrix);
         var white = resources.GetDefaultTexture(DefaultTexture.White);
         CullMode? cull = meshRenderer.DoubleSided ? CullMode.None : null;
@@ -168,13 +168,18 @@ public sealed partial class SceneRenderer
     /// name under the model's root) into the renderer's own dynamic mesh. Null when the mesh has no skin in its model or
     /// the root cannot be found; the mesh then draws in its bind pose.
     /// </summary>
-    private GpuMesh? Skin(MeshRenderer meshRenderer, ModelMesh modelMesh)
+    /// <summary>
+    /// The renderer's own deformed copy of a model mesh: blend shapes first (the renderer's weights over the model's
+    /// defaults), then skinning with the joints' current pose. Recomputed when the pose or the weights change. Null when
+    /// a skin's joints cannot be found (the mesh then draws undeformed).
+    /// </summary>
+    private (GpuMesh Mesh, bool WorldSpace)? Deform(MeshRenderer meshRenderer, ModelMesh modelMesh)
     {
         if (!_skins.TryGetValue(meshRenderer, out var state) || !ReferenceEquals(state.Source, modelMesh) || state.Joints.Any(j => j is null || j.GameObject.IsDestroyed))
         {
             state?.Dispose();
             _skins.Remove(meshRenderer);
-            if (BindSkin(meshRenderer, modelMesh) is not { } bound)
+            if (BindDeformation(meshRenderer, modelMesh) is not { } bound)
             {
                 return null;
             }
@@ -184,33 +189,68 @@ public sealed partial class SceneRenderer
         }
 
         state.LastFrame = _frame;
-        if (state.SkinnedFrame != _frame)
+        var skinned = state.Skin is not null;
+        var weightsChanged = state.WeightsVersion != meshRenderer.BlendShapeVersion || state.SkinnedFrame < 0;
+        if (state.SkinnedFrame != _frame && (skinned || weightsChanged))
         {
-            for (var j = 0; j < state.Joints.Length; j++)
+            ReadOnlySpan<MeshVertex> source = state.BindPose;
+            Bounds bounds = default;
+            if (state.Shapes.Count > 0)
             {
-                state.Matrices[j] = state.Joints[j]!.LocalToWorldMatrix * state.Skin.InverseBindMatrices[j];
+                for (var s = 0; s < state.ShapeWeights.Length; s++)
+                {
+                    state.ShapeWeights[s] = meshRenderer.GetBlendShapeWeightOrDefault(s, modelMesh.DefaultBlendShapeWeights);
+                }
+
+                bounds = Skinning.Morph(state.BindPose, state.Shapes, state.ShapeWeights, state.Morphed);
+                source = state.Morphed;
+                state.WeightsVersion = meshRenderer.BlendShapeVersion;
             }
 
-            var bounds = Skinning.Apply(state.BindPose, modelMesh.Joints, modelMesh.Weights, state.Matrices, state.Output);
-            state.Gpu.UpdateVertices(state.Output, bounds);
+            if (skinned)
+            {
+                for (var j = 0; j < state.Joints.Length; j++)
+                {
+                    state.Matrices[j] = state.Joints[j]!.LocalToWorldMatrix * state.Skin!.InverseBindMatrices[j];
+                }
+
+                bounds = Skinning.Apply(source, modelMesh.Joints, modelMesh.Weights, state.Matrices, state.Output);
+                state.Gpu.UpdateVertices(state.Output, bounds);
+            }
+            else
+            {
+                state.Gpu.UpdateVertices(state.Morphed, bounds);
+            }
+
             state.SkinnedFrame = _frame;
         }
+        else if (!skinned)
+        {
+            state.Gpu.UpdateVertices(state.Morphed, state.Gpu.Bounds); // dynamic buffers are uploaded each frame they are drawn
+        }
 
-        return state.Gpu;
+        return (state.Gpu, skinned);
     }
 
-    private SkinState? BindSkin(MeshRenderer meshRenderer, ModelMesh modelMesh)
+    private SkinState? BindDeformation(MeshRenderer meshRenderer, ModelMesh modelMesh)
     {
-        if (resources.GetModel(meshRenderer.Mesh.Guid) is not { } model || modelMesh.Weights is null)
+        if (resources.GetModel(meshRenderer.Mesh.Guid) is not { } model)
         {
             return null;
         }
 
+        var shapes = modelMesh.BlendShapes.Select(s => (s.PositionDeltas, s.NormalDeltas, s.TangentDeltas)).ToList();
         var meshIndex = model.Meshes.IndexOf(modelMesh);
         var nodeIndex = model.Nodes.FindIndex(n => n.Mesh == meshIndex && n.Skin >= 0);
-        if (nodeIndex < 0)
+        if (modelMesh.Weights is null || nodeIndex < 0)
         {
-            return null;
+            if (shapes.Count == 0)
+            {
+                return null;
+            }
+
+            var unskinned = GpuMesh.Interleave(modelMesh.Mesh);
+            return new SkinState(modelMesh, null, [], GpuMesh.CreateDynamic(renderer.Device, modelMesh.Mesh), unskinned, new MeshVertex[unskinned.Length], [], shapes);
         }
 
         // The model's root is as many parents up as the mesh node is deep in the model.
@@ -235,7 +275,7 @@ public sealed partial class SceneRenderer
         }
 
         var bindPose = GpuMesh.Interleave(modelMesh.Mesh);
-        return new SkinState(modelMesh, skin, joints, GpuMesh.CreateDynamic(renderer.Device, modelMesh.Mesh), bindPose, new MeshVertex[bindPose.Length], new Matrix4x4[joints.Length]);
+        return new SkinState(modelMesh, skin, joints, GpuMesh.CreateDynamic(renderer.Device, modelMesh.Mesh), bindPose, new MeshVertex[bindPose.Length], new Matrix4x4[joints.Length], shapes);
 
         static void Collect(Transform node, Dictionary<string, Transform> into)
         {
@@ -257,11 +297,22 @@ public sealed partial class SceneRenderer
         }
     }
 
-    private sealed class SkinState(ModelMesh source, ModelSkin skin, Transform?[] joints, GpuMesh gpu, MeshVertex[] bindPose, MeshVertex[] output, Matrix4x4[] matrices) : IDisposable
+    private sealed class SkinState(ModelMesh source, ModelSkin? skin, Transform?[] joints, GpuMesh gpu, MeshVertex[] bindPose, MeshVertex[] output, Matrix4x4[] matrices,
+        List<(Vector3[] Positions, Vector3[]? Normals, Vector3[]? Tangents)> shapes) : IDisposable
     {
         public ModelMesh Source { get; } = source;
 
-        public ModelSkin Skin { get; } = skin;
+        /// <summary>Null for meshes with blend shapes only.</summary>
+        public ModelSkin? Skin { get; } = skin;
+
+        public List<(Vector3[] Positions, Vector3[]? Normals, Vector3[]? Tangents)> Shapes { get; } = shapes;
+
+        public float[] ShapeWeights { get; } = new float[shapes.Count];
+
+        /// <summary>The blend-shaped vertices (the bind pose for skinning).</summary>
+        public MeshVertex[] Morphed { get; } = new MeshVertex[bindPose.Length];
+
+        public int WeightsVersion { get; set; } = -1;
 
         public Transform?[] Joints { get; } = joints;
 

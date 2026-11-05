@@ -5,7 +5,8 @@ using MNVTEngine.Serialization;
 namespace MNVTEngine;
 
 /// <summary>The animated parts of one node at one time; null parts are not animated by the clip.</summary>
-public record struct NodePose(Vector3? Position, Quaternion? Rotation, Vector3? Scale);
+/// <param name="Weights">Blend shape weights of the node's mesh renderer (one per shape), or null.</param>
+public record struct NodePose(Vector3? Position, Quaternion? Rotation, Vector3? Scale, float[]? Weights = null);
 
 /// <summary>An animation clip of an imported model, as the runtime provides it (see <see cref="IModelAnimationProvider"/>).</summary>
 public abstract class ModelClip
@@ -30,6 +31,12 @@ public interface IModelAnimationProvider
 
     /// <summary>A clip by name (null or empty: the first); null when the model or clip is missing (the host logs why).</summary>
     ModelClip? GetClip(AssetRef model, string? clip);
+
+    /// <summary>The blend shape names of a model mesh (<c>asset:&lt;guid&gt;#mesh/&lt;name&gt;</c>), in index order.</summary>
+    IReadOnlyList<string> BlendShapeNames(AssetRef mesh) => [];
+
+    /// <summary>The default weight of each blend shape of a model mesh (what it shows when nothing sets a weight).</summary>
+    IReadOnlyList<float> BlendShapeDefaults(AssetRef mesh) => [];
 }
 
 /// <summary>
@@ -203,6 +210,14 @@ public sealed partial class ModelAnimator : Component
             if (pose.Scale is { } scale)
             {
                 transform.LocalScale = scale;
+            }
+
+            if (pose.Weights is { } weights && transform.GameObject.GetComponent<MeshRenderer>() is { } renderer)
+            {
+                for (var w = 0; w < weights.Length; w++)
+                {
+                    renderer.SetBlendShapeWeight(w, weights[w]);
+                }
             }
         }
     }

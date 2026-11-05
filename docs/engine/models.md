@@ -15,10 +15,10 @@ Both readers produce `ModelData`, the engine's own model description (`MNVTEngin
 project so the runtime can read it without the importer):
 
 - **Nodes,** parents first, with local position, rotation and scale. Node 0 is the root.
-- **Meshes,** with positions, normals, tangents, two UV sets, vertex colors, submeshes, a material per submesh, and joints/weights for skinned meshes.
+- **Meshes,** with positions, normals, tangents, two UV sets, vertex colors, submeshes, a material per submesh, joints/weights for skinned meshes, and blend shapes (morph targets: position, normal and tangent offsets with names and default weights).
 - **Materials,** metallic-roughness: base color, metallic, roughness, emission, normal scale, occlusion strength, alpha mode (opaque, mask, blend), double-sided, and textures by role.
 - **Textures:** a project texture (by GUID), an image embedded in the file, or an unresolved source path.
-- **Skins** (joints and inverse bind matrices) and **animations** (translation, rotation and scale channels; step, linear or cubic spline). They play with [`ModelAnimator`](#animation-and-skinning).
+- **Skins** (joints and inverse bind matrices) and **animations** (translation, rotation, scale and blend shape weight channels; step, linear or cubic spline). They play with [`ModelAnimator`](#animation-and-skinning).
 
 Names are made unique (`Body`, `Body_1`, ...) and stripped of `#`, `/`, `\` and `"`, so they are safe in references.
 FBX meshes are named after their node (the object name in the modelling tool), not the FBX geometry name, which tools
@@ -120,10 +120,31 @@ Who imports:
 - **Hosts** give scenes the clips through `Scene.ModelAnimations` (`ModelAnimationProvider`, which reads model artifacts), like `Scene.TextAssets`. The runtime and editor Play Mode set it.
 - **Tested** with the Khronos CesiumMan (GLB, and as FBX written by Assimp's exporter) and BoxAnimated. Assimp's FBX exporter tags meter data as centimeters, so such files need `"scale": 100`; FBX files from Blender or Maya carry their real units.
 
+## Blend shapes
+
+Blend shapes (morph targets, shape keys) deform a mesh by weighted per-vertex offsets: facial expressions, correctives,
+squash and stretch.
+
+- **Import.**
+  - glTF morph targets, with names from `extras.targetNames` (written by Blender and most exporters) and default weights from the mesh.
+  - FBX blend shapes, through Assimp.
+  - Names are unique per mesh; repeated names get `_2`, `_3`.
+  - Animated weights import as weight channels: glTF `weights` channels, FBX morph animations.
+- **`MeshRenderer`.**
+  - Weights are kept per renderer: `BlendShapeWeights` (saved with the scene), with 0 the base shape and 1 the full shape.
+  - Game code: `SetBlendShapeWeight(index or name, weight)`, `GetBlendShapeWeight`, `BlendShapeNames` and `ResetBlendShapeWeights()`.
+  - A shape never set shows the model's default weight. Adding a model to a scene records its defaults.
+- **Inspector.** A renderer of a mesh with blend shapes shows a slider per shape, with undo, and **Reset to model defaults**.
+- **Animation.** `ModelAnimator` clips with weight channels set the weights of the node's renderer every frame.
+- **Rendering.**
+  - Blend shapes are applied on the CPU, before skinning, into the renderer's dynamic mesh.
+  - They are recomputed only when a weight changes; a skinned mesh deforms every frame anyway.
+  - Shadows, picking bounds and culling follow the deformed shape.
+- **Tested** with the Khronos AnimatedMorphCube (CC0) and MorphPrimitivesTest (CC-BY), from GLB and as FBX written by Assimp's exporter.
+
 ## Not yet
 
 - **Animation blending, layers, state machines and root motion.** One clip plays at a time.
-- **Morph targets** (blend shapes) are reported and skipped.
 - **Lights and cameras** in model files are reported and skipped.
 - **Metallic and roughness maps** are used only as a combined glTF-style map; separate FBX maps are not combined.
 - **Texture UV sets.** Textures on UV set 1 are sampled with UV set 0 (a warning says so).

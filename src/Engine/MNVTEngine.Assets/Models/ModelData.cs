@@ -57,8 +57,27 @@ public sealed class ModelMesh(string name, Mesh mesh)
     /// <summary>Four weights per vertex, summing to 1; null when not skinned.</summary>
     public float[]? Weights { get; set; }
 
-    /// <summary>Blend shape count in the source (imported in a later version; reported, not dropped silently).</summary>
-    public int MorphTargetCount { get; set; }
+    /// <summary>Blend shapes (morph targets): per-vertex offsets mixed in by weight before skinning.</summary>
+    public List<BlendShape> BlendShapes { get; } = [];
+
+    /// <summary>The weight of each blend shape when nothing sets one (glTF mesh weights; FBX shape defaults).</summary>
+    public List<float> DefaultBlendShapeWeights { get; } = [];
+}
+
+/// <summary>
+/// One blend shape of a mesh: offsets added to the base vertices, times its weight (0 = none, 1 = the full shape).
+/// Normal and tangent offsets are optional; missing ones leave the base normals and tangents.
+/// </summary>
+public sealed class BlendShape(string name, Vector3[] positionDeltas)
+{
+    /// <summary>Unique within the mesh.</summary>
+    public string Name { get; set; } = name;
+
+    public Vector3[] PositionDeltas { get; } = positionDeltas;
+
+    public Vector3[]? NormalDeltas { get; set; }
+
+    public Vector3[]? TangentDeltas { get; set; }
 }
 
 public enum ModelAlphaMode
@@ -166,6 +185,9 @@ public enum AnimationPath
     Translation,
     Rotation,
     Scale,
+
+    /// <summary>Blend shape weights of the node's mesh: one value per blend shape per key.</summary>
+    Weights,
 }
 
 public enum AnimationInterpolation

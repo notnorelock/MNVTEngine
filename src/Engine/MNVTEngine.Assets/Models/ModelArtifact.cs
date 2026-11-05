@@ -13,8 +13,8 @@ namespace MNVTEngine.Assets.Models;
 public static class ModelArtifact
 {
     public const string Name = "model";
-    /// <summary>2: material overrides (extracted or remapped materials).</summary>
-    public const int Version = 2;
+    /// <summary>2: material overrides (extracted or remapped materials). 3: blend shapes and weight channels.</summary>
+    public const int Version = 3;
     private static readonly byte[] Magic = "MNVTMODL"u8.ToArray();
     private const int MaxCount = 1 << 24;
 
@@ -277,7 +277,16 @@ public static class ModelArtifact
             WriteFloats(w, model.Weights!);
         }
 
-        w.Write(model.MorphTargetCount);
+        w.Write(model.BlendShapes.Count);
+        foreach (var shape in model.BlendShapes)
+        {
+            w.Write(shape.Name);
+            WriteVectors(w, shape.PositionDeltas);
+            WriteOptional(w, shape.NormalDeltas, (bw, v) => WriteVector(bw, v));
+            WriteOptional(w, shape.TangentDeltas, (bw, v) => WriteVector(bw, v));
+        }
+
+        WriteFloats(w, [.. model.DefaultBlendShapeWeights]);
     }
 
     private static ModelMesh ReadMesh(BinaryReader r)
@@ -319,7 +328,17 @@ public static class ModelArtifact
             result.Weights = ReadFloats(r);
         }
 
-        result.MorphTargetCount = r.ReadInt32();
+        for (int i = 0, n = Count(r); i < n; i++)
+        {
+            var shape = new BlendShape(r.ReadString(), ReadVectors(r))
+            {
+                NormalDeltas = ReadOptional(r, ReadVector),
+                TangentDeltas = ReadOptional(r, ReadVector),
+            };
+            result.BlendShapes.Add(shape);
+        }
+
+        result.DefaultBlendShapeWeights.AddRange(ReadFloats(r));
         return result;
     }
 
@@ -346,14 +365,23 @@ public static class ModelArtifact
             Require(m.Mesh.Validate().Count == 0, $"mesh '{m.Name}': {string.Join(" ", m.Mesh.Validate())}");
             Require(m.SubMeshMaterials.All(x => x >= -1 && x < model.Materials.Count), $"mesh '{m.Name}' refers to a missing material");
             Require(m.Joints is null || (m.Joints.Length == m.Mesh.VertexCount * 4 && m.Weights?.Length == m.Joints.Length), $"mesh '{m.Name}' has inconsistent skin weights");
+            Require(m.BlendShapes.All(s => s.PositionDeltas.Length == m.Mesh.VertexCount && (s.NormalDeltas?.Length ?? m.Mesh.VertexCount) == m.Mesh.VertexCount && (s.TangentDeltas?.Length ?? m.Mesh.VertexCount) == m.Mesh.VertexCount), $"mesh '{m.Name}' has a blend shape of the wrong size");
+            Require(m.DefaultBlendShapeWeights.Count == m.BlendShapes.Count, $"mesh '{m.Name}' has {m.DefaultBlendShapeWeights.Count} default weights for {m.BlendShapes.Count} blend shapes");
         }
 
         Require(model.Materials.All(m => m.Textures.Values.All(t => t >= 0 && t < model.Textures.Count)), "a material refers to a missing texture");
         Require(model.Skins.All(s => s.Joints.All(j => j >= 0 && j < model.Nodes.Count)), "a skin refers to a missing joint node");
         foreach (var c in model.Animations.SelectMany(a => a.Channels))
         {
-            var width = (c.Path == AnimationPath.Rotation ? 4 : 3) * (c.Interpolation == AnimationInterpolation.CubicSpline ? 3 : 1);
-            Require(c.Node >= 0 && c.Node < model.Nodes.Count && c.Values.Length == c.Times.Length * width, $"an animation channel of node {c.Node} has {c.Values.Length} values for {c.Times.Length} keys");
+            Require(c.Node >= 0 && c.Node < model.Nodes.Count, $"an animation channel targets node {c.Node}");
+            var components = c.Path switch
+            {
+                AnimationPath.Rotation => 4,
+                AnimationPath.Weights => model.Nodes[c.Node].Mesh >= 0 ? model.Meshes[model.Nodes[c.Node].Mesh].BlendShapes.Count : 0,
+                _ => 3,
+            };
+            var width = components * (c.Interpolation == AnimationInterpolation.CubicSpline ? 3 : 1);
+            Require(width > 0 && c.Values.Length == c.Times.Length * width, $"an animation channel of node {c.Node} has {c.Values.Length} values for {c.Times.Length} keys");
         }
     }
 

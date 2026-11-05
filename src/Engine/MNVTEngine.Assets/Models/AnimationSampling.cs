@@ -75,6 +75,40 @@ public static class AnimationSampling
         }
     }
 
+    /// <summary>A blend shape weights channel at <paramref name="time"/> into <paramref name="weights"/> (one per blend shape).</summary>
+    public static void SampleWeights(AnimationChannel channel, float time, Span<float> weights)
+    {
+        ArgumentNullException.ThrowIfNull(channel);
+        var cubic = channel.Interpolation == AnimationInterpolation.CubicSpline;
+        var count = channel.Values.Length / (channel.Times.Length * (cubic ? 3 : 1));
+        var stride = count * (cubic ? 3 : 1);
+        var offset = cubic ? count : 0;
+        var v = channel.Values;
+        var (k, t, dt) = Locate(channel.Times, time);
+        for (var i = 0; i < Math.Min(count, weights.Length); i++)
+        {
+            var a = v[(k * stride) + offset + i];
+            if (t <= 0f || k + 1 >= channel.Times.Length || channel.Interpolation == AnimationInterpolation.Step)
+            {
+                weights[i] = a;
+                continue;
+            }
+
+            var b = v[((k + 1) * stride) + offset + i];
+            if (!cubic)
+            {
+                weights[i] = a + ((b - a) * t);
+                continue;
+            }
+
+            var outTangent = v[(k * stride) + offset + count + i] * dt;
+            var inTangent = v[((k + 1) * stride) + i] * dt;
+            var t2 = t * t;
+            var t3 = t2 * t;
+            weights[i] = (a * ((2f * t3) - (3f * t2) + 1f)) + (outTangent * (t3 - (2f * t2) + t)) + (b * ((-2f * t3) + (3f * t2))) + (inTangent * (t3 - t2));
+        }
+    }
+
     /// <summary>The key at or before <paramref name="time"/>, the fraction towards the next one, and the interval.</summary>
     private static (int Key, float T, float Interval) Locate(float[] times, float time)
     {

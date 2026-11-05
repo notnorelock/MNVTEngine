@@ -56,4 +56,39 @@ public sealed class MeshRendererTests
         Assert.Equal((PrimitiveMesh.Cube, Color.White, false), (renderer.Primitive, renderer.Color, renderer.DoubleSided));
         Assert.True(renderer.Texture.IsNone && renderer.Material.IsNone);
     }
+
+    private sealed class ShapeProvider : IModelAnimationProvider
+    {
+        public IReadOnlyList<string> ClipNames(AssetRef model) => [];
+
+        public ModelClip? GetClip(AssetRef model, string? clip) => null;
+
+        public IReadOnlyList<string> BlendShapeNames(AssetRef mesh) => ["Smile", "Blink"];
+
+        public IReadOnlyList<float> BlendShapeDefaults(AssetRef mesh) => [0f, 0.3f];
+    }
+
+    [Fact]
+    public void BlendShapeWeights_ByIndexOrName_KeepDefaults_AndSurviveSerialization()
+    {
+        var scene = new Scene { ModelAnimations = new ShapeProvider() };
+        var renderer = scene.CreateGameObject("Face").AddComponent<MeshRenderer>();
+        renderer.Mesh = new AssetRef(Guid.Parse("e3000000-0000-4000-8000-000000000004"), "mesh/Face");
+
+        Assert.Equal(["Smile", "Blink"], renderer.BlendShapeNames);
+        Assert.Equal(0.3f, renderer.GetBlendShapeWeight("Blink")); // the model's default until set
+        Assert.True(renderer.SetBlendShapeWeight("Blink", 1f));
+        Assert.Equal(0f, renderer.GetBlendShapeWeight(0)); // filled with its default
+        Assert.False(renderer.SetBlendShapeWeight("Frown", 1f));
+        var version = renderer.BlendShapeVersion;
+        renderer.SetBlendShapeWeight(0, 0.5f);
+        Assert.True(renderer.BlendShapeVersion > version);
+
+        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var copy = serializer.Deserialize(serializer.Serialize(scene)).Scene.Find("Face")!.GetComponent<MeshRenderer>()!;
+        Assert.Equal([0.5f, 1f], copy.BlendShapeWeights);
+
+        renderer.ResetBlendShapeWeights();
+        Assert.Equal(0.3f, renderer.GetBlendShapeWeight(1));
+    }
 }
