@@ -72,6 +72,7 @@ public sealed partial class GameRuntime(
     private Renderer2D _renderer = null!;
     private UI.UIRenderer _ui = null!;
     private Graphics.Text.Font _uiFont = null!;
+    private DebugTextRenderer? _debugText;
     private ResourceCache _resources = null!;
     private SceneRenderer _sceneRenderer = null!;
     private AssetDatabase _assets = null!;
@@ -198,6 +199,9 @@ public sealed partial class GameRuntime(
         // Frames run FixedUpdate* → Update → Render: a frame ends after rendering.
         if (_options.Diagnostics is { } diagnostics)
         {
+            var view = CurrentScene?.MainCamera is { } main ? SceneRenderer.CreateView(main, _window.FramebufferWidth, _window.FramebufferHeight) : null;
+            _device.SetRenderTarget(null);
+            (_debugText ??= new DebugTextRenderer(_renderer)).Render(diagnostics.DrawBuffer.Commands, view, _window.FramebufferWidth, _window.FramebufferHeight);
             diagnostics.SceneRendered();
             if (_options.Overlay is { } overlay)
             {
@@ -253,6 +257,7 @@ public sealed partial class GameRuntime(
         _sceneRenderer?.Dispose();
         _ui?.Dispose();
         _uiFont?.Dispose();
+        _debugText?.Dispose();
         _resources?.Dispose();
         _animations?.Dispose();
         _renderer?.Dispose();

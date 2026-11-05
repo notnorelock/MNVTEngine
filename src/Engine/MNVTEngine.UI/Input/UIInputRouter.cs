@@ -24,7 +24,7 @@ internal sealed class UIInputRouter(UIContext context)
     private static readonly Key[] RoutedKeys =
     [
         Key.Tab, Key.Enter, Key.Space, Key.Escape, Key.Backspace, Key.Delete, Key.Left, Key.Right, Key.Up, Key.Down,
-        Key.Home, Key.End, Key.PageUp, Key.PageDown, Key.A, Key.C, Key.V, Key.X, Key.Insert,
+        Key.Home, Key.End, Key.PageUp, Key.PageDown, Key.A, Key.C, Key.V, Key.X, Key.Y, Key.Z, Key.Insert,
     ];
 
     private static readonly Key[] RepeatingKeys = [Key.Backspace, Key.Delete, Key.Left, Key.Right, Key.Up, Key.Down, Key.PageUp, Key.PageDown, Key.Enter];
@@ -38,10 +38,12 @@ internal sealed class UIInputRouter(UIContext context)
     private float _hoverTime;
     private Tooltip? _tooltip;
     private bool _pointerAvailable;
+    private (bool Shift, bool Control, bool Alt) _modifiers;
 
     public void Process(InputView input, float dt, bool pointerBlocked)
     {
         _sinceClick += dt;
+        _modifiers = (input.IsKeyDown(Key.ShiftLeft) || input.IsKeyDown(Key.ShiftRight), input.IsKeyDown(Key.ControlLeft) || input.IsKeyDown(Key.ControlRight), input.IsKeyDown(Key.AltLeft) || input.IsKeyDown(Key.AltRight));
         var pointer = input.MousePosition / context.Scale;
         _pointerAvailable = input.MouseAvailable && !pointerBlocked;
         ProcessPointer(input, pointer);
@@ -58,7 +60,7 @@ internal sealed class UIInputRouter(UIContext context)
     private void ProcessPointer(InputView input, Vector2 pointer)
     {
         var hit = _pointerAvailable ? context.HitTest(pointer) : null;
-        var args = new PointerEventArgs { Position = pointer };
+        var args = Pointer(pointer);
         if (hit != context.Hovered)
         {
             var previous = context.Hovered;
@@ -71,13 +73,15 @@ internal sealed class UIInputRouter(UIContext context)
 
         if (context.Pressed is { } captured && pointer != _lastPointer && input.IsMouseButtonDown(MouseButton.Left))
         {
-            captured.OnPointerDrag(new PointerEventArgs { Position = pointer, Button = MouseButton.Left });
+            captured.OnPointerDrag(Pointer(pointer, MouseButton.Left));
         }
 
         _lastPointer = pointer;
         if (input.ScrollDelta != Vector2.Zero && hit is not null)
         {
-            Route(hit, new PointerEventArgs { Position = pointer, Scroll = input.ScrollDelta }, (e, a) => e.OnScroll(a));
+            var scroll = Pointer(pointer);
+            scroll.Scroll = input.ScrollDelta;
+            Route(hit, scroll, (e, a) => e.OnScroll(a));
         }
 
         if (_pointerAvailable && input.WasMouseButtonPressed(MouseButton.Left))
@@ -87,7 +91,7 @@ internal sealed class UIInputRouter(UIContext context)
             context.SetFocus(FocusableAncestor(target));
             if (target is not null)
             {
-                Route(target, new PointerEventArgs { Position = pointer, Button = MouseButton.Left }, (e, a) => e.OnPointerDown(a));
+                Route(target, Pointer(pointer, MouseButton.Left), (e, a) => e.OnPointerDown(a));
             }
 
             context.MarkVisualDirty();
@@ -96,18 +100,23 @@ internal sealed class UIInputRouter(UIContext context)
         if (input.WasMouseButtonReleased(MouseButton.Left) && context.Pressed is { } pressed)
         {
             context.Pressed = null;
-            var up = new PointerEventArgs { Position = pointer, Button = MouseButton.Left };
+            var up = Pointer(pointer, MouseButton.Left);
             pressed.OnPointerUp(up);
             if (hit is not null && UIContext.IsSelfOrAncestor(pressed, hit) && pressed.IsEnabledInHierarchy)
             {
                 var count = _lastClicked == pressed && _sinceClick < DoubleClickSeconds ? 2 : 1;
                 (_lastClicked, _sinceClick) = (pressed, 0f);
-                pressed.OnClick(new PointerEventArgs { Position = pointer, Button = MouseButton.Left, ClickCount = count, Target = pressed });
+                var click = Pointer(pointer, MouseButton.Left);
+                (click.ClickCount, click.Target) = (count, pressed);
+                pressed.OnClick(click);
             }
 
             context.MarkVisualDirty();
         }
     }
+
+    private PointerEventArgs Pointer(Vector2 position, MouseButton button = default) =>
+        new() { Position = position, Button = button, Shift = _modifiers.Shift, Control = _modifiers.Control, Alt = _modifiers.Alt };
 
     private void ProcessKeys(InputView input, float dt)
     {

@@ -27,6 +27,13 @@ public sealed class PointerEventArgs : UIEventArgs
     /// <summary>1 for a single click, 2 for a double click (same element within 0.4 s).</summary>
     public int ClickCount { get; internal set; }
 
+    /// <summary>Keyboard modifiers held during the event (Shift-click extends a text selection).</summary>
+    public bool Shift { get; internal set; }
+
+    public bool Control { get; internal set; }
+
+    public bool Alt { get; internal set; }
+
     /// <summary>Position relative to <paramref name="element"/>'s top-left.</summary>
     public Vector2 LocalPosition(UIElement element) => Position - element.Bounds.Min;
 }

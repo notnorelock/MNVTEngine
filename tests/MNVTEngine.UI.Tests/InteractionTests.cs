@@ -92,6 +92,46 @@ public sealed class InteractionTests
     }
 
     [Fact]
+    public void TextField_UndoesAndRedoesByWord_AndShiftClickSelects()
+    {
+        using var ui = new UIHarness();
+        var field = ui.Context.Root.AddChild(new TextField { Width = 300 });
+        ui.Frame();
+        ui.Click(field);
+        ui.Type("hello world");
+
+        ui.Press(Key.Z, control: true);
+        Assert.Equal("hello", field.Text); // " world" was one step
+        ui.Press(Key.Z, control: true);
+        Assert.Equal("", field.Text);
+        Assert.False(field.Editor.CanUndo);
+        ui.Press(Key.Y, control: true);
+        Assert.Equal("hello", field.Text);
+        ui.Press(Key.Z, control: true, shift: true); // Ctrl+Shift+Z redoes too
+        Assert.Equal("hello world", field.Text);
+
+        ui.Press(Key.Backspace);
+        ui.Press(Key.Backspace);
+        ui.Press(Key.Backspace);
+        Assert.Equal("hello wo", field.Text);
+        ui.Press(Key.Z, control: true); // the three deletes were one step
+        Assert.Equal("hello world", field.Text);
+        ui.Type("!");
+        Assert.False(field.Editor.CanRedo); // a new edit drops what was undone
+
+        // Shift-click extends the selection from the caret to where the pointer is.
+        ui.Press(Key.Home);
+        ui.Frame(0.5f); // so the next click is not a double click (which selects a word)
+        ui.Input.SetKey(Key.ShiftLeft, true);
+        ui.Click(new Vector2(field.Bounds.Max.X - 2f, field.Bounds.Center.Y));
+        ui.Input.SetKey(Key.ShiftLeft, false);
+        Assert.Equal("hello world!", field.Editor.SelectedText);
+
+        field.Text = "set from code";
+        Assert.False(field.Editor.CanUndo); // nothing to undo into
+    }
+
+    [Fact]
     public void TextField_TypesUnicode_EditsSelectsCopiesPastes_AndRespectsLimits()
     {
         using var ui = new UIHarness();

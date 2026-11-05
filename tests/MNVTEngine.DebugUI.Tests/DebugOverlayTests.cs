@@ -153,6 +153,30 @@ public sealed class DebugOverlayTests
     }
 
     [Fact]
+    public void DebugText_IsDrawnByTheEngineTextStack_InScreenAndWorldSpace()
+    {
+        Run(h =>
+        {
+            using var text = new DebugTextRenderer(h.Renderer);
+            h.Text = text;
+            Debug.DrawText("Debug 100%", new Vector2(20, 20), Color.White, 24f, background: Color.Red);
+            Debug.DrawWorldText("World", Vector2.Zero, Color.Green, 24f); // centered above the view's center
+            var pixels = h.Frame();
+
+            Assert.Equal(2, text.Drawn);
+            GpuAssert.Near(Color.Red, Pixel(pixels, 18, 19)); // the background reaches past the text's corner
+            bool Any(int x0, int y0, int x1, int y1, Func<Color, bool> match) =>
+                Enumerable.Range(y0, y1 - y0).Any(y => Enumerable.Range(x0, x1 - x0).Any(x => match(Pixel(pixels, x, y))));
+            Assert.True(Any(20, 20, 140, 46, c => c.R > 0.8f && c.G > 0.8f && c.B > 0.8f), "white glyphs on the red background");
+            Assert.True(Any((Width / 2) - 40, (Height / 2) - 30, (Width / 2) + 40, Height / 2, c => c.G > 0.6f && c.R < 0.3f), "green world text above the center");
+            Assert.False(Any((Width / 2) - 40, (Height / 2) + 4, (Width / 2) + 40, (Height / 2) + 30, c => c.G > 0.6f), "...not below it");
+
+            h.Frame();
+            Assert.Equal(0, text.Drawn); // one-frame draws end with their frame
+        });
+    }
+
+    [Fact]
     public void GameRendering_IsUnaffectedByTheOverlay()
     {
         Run(h =>
@@ -244,6 +268,9 @@ public sealed class DebugOverlayTests
 
         public Camera2D Camera { get; } = CreateCamera();
 
+        /// <summary>Draws debug text like the hosts do (after the game, before the overlay) when set.</summary>
+        public DebugTextRenderer? Text { get; set; }
+
         /// <summary>One game frame: overlay input, (empty) scene, black clear, overlay render; returns the back buffer.</summary>
         public byte[] Frame(bool newInputFrame = true)
         {
@@ -259,6 +286,7 @@ public sealed class DebugOverlayTests
             scene.Update(time);
             device.SetRenderTarget(null);
             device.Clear(Color.Black);
+            Text?.Render(diagnostics.DrawBuffer.Commands, Camera, Width, Height);
             diagnostics.SceneRendered();
             overlay.Render(Camera, null);
             var pixels = Read();

@@ -98,6 +98,7 @@ public sealed class PlayerController : Component
 - **Shapes:**
   - `DrawLine`, `DrawRay`, `DrawRect` (outline or filled), `DrawCircle` (outline or filled), `DrawPoint`, `DrawBounds` (`Rect` or the XY of `Bounds`), `DrawGrid`.
   - Text: `DrawText`/`DrawScreenText` (screen), and `DrawWorldText`/`DrawLabel` (anchored to a world position; the size stays in pixels).
+  - Text is drawn with the engine's text stack (`DebugTextRenderer` in Runtime: the built-in font through the glyph atlas and the sprite batch), after the game and its UI and below the debug windows, in the game and in the editor's Game view. The other shapes go through the overlay's ImGui draw lists.
   - Text options: font size, alignment, and a background color.
 - **Spaces:** geometry is in world space by default. Pass `space: DebugSpace.Screen` for pixels of the view.
 - **Lifetime:** `duration: 0` (the default) draws for one frame. Seconds keep it that long. `Debug.Persistent` keeps it until `Debug.Remove(handle)` or `Debug.ClearPersistent()`.

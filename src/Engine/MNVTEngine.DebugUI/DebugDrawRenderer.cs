@@ -8,9 +8,9 @@ using SysVector4 = System.Numerics.Vector4;
 namespace MNVTEngine.DebugUI;
 
 /// <summary>
-/// Turns queued <see cref="DebugDrawCommand"/>s into ImGui draw-list geometry: everything shares the UI's vertex buffer and
-/// font atlas (TrueType glyphs rasterized by ImGui), so all debug draws cost a handful of draw calls, behind the debug
-/// windows and above the game. World-space positions go through the scene camera; sizes of points, line thickness and
+/// Turns queued <see cref="DebugDrawCommand"/> shapes into ImGui draw-list geometry: they share the UI's vertex buffer, so
+/// all debug shapes cost a handful of draw calls, behind the debug windows and above the game. Text is drawn by the
+/// host with the engine's text stack (<c>DebugTextRenderer</c>). World-space positions go through the scene camera; sizes of points, line thickness and
 /// text stay in pixels. ImGui uses 16-bit indices, so one draw list holds at most 65 535 vertices: the background list
 /// is filled first, then the foreground list; commands beyond both are skipped and counted in <see cref="Skipped"/>.
 /// </summary>
@@ -29,7 +29,6 @@ internal sealed class DebugDrawRenderer
         Drawn = 0;
         var list = background;
         var usingForeground = false;
-        var font = ImGui.GetFont();
         var toLogical = camera is null || camera.ViewportWidth <= 0 ? 1f : display.Width / (float)camera.ViewportWidth;
         foreach (ref readonly var command in commands)
         {
@@ -43,6 +42,11 @@ internal sealed class DebugDrawRenderer
 
                 list = ImGui.GetForegroundDrawList();
                 usingForeground = true;
+            }
+
+            if (command.Shape == DebugShape.Text)
+            {
+                continue; // the host's DebugTextRenderer draws text
             }
 
             if (command.Space == DebugSpace.World && camera is null)
@@ -90,24 +94,6 @@ internal sealed class DebugDrawRenderer
                     break;
                 case DebugShape.Point:
                     list.AddCircleFilled(projector.Point(command.A), MathF.Max(1f, command.Size * 0.5f), color, 8);
-                    break;
-                case DebugShape.Text when command.Text is { } text:
-                    var size = font.CalcTextSizeA(command.Size, float.MaxValue, 0f, text);
-                    var anchor = projector.Point(command.A);
-                    var x = command.Alignment switch
-                    {
-                        TextAlignment.Center => anchor.X - (size.X * 0.5f),
-                        TextAlignment.Right => anchor.X - size.X,
-                        _ => anchor.X,
-                    };
-                    var position = new SysVector2(x, command.Space == DebugSpace.World ? anchor.Y - size.Y : anchor.Y);
-                    if (command.Background.A > 0)
-                    {
-                        var back = ImGui.GetColorU32(new SysVector4(command.Background.R, command.Background.G, command.Background.B, command.Background.A));
-                        list.AddRectFilled(position - new SysVector2(3, 2), position + size + new SysVector2(3, 2), back, 3f);
-                    }
-
-                    list.AddText(font, command.Size, position, color, text);
                     break;
             }
 

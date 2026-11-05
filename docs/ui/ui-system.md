@@ -87,6 +87,8 @@ ui.OnAction("play", _ => SceneManager.LoadScene("Scenes/Level1.mnvt"));
   - `Root` holds the tree; `Overlay` holds dropdown lists and tooltips.
   - Coordinates are logical pixels: window pixels divided by `Scale`. High-DPI framebuffers are handled through `FramebufferScale`.
   - The context tracks focus (Tab and Shift+Tab), hover and pressed state.
+  - Pointer events carry the keyboard modifiers (`Shift`, `Control`, `Alt`): Shift-click extends a text field's selection.
+  - Text fields undo and redo (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z). Typing and deleting merge into one step per word, at most 100 steps are kept, and setting `Text` from code clears the history (`TextEditor.Undo`, `Redo`, `CanUndo`, `CanRedo`).
   - It raises `ActionInvoked`; `OnAction(name, handler)` binds behaviour by name.
 - **Units.** `UIUnit`: pixels, percent of the parent and auto (`"120"`, `"50%"`, `"auto"`). `Thickness` is used for margin and padding.
 - **Layout (`LayoutEngine`).**
@@ -192,7 +194,4 @@ They are validated when the project loads. At runtime, `Application.Window` expo
 
 ## Known limits
 
-- **Debug text.** `Debug.DrawText` still renders through the debug overlay (ImGui), not the engine text stack.
-- **Pointer modifiers.** Pointer events carry no keyboard modifiers, so there is no Shift-click selection in text fields.
-- **Undo.** Text fields have no undo.
 - **Samples.** `samples/UIShowcase` covers every widget, async fonts, the window API, the splash and the loading screen in one project. The separate samples listed in the specification were not created.

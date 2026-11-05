@@ -22,6 +22,7 @@ internal sealed class GameViewPanel : IDisposable
     private bool _visible;
     private int _focusFrames;
     private DebugOverlay? _overlay;
+    private DebugTextRenderer? _debugText;
 
     public GameViewPanel(EditorContext context)
     {
@@ -143,6 +144,12 @@ internal sealed class GameViewPanel : IDisposable
             ui.Render(_context.GameUI, _view.Target.Width, _view.Target.Height);
         }
 
+        if (diagnostics is not null)
+        {
+            var view = _context.ActiveScene.MainCamera is { } main ? SceneRenderer.CreateView(main, _view.Target.Width, _view.Target.Height) : null;
+            (_debugText ??= new DebugTextRenderer(_context.Renderer)).Render(diagnostics.DrawBuffer.Commands, view, _view.Target.Width, _view.Target.Height, _view.Target);
+        }
+
         diagnostics?.SceneRendered();
         if (_overlay is not null)
         {
@@ -181,6 +188,7 @@ internal sealed class GameViewPanel : IDisposable
     public void Dispose()
     {
         _overlay?.Dispose();
+        _debugText?.Dispose();
         _view.Dispose();
     }
 }

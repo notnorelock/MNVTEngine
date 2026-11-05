@@ -93,7 +93,7 @@ public abstract class TextInputBase : UIElement
     protected internal override void OnPointerDown(PointerEventArgs e)
     {
         base.OnPointerDown(e);
-        Editor.SetCaret(IndexAt(e.Position));
+        Editor.SetCaret(IndexAt(e.Position), extendSelection: e.Shift); // Shift-click selects from the caret
         RestartBlink();
         e.Handled = true;
     }
@@ -165,7 +165,14 @@ public abstract class TextInputBase : UIElement
             case Key.V when e.Control:
                 Editor.Paste(clipboard);
                 break;
-            case Key.Space or Key.A or Key.C or Key.X or Key.V:
+            case Key.Z when e.Control && e.Shift:
+            case Key.Y when e.Control:
+                Editor.Redo();
+                break;
+            case Key.Z when e.Control:
+                Editor.Undo();
+                break;
+            case Key.Space or Key.A or Key.C or Key.X or Key.V or Key.Y or Key.Z:
                 break; // typed characters arrive as text input; keep Space from "clicking" the field
             default:
                 handled = HandleKey(e);
