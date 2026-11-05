@@ -351,16 +351,24 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _context.PlayMode.Audio?.Dispose();
     }
 
-    /// <summary>Picks up files added or changed outside the editor; logs asset problems when they change.</summary>
+    /// <summary>
+    /// Picks up files added or changed outside the editor; logs asset problems when they change. Models import in the
+    /// background (the editor keeps running); their results are applied here, every frame.
+    /// </summary>
     private void RefreshAssetsPeriodically(FrameTime time)
     {
+        foreach (var guid in _context.Session.Assets.CompleteBackgroundImports())
+        {
+            EditorLog.Imported(_logger, _context.Session.Assets.Get(guid)?.Path);
+        }
+
         if (time.UnscaledTotalTime - _lastAssetRefresh < 2.0)
         {
             return;
         }
 
         _lastAssetRefresh = time.UnscaledTotalTime;
-        var result = _context.Session.Assets.Refresh();
+        var result = _context.Session.Assets.Refresh(background: true);
         foreach (var guid in result.Added.Concat(result.Reimported))
         {
             EditorLog.Imported(_logger, _context.Session.Assets.Get(guid)?.Path);

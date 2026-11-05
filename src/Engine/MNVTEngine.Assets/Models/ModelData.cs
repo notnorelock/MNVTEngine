@@ -183,6 +183,9 @@ public sealed class ModelTexture(string name)
 
     /// <summary>Why an external texture could not be resolved (import time only; not stored in the artifact).</summary>
     public string? Problem { get; set; }
+
+    /// <summary>The resolved file of a project texture (import time only; not stored in the artifact).</summary>
+    public string? FullPath { get; set; }
 }
 
 /// <summary>A skeleton: joint nodes and their inverse bind matrices.</summary>

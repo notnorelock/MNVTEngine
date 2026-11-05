@@ -9,6 +9,9 @@ public enum AssetImportStatus
     NotImported,
     Imported,
     Failed,
+
+    /// <summary>Importing on a background thread; the last good artifacts stay in use until it finishes.</summary>
+    Importing,
 }
 
 /// <summary>What the database knows about one asset. Persisted in the editor's import cache.</summary>

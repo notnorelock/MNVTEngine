@@ -193,14 +193,17 @@ public sealed class ModelImporter(IReadOnlyList<IModelReader> readers) : IAssetI
     /// </summary>
     public int Version => (ModelArtifact.Version * 100) + ConversionRevision;
 
-    /// <summary>1: FBX meshes are named after their node.</summary>
-    private const int ConversionRevision = 1;
+    /// <summary>1: FBX meshes are named after their node. 2: separate metallic and roughness maps are combined.</summary>
+    private const int ConversionRevision = 2;
 
     public string AssetType => AssetTypes.Model;
 
     public IReadOnlyList<string> Extensions { get; } = [.. readers.SelectMany(r => r.Extensions)];
 
     public bool ReimportWhenDependenciesChange => true;
+
+    /// <summary>Models take seconds to read and convert: the editor imports them without blocking.</summary>
+    public bool ImportsInBackground => true;
 
     public JObject NormalizeSettings(JObject settings, ICollection<string> problems) => ModelImportSettings.Read(settings, problems).ToJson();
 
@@ -221,7 +224,7 @@ public sealed class ModelImporter(IReadOnlyList<IModelReader> readers) : IAssetI
             return;
         }
 
-        ModelProcessing.Finish(model, settings, context.Warnings, context.Dependencies);
+        ModelProcessing.Finish(model, settings, context.Warnings, context.Dependencies, context.ImportInputs, context.AssetFile);
         if (model.Meshes.Count == 0)
         {
             context.Warnings.Add("The model has no meshes.");

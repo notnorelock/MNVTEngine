@@ -90,7 +90,7 @@ public sealed unsafe class AssimpModelReader : IModelReader
         {
             for (var i = 0; i < scene->MNumMaterials; i++)
             {
-                model.Materials.Add(ConvertMaterial(api, scene, scene->MMaterials[i], materialNames[i], model, textures, embeddedIndex, warnings));
+                model.Materials.Add(ConvertMaterial(api, scene, scene->MMaterials[i], materialNames[i], model, textures, embeddedIndex, warnings, IsBlenderExport(source.Data)));
             }
         }
 
@@ -251,6 +251,10 @@ public sealed unsafe class AssimpModelReader : IModelReader
                 orthographic ? camera->MOrthographicWidth / aspect : 5f, near, far, ToForward(V3(camera->MLookAt), V3(camera->MUp))));
         }
     }
+
+    /// <summary>Written by Blender's FBX exporter: its creator string is in the file header.</summary>
+    private static bool IsBlenderExport(byte[] data) =>
+        data.AsSpan(0, Math.Min(data.Length, 64 * 1024)).IndexOf("Blender (stable FBX IO)"u8) >= 0;
 
     /// <summary>The rotation that turns the engine's forward (-Z) and up (+Y) to a source direction and up.</summary>
     private static Quaternion ToForward(Vector3 direction, Vector3 up)
@@ -588,7 +592,7 @@ public sealed unsafe class AssimpModelReader : IModelReader
         return result;
     }
 
-    private static ModelMaterial ConvertMaterial(Assimp api, AiScene* scene, AiMaterial* source, string name, ModelData model, TextureResolver textures, Dictionary<int, int> embeddedIndex, ICollection<string> warnings)
+    private static ModelMaterial ConvertMaterial(Assimp api, AiScene* scene, AiMaterial* source, string name, ModelData model, TextureResolver textures, Dictionary<int, int> embeddedIndex, ICollection<string> warnings, bool blender)
     {
         var material = new ModelMaterial(name);
         var pbr = TryFloat(api, source, "$mat.metallicFactor") is not null || TryFloat(api, source, "$mat.roughnessFactor") is not null;
@@ -621,7 +625,10 @@ public sealed unsafe class AssimpModelReader : IModelReader
             (TextureType.EmissionColor, TextureRole.Emission), (TextureType.Emissive, TextureRole.Emission),
             (TextureType.Opacity, TextureRole.Opacity), (TextureType.Height, TextureRole.Height),
             (TextureType.Displacement, TextureRole.Height), (TextureType.Specular, TextureRole.Unclassified),
-            (TextureType.Shininess, TextureRole.Unclassified), (TextureType.Reflection, TextureRole.Unclassified),
+            // Blender writes the Principled roughness map to ShininessExponent and the metallic map to ReflectionFactor;
+            // other tools' shininess maps are glossiness, so only Blender files get these roles.
+            (TextureType.Shininess, blender ? TextureRole.Roughness : TextureRole.Unclassified),
+            (TextureType.Reflection, blender ? TextureRole.Metallic : TextureRole.Unclassified),
             (TextureType.Unknown, TextureRole.Unclassified),
         })
         {

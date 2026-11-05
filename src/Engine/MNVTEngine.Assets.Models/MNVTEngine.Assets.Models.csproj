@@ -9,6 +9,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="SharpGLTF.Core" />
+    <PackageReference Include="StbImageWriteSharp" />
     <PackageReference Include="Silk.NET.Assimp" />
   </ItemGroup>
 </Project>

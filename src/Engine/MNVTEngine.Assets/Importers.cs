@@ -20,6 +20,9 @@ public sealed class AssetImportContext(string relativePath, byte[] data, JObject
     /// <summary>The GUID of another asset by project-relative path (its meta is read or created on demand); null if there is none.</summary>
     public Func<string, Guid?> ResolveAsset { get; init; } = _ => null;
 
+    /// <summary>The file of another asset by GUID, to read its content (add it to <see cref="ImportInputs"/>); null if unknown.</summary>
+    public Func<Guid, string?> AssetFile { get; init; } = _ => null;
+
     /// <summary>
     /// Derived data to keep (e.g. a processed model), by name. Written to the library only when the import succeeds,
     /// so a failed reimport keeps the last good artifacts.
@@ -71,6 +74,12 @@ public interface IAssetImporter
     /// when files are added, when the last import reported problems (a missing texture may exist now).
     /// </summary>
     bool ReimportWhenDependenciesChange => false;
+
+    /// <summary>
+    /// Slow to import (models): <see cref="AssetDatabase.Refresh(bool)"/> with background imports runs it on a worker
+    /// thread. <see cref="Import"/> must then not touch shared state; the context's lookups are thread-safe.
+    /// </summary>
+    bool ImportsInBackground => false;
 }
 
 public static class AssetImporters

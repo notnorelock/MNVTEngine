@@ -8,7 +8,7 @@ meshes as sub-assets, so they pick up reimports. See the [plan](../graphics/3d-p
 
 | Format | Reader | Notes |
 |---|---|---|
-| `.fbx` (binary and ASCII 7.x) | Assimp 6 (`Silk.NET.Assimp`) | Triangulated; split per material into submeshes; converted to meters (`AI_CONFIG_FBX_CONVERT_TO_M` + global scale); UVs flipped to the engine's top-left origin; at most 4 skin influences. Phong materials are converted to metallic-roughness (shininess becomes roughness, opacity becomes alpha blending); PBR properties win when the file has them. |
+| `.fbx` (binary and ASCII 7.x) | Assimp 6 (`Silk.NET.Assimp`) | Triangulated; split per material into submeshes; converted to meters (`AI_CONFIG_FBX_CONVERT_TO_M` + global scale); UVs flipped to the engine's top-left origin; at most 4 skin influences. Phong materials are converted to metallic-roughness (shininess becomes roughness, opacity becomes alpha blending); PBR properties win when the file has them. Files written by Blender carry the roughness map in the shininess slot and the metallic map in the reflection slot; they are read as such (other tools' shininess maps are glossiness and stay unclassified). |
 | `.gltf` (external or embedded buffers), `.glb` | SharpGLTF | Already in engine conventions (right-handed, +Y up, meters, metallic-roughness); taken as is. One engine mesh per glTF mesh, one submesh per primitive. Only the default scene is imported. |
 
 Both readers produce `ModelData`, the engine's own model description (`MNVTEngine.Assets.Models`, in the Assets
@@ -65,6 +65,16 @@ up once it is copied in. Textures embedded in the file stay in the artifact unti
 A texture listed in the `textures` remap table is replaced by that project texture, and its problem is no longer
 reported. Texture names are unique within the model (`diffuse`, `diffuse_1`, ...).
 
+**Separate metallic and roughness maps** (FBX) are combined into one glTF-layout map, which the Standard shader
+reads: G is roughness, B is metallic, from the red channel of each map. The larger map sets the size and the other is
+resampled. A material with only one of the maps keeps 1 in the other channel, so its factor applies. With a map, the
+factor is 1 and the map decides, as in the modelling tool. The combined map (`<Material>_MetallicRoughness`) is
+embedded in the artifact, and **Extract Textures** writes it out.
+
+The maps are read to combine them, so they become **import inputs**: editing one reimports the model. A missing map,
+or one in a format the engine cannot read, is reported and its factor applies. The usual fix for EXR maps is to convert
+them to PNG and remap them in the `textures` table; remapped maps are combined too.
+
 **UV sets.** Each map samples the UV set its source chooses: glTF `texCoord`, FBX through Assimp's UV source. The
 Standard shader has a property per map (`_BaseColorUVSet`, `_MetallicRoughnessUVSet`, `_NormalUVSet`,
 `_OcclusionUVSet`, `_EmissiveUVSet`): 0 (the default) samples the first UV set, 1 the second. The Unlit shader has
@@ -111,7 +121,7 @@ An alias whose old name is a mesh of the model again, or whose target is not a m
 
 Who imports:
 
-- **The editor** imports models.
+- **The editor** imports models in the background when files change (see [background imports](assets.md)): the inspector shows *Importing in the background...* and scenes keep the last good artifact until the import finishes. Settings changes from the model inspector import right away.
 - **The Player** imports them before it runs (`ContentCompiler.ImportModels`).
 - **The build** imports them too: `ImportModels` reports import errors as `MNVB220` and warnings as `MNVB221`; a model without an artifact fails the build with `MNVB222`.
 - **Exported games** ship only the artifact, not the source file. They never contain Assimp or SharpGLTF; an architecture test enforces this.
@@ -191,4 +201,3 @@ squash and stretch.
 
 - **Animation state machines** (graphs of states and transitions): drive `Play`, `CrossFade` and layers from game code.
 - **Root motion rotation** (turning in place from the animation).
-- **Metallic and roughness maps** are used only as a combined glTF-style map; separate FBX maps are not combined.

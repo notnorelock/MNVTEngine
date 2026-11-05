@@ -1,4 +1,5 @@
 using ImGuiNET;
+using MNVTEngine.Assets;
 using MNVTEngine.Assets.Models;
 using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Editor.Services;
@@ -76,7 +77,9 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         }
         else
         {
-            Gui.Muted("The model has not imported yet; fix the errors above, then it can be previewed and extracted.");
+            Gui.Muted(context.Session.Assets.Get(guid)?.Status == AssetImportStatus.Importing
+                ? "The model is importing in the background; it can be previewed and extracted when it is done."
+                : "The model has not imported yet; fix the errors above, then it can be previewed and extracted.");
             DrawSettings(workflow);
         }
 

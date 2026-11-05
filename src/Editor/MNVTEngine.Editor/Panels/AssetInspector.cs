@@ -34,8 +34,13 @@ internal sealed class AssetInspector(EditorContext context) : IDisposable
         ImGui.TextUnformatted(record.Name);
         Gui.Muted(record.Path);
         Gui.Muted($"{record.Type} - guid {record.Guid}");
-        var statusColor = record.Status == AssetImportStatus.Failed ? new SysVector4(1f, 0.45f, 0.45f, 1f) : new SysVector4(0.55f, 0.85f, 0.55f, 1f);
-        Gui.TextColored(statusColor, record.Status.ToString());
+        var statusColor = record.Status switch
+        {
+            AssetImportStatus.Failed => new SysVector4(1f, 0.45f, 0.45f, 1f),
+            AssetImportStatus.Importing => new SysVector4(1f, 0.8f, 0.4f, 1f),
+            _ => new SysVector4(0.55f, 0.85f, 0.55f, 1f),
+        };
+        Gui.TextColored(statusColor, record.Status == AssetImportStatus.Importing ? "Importing in the background..." : record.Status.ToString());
         foreach (var message in record.Messages)
         {
             Gui.TextWrapped(message);

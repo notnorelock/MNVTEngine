@@ -13,6 +13,12 @@ namespace MNVTEngine.Assets;
 /// missing metas, imports changed files (by size/time, then content hash, settings and importer version) and caches
 /// results in <c>Library/AssetDatabase.json</c>. Read-only mode never writes and only reads metas. Packaged mode
 /// (exported games) reads the index and the asset data from the game's encrypted archives (<see cref="ContentArchiveSet"/>).
+/// <para>
+/// <see cref="Refresh(bool)"/> with <c>background</c> imports assets of slow importers (<see cref="IAssetImporter.ImportsInBackground"/>,
+/// models) on a worker thread: they show <see cref="AssetImportStatus.Importing"/> and keep their last good artifacts
+/// until <see cref="CompleteBackgroundImports"/>, called on the owning thread, applies the results. Everything else
+/// about the database stays single-threaded.
+/// </para>
 /// </summary>
 public sealed class AssetDatabase : IAssetLookup
 {
@@ -35,6 +41,13 @@ public sealed class AssetDatabase : IAssetLookup
     private Dictionary<string, Guid> _byPath = new(AssetPaths.Comparer);
     private List<SerializationDiagnostic> _diagnostics = [];
     private ContentArchiveSet? _archive;
+
+    // Background imports: the latest scheduled import per asset; results of older ones are dropped.
+    private readonly Lock _backgroundLock = new();
+    private readonly Dictionary<Guid, PendingImport> _pending = [];
+    private readonly List<CompletedImport> _completed = [];
+    private Task _worker = Task.CompletedTask;
+    private int _importVersion;
 
     private AssetDatabase(string assetsDirectory, string? libraryDirectory, IEnumerable<IAssetImporter> importers)
     {
@@ -255,12 +268,28 @@ public sealed class AssetDatabase : IAssetLookup
     }
 
     /// <summary>Rescans the Assets folder. Unchanged files are not re-read; changed ones are reimported.</summary>
-    public AssetRefreshResult Refresh()
+    /// <summary>Assets being imported in the background.</summary>
+    public int PendingImportCount
+    {
+        get
+        {
+            lock (_backgroundLock)
+            {
+                return _pending.Count;
+            }
+        }
+    }
+
+    /// <summary>Scans the Assets folder and imports what changed (see the type's remarks for <paramref name="background"/>).</summary>
+    /// <param name="background">Import assets of slow importers on a worker thread; apply them with <see cref="CompleteBackgroundImports"/>.</param>
+    public AssetRefreshResult Refresh(bool background = false)
     {
         if (_archive is not null)
         {
             return new AssetRefreshResult([], [], [], []); // packaged content never changes
         }
+
+        var jobs = new List<ImportJob>();
 
         var diagnostics = new List<SerializationDiagnostic>();
         var previous = _records;
@@ -329,6 +358,10 @@ public sealed class AssetDatabase : IAssetLookup
             {
                 record = new AssetRecord { Guid = guid, Path = relative, Type = importer?.AssetType ?? AssetTypes.Unknown, Importer = importer?.Name, Size = info.Length };
             }
+            else if (record is not null && IsPending(guid, info, settingsHash))
+            {
+                // Being imported in the background from this very file and settings: keep waiting for it.
+            }
             else if (record is null || !IsUpToDate(record, info, importer, settingsHash))
             {
                 var data = File.ReadAllBytes(file);
@@ -337,6 +370,10 @@ public sealed class AssetDatabase : IAssetLookup
                 {
                     record.Size = info.Length; // touched but identical: no reimport
                     record.LastWriteUtc = info.LastWriteTimeUtc;
+                }
+                else if (background && importer is { ImportsInBackground: true })
+                {
+                    record = Defer(jobs, record, new ImportJob(guid, relative, importer, data, settings, settingsHash, sourceHash, info, file));
                 }
                 else
                 {
@@ -366,7 +403,14 @@ public sealed class AssetDatabase : IAssetLookup
                     var file = AssetPaths.Resolve(_assetsDirectory, record.Path);
                     var data = File.ReadAllBytes(file);
                     var settings = settingsByGuid[record.Guid];
-                    records[record.Guid] = Import(record.Guid, record.Path, importer, data, settings, Hash(settings.ToString(Formatting.None)), Hash(data), new FileInfo(file), file, Resolve);
+                    var job = new ImportJob(record.Guid, record.Path, importer, data, settings, Hash(settings.ToString(Formatting.None)), Hash(data), new FileInfo(file), file);
+                    if (background && importer.ImportsInBackground)
+                    {
+                        records[record.Guid] = Defer(jobs, record, job);
+                        continue;
+                    }
+
+                    records[record.Guid] = Import(job.Guid, job.Relative, importer, data, settings, job.SettingsHash, job.SourceHash, job.Info, file, Resolve);
                     reimported.Add(record.Guid);
                 }
             }
@@ -383,6 +427,7 @@ public sealed class AssetDatabase : IAssetLookup
         ReportProblems(diagnostics);
         _diagnostics = diagnostics;
         SaveCache();
+        Schedule(jobs);
 
         var result = new AssetRefreshResult(added, reimported, moved, [.. previous.Keys.Where(g => !records.ContainsKey(g))]);
         if (result.HasChanges)
@@ -392,6 +437,164 @@ public sealed class AssetDatabase : IAssetLookup
 
         return result;
     }
+
+    /// <summary>
+    /// Applies the background imports that finished: writes their artifacts, updates their records and raises
+    /// <see cref="AssetsChanged"/>. Call it on the thread that owns the database (the editor calls it every frame).
+    /// </summary>
+    /// <returns>The assets whose import finished.</returns>
+    public IReadOnlyList<Guid> CompleteBackgroundImports()
+    {
+        List<CompletedImport> done;
+        lock (_backgroundLock)
+        {
+            if (_completed.Count == 0)
+            {
+                return [];
+            }
+
+            done = [.. _completed];
+            _completed.Clear();
+        }
+
+        var changed = new List<Guid>();
+        foreach (var result in done)
+        {
+            lock (_backgroundLock)
+            {
+                if (!_pending.TryGetValue(result.Guid, out var pending) || pending.Version != result.Version)
+                {
+                    continue; // superseded by a later import
+                }
+
+                _pending.Remove(result.Guid);
+            }
+
+            if (!_records.TryGetValue(result.Guid, out var current))
+            {
+                continue; // deleted meanwhile
+            }
+
+            if (result.Record.Status == AssetImportStatus.Imported)
+            {
+                WriteArtifacts(result.Guid, result.Artifacts);
+            }
+
+            result.Record.Path = current.Path;
+            _records[result.Guid] = result.Record;
+            changed.Add(result.Guid);
+        }
+
+        if (changed.Count > 0)
+        {
+            SaveCache();
+            AssetsChanged?.Invoke(changed);
+        }
+
+        return changed;
+    }
+
+    /// <summary>Waits for the background imports to finish and applies them (tools and tests).</summary>
+    /// <returns>False when they did not finish within <paramref name="timeout"/>.</returns>
+    public bool WaitForBackgroundImports(TimeSpan timeout)
+    {
+        Task worker;
+        lock (_backgroundLock)
+        {
+            worker = _worker;
+        }
+
+        var finished = worker.Wait(timeout);
+        CompleteBackgroundImports();
+        return finished;
+    }
+
+    private bool IsPending(Guid guid, FileInfo info, string settingsHash)
+    {
+        lock (_backgroundLock)
+        {
+            return _pending.TryGetValue(guid, out var pending) && pending.Size == info.Length && pending.LastWriteUtc == info.LastWriteTimeUtc && pending.SettingsHash == settingsHash;
+        }
+    }
+
+    /// <summary>
+    /// The record an asset has while it imports in the background: the last one (type, dependencies, facts) marked
+    /// Importing, and never up to date, so a cache saved meanwhile imports it again on the next open.
+    /// </summary>
+    private static AssetRecord Defer(List<ImportJob> jobs, AssetRecord? last, ImportJob job)
+    {
+        jobs.Add(job);
+        return new AssetRecord
+        {
+            Guid = job.Guid,
+            Path = job.Relative,
+            Type = job.Importer.AssetType,
+            Importer = job.Importer.Name,
+            ImporterVersion = -1,
+            SourceHash = "",
+            SettingsHash = job.SettingsHash,
+            Size = -1,
+            Status = AssetImportStatus.Importing,
+            Messages = last?.Messages ?? [],
+            Dependencies = last?.Dependencies ?? [],
+            ImportInputs = last?.ImportInputs ?? [],
+            Properties = last?.Properties ?? [],
+        };
+    }
+
+    /// <summary>Queues jobs on the worker (one at a time); they resolve other assets from a snapshot, never the live database.</summary>
+    private void Schedule(List<ImportJob> jobs)
+    {
+        if (jobs.Count == 0)
+        {
+            return;
+        }
+
+        var byPath = new Dictionary<string, Guid>(_byPath, AssetPaths.Comparer);
+        var files = _records.Values.ToDictionary(r => r.Guid, r => Path.Combine(_assetsDirectory, r.Path.Replace('/', Path.DirectorySeparatorChar)));
+        lock (_backgroundLock)
+        {
+            foreach (var job in jobs)
+            {
+                var version = ++_importVersion;
+                _pending[job.Guid] = new PendingImport(version, job.Info.Length, job.Info.LastWriteTimeUtc, job.SettingsHash);
+                _worker = _worker.ContinueWith(_ => RunInBackground(job, version, byPath, files), CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+            }
+        }
+    }
+
+    private void RunInBackground(ImportJob job, int version, Dictionary<string, Guid> byPath, Dictionary<Guid, string> files)
+    {
+        AssetRecord record;
+        Dictionary<string, byte[]> artifacts;
+        try
+        {
+            (record, artifacts) = RunImporter(job.Guid, job.Relative, job.Importer, job.Data, job.Settings, job.SettingsHash, job.SourceHash, job.Info, job.File,
+                path => byPath.TryGetValue(path, out var guid) ? guid : null, guid => files.GetValueOrDefault(guid));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // On the worker nobody else would see it: the asset fails with the reason, as an import error would.
+            record = new AssetRecord
+            {
+                Guid = job.Guid, Path = job.Relative, Type = job.Importer.AssetType, Importer = job.Importer.Name, ImporterVersion = job.Importer.Version,
+                SourceHash = job.SourceHash, SettingsHash = job.SettingsHash, Size = job.Info.Length, LastWriteUtc = job.Info.LastWriteTimeUtc,
+                Status = AssetImportStatus.Failed, Messages = [$"error: the {job.Importer.Name} importer failed: {ex.GetType().Name}: {ex.Message}"],
+            };
+            artifacts = [];
+        }
+
+        lock (_backgroundLock)
+        {
+            _completed.Add(new CompletedImport(job.Guid, version, record, artifacts));
+        }
+    }
+
+    private sealed record ImportJob(Guid Guid, string Relative, IAssetImporter Importer, byte[] Data, JObject Settings, string SettingsHash, string SourceHash, FileInfo Info, string File);
+
+    private sealed record PendingImport(int Version, long Size, DateTime LastWriteUtc, string SettingsHash);
+
+    private sealed record CompletedImport(Guid Guid, int Version, AssetRecord Record, Dictionary<string, byte[]> Artifacts);
 
     /// <summary>Writes new import settings to the asset's meta and reimports it.</summary>
     /// <returns>Problems found while normalizing the settings.</returns>
@@ -551,7 +754,26 @@ public sealed class AssetDatabase : IAssetLookup
         record.Size == info.Length && record.LastWriteUtc == info.LastWriteTimeUtc && record.SettingsHash == settingsHash
         && record.Importer == importer?.Name && record.ImporterVersion == (importer?.Version ?? 0);
 
+    /// <summary>Imports now, replacing any background import of the asset, and writes the artifacts.</summary>
     private AssetRecord Import(Guid guid, string relative, IAssetImporter? importer, byte[] data, JObject settings, string settingsHash, string sourceHash, FileInfo info, string file, Func<string, Guid?> resolve)
+    {
+        lock (_backgroundLock)
+        {
+            _pending.Remove(guid);
+        }
+
+        var (record, artifacts) = RunImporter(guid, relative, importer, data, settings, settingsHash, sourceHash, info, file, resolve,
+            other => _records.TryGetValue(other, out var r) && _archive is null ? Path.Combine(_assetsDirectory, r.Path.Replace('/', Path.DirectorySeparatorChar)) : null);
+        if (record.Status == AssetImportStatus.Imported && !IsReadOnly)
+        {
+            WriteArtifacts(guid, artifacts);
+        }
+
+        return record;
+    }
+
+    /// <summary>Runs the importer: the new record and the artifacts to write (nothing is written here).</summary>
+    private (AssetRecord Record, Dictionary<string, byte[]> Artifacts) RunImporter(Guid guid, string relative, IAssetImporter? importer, byte[] data, JObject settings, string settingsHash, string sourceHash, FileInfo info, string file, Func<string, Guid?> resolve, Func<Guid, string?> assetFile)
     {
         var record = new AssetRecord
         {
@@ -569,21 +791,23 @@ public sealed class AssetDatabase : IAssetLookup
 
         if (importer is null)
         {
-            return record;
+            return (record, []);
         }
 
-        var context = new AssetImportContext(relative, data, settings) { SourceFullPath = file, AssetsDirectory = _assetsDirectory, ResolveAsset = resolve };
+        var context = new AssetImportContext(relative, data, settings)
+        {
+            SourceFullPath = file,
+            AssetsDirectory = _assetsDirectory,
+            ResolveAsset = resolve,
+            AssetFile = assetFile,
+        };
         importer.Import(context);
         record.Status = context.Errors.Count == 0 ? AssetImportStatus.Imported : AssetImportStatus.Failed;
-        if (record.Status == AssetImportStatus.Imported && !IsReadOnly)
-        {
-            WriteArtifacts(guid, context.Artifacts);
-        }
         record.Messages = [.. context.Errors.Select(e => "error: " + e), .. context.Warnings.Select(w => "warning: " + w)];
         record.Dependencies = [.. context.Dependencies.Union(context.ImportInputs).Where(d => d != guid)];
         record.ImportInputs = [.. context.ImportInputs.Where(d => d != guid)];
         record.Properties = context.Properties;
-        return record;
+        return (record, context.Artifacts);
     }
 
     /// <summary>Replaces an asset's artifacts: each file is written next to its target and moved over it.</summary>

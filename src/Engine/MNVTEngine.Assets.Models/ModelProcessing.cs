@@ -1,12 +1,16 @@
+using MNVTEngine.Graphics;
 using MNVTEngine.Mathematics;
 using MNVTEngine.Serialization;
+using StbImageWriteSharp;
 
 namespace MNVTEngine.Assets.Models;
 
 /// <summary>Steps every reader shares: unique names, generated normals and tangents, the import scale, validation.</summary>
 internal static class ModelProcessing
 {
-    public static void Finish(ModelData model, ModelImportSettings settings, ICollection<string> warnings, ISet<Guid> dependencies)
+    /// <param name="inputs">Assets whose content the import reads (the maps combined into metallic-roughness maps).</param>
+    /// <param name="assetFile">The file of a project asset (remapped textures), to read it.</param>
+    public static void Finish(ModelData model, ModelImportSettings settings, ICollection<string> warnings, ISet<Guid> dependencies, ISet<Guid>? inputs = null, Func<Guid, string?>? assetFile = null)
     {
         var textureNames = UniqueNames(model.Textures.Select(t => t.Name), "Texture");
         for (var i = 0; i < model.Textures.Count; i++)
@@ -15,7 +19,7 @@ internal static class ModelProcessing
             texture.Name = textureNames[i];
             if (settings.Textures.TryGetValue(texture.Name, out var replacement))
             {
-                (texture.ProjectAsset, texture.Embedded, texture.Problem) = (replacement, null, null);
+                (texture.ProjectAsset, texture.Embedded, texture.Problem, texture.FullPath) = (replacement, null, null, assetFile?.Invoke(replacement));
                 dependencies.Add(replacement);
             }
             else if (texture.Problem is { } problem)
@@ -107,14 +111,122 @@ internal static class ModelProcessing
             }
         }
 
+        CombineMetallicRoughness(model, warnings, inputs);
+    }
+
+    /// <summary>
+    /// The Standard shader reads metallic and roughness from one glTF-layout map (G = roughness, B = metallic). Materials
+    /// with separate maps (FBX) get one baked from them: the maps' red channel, resampled to the larger size; a missing
+    /// map leaves its channel at 1 so the factor alone applies. A material with a map uses factor 1 for it, so the map
+    /// decides, as in the modelling tool. The baked map is embedded in the artifact (Extract Textures writes it out).
+    /// </summary>
+    private static void CombineMetallicRoughness(ModelData model, ICollection<string> warnings, ISet<Guid>? inputs)
+    {
+        var baked = new Dictionary<(int Metallic, int Roughness), int>();
         foreach (var material in model.Materials)
         {
-            if (!material.Textures.ContainsKey(TextureRole.MetallicRoughness)
-                && (material.Textures.ContainsKey(TextureRole.Metallic) || material.Textures.ContainsKey(TextureRole.Roughness)))
+            var hasMetallic = material.Textures.TryGetValue(TextureRole.Metallic, out var metallicIndex);
+            var hasRoughness = material.Textures.TryGetValue(TextureRole.Roughness, out var roughnessIndex);
+            if (material.Textures.ContainsKey(TextureRole.MetallicRoughness) || (!hasMetallic && !hasRoughness))
             {
-                warnings.Add($"Material '{material.Name}': separate metallic/roughness maps are not combined yet; the metallic and roughness factors are used.");
+                continue;
+            }
+
+            var key = (hasMetallic ? metallicIndex : -1, hasRoughness ? roughnessIndex : -1);
+            if (!baked.TryGetValue(key, out var combined))
+            {
+                var metallic = hasMetallic ? Decode(model.Textures[metallicIndex], material.Name, "metallic", warnings, inputs) : null;
+                var roughness = hasRoughness ? Decode(model.Textures[roughnessIndex], material.Name, "roughness", warnings, inputs) : null;
+                if ((hasMetallic && metallic is null) || (hasRoughness && roughness is null))
+                {
+                    continue; // reported by Decode; the factors apply
+                }
+
+                combined = model.Textures.Count;
+                var name = UniqueNames(model.Textures.Select(t => t.Name).Append($"{material.Name}_MetallicRoughness"), "Texture")[^1];
+                model.Textures.Add(new ModelTexture(name) { Embedded = Bake(metallic, roughness) });
+                baked[key] = combined;
+            }
+
+            material.Textures[TextureRole.MetallicRoughness] = combined;
+            if (hasMetallic)
+            {
+                material.Metallic = 1f;
+            }
+
+            if (hasRoughness)
+            {
+                material.Roughness = 1f;
+            }
+
+            var uvSet = material.UVSets.GetValueOrDefault(hasRoughness ? TextureRole.Roughness : TextureRole.Metallic);
+            if (uvSet != 0)
+            {
+                material.UVSets[TextureRole.MetallicRoughness] = uvSet;
             }
         }
+    }
+
+    /// <summary>A map's pixels: embedded, or the project file it was resolved to (then read, so it becomes an import input).</summary>
+    private static Image? Decode(ModelTexture texture, string material, string role, ICollection<string> warnings, ISet<Guid>? inputs)
+    {
+        byte[] bytes;
+        if (texture.Embedded is { } embedded)
+        {
+            bytes = embedded;
+        }
+        else if (texture.FullPath is { } path && texture.ProjectAsset is { } guid)
+        {
+            try
+            {
+                bytes = File.ReadAllBytes(path);
+            }
+            catch (IOException ex)
+            {
+                warnings.Add($"Material '{material}': the {role} map '{texture.Name}' cannot be read to combine it into a metallic-roughness map ({ex.Message}); the factor applies.");
+                return null;
+            }
+
+            inputs?.Add(guid);
+        }
+        else
+        {
+            // Unresolved (reported already): nothing to read.
+            warnings.Add($"Material '{material}': the {role} map '{texture.Name}' is missing, so it is not combined into a metallic-roughness map; the factor applies.");
+            return null;
+        }
+
+        try
+        {
+            return Image.Decode(bytes, texture.Name);
+        }
+        catch (InvalidDataException ex)
+        {
+            warnings.Add($"Material '{material}': {ex.Message}; the {role} factor applies.");
+            return null;
+        }
+    }
+
+    /// <summary>A glTF-layout metallic-roughness PNG: R 255, G roughness, B metallic, A 255 (missing maps: 255).</summary>
+    internal static byte[] Bake(Image? metallic, Image? roughness)
+    {
+        var width = Math.Max(metallic?.Width ?? 1, roughness?.Width ?? 1);
+        var height = Math.Max(metallic?.Height ?? 1, roughness?.Height ?? 1);
+        var pixels = new byte[width * height * 4];
+        static byte Sample(Image? image, int x, int y, int width, int height) =>
+            image is null ? (byte)255 : image.Pixels[((((y * image.Height) / height) * image.Width) + ((x * image.Width) / width)) * 4];
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var i = ((y * width) + x) * 4;
+                (pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]) = ((byte)255, Sample(roughness, x, y, width, height), Sample(metallic, x, y, width, height), (byte)255);
+            }
+        }
+
+        using var stream = new MemoryStream();
+        new ImageWriter().WritePng(pixels, width, height, ColorComponents.RedGreenBlueAlpha, stream);
+        return stream.ToArray();
     }
 
     /// <summary>Makes names unique and safe for sub-asset references: "Body", "Body_1", ...; empty names get a fallback.</summary>
@@ -206,7 +318,7 @@ internal sealed class TextureResolver(ModelSource source, ISet<Guid> dependencie
             return texture;
         }
 
-        texture.ProjectAsset = guid;
+        (texture.ProjectAsset, texture.FullPath) = (guid, file);
         return texture;
     }
 

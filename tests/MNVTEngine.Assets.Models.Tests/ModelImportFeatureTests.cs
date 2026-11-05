@@ -3,12 +3,12 @@ using Newtonsoft.Json.Linq;
 
 namespace MNVTEngine.Assets.Models.Tests;
 
-/// <summary>Lights and cameras in model files, textures on UV set 1, and mesh aliases.</summary>
-public sealed class LightsCamerasAndUVSetsTests : IDisposable
+/// <summary>Lights and cameras, UV sets, mesh aliases, combined metallic-roughness maps and background imports.</summary>
+public sealed class ModelImportFeatureTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("mnvt-models-").FullName;
 
-    public LightsCamerasAndUVSetsTests() => Directory.CreateDirectory(AssetsDir);
+    public ModelImportFeatureTests() => Directory.CreateDirectory(AssetsDir);
 
     private string AssetsDir => Path.Combine(_root, "Assets");
 
@@ -136,6 +136,118 @@ public sealed class LightsCamerasAndUVSetsTests : IDisposable
         Assert.Null(model.FindMesh("Gone"));
         Assert.Contains(model.Warnings, w => w.Contains("'Gone' points to 'Missing'", StringComparison.Ordinal));
         Assert.Equal("Floor", Assert.Single(model.MeshAliases).Value); // "Floor" -> "Floor" was dropped as a no-op
+    }
+
+    [Fact]
+    public void SeparateMetallicAndRoughnessMaps_AreCombinedIntoOneMap()
+    {
+        // The crate FBX references metal and roughness EXR maps that are not in the fixture (and EXR cannot be read).
+        foreach (var file in Directory.EnumerateFiles(Fixture("WoodenCrate/fbx"), "*", SearchOption.AllDirectories))
+        {
+            var destination = Path.Combine(AssetsDir, "Crate", Path.GetRelativePath(Fixture("WoodenCrate/fbx"), file));
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            File.Copy(file, destination);
+        }
+
+        var library = Path.Combine(_root, "Library");
+        var db = AssetDatabase.OpenForEditing(AssetsDir, library, ModelImporters.WithDefaults());
+        Assert.True(db.TryGetGuid("Crate/wooden_crate_01_1k.fbx", out var crate));
+        var model = ModelArtifact.Read(db.ReadArtifact(crate, ModelArtifact.Name)!);
+        var material = Assert.Single(model.Materials);
+        var metalName = model.Textures[material.Textures[TextureRole.Metallic]].Name;
+        var roughName = model.Textures[material.Textures[TextureRole.Roughness]].Name;
+        Assert.False(material.Textures.ContainsKey(TextureRole.MetallicRoughness));
+        Assert.Contains(model.Warnings, w => w.Contains("is missing, so it is not combined", StringComparison.Ordinal));
+
+        // Converted maps in the project, remapped: a 2x2 metal map (left half metal) and a 4x4 roughness map (64 everywhere).
+        static byte[] Png(int size, Func<int, int, byte> value)
+        {
+            var pixels = new byte[size * size * 4];
+            for (var i = 0; i < size * size; i++)
+            {
+                var v = value(i % size, i / size);
+                (pixels[i * 4], pixels[(i * 4) + 1], pixels[(i * 4) + 2], pixels[(i * 4) + 3]) = (v, v, v, 255);
+            }
+
+            using var stream = new MemoryStream();
+            new StbImageWriteSharp.ImageWriter().WritePng(pixels, size, size, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, stream);
+            return stream.ToArray();
+        }
+
+        File.WriteAllBytes(Path.Combine(AssetsDir, "Crate", "textures", "metal.png"), Png(2, (x, _) => x == 0 ? (byte)255 : (byte)0));
+        File.WriteAllBytes(Path.Combine(AssetsDir, "Crate", "textures", "rough.png"), Png(4, (_, _) => 64));
+        db.Refresh();
+        Assert.True(db.TryGetGuid("Crate/textures/metal.png", out var metal));
+        Assert.True(db.TryGetGuid("Crate/textures/rough.png", out var rough));
+        var settings = db.GetSettings(crate);
+        settings["textures"] = new JObject { [metalName] = $"asset:{metal:D}", [roughName] = $"asset:{rough:D}" };
+        db.UpdateSettings(crate, settings);
+
+        model = ModelArtifact.Read(db.ReadArtifact(crate, ModelArtifact.Name)!);
+        material = model.Materials[0];
+        var combined = model.Textures[material.Textures[TextureRole.MetallicRoughness]];
+        Assert.Equal($"{material.Name}_MetallicRoughness", combined.Name);
+        var image = Graphics.Image.Decode(combined.Embedded!);
+        Assert.Equal((4, 4), (image.Width, image.Height)); // the larger of the two
+        Assert.Equal((255, 64, 255), (image.Pixels[0], image.Pixels[1], image.Pixels[2]));                // left: metal
+        Assert.Equal((255, 64, 0), (image.Pixels[3 * 4], image.Pixels[(3 * 4) + 1], image.Pixels[(3 * 4) + 2])); // right: not
+        Assert.Equal((1f, 1f), (material.Metallic, material.Roughness)); // the maps decide
+        Assert.Contains(metal, db.Get(crate)!.Dependencies);
+        Assert.DoesNotContain(model.Warnings, w => w.Contains("not combined", StringComparison.Ordinal));
+
+        // The combined map is baked from the files' content: changing one reimports the model.
+        File.WriteAllBytes(Path.Combine(AssetsDir, "Crate", "textures", "rough.png"), Png(4, (_, _) => 200));
+        db.Refresh();
+        model = ModelArtifact.Read(db.ReadArtifact(crate, ModelArtifact.Name)!);
+        Assert.Equal(200, Graphics.Image.Decode(model.Textures[model.Materials[0].Textures[TextureRole.MetallicRoughness]].Embedded!).Pixels[1]);
+    }
+
+    [Fact]
+    public void BackgroundImports_KeepTheLastGoodArtifact_UntilTheyComplete()
+    {
+        var target = Path.Combine(AssetsDir, "Model.glb");
+        File.Copy(Fixture("Khronos/BoxAnimated.glb"), target);
+        var db = AssetDatabase.OpenForEditing(AssetsDir, Path.Combine(_root, "Library"), ModelImporters.WithDefaults());
+        Assert.True(db.TryGetGuid("Model.glb", out var guid));
+        var before = ModelArtifact.Read(db.ReadArtifact(guid, ModelArtifact.Name)!).Nodes.Count;
+        var changed = new List<Guid>();
+        db.AssetsChanged += changed.AddRange;
+
+        File.Copy(Fixture("Khronos/CesiumMan.glb"), target, overwrite: true);
+        db.Refresh(background: true);
+        Assert.Equal(AssetImportStatus.Importing, db.Get(guid)!.Status);
+        Assert.Equal(before, ModelArtifact.Read(db.ReadArtifact(guid, ModelArtifact.Name)!).Nodes.Count); // still the last good one
+        db.Refresh(background: true);
+        Assert.Equal(1, db.PendingImportCount); // the same file and settings are not imported twice
+        changed.Clear();
+
+        Assert.True(db.WaitForBackgroundImports(TimeSpan.FromSeconds(60)));
+        Assert.Equal(AssetImportStatus.Imported, db.Get(guid)!.Status);
+        Assert.NotEqual(before, ModelArtifact.Read(db.ReadArtifact(guid, ModelArtifact.Name)!).Nodes.Count);
+        Assert.Equal([guid], changed);
+        Assert.Equal(0, db.PendingImportCount);
+        Assert.Empty(db.Refresh(background: true).Reimported); // up to date now
+    }
+
+    [Fact]
+    public void ASynchronousImport_ReplacesAPendingBackgroundImport()
+    {
+        var target = Path.Combine(AssetsDir, "Model.glb");
+        File.Copy(Fixture("Khronos/BoxAnimated.glb"), target);
+        var db = AssetDatabase.OpenForEditing(AssetsDir, Path.Combine(_root, "Library"), ModelImporters.WithDefaults());
+        Assert.True(db.TryGetGuid("Model.glb", out var guid));
+
+        File.Copy(Fixture("Khronos/CesiumMan.glb"), target, overwrite: true);
+        db.Refresh(background: true);
+        var settings = db.GetSettings(guid);
+        settings["scale"] = 2;
+        db.UpdateSettings(guid, settings); // imports now, with the new settings
+
+        Assert.Equal(AssetImportStatus.Imported, db.Get(guid)!.Status);
+        Assert.True(db.WaitForBackgroundImports(TimeSpan.FromSeconds(60)));
+        Assert.Empty(db.CompleteBackgroundImports());
+        var root = ModelArtifact.Read(db.ReadArtifact(guid, ModelArtifact.Name)!).Nodes[0];
+        Assert.Equal(new Vector3(2f, 2f, 2f), root.Scale); // the older background result was dropped
     }
 
     [Fact]
