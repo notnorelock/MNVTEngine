@@ -131,7 +131,7 @@ public abstract class WorldElement
         return result;
     }
 
-    public IReadOnlyList<WorldElement> GetAffectedElementsForNode(WorldNode node)
+    public virtual IReadOnlyList<WorldElement> GetAffectedElementsForNode(WorldNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
         var affected = new List<WorldElement>();
@@ -279,6 +279,9 @@ public abstract class WorldElement
     public abstract ElementData Serialize(int id);
 
     protected abstract List<GeometryGroup> GetGeometry();
+
+    /// <summary>The geometry as <see cref="Update"/> would build it, without storing it (tests and exporters).</summary>
+    internal List<GeometryGroup> ComputeGeometry() => GetGeometry();
 
     protected (Dictionary<string, string> Textures, Dictionary<string, double> TextureRotations) CollectTextureMaps()
     {

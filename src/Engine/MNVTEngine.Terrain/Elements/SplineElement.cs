@@ -3,7 +3,8 @@ using MNVTEngine.Terrain.Geometry;
 namespace MNVTEngine.Terrain.Elements;
 
 /// <summary>A line the editor draws over an element (a spline, or a curve handle from an end to its control point).</summary>
-public sealed record GuideLine(IReadOnlyList<Vec3> Points, NodeKind Kind);
+/// <param name="Color">Overrides the kind's colour (0xRRGGBB): road lane edges are white, lane dividers grey.</param>
+public sealed record GuideLine(IReadOnlyList<Vec3> Points, NodeKind Kind, uint? Color = null);
 
 /// <summary>How a geometry group is drawn: an untextured colour (sRGB, 0xRRGGBB), transparency and sidedness.</summary>
 public sealed record MaterialHint(uint? Color = null, double Opacity = 1, bool DoubleSided = false, bool DepthWrite = true, double Roughness = 1, double Metalness = 0);
@@ -95,13 +96,16 @@ public abstract class SplineElement : WorldElement
         return null;
     }
 
+    /// <summary>The fewest divisions the curve is sampled with (roads keep a middle cross-section for their crown).</summary>
+    protected virtual int MinimumCurveDivisions => 0;
+
     /// <summary>The curve sampled at the current (or the given) divisions: <c>divisions + 2</c> points.</summary>
     protected List<Vec3> GetBezierCurvePoints(int? divisionsOverride = null) => Bezier.SampleCubic(
         NodeA.Position,
         CurvePointA?.Position ?? NodeA.Position,
         CurvePointB?.Position ?? NodeB.Position,
         NodeB.Position,
-        divisionsOverride ?? _divisions);
+        Math.Max(MinimumCurveDivisions, divisionsOverride ?? _divisions));
 
     /// <summary>The spline and its handles, for the editor.</summary>
     public virtual IReadOnlyList<GuideLine> GetGuideLines()
