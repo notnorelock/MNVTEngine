@@ -9,9 +9,22 @@ using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
 
 // Usage: MNVTEngine.Editor [project dir or .mnvtproj] [--play] [--gpu-validation]   (no project: the Project Hub opens)
-// Automation (tests, docs): [--select ObjectName] [--frames N] [--screenshot out.png]
+// Automation (tests, docs): [--select ObjectName] [--frames N] [--screenshot out.png]  Crash reporting off: [--no-crash-reporter]
+// Crashes leave a report (with editor.log) in %LOCALAPPDATA%/MNVTEngine/Crashes/Editor (docs/engine/crash-reporting.md).
+var engineData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MNVTEngine");
+var editorLog = Path.Combine(engineData, "Logs", "editor.log");
+if (MNVTEngine.CrashReporting.CrashReporter.Run(args, new("MNVTEngine Editor", Path.Combine(engineData, "Crashes", "Editor"), editorLog)) is { } crashHandlerExit)
+{
+    return crashHandlerExit;
+}
+
 var logs = new InMemoryLoggerProvider(capacity: 5000);
 using var logHub = new LogHub().AddSink(logs).AddSink(new ConsoleLogSink());
+using var editorLogSink = FileLogSink.TryCreate(editorLog, out _); // a second editor keeps logging to its console only
+if (editorLogSink is not null)
+{
+    logHub.AddSink(editorLogSink);
+}
 using var loggerFactory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(logHub)); // the hub filters per logger
 GameLog.Factory = loggerFactory;
 var logger = loggerFactory.CreateLogger("Editor");

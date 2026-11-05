@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Crashes on request under the crash reporter, for MNVTEngine.CrashReporting.Tests. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.CrashReporting\MNVTEngine.CrashReporting.csproj" />
+  </ItemGroup>
+</Project>

@@ -12,14 +12,28 @@ using MNVTEngine.Serialization;
 namespace MNVTEngine.GameHost;
 
 // Exported game: runs the content archives listed in <Game>_Data/package.json next to the executable.
-// Usage: <Game>.exe [--frames N] [--screenshot out.png] [--gpu-validation]
+// Usage: <Game>.exe [--frames N] [--screenshot out.png] [--gpu-validation] [--no-crash-reporter]
 internal static class Program
 {
     private static int Main(string[] args)
     {
         HostLayout.Install();
-        return Game.Run(args);
+        return Crashes.Handle(args) ?? Game.Run(args);
     }
+}
+
+internal static class Crashes
+{
+    /// <summary>
+    /// The game runs as a child of a small crash handler process (this executable again): crashes leave a report in
+    /// Logs/Crashes next to the executable, with the dump and game.log, and a crash window. See docs/engine/crash-reporting.md.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)] // loads the crash reporting assembly only after HostLayout is installed
+    public static int? Handle(string[] args) =>
+        CrashReporting.CrashReporter.Run(args, new CrashReporting.CrashReporterOptions(
+            typeof(Program).Assembly.GetName().Name!,
+            Path.Combine(AppContext.BaseDirectory, "Logs", "Crashes"),
+            Path.Combine(AppContext.BaseDirectory, "Logs", "game.log")));
 }
 
 internal static class Game

@@ -555,6 +555,17 @@ public sealed partial class RuntimeDiagnostics
     private void RegisterCommands()
     {
         Commands
+            .Register("crash", "Crashes the game on purpose, to test crash reporting (a report and a dump are written).", "<managed|native>", args =>
+            {
+                if (args.Count != 1 || !Enum.TryParse<CrashReporting.CrashKind>(args[0], ignoreCase: true, out var kind))
+                {
+                    return DebugCommandResult.Fail("Usage: crash <managed|native>");
+                }
+
+                // On a thread of its own: the console runs commands inside a catch, which would stop a managed crash.
+                new Thread(() => CrashReporting.CrashReporter.ForceCrash(kind)) { Name = "crash command" }.Start();
+                return Ok($"Crashing ({kind})...");
+            })
             .Register("fps", "Frame rate and frame times.", _ => Ok(Lines(DiagnosticMetrics.Fps, DiagnosticMetrics.FrameTime, DiagnosticMetrics.CpuTime, DiagnosticMetrics.GpuTime)))
             .Register("stats", "Every metric with its current value.", _ => Ok(string.Join('\n', DiagnosticMetrics.Definitions.Select(d => $"{d.Subsystem,-11} {d.Name,-22} {DiagnosticMetrics.Format(Metrics.Get(d.Id), d.Unit)}"))))
             .Register("memory", "Heap, process, GPU and asset memory; GC counts.", _ => Ok(Lines(DiagnosticMetrics.ManagedHeap, DiagnosticMetrics.ProcessMemory, DiagnosticMetrics.AllocatedPerFrame, DiagnosticMetrics.TextureMemory, DiagnosticMetrics.AudioMemory, DiagnosticMetrics.Gen0Collections, DiagnosticMetrics.Gen1Collections, DiagnosticMetrics.Gen2Collections, DiagnosticMetrics.CollectionsPerMinute) + Environment.NewLine + GpuMemoryLine()))

@@ -90,6 +90,7 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 - [Materials, 3D lighting and shadows, 2D lighting](docs/graphics/materials-and-lighting.md)
 - [Logging: named loggers, levels per namespace/class, call sites](docs/engine/logging.md)
 - [Runtime diagnostics: in-game debug UI, HUD, profiler, console, budgets, debug drawing](docs/engine/diagnostics.md)
+- [Crash reporting: crash handler process, dumps, reports, crash window](docs/engine/crash-reporting.md)
 - [Game UI, text and fonts, window, splash and loading screens](docs/ui/ui-system.md)
 - [Profiling](docs/engine/profiling.md)
 

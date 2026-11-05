@@ -8,6 +8,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Engine\MNVTEngine.Audio.OpenAL\MNVTEngine.Audio.OpenAL.csproj" />
+    <ProjectReference Include="..\..\Engine\MNVTEngine.CrashReporting\MNVTEngine.CrashReporting.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.DebugUI\MNVTEngine.DebugUI.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" />
     <ProjectReference Include="..\MNVTEngine.Build\MNVTEngine.Build.csproj" />

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Crash reports for the engine's executables (exported games, Player, Editor). No engine dependencies: the crash
+    handler process loads only this assembly. Windows: Win32 window, dumps through createdump and dbghelp.
+  -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="StbImageWriteSharp" />
+  </ItemGroup>
+</Project>

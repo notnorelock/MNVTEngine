@@ -121,6 +121,7 @@ public sealed class PlayerController : Component
 | Command | Does |
 |---|---|
 | `fps`, `stats`, `memory`, `renderer` | Show metrics (`memory` also queries GPU memory once). |
+| `crash managed`, `crash native` | Crash the game on purpose, to test [crash reporting](crash-reporting.md). |
 | `scene`, `entities [filter]`, `scripts`, `missions` | Inspect the running game. |
 | `budgets`, `budgets set <id> <limit>` | List budgets; change a limit for this session. |
 | `profiler`, `profiler capture`, `profiler reset`, `profiler detail frame\|systems\|scripts` | Summary; report file; reset peaks; instrumentation level. |

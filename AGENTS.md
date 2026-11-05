@@ -42,7 +42,7 @@ dotnet run --project samples/HelloWorld -- --frames 120 --screenshot shot.png --
 
 | Path | Contents |
 |---|---|
-| `src/Engine` | Runtime modules (`Core`, `Mathematics`, `ECS`, `Scenes`, `Graphics`, `Graphics.Vulkan`, `Platform`, `Input`, `Audio`, `Physics2D`, `Assets`, `Scripting*`, `Diagnostics`, `DebugUI`, `Runtime`, ...) and `GameHost`, the executable of exported games |
+| `src/Engine` | Runtime modules (`Core`, `Mathematics`, `ECS`, `Scenes`, `Graphics`, `Graphics.Vulkan`, `Platform`, `Input`, `Audio`, `Physics2D`, `Assets`, `Scripting*`, `Diagnostics`, `DebugUI`, `CrashReporting`, `Runtime`, ...) and `GameHost`, the executable of exported games |
 | `src/Editor` | `Editor.Services` (UI-free, testable) and `Editor` (ImGui application) |
 | `src/Tooling` | `CLI` (`mnvt`), `Build` (export pipeline, packaging, validator), `Player` (development runner) |
 | `samples`, `templates` | Sample games and `mnvt new` templates |
