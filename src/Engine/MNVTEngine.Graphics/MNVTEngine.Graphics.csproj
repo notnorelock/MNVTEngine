@@ -14,4 +14,7 @@
     <!-- Built-in UI and debug font: Source Sans 3 (SIL Open Font License 1.1, see Text/Fonts/SourceSans3-LICENSE.md). -->
     <EmbeddedResource Include="Text\Fonts\SourceSans3-Regular.ttf" LogicalName="MNVTEngine.DefaultFont.ttf" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\..\docs\images\mnvtengine-logo.svg" LogicalName="MNVTEngine.Graphics.mnvtengine-logo.svg" Link="Svg\mnvtengine-logo.svg" />
+  </ItemGroup>
 </Project>

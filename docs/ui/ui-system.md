@@ -169,7 +169,8 @@ They are validated when the project loads. At runtime, `Application.Window` expo
 - **`splashScreen`** (project file, off by default):
   - `background`, `backgroundImage`, `logo`, `title`, `subtitle`;
   - `minimumDuration`, `fadeIn`, `fadeOut`;
-  - `skippable` (click, Space, Enter or Escape, once loading is done), `showProgress`, `showEngineBranding`.
+  - `skippable` (click, Space, Enter or Escape, once loading is done), `showProgress`;
+  - `showEngineBranding`: "Made with" over the MNVTEngine wordmark (`EngineLogo`), tinted with `foreground`.
 - **`loadingScreen`** (project file, on by default):
   - `title`, `background`, `foreground`, `accent`, `logo`, `font`;
   - `showProgress`, `showPercentage`, `tips`, `tipSeconds`.

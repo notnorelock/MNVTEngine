@@ -268,6 +268,11 @@ internal static unsafe partial class Native
     [LibraryImport("gdi32")]
     public static partial nint CreateDIBSection(nint hdc, BitmapInfoHeader* info, uint usage, void** bits, nint section, uint offset);
 
+    /// <summary>Blends a premultiplied 32-bit bitmap: <paramref name="blend"/> packs BLENDFUNCTION (AC_SRC_OVER, constant alpha, AC_SRC_ALPHA).</summary>
+    [LibraryImport("msimg32")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool AlphaBlend(nint destination, int x, int y, int width, int height, nint source, int sourceX, int sourceY, int sourceWidth, int sourceHeight, uint blend);
+
     [LibraryImport("dbghelp", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool MiniDumpWriteDump(nint process, uint processId, nint file, uint dumpType, nint exception, nint userStream, nint callback);

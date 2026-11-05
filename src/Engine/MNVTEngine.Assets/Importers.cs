@@ -169,11 +169,12 @@ public sealed class TextureImporter : IAssetImporter
 {
     public string Name => "Texture";
 
-    public int Version => 1;
+    /// <summary>2: SVG documents (rasterized with <see cref="Graphics.Svg.SvgRasterizer"/>).</summary>
+    public int Version => 2;
 
     public string AssetType => AssetTypes.Texture;
 
-    public IReadOnlyList<string> Extensions { get; } = [".png", ".jpg", ".jpeg", ".bmp", ".tga"];
+    public IReadOnlyList<string> Extensions { get; } = [".png", ".jpg", ".jpeg", ".bmp", ".tga", ".svg"];
 
     public static TextureImportSettings Read(JObject settings) =>
         settings.ToObject<TextureImportSettings>(MnvtJson.CreateSerializer()) ?? new TextureImportSettings();
@@ -215,6 +216,12 @@ public sealed class TextureImporter : IAssetImporter
             parsed.PixelsPerUnit = 100f;
         }
 
+        if (!(parsed.SvgScale > 0f && parsed.SvgScale <= 64f))
+        {
+            problems.Add("svgScale must be above 0 and at most 64; reset to 1.");
+            parsed.SvgScale = 1f;
+        }
+
         return JObject.FromObject(parsed, MnvtJson.CreateSerializer());
     }
 
@@ -223,7 +230,19 @@ public sealed class TextureImporter : IAssetImporter
         ArgumentNullException.ThrowIfNull(context);
         try
         {
-            var image = Image.Decode(context.Data, context.RelativePath);
+            Image image;
+            if (Graphics.Svg.SvgRasterizer.IsSvg(context.Data))
+            {
+                var svg = Graphics.Svg.SvgRasterizer.Render(context.Data, context.RelativePath, Read(context.Settings).SvgScale);
+                context.Warnings.AddRange(svg.Warnings);
+                context.Properties["format"] = "SVG (rasterized at load)";
+                image = svg.Image;
+            }
+            else
+            {
+                image = Image.Decode(context.Data, context.RelativePath);
+            }
+
             context.Properties["width"] = image.Width.ToString(System.Globalization.CultureInfo.InvariantCulture);
             context.Properties["height"] = image.Height.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }

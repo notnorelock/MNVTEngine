@@ -47,6 +47,9 @@ internal static unsafe class CrashWindow
         public string? Screenshot { get; init; }
 
         public bool ProgressShot { get; set; }
+
+        /// <summary>The wordmark as a premultiplied bitmap selected into its own memory DC.</summary>
+        public (nint Dc, nint Bitmap, int Width, int Height)? Logo { get; set; }
     }
 
     /// <summary>
@@ -121,6 +124,12 @@ internal static unsafe class CrashWindow
         }
 
         worker.Join();
+        if (state.Logo is { } logo)
+        {
+            Native.DeleteDC(logo.Dc);
+            Native.DeleteObject(logo.Bitmap);
+        }
+
         Native.DeleteObject(state.Font);
         Native.DeleteObject(state.BoldFont);
         _state = null;
@@ -160,6 +169,7 @@ internal static unsafe class CrashWindow
         var x = (Native.GetSystemMetrics(Native.SmCxScreen) - width) / 2;
         var y = (Native.GetSystemMetrics(Native.SmCyScreen) - height) / 2;
         state.Window = Native.CreateWindowExW(0x00040000 /* WS_EX_APPWINDOW */, "MNVTEngineCrashWindow", state.Title, style, x, y, width, height, 0, 0, instance, 0);
+        state.Logo = LoadLogo();
         state.Font = Native.CreateFontW(-12, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI");
         state.BoldFont = Native.CreateFontW(-15, 0, 0, 0, 600, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI");
         state.Progress = Native.CreateWindowExW(0, "msctls_progress32", null, Native.WsChild | Native.WsVisible, 24, 190, ClientWidth - 48, 12, state.Window, 0, instance, 0);
@@ -256,7 +266,7 @@ internal static unsafe class CrashWindow
     {
         Native.PaintStruct paint;
         var hdc = Native.BeginPaint(window, &paint);
-        DrawLogo(hdc, (ClientWidth / 2) - 48, state.Result is not null && state.Shown >= 1d ? 14 : 40);
+        DrawLogo(hdc, state, state.Result is not null && state.Shown >= 1d ? 30 : 64);
         if (state.Result is { } result && state.Shown >= 1d)
         {
             Native.SetBkMode(hdc, Native.Transparent);
@@ -276,53 +286,56 @@ internal static unsafe class CrashWindow
         Native.EndPaint(window, &paint);
     }
 
-    /// <summary>The MNVTEngine mark (an "M" on a dark tile with a cyan bar) with a red "!" badge, 96×96 at (x, y).</summary>
-    private static void DrawLogo(nint hdc, int x, int y)
+    /// <summary>The MNVTEngine wordmark, centered at <paramref name="y"/>, with a red "!" badge at its top-left corner.</summary>
+    private static void DrawLogo(nint hdc, State state, int y)
     {
-        var tile = Native.CreateSolidBrush(Native.Rgb(0x262A33));
-        var tilePen = Native.CreatePen(0, 1, Native.Rgb(0x262A33));
-        var oldBrush = Native.SelectObject(hdc, tile);
-        var oldPen = Native.SelectObject(hdc, tilePen);
-        Native.RoundRect(hdc, x + 10, y + 10, x + 96, y + 96, 22, 22);
-
-        var white = Native.CreateSolidBrush(Native.Rgb(0xFFFFFF));
-        var whitePen = Native.CreatePen(0, 1, Native.Rgb(0xFFFFFF));
-        Native.SelectObject(hdc, white);
-        Native.SelectObject(hdc, whitePen);
-        var (ox, oy) = (x + 10, y + 10);
-        Native.Point* m = stackalloc Native.Point[12];
-        ReadOnlySpan<int> shape = [17, 64, 17, 22, 30, 22, 43, 42, 56, 22, 69, 22, 69, 64, 58, 64, 58, 38, 43, 59, 28, 38, 28, 64];
-        for (var i = 0; i < 12; i++)
+        var x = ClientWidth / 2;
+        if (state.Logo is { } logo)
         {
-            m[i] = new Native.Point { X = ox + shape[i * 2], Y = oy + shape[(i * 2) + 1] };
+            x -= logo.Width / 2;
+            Native.AlphaBlend(hdc, x, y, logo.Width, logo.Height, logo.Dc, 0, 0, logo.Width, logo.Height, 0x01FF0000u); // premultiplied, opaque overall
         }
 
-        Native.Polygon(hdc, m, 12);
-
-        var accent = Native.CreateSolidBrush(Native.Rgb(0x2EC4F1));
-        var accentPen = Native.CreatePen(0, 1, Native.Rgb(0x2EC4F1));
-        Native.SelectObject(hdc, accent);
-        Native.SelectObject(hdc, accentPen);
-        var bar = new Native.Rect { Left = ox + 17, Top = oy + 69, Right = ox + 69, Bottom = oy + 74 };
-        Native.FillRect(hdc, &bar, accent);
-
-        // The badge: red square with a white "!", over the tile's top-left corner like a notification.
+        // The badge: red square with a white "!", over the wordmark's top-left corner like a notification.
         var red = Native.CreateSolidBrush(Native.Rgb(0xE81123));
-        var badge = new Native.Rect { Left = x - 6, Top = y - 2, Right = x + 22, Bottom = y + 26 };
+        var badge = new Native.Rect { Left = x - 20, Top = y - 18, Right = x + 6, Bottom = y + 8 };
         Native.FillRect(hdc, &badge, red);
-        var font = Native.CreateFontW(-26, 0, 0, 0, 900, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI");
+        var font = Native.CreateFontW(-24, 0, 0, 0, 900, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI");
         var oldFont = Native.SelectObject(hdc, font);
         Native.SetBkMode(hdc, Native.Transparent);
         Native.SetTextColor(hdc, Native.Rgb(0xFFFFFF));
         Native.DrawTextW(hdc, "!", 1, &badge, Native.DtCenter | Native.DtVCenter | Native.DtSingleLine);
-
         Native.SelectObject(hdc, oldFont);
-        Native.SelectObject(hdc, oldBrush);
-        Native.SelectObject(hdc, oldPen);
-        foreach (var obj in new[] { tile, tilePen, white, whitePen, accent, accentPen, red, font })
+        Native.DeleteObject(font);
+        Native.DeleteObject(red);
+    }
+
+    /// <summary>Decodes the embedded wordmark into a premultiplied DIB (what AlphaBlend needs); null if it cannot be read.</summary>
+    private static (nint Dc, nint Bitmap, int Width, int Height)? LoadLogo()
+    {
+        using var stream = typeof(CrashWindow).Assembly.GetManifestResourceStream("MNVTEngine.CrashReporting.logo-dark.png");
+        if (stream is null)
         {
-            Native.DeleteObject(obj);
+            return null;
         }
+
+        var image = StbImageSharp.ImageResult.FromStream(stream, StbImageSharp.ColorComponents.RedGreenBlueAlpha);
+        var header = new Native.BitmapInfoHeader { Size = (uint)sizeof(Native.BitmapInfoHeader), Width = image.Width, Height = -image.Height, Planes = 1, BitCount = 32 };
+        void* bits;
+        var dc = Native.CreateCompatibleDC(0);
+        var bitmap = Native.CreateDIBSection(dc, &header, 0, &bits, 0, 0);
+        var pixels = new Span<byte>(bits, image.Width * image.Height * 4);
+        for (var i = 0; i < pixels.Length; i += 4)
+        {
+            var a = image.Data[i + 3];
+            pixels[i] = (byte)(image.Data[i + 2] * a / 255); // BGRA, premultiplied
+            pixels[i + 1] = (byte)(image.Data[i + 1] * a / 255);
+            pixels[i + 2] = (byte)(image.Data[i] * a / 255);
+            pixels[i + 3] = a;
+        }
+
+        Native.SelectObject(dc, bitmap);
+        return (dc, bitmap, image.Width, image.Height);
     }
 
     /// <summary>Saves the whole window (title bar included) as a PNG: <c>MNVT_CRASH_UI_SCREENSHOT</c>, for tests and docs.</summary>

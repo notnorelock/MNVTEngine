@@ -69,6 +69,9 @@ public sealed class TextureImportSettings
     /// <summary>Texels per world unit; sprites created from the texture get size = pixels / PixelsPerUnit.</summary>
     public float PixelsPerUnit { get; set; } = 100f;
 
+    /// <summary>SVG textures: pixels per SVG unit when rasterized (2 renders a 100 x 100 document at 200 x 200).</summary>
+    public float SvgScale { get; set; } = 1f;
+
     public SamplerState ToSampler() => new(Filter, Wrap, GenerateMipmaps);
 }
 

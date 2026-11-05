@@ -57,7 +57,8 @@ public sealed partial class ResourceCache : IDisposable
                 throw new InvalidDataException($"{asset} is not a texture asset in this project.");
             }
 
-            texture = _device.CreateTexture(Image.Decode(_assets.ReadAllBytes(asset.Guid), _assets.Get(asset.Guid)!.Path), _assets.GetTextureSettings(asset.Guid).ToSampler(), _assets.Get(asset.Guid)!.Path);
+            var settings = _assets.GetTextureSettings(asset.Guid);
+            texture = _device.CreateTexture(Image.Decode(_assets.ReadAllBytes(asset.Guid), _assets.Get(asset.Guid)!.Path, settings.SvgScale), settings.ToSampler(), _assets.Get(asset.Guid)!.Path);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or KeyNotFoundException)
         {

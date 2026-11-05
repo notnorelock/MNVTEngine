@@ -73,6 +73,7 @@ public sealed partial class GameRuntime(
     private UI.UIRenderer _ui = null!;
     private Graphics.Text.Font _uiFont = null!;
     private DebugTextRenderer? _debugText;
+    private Texture2D? _engineLogo;
     private ResourceCache _resources = null!;
     private SceneRenderer _sceneRenderer = null!;
     private AssetDatabase _assets = null!;
@@ -258,6 +259,7 @@ public sealed partial class GameRuntime(
         _ui?.Dispose();
         _uiFont?.Dispose();
         _debugText?.Dispose();
+        _engineLogo?.Dispose();
         _resources?.Dispose();
         _animations?.Dispose();
         _renderer?.Dispose();

@@ -1,5 +1,10 @@
 # MNVTEngine
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/mnvtengine-logo.svg">
+  <img src="docs/images/mnvtengine-logo-dark.svg" alt="MNVTEngine" width="360">
+</picture>
+
 A modular 2D game engine in C# / .NET 11:
 
 - **Core:** a Vulkan 1.4 renderer (Silk.NET, VMA, shaderc), an ImGui.NET editor and a hybrid ECS.

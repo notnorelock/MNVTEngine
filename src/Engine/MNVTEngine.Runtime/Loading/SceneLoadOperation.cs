@@ -152,7 +152,7 @@ public sealed partial class SceneLoadOperation : IDisposable
             CurrentTask = $"Decoding {_assets.Get(guid)?.Path}";
             try
             {
-                _decoded.Enqueue((guid, Image.Decode(_assets.ReadAllBytes(guid), _assets.Get(guid)?.Path ?? guid.ToString())));
+                _decoded.Enqueue((guid, Image.Decode(_assets.ReadAllBytes(guid), _assets.Get(guid)?.Path ?? guid.ToString(), _assets.GetTextureSettings(guid).SvgScale)));
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
             {

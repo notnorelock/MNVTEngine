@@ -8,7 +8,8 @@ using Image = MNVTEngine.UI.Widgets.Image;
 namespace MNVTEngine.Runtime.Loading;
 
 /// <summary>Resolves splash/loading screen assets (textures, fonts) for the views; both may return null when missing.</summary>
-public sealed record StartupAssets(Font DefaultFont, Func<AssetRef, Texture2D?> Texture, Func<AssetRef, Font?> Font);
+/// <param name="EngineLogo">The MNVTEngine wordmark (white), for "Made with MNVTEngine"; null shows the words.</param>
+public sealed record StartupAssets(Font DefaultFont, Func<AssetRef, Texture2D?> Texture, Func<AssetRef, Font?> Font, Texture2D? EngineLogo = null);
 
 /// <summary>Splash and loading screens take no input: an input state nothing writes to.</summary>
 internal static class NoInputSource
@@ -172,7 +173,14 @@ public sealed class SplashScreenView : IDisposable
             _bar = column.AddChild(new ProgressBar { Width = 260, Height = 6, Indeterminate = true, Margin = new Thickness(0, 20, 0, 0) });
         }
 
-        if (settings.ShowEngineBranding)
+        if (settings.ShowEngineBranding && assets.EngineLogo is { } engineLogo)
+        {
+            // "Made with" over the wordmark, tinted like the rest of the splash's text.
+            var branding = _root.AddChild(new Panel { Layout = LayoutMode.Column, AlignItems = Align.Center, Gap = 4, Anchor = new Vector2(0.5f, 1f), Pivot = new Vector2(0.5f, 1f), Top = -24 });
+            branding.AddChild(new Label { Text = "Made with", FontSize = 13, TextColor = settings.Foreground with { A = 0.5f } });
+            branding.AddChild(new Image { Texture = engineLogo, Width = 140, Height = 140f * engineLogo.Height / engineLogo.Width, Tint = settings.Foreground with { A = 0.6f } });
+        }
+        else if (settings.ShowEngineBranding)
         {
             _root.AddChild(new Label { Text = "Made with MNVTEngine", FontSize = 14, TextColor = settings.Foreground with { A = 0.5f }, Anchor = new Vector2(0.5f, 1f), Pivot = new Vector2(0.5f, 1f), Top = -24 });
         }

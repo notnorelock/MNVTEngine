@@ -28,6 +28,7 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
     private VulkanGraphicsDevice _device = null!;
     private Renderer2D _renderer = null!;
     private ImGuiRenderer _imgui = null!;
+    private Texture2D? _logo;
     private IReadOnlyList<string> _recent = [];
     private IReadOnlyList<ProjectTemplate> _templates = [];
     private string? _engineRoot;
@@ -47,6 +48,7 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
         _device = VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"), VulkanDeviceOptions.ForApplication("Editor", window.Options.VSync, window.Options.GraphicsValidation));
         _renderer = new Renderer2D(_device);
         _imgui = new ImGuiRenderer(_device, _renderer.DefaultMaterial, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "segoeui.ttf"), 17f);
+        _logo = _device.CreateTexture(Graphics.Svg.EngineLogo.Render(520), SamplerState.LinearClamp, "MNVTEngine logo");
         Gui.ApplyDarkTheme();
         _recent = recent.Load();
         try
@@ -74,9 +76,15 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
         ImGui.SetNextWindowPos(viewport.WorkPos);
         ImGui.SetNextWindowSize(viewport.WorkSize);
         ImGui.Begin("##hub", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings);
-        ImGui.SetWindowFontScale(1.4f);
-        ImGui.TextUnformatted("MNVTEngine");
-        ImGui.SetWindowFontScale(1f);
+        if (_logo is not null)
+        {
+            Gui.Image(_imgui.Register(_logo), _logo, new System.Numerics.Vector2(260f, 260f * _logo.Height / _logo.Width));
+        }
+        else
+        {
+            ImGui.TextUnformatted("MNVTEngine");
+        }
+
         Gui.Muted("Open a recent project, create a new one, or open an existing folder.");
         ImGui.Spacing();
 
@@ -129,6 +137,7 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
         }
 
         _imgui?.Dispose();
+        _logo?.Dispose();
         _renderer?.Dispose();
         _device.Dispose();
     }

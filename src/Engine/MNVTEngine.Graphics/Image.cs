@@ -2,7 +2,10 @@ using StbImageSharp;
 
 namespace MNVTEngine.Graphics;
 
-/// <summary>CPU-side RGBA8 image, row 0 at the top. Decodes PNG, JPG, BMP, TGA and other formats supported by stb_image.</summary>
+/// <summary>
+/// CPU-side RGBA8 image, row 0 at the top. Decodes PNG, JPG, BMP, TGA and other formats supported by stb_image, and
+/// rasterizes SVG documents (<see cref="Svg.SvgRasterizer"/>).
+/// </summary>
 public sealed class Image
 {
     public Image(int width, int height, byte[] pixels)
@@ -27,9 +30,18 @@ public sealed class Image
     public byte[] Pixels { get; }
 
     /// <exception cref="InvalidDataException">The data is not a decodable image.</exception>
-    public static Image Decode(byte[] encoded, string sourceName = "<memory>")
+    public static Image Decode(byte[] encoded, string sourceName = "<memory>") => Decode(encoded, sourceName, 1f);
+
+    /// <param name="svgScale">Pixels per SVG unit when the data is an SVG document; ignored for other formats.</param>
+    /// <exception cref="InvalidDataException">The data is not a decodable image.</exception>
+    public static Image Decode(byte[] encoded, string sourceName, float svgScale)
     {
         ArgumentNullException.ThrowIfNull(encoded);
+        if (Svg.SvgRasterizer.IsSvg(encoded))
+        {
+            return Svg.SvgRasterizer.Render(encoded, sourceName, svgScale).Image;
+        }
+
         ImageResult result;
         try
         {

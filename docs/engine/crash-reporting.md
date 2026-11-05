@@ -2,7 +2,7 @@
 
 `MNVTEngine.CrashReporting` turns a crash of an exported game, the Player or the editor into a report folder with a
 memory dump. While the report is written, a small window shows, like Unity's crash handler: the title
-"&lt;Game&gt; - MNVTEngine &lt;version&gt;", the engine logo with a red "!" badge, and a progress bar. It then says where the
+"&lt;Game&gt; - MNVTEngine &lt;version&gt;", the engine wordmark with a red "!" badge, and a progress bar. It then says where the
 report is, with **Open Folder** and **Close**.
 
 ## How it works

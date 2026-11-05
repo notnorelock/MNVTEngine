@@ -99,6 +99,57 @@ public sealed class SceneLoadingTests : IDisposable
     }
 
     [Fact]
+    public void Splash_ShowsTheEngineWordmark_UnderMadeWith()
+    {
+        VulkanGraphicsDevice device;
+        try
+        {
+            device = VulkanGraphicsDevice.CreateHeadless(640, 360, NullLogger.Instance, new VulkanDeviceOptions { Validation = true });
+        }
+        catch (GraphicsInitializationException ex)
+        {
+            Assert.Skip($"No Vulkan 1.4 device available: {ex.Message}");
+            throw;
+        }
+
+        try
+        {
+            using var font = Graphics.Text.Font.LoadDefault();
+            using var logo = device.CreateTexture(Graphics.Svg.EngineLogo.Render(420), SamplerState.LinearClamp, "logo");
+            using var renderer2D = new Renderer2D(device);
+            using var ui = new UI.UIRenderer(device, renderer2D.DefaultMaterial);
+            var settings = new SplashScreenSettings { Enabled = true, Title = "", FadeIn = 0f, ShowProgress = false, ShowEngineBranding = true, Background = Mathematics.Color.Black, Foreground = Mathematics.Color.White };
+            using var view = new SplashScreenView(settings, new StartupAssets(font, _ => null, _ => null, logo), AssetRef.None, AssetRef.None);
+            view.Update(loaded: false, null, skip: false, new Mathematics.Vector2(640, 360), 1f, 0.016f);
+            device.SetRenderTarget(null);
+            device.Clear(Mathematics.Color.Black);
+            view.Render(ui, 640, 360);
+            var pixels = new byte[640 * 360 * 4];
+            device.ReadPixels(pixels);
+            device.Present();
+
+            // The 140 x 34 wordmark sits centered above the bottom margin (24); "Made with" is above it.
+            var lit = 0;
+            for (var y = 300; y < 336; y++)
+            {
+                for (var x = 250; x < 390; x++)
+                {
+                    lit += pixels[((y * 640) + x) * 4] > 60 ? 1 : 0;
+                }
+            }
+
+            Assert.InRange(lit, 400, 4000); // strokes of the tinted wordmark, not an empty or filled box
+            Assert.Equal(0, pixels[((340 * 640) + 100) * 4]); // background elsewhere
+        }
+        finally
+        {
+            device.Dispose();
+        }
+
+        Assert.True(device.Validation.Errors == 0, $"{device.Validation.Errors} validation error(s): {device.Validation.LastError}");
+    }
+
+    [Fact]
     public void LoadingScreen_IsOpaqueAtOnce_AndOnlyFadesOut()
     {
         using var font = Graphics.Text.Font.LoadDefault();

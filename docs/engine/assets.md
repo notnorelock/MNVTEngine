@@ -53,7 +53,7 @@ do. `OpenReadOnly(assetsDir, artifactsLibrary: libraryDir)` reads imported model
 
 | Importer | Extensions | Type | Validates and extracts |
 |---|---|---|---|
-| Texture | .png .jpg .jpeg .bmp .tga | Texture | Decodes the image; width and height. Settings: filter, wrap, mipmaps, pixels per unit |
+| Texture | .png .jpg .jpeg .bmp .tga .svg | Texture | Decodes the image; width and height. Settings: filter, wrap, mipmaps, pixels per unit, `svgScale` (SVG only). See [SVG textures](#svg-textures). |
 | Scene / Prefab | .mnvt / .mnvtprefab | Scene / Prefab | Readable JSON with `gameObjects`; a prefab needs exactly one root; dependencies |
 | Json | .json | Json | Valid JSON; dependencies |
 | AnimatorController | .mnvtanimator | AnimatorController | The state machine is valid (states, parameters, conditions, transitions); counts. See [models](models.md#animator-controllers). |
@@ -63,6 +63,19 @@ do. `OpenReadOnly(assetsDir, artifactsLibrary: libraryDir)` reads imported model
 | Model | .fbx .gltf .glb | Model | Assimp (FBX) or SharpGLTF (glTF); writes the `model` artifact. See [models](models.md). Without the model importer (runtime), model files only get the Model type. |
 
 Any other extension still gets a GUID, with type `Unknown`.
+
+### SVG textures
+
+`.svg` files are textures rasterized when they load (`SvgRasterizer` in `MNVTEngine.Graphics`, pure C#). The pixel size is
+the document's `width`/`height` (else its `viewBox`) times `svgScale` (default 1, at most 64; the editor's inspector
+shows it as **SVG scale**). The largest side is 8192 pixels.
+
+- **Drawn:** `path` (every command), `rect` (rounded too), `circle`, `ellipse`, `line`, `polyline`, `polygon`, `g` and
+  nested `svg`; fill and stroke colors and widths, `fill-rule`, opacity (group, fill, stroke), `transform`, `viewBox`;
+  attributes or `style="..."`. Anti-aliased. Strokes have round joins and caps.
+- **Not drawn, reported as import warnings:** text, images, `use`, filters, masks, clip paths, dashes, markers and
+  `<style>` sheets. Gradients and patterns use their first stop's color.
+- DTDs are refused: SVG files are untrusted input.
 
 ## References from gameplay data
 

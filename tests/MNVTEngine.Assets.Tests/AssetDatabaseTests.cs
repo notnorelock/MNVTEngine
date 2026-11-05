@@ -280,6 +280,24 @@ public sealed class AssetDatabaseTests : IDisposable
     }
 
     [Fact]
+    public void SvgFiles_AreTextures_RasterizedAtTheirScale_WithWarnings()
+    {
+        var db = OpenEditing();
+        Write("UI/icon.svg", """<svg width="32" height="16" xmlns="http://www.w3.org/2000/svg"><rect width="32" height="16" fill="red"/><text>x</text></svg>""");
+        db.Refresh();
+
+        var icon = db.Assets.Single(a => a.Path == "UI/icon.svg");
+        Assert.Equal((AssetTypes.Texture, AssetImportStatus.Imported, "32", "16"), (icon.Type, icon.Status, icon.Properties["width"], icon.Properties["height"]));
+        Assert.Contains(icon.Messages, m => m.Contains("<text> is not drawn", StringComparison.Ordinal));
+
+        var settings = db.GetSettings(icon.Guid);
+        settings["svgScale"] = 4;
+        db.UpdateSettings(icon.Guid, settings);
+        Assert.Equal(("128", 4f), (db.Get(icon.Guid)!.Properties["width"], db.GetTextureSettings(icon.Guid).SvgScale));
+        Assert.Contains(db.UpdateSettings(icon.Guid, new Newtonsoft.Json.Linq.JObject { ["svgScale"] = 0 }), p => p.Contains("svgScale", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void AnimatorControllers_AreValidated()
     {
         var db = OpenEditing();

@@ -37,7 +37,8 @@ public sealed partial class GameRuntime : ILoadingScreenHost
 
     private void StartPresentation()
     {
-        _startupAssets = new StartupAssets(_uiFont, TryTexture, TryFont);
+        _engineLogo ??= Graphics.GraphicsDeviceExtensions.CreateTexture(_device, Graphics.Svg.EngineLogo.Render(420), Graphics.SamplerState.LinearClamp, "MNVTEngine logo");
+        _startupAssets = new StartupAssets(_uiFont, TryTexture, TryFont, _engineLogo);
         LoadingScreen.Options = project.LoadingScreen.Enabled ? OptionsFrom(project.LoadingScreen) : null;
         LoadingScreen.SetHost(this);
         if (project.SplashScreen.Enabled)

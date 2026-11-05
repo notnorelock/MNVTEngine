@@ -152,6 +152,21 @@ internal sealed class AssetInspector(EditorContext context) : IDisposable
             _settingsDirty = true;
         }
 
+        if (record.Path.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+        {
+            var svgScale = _settings.SvgScale;
+            if (ImGui.DragFloat("SVG scale", ref svgScale, 0.05f, 0.05f, 64f, "%.2f"))
+            {
+                _settings.SvgScale = Math.Clamp(svgScale, 0.05f, 64f);
+                _settingsDirty = true;
+            }
+
+            if (ImGui.IsItemHovered())
+            {
+                Gui.Tooltip("Pixels per SVG unit when the vector image is rasterized (2 gives twice the document's size).");
+            }
+        }
+
         ImGui.BeginDisabled(!_settingsDirty);
         if (ImGui.Button("Apply"))
         {

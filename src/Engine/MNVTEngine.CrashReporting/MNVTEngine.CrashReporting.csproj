@@ -7,6 +7,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="StbImageSharp" />
     <PackageReference Include="StbImageWriteSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The engine wordmark (docs/images/mnvtengine-logo.svg) rendered dark for the white window; see CrashLogoTests. -->
+    <EmbeddedResource Include="Resources\logo-dark.png" LogicalName="MNVTEngine.CrashReporting.logo-dark.png" />
   </ItemGroup>
 </Project>

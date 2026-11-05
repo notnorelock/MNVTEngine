@@ -5,4 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics\MNVTEngine.Graphics.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\docs\images\mnvtengine-logo.svg" Link="mnvtengine-logo.svg" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
