@@ -13,8 +13,11 @@ namespace MNVTEngine.Assets.Models;
 public static class ModelArtifact
 {
     public const string Name = "model";
-    /// <summary>2: material overrides (extracted or remapped materials). 3: blend shapes and weight channels.</summary>
-    public const int Version = 3;
+    /// <summary>
+    /// 2: material overrides (extracted or remapped materials). 3: blend shapes and weight channels. 4: texture UV sets,
+    /// lights, cameras and mesh aliases.
+    /// </summary>
+    public const int Version = 4;
     private static readonly byte[] Magic = "MNVTMODL"u8.ToArray();
     private const int MaxCount = 1 << 24;
 
@@ -69,6 +72,12 @@ public static class ModelArtifact
             }
 
             w.Write(m.Override?.ToString("D") ?? "");
+            w.Write(m.UVSets.Count);
+            foreach (var (role, set) in m.UVSets.OrderBy(t => t.Key))
+            {
+                w.Write((int)role);
+                w.Write(set);
+            }
         }
 
         w.Write(model.Textures.Count);
@@ -119,6 +128,40 @@ public static class ModelArtifact
         foreach (var warning in model.Warnings)
         {
             w.Write(warning);
+        }
+
+        w.Write(model.Lights.Count);
+        foreach (var l in model.Lights)
+        {
+            w.Write(l.Name);
+            w.Write(l.Node);
+            w.Write((int)l.Type);
+            WriteColor(w, l.Color);
+            w.Write(l.Intensity);
+            w.Write(l.Range ?? -1f);
+            w.Write(l.SpotAngle);
+            w.Write(l.InnerSpotAngle);
+            WriteQuaternion(w, l.Rotation);
+        }
+
+        w.Write(model.Cameras.Count);
+        foreach (var c in model.Cameras)
+        {
+            w.Write(c.Name);
+            w.Write(c.Node);
+            w.Write(c.Orthographic);
+            w.Write(c.FieldOfView);
+            w.Write(c.OrthographicSize);
+            w.Write(c.NearClip);
+            w.Write(c.FarClip);
+            WriteQuaternion(w, c.Rotation);
+        }
+
+        w.Write(model.MeshAliases.Count);
+        foreach (var (alias, current) in model.MeshAliases.OrderBy(a => a.Key, StringComparer.Ordinal))
+        {
+            w.Write(alias);
+            w.Write(current);
         }
 
         w.Flush();
@@ -176,6 +219,11 @@ public static class ModelArtifact
 
                 var materialOverride = r.ReadString();
                 m.Override = materialOverride.Length == 0 ? null : Guid.Parse(materialOverride);
+                for (int t = 0, tn = Count(r); t < tn; t++)
+                {
+                    m.UVSets[Enum<TextureRole>(r.ReadInt32())] = r.ReadInt32();
+                }
+
                 model.Materials.Add(m);
             }
 
@@ -227,6 +275,22 @@ public static class ModelArtifact
             for (int i = 0, n = Count(r); i < n; i++)
             {
                 model.Warnings.Add(r.ReadString());
+            }
+
+            for (int i = 0, n = Count(r); i < n; i++)
+            {
+                var (name, node, type, color, intensity, range) = (r.ReadString(), r.ReadInt32(), Enum<ModelLightType>(r.ReadInt32()), ReadColor(r), r.ReadSingle(), r.ReadSingle());
+                model.Lights.Add(new ModelLight(name, node, type, color, intensity, range < 0f ? null : range, r.ReadSingle(), r.ReadSingle(), ReadQuaternion(r)));
+            }
+
+            for (int i = 0, n = Count(r); i < n; i++)
+            {
+                model.Cameras.Add(new ModelCamera(r.ReadString(), r.ReadInt32(), r.ReadBoolean(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), ReadQuaternion(r)));
+            }
+
+            for (int i = 0, n = Count(r); i < n; i++)
+            {
+                model.MeshAliases[r.ReadString()] = r.ReadString();
             }
 
             Validate(model);
@@ -370,6 +434,9 @@ public static class ModelArtifact
         }
 
         Require(model.Materials.All(m => m.Textures.Values.All(t => t >= 0 && t < model.Textures.Count)), "a material refers to a missing texture");
+        Require(model.Materials.All(m => m.UVSets.Values.All(s => s is 0 or 1)), "a material samples a texture with a UV set other than 0 or 1");
+        Require(model.Lights.All(l => l.Node >= 0 && l.Node < model.Nodes.Count && float.IsFinite(l.Intensity) && l.Intensity >= 0f), "a light refers to a missing node or has an invalid intensity");
+        Require(model.Cameras.All(c => c.Node >= 0 && c.Node < model.Nodes.Count && c.NearClip > 0f && c.FarClip > c.NearClip && c.FieldOfView is > 0f and < 180f && c.OrthographicSize > 0f), "a camera refers to a missing node or has invalid clip planes or field of view");
         Require(model.Skins.All(s => s.Joints.All(j => j >= 0 && j < model.Nodes.Count)), "a skin refers to a missing joint node");
         foreach (var c in model.Animations.SelectMany(a => a.Channels))
         {
@@ -391,6 +458,16 @@ public static class ModelArtifact
 
     private static T Enum<T>(int value)
         where T : struct, System.Enum => System.Enum.IsDefined(typeof(T), value) ? (T)(object)value : throw new InvalidDataException($"Invalid {typeof(T).Name} {value} in model artifact.");
+
+    private static void WriteQuaternion(BinaryWriter w, Quaternion q)
+    {
+        w.Write(q.X);
+        w.Write(q.Y);
+        w.Write(q.Z);
+        w.Write(q.W);
+    }
+
+    private static Quaternion ReadQuaternion(BinaryReader r) => new(r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
 
     private static void WriteVector(BinaryWriter w, Vector3 v)
     {

@@ -281,6 +281,7 @@ public sealed class ShadowCasters(IGraphicsDevice device)
         caster.SetTexture("_BaseColorMap", source.GetTexture("_BaseColorMap") ?? white);
         caster.SetVector("_BaseColor", source.TryGetUniform("_BaseColor", out var color) ? color.Vector : new Vector4(1f, 1f, 1f, 1f));
         caster.SetFloat("_AlphaCutoff", source.TryGetUniform("_AlphaCutoff", out var cutoff) ? cutoff.Vector.X : 0f);
+        caster.SetFloat("_BaseColorUVSet", source.TryGetUniform("_BaseColorUVSet", out var uvSet) ? uvSet.Vector.X : 0f);
         return caster;
     }
 }

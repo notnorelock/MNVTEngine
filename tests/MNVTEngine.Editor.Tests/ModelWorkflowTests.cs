@@ -1,6 +1,7 @@
 using MNVTEngine.Assets;
 using MNVTEngine.Assets.Models;
 using MNVTEngine.Editor.Services;
+using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
 
 namespace MNVTEngine.Editor.Tests;
@@ -61,6 +62,39 @@ public sealed class ModelWorkflowTests : IDisposable
         var files = AssetFileCount();
         workflow.ExtractTextures(workflow.DefaultFolder("Textures"));
         Assert.Equal(files, AssetFileCount()); // nothing left to extract, nothing duplicated
+    }
+
+    [Fact]
+    public void Relink_FindsReferencesToRenamedMeshes_AndPointsThemAtACurrentMesh()
+    {
+        var (db, workflow) = Import("Lights/PunctualLights.gltf", "Models/Lamps.gltf");
+        var scene = new Scene();
+        scene.CreateGameObject("Old").AddComponent<MeshRenderer>().Mesh = new AssetRef(workflow.Guid, "mesh/Ground"); // renamed to "Floor" since
+        scene.CreateGameObject("Current").AddComponent<MeshRenderer>().Mesh = new AssetRef(workflow.Guid, "mesh/Floor");
+        db.WriteText("Scenes/Level.mnvt", new SceneSerializer(Runtime.EngineComponents.CreateRegistry()).Serialize(scene));
+
+        var missing = Assert.Single(workflow.FindMissingMeshReferences());
+        Assert.Equal(("Ground", "Scenes/Level.mnvt"), (missing.Mesh, Assert.Single(missing.UsedBy)));
+
+        Assert.Empty(workflow.Relink("Ground", "Floor"));
+        Assert.Empty(workflow.FindMissingMeshReferences());
+        Assert.Equal("Floor", workflow.Load()!.FindMesh("Ground")!.Name);
+
+        workflow.Relink("Ground", null);
+        Assert.Equal("Ground", Assert.Single(workflow.FindMissingMeshReferences()).Mesh);
+    }
+
+    [Fact]
+    public void ExtractMaterials_KeepsTheUVSetOfEachMap()
+    {
+        var (db, workflow) = Import("Khronos/MultiUVTest.glb", "Models/MultiUV.glb");
+        workflow.ExtractMaterials(workflow.DefaultFolder("Materials"), workflow.DefaultFolder("Textures"));
+
+        var path = Assert.Single(Directory.EnumerateFiles(Path.Combine(AssetsDir, "Models", "Materials"), "*.mnvtmat"));
+        var definition = MaterialDefinition.Parse(File.ReadAllText(path), path);
+        Assert.Equal(1f, definition.Properties["_EmissiveUVSet"].Numbers![0]);
+        Assert.False(definition.Properties.ContainsKey("_BaseColorUVSet")); // UV set 0 is the default
+        Assert.Equal(AssetImportStatus.Imported, db.Get(workflow.Guid)!.Status);
     }
 
     [Fact]

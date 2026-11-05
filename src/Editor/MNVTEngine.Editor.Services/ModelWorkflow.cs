@@ -17,6 +17,8 @@ namespace MNVTEngine.Editor.Services;
 /// the textures it needs) and remaps the model to it. Existing files are reused, never overwritten, so extracting
 /// again creates no duplicates and keeps edits.</item>
 /// <item><b>Remap</b> points a source material at any project material; <b>Reset</b> clears the material remaps.</item>
+/// <item><b>Relink</b> finds mesh names that scenes and prefabs reference but the model no longer has (renamed in the
+/// source) and points them at a current mesh through a mesh alias.</item>
 /// </list>
 /// Every change goes through the model's import settings (its <c>.meta</c>) and reimports it. Source files are never modified.
 /// </summary>
@@ -56,6 +58,61 @@ public sealed class ModelWorkflow
     /// <summary>The last successful import, or null when the model never imported.</summary>
     /// <exception cref="InvalidDataException">The artifact is unreadable.</exception>
     public ModelData? Load() => _assets.ReadArtifact(Guid, ModelArtifact.Name) is { } artifact ? ModelArtifact.Read(artifact) : null;
+
+    /// <summary>
+    /// Mesh names that scenes and prefabs reference (<c>asset:&lt;model&gt;#mesh/&lt;name&gt;</c>) but the model does not have,
+    /// neither as a mesh nor as an alias, with the files using each.
+    /// </summary>
+    public IReadOnlyList<MissingMeshReference> FindMissingMeshReferences()
+    {
+        if (Load() is not { } model)
+        {
+            return [];
+        }
+
+        var prefix = $"asset:{Guid:D}#{Runtime.ResourceCache.MeshSubAssetPrefix}";
+        var missing = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+        foreach (var record in _assets.Assets.Where(a => a.Type is AssetTypes.Scene or AssetTypes.Prefab).ToList())
+        {
+            JToken document;
+            try
+            {
+                document = JToken.Parse(System.Text.Encoding.UTF8.GetString(_assets.ReadAllBytes(record.Guid)));
+            }
+            catch (Newtonsoft.Json.JsonException)
+            {
+                continue; // a broken scene shows its own load error; it cannot be relinked
+            }
+
+            foreach (var value in document.SelectTokens("$..*").OfType<JValue>().Where(v => v.Type == JTokenType.String).Select(v => (string)v!))
+            {
+                if (value.StartsWith(prefix, StringComparison.Ordinal) && value[prefix.Length..] is { Length: > 0 } name && model.FindMesh(name) is null)
+                {
+                    (missing.TryGetValue(name, out var files) ? files : missing[name] = new SortedSet<string>(StringComparer.Ordinal)).Add(record.Path);
+                }
+            }
+        }
+
+        return [.. missing.Select(m => new MissingMeshReference(m.Key, [.. m.Value]))];
+    }
+
+    /// <summary>Points references to <paramref name="oldName"/> at <paramref name="mesh"/> (a mesh alias), or removes the alias when null; reimports.</summary>
+    public IReadOnlyList<string> Relink(string oldName, string? mesh)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(oldName);
+        var settings = Settings;
+        var aliases = new SortedDictionary<string, string>(settings.MeshAliases.ToDictionary(), StringComparer.Ordinal);
+        if (mesh is null)
+        {
+            aliases.Remove(oldName);
+        }
+        else
+        {
+            aliases[oldName] = mesh;
+        }
+
+        return ApplySettings(settings with { MeshAliases = aliases });
+    }
 
     /// <summary>Writes new import settings and reimports; returns the problems found while normalizing them.</summary>
     public IReadOnlyList<string> ApplySettings(ModelImportSettings settings)
@@ -219,6 +276,11 @@ public sealed class ModelWorkflow
             {
                 definition.Properties[property] = MaterialValue.TextureAsset(texture);
             }
+
+            if (material.UVSets.TryGetValue(role, out var set) && set != 0)
+            {
+                definition.Properties[ModelMaterialSlots.UVSetProperty(property)] = MaterialValue.Number(set);
+            }
         }
 
         return definition;
@@ -291,3 +353,6 @@ public sealed class ModelWorkflow
 
     private static string Combine(string folder, string name) => folder.Length == 0 ? name : string.Create(CultureInfo.InvariantCulture, $"{folder.TrimEnd('/')}/{name}");
 }
+
+/// <summary>A mesh name that scenes or prefabs reference but the model no longer has.</summary>
+public sealed record MissingMeshReference(string Mesh, IReadOnlyList<string> UsedBy);

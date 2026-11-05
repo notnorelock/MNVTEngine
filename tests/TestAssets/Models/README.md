@@ -8,7 +8,10 @@ Real-world models used by the model import tests. Licenses permit redistribution
 | `WoodenCrate/gltf/*` | Same asset, 1k glTF download | CC0 1.0 | glTF with an external `.bin` and external JPG textures (base color, ARM, normal) |
 | `Khronos/CesiumMan.glb` | [Khronos glTF-Sample-Assets](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CesiumMan) | CC-BY 4.0 (Cesium logo: trademark), see `CesiumMan.LICENSE.md` | GLB, skinned mesh, skeleton, animation, embedded texture, hierarchy |
 | `Khronos/BoxAnimated.glb` | [Khronos glTF-Sample-Assets](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/BoxAnimated) | CC-BY 4.0, see `BoxAnimated.LICENSE.md` | GLB, several meshes and materials, node hierarchy, animation |
+| `Khronos/MultiUVTest.glb` | [Khronos glTF-Sample-Assets](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/MultiUVTest) | CC-BY 4.0, see `MultiUVTest.LICENSE.md` | A texture on UV set 1 (emission), a camera |
+| `Khronos/Cameras.gltf` | [Khronos glTF-Sample-Assets](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Cameras) | CC0 1.0, see `Cameras.LICENSE.md` | Perspective and orthographic cameras |
+| `Lights/PunctualLights.gltf` | Hand-written for these tests (the Cameras quad's buffer) | CC0 1.0 | `KHR_lights_punctual`: directional, spot (with range and cone) and point (no range) lights |
 | `Converted/*.fbx` | The Khronos models above, converted with Assimp's FBX exporter (binary and ASCII) | as their sources | FBX skeleton, skinning, animation, several materials; ASCII FBX parsing |
 
-Attribution for CC-BY models: "CesiumMan" and "Box Animated" by Cesium, from the Khronos glTF Sample Assets.
+Attribution for CC-BY models: "CesiumMan" and "Box Animated" by Cesium, and "MultiUV Test" by Hilo 3D (2017), from the Khronos glTF Sample Assets.
 No CC0 skeletal FBX authored in a DCC tool was available as a direct download; the converted files stand in until one is.

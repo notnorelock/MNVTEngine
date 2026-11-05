@@ -23,10 +23,22 @@ public sealed class ModelData
 
     public List<ModelAnimation> Animations { get; } = [];
 
+    public List<ModelLight> Lights { get; } = [];
+
+    public List<ModelCamera> Cameras { get; } = [];
+
+    /// <summary>
+    /// Old mesh names to current ones (the <c>meshAliases</c> import setting): references to a mesh renamed in the source
+    /// keep working through them.
+    /// </summary>
+    public Dictionary<string, string> MeshAliases { get; } = new(StringComparer.Ordinal);
+
     /// <summary>Problems found while importing (also reported on the asset).</summary>
     public List<string> Warnings { get; } = [];
 
-    public ModelMesh? FindMesh(string name) => Meshes.Find(m => m.Name == name);
+    /// <summary>The mesh of that name, or the mesh an alias of that name points to.</summary>
+    public ModelMesh? FindMesh(string name) =>
+        Meshes.Find(m => m.Name == name) ?? (MeshAliases.TryGetValue(name, out var current) ? Meshes.Find(m => m.Name == current) : null);
 
     public ModelMaterial? FindMaterial(string name) => Materials.Find(m => m.Name == name);
 
@@ -136,6 +148,9 @@ public sealed class ModelMaterial(string name)
     /// <summary>Texture index (into <see cref="ModelData.Textures"/>) by role.</summary>
     public Dictionary<TextureRole, int> Textures { get; } = [];
 
+    /// <summary>The UV set (0 or 1) a role's texture is sampled with; roles not listed use set 0.</summary>
+    public Dictionary<TextureRole, int> UVSets { get; } = [];
+
     /// <summary>How the source described the material (e.g. "glTF PBR", "FBX Phong"), for the inspector.</summary>
     public string SourceModel { get; set; } = "";
 
@@ -180,6 +195,29 @@ public sealed class ModelSkin(string name)
     public List<Matrix4x4> InverseBindMatrices { get; } = [];
 }
 
+public enum ModelLightType
+{
+    Directional,
+    Point,
+    Spot,
+}
+
+/// <summary>
+/// A light on a node, in engine units: directional intensity is the glTF illuminance (lux, Blender's sun strength);
+/// point and spot intensity is the glTF luminous intensity × 4π / 683 / 1000 (a 1000 W Blender lamp is 1).
+/// </summary>
+/// <param name="Rotation">Turns the engine's light forward (-Z) to the source's light direction in the node's space (identity for glTF).</param>
+/// <param name="Range">Point and spot lights: where the light ends; null when the source has no range.</param>
+/// <param name="SpotAngle">Spot lights: full outer cone angle in degrees.</param>
+/// <param name="InnerSpotAngle">Spot lights: full inner cone angle in degrees.</param>
+public sealed record ModelLight(string Name, int Node, ModelLightType Type, Color Color, float Intensity, float? Range, float SpotAngle, float InnerSpotAngle, Quaternion Rotation);
+
+/// <summary>A camera on a node.</summary>
+/// <param name="Rotation">Turns the engine's camera forward (-Z) to the source's view direction in the node's space (identity for glTF).</param>
+/// <param name="FieldOfView">Perspective: vertical field of view in degrees.</param>
+/// <param name="OrthographicSize">Orthographic: half the visible height.</param>
+public sealed record ModelCamera(string Name, int Node, bool Orthographic, float FieldOfView, float OrthographicSize, float NearClip, float FarClip, Quaternion Rotation);
+
 public enum AnimationPath
 {
     Translation,
@@ -219,4 +257,15 @@ public static class ModelMaterialSlots
         (TextureRole.BaseColor, "_BaseColorMap"), (TextureRole.MetallicRoughness, "_MetallicRoughnessMap"),
         (TextureRole.Normal, "_NormalMap"), (TextureRole.Occlusion, "_OcclusionMap"), (TextureRole.Emission, "_EmissiveMap"),
     ];
+
+    /// <summary>The Standard shader property choosing the UV set of a texture slot (<c>_NormalMap</c> → <c>_NormalUVSet</c>).</summary>
+    public static string UVSetProperty(string textureProperty) => textureProperty switch
+    {
+        "_BaseColorMap" => "_BaseColorUVSet",
+        "_MetallicRoughnessMap" => "_MetallicRoughnessUVSet",
+        "_NormalMap" => "_NormalUVSet",
+        "_OcclusionMap" => "_OcclusionUVSet",
+        "_EmissiveMap" => "_EmissiveUVSet",
+        _ => throw new ArgumentOutOfRangeException(nameof(textureProperty), textureProperty, "Not a Standard shader texture slot."),
+    };
 }

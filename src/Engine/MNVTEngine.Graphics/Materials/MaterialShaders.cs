@@ -52,6 +52,7 @@ public static class MaterialShaders
         layout(location = 1) in vec3 aNormal;
         layout(location = 2) in vec4 aTangent;
         layout(location = 3) in vec2 aTexCoord;
+        layout(location = 4) in vec2 aTexCoord1;
         layout(location = 5) in vec4 aColor;
 
         uniform mat4 uViewProjection;
@@ -62,6 +63,7 @@ public static class MaterialShaders
         out vec3 vNormal;
         out vec4 vTangent;
         out vec2 vTexCoord;
+        out vec2 vTexCoord1;
         out vec4 vColor;
 
         void main()
@@ -71,6 +73,7 @@ public static class MaterialShaders
             vNormal = normalize(mat3(uNormalMatrix) * aNormal);
             vTangent = vec4(normalize(mat3(uModel) * aTangent.xyz), aTangent.w);
             vTexCoord = aTexCoord;
+            vTexCoord1 = aTexCoord1;
             vColor = aColor;
             gl_Position = uViewProjection * world;
         }
@@ -85,9 +88,15 @@ public static class MaterialShaders
         in vec3 vNormal;
         in vec4 vTangent;
         in vec2 vTexCoord;
+        in vec2 vTexCoord1;
         in vec4 vColor;
 
         uniform vec4 _BaseColor;
+        uniform float _BaseColorUVSet;
+        uniform float _MetallicRoughnessUVSet;
+        uniform float _NormalUVSet;
+        uniform float _OcclusionUVSet;
+        uniform float _EmissiveUVSet;
         uniform float _Metallic;
         uniform float _Roughness;
         uniform float _NormalScale;
@@ -278,16 +287,22 @@ public static class MaterialShaders
             return (diffuse + specular) * radiance * nDotL * PI;
         }
 
+        // The UV set a map samples: 0 (default) or 1.
+        vec2 uvSet(float set)
+        {
+            return set > 0.5 ? vTexCoord1 : vTexCoord;
+        }
+
         void main()
         {
-            vec4 base = texture(_BaseColorMap, vTexCoord) * _BaseColor * vColor;
+            vec4 base = texture(_BaseColorMap, uvSet(_BaseColorUVSet)) * _BaseColor * vColor;
             if (base.a < _AlphaCutoff)
             {
                 discard;
             }
 
-            float occlusion = mix(1.0, texture(_OcclusionMap, vTexCoord).r, _OcclusionStrength);
-            vec3 emission = texture(_EmissiveMap, vTexCoord).rgb * _EmissiveColor.rgb;
+            float occlusion = mix(1.0, texture(_OcclusionMap, uvSet(_OcclusionUVSet)).r, _OcclusionStrength);
+            vec3 emission = texture(_EmissiveMap, uvSet(_EmissiveUVSet)).rgb * _EmissiveColor.rgb;
             if (uAmbient.w < 0.5)
             {
                 // Unlit scene (no lights): the surface at full brightness.
@@ -295,7 +310,7 @@ public static class MaterialShaders
                 return;
             }
 
-            vec4 metallicRoughness = texture(_MetallicRoughnessMap, vTexCoord);
+            vec4 metallicRoughness = texture(_MetallicRoughnessMap, uvSet(_MetallicRoughnessUVSet));
             float metallic = clamp(_Metallic * metallicRoughness.b, 0.0, 1.0);
             float roughness = clamp(_Roughness * metallicRoughness.g, 0.04, 1.0);
 
@@ -305,7 +320,7 @@ public static class MaterialShaders
             {
                 tangent = normalize(tangent);
                 vec3 bitangent = cross(n, tangent) * (vTangent.w < 0.0 ? -1.0 : 1.0);
-                vec3 mapped = texture(_NormalMap, vTexCoord).xyz * 2.0 - 1.0;
+                vec3 mapped = texture(_NormalMap, uvSet(_NormalUVSet)).xyz * 2.0 - 1.0;
                 mapped.xy *= _NormalScale;
                 n = normalize(mat3(tangent, bitangent, n) * mapped);
             }
@@ -362,15 +377,17 @@ public static class MaterialShaders
         #version 450 core
         layout(location = 0) in vec3 aPosition;
         layout(location = 3) in vec2 aTexCoord;
+        layout(location = 4) in vec2 aTexCoord1;
 
         uniform mat4 uViewProjection;
         uniform mat4 uModel;
+        uniform float _BaseColorUVSet;
 
         out vec2 vTexCoord;
 
         void main()
         {
-            vTexCoord = aTexCoord;
+            vTexCoord = _BaseColorUVSet > 0.5 ? aTexCoord1 : aTexCoord;
             gl_Position = uViewProjection * uModel * vec4(aPosition, 1.0);
         }
         """,
@@ -447,9 +464,11 @@ public static class MaterialShaders
         in vec3 vNormal;
         in vec4 vTangent;
         in vec2 vTexCoord;
+        in vec2 vTexCoord1;
         in vec4 vColor;
 
         uniform vec4 _BaseColor;
+        uniform float _BaseColorUVSet;
         uniform float _AlphaCutoff;
         uniform sampler2D _BaseColorMap;
 
@@ -457,7 +476,7 @@ public static class MaterialShaders
 
         void main()
         {
-            vec4 color = texture(_BaseColorMap, vTexCoord) * _BaseColor * vColor;
+            vec4 color = texture(_BaseColorMap, _BaseColorUVSet > 0.5 ? vTexCoord1 : vTexCoord) * _BaseColor * vColor;
             if (color.a < _AlphaCutoff)
             {
                 discard;
@@ -483,10 +502,17 @@ public static class MaterialShaders
         new("_EmissiveColor", "Emission", MaterialPropertyUI.HdrColor, new Vector4(0f, 0f, 0f, 1f)),
         new("_EmissiveMap", "Emission map", MaterialPropertyUI.Texture, One),
         new("_AlphaCutoff", "Alpha cutoff", MaterialPropertyUI.Range, new Vector4(0f, 0f, 0f, 0f), Tooltip: "Pixels with lower alpha are discarded (0 = off). Above 0 the material draws in the cutout queue."),
+        new("_BaseColorUVSet", "Base color UV set", MaterialPropertyUI.Range, default, Tooltip: UVSetTooltip),
+        new("_MetallicRoughnessUVSet", "Metallic-roughness UV set", MaterialPropertyUI.Range, default, Tooltip: UVSetTooltip),
+        new("_NormalUVSet", "Normal map UV set", MaterialPropertyUI.Range, default, Tooltip: UVSetTooltip),
+        new("_OcclusionUVSet", "Occlusion UV set", MaterialPropertyUI.Range, default, Tooltip: UVSetTooltip),
+        new("_EmissiveUVSet", "Emission UV set", MaterialPropertyUI.Range, default, Tooltip: UVSetTooltip),
     ];
 
+    private const string UVSetTooltip = "0 samples the map with the mesh's first UV set, 1 with the second (lightmap or detail UVs).";
+
     public static IReadOnlyList<MaterialPropertyInfo> UnlitProperties { get; } =
-        [.. StandardProperties.Where(p => p.Name is "_BaseColor" or "_BaseColorMap" or "_AlphaCutoff")];
+        [.. StandardProperties.Where(p => p.Name is "_BaseColor" or "_BaseColorMap" or "_AlphaCutoff" or "_BaseColorUVSet")];
 
     /// <summary>The documented properties of a built-in shader id (<c>builtin:standard</c>, <c>builtin:unlit</c>); empty otherwise.</summary>
     public static IReadOnlyList<MaterialPropertyInfo> PropertiesOf(string? builtin) => builtin switch

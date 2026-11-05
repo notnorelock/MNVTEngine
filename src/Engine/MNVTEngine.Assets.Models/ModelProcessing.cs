@@ -80,6 +80,33 @@ internal static class ModelProcessing
         }
 
         model.Meshes.RemoveAll(m => m.Mesh.Validate().Count > 0);
+        foreach (var (alias, current) in settings.MeshAliases)
+        {
+            if (model.Meshes.Exists(m => m.Name == alias))
+            {
+                warnings.Add($"The mesh alias '{alias}' is a mesh of the model again; the alias is ignored.");
+            }
+            else if (model.Meshes.Exists(m => m.Name == current))
+            {
+                model.MeshAliases[alias] = current;
+            }
+            else
+            {
+                warnings.Add($"The mesh alias '{alias}' points to '{current}', which is not a mesh of the model; it is ignored.");
+            }
+        }
+
+        foreach (var mesh in model.Meshes.Where(m => m.Mesh.UV1 is null))
+        {
+            foreach (var material in mesh.SubMeshMaterials.Where(i => i >= 0 && i < model.Materials.Count).Select(i => model.Materials[i]).Distinct())
+            {
+                if (material.UVSets.Values.Any(set => set == 1))
+                {
+                    warnings.Add($"Material '{material.Name}' samples a texture with UV set 1, which mesh '{mesh.Name}' does not have.");
+                }
+            }
+        }
+
         foreach (var material in model.Materials)
         {
             if (!material.Textures.ContainsKey(TextureRole.MetallicRoughness)
@@ -117,6 +144,9 @@ internal static class ModelProcessing
 
     private static string Clean(string? name) =>
         new string((name ?? "").Trim().Select(c => c is '#' or '"' or '/' or '\\' || char.IsControl(c) ? '_' : c).ToArray());
+
+    /// <summary>A linear color component (glTF light colors) to sRGB (engine colors).</summary>
+    public static float LinearToSrgb(float c) => c <= 0.0031308f ? 12.92f * c : (1.055f * MathF.Pow(c, 1f / 2.4f)) - 0.055f;
 
     /// <summary>The roughness that matches a Phong specular exponent (Blinn-Phong to GGX approximation).</summary>
     public static float RoughnessFromShininess(float shininess) => shininess <= 0f ? 1f : Mathf.Clamp01(MathF.Sqrt(2f / (shininess + 2f)));

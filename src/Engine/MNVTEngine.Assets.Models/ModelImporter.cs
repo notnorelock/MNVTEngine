@@ -27,6 +27,15 @@ public sealed record ModelImportSettings
 
     public bool ImportSkins { get; init; } = true;
 
+    /// <summary>Lights in the file become <c>Light</c> components when the model is added to a scene.</summary>
+    public bool ImportLights { get; init; } = true;
+
+    /// <summary>Cameras in the file become (disabled) <c>Camera</c> components when the model is added to a scene.</summary>
+    public bool ImportCameras { get; init; } = true;
+
+    /// <summary>Old mesh names to current ones, so references to a mesh renamed in the source keep working (Relink).</summary>
+    public IReadOnlyDictionary<string, string> MeshAliases { get; init; } = new SortedDictionary<string, string>(StringComparer.Ordinal);
+
     /// <summary>Source material name to the project material used instead (Extract Materials, Remap).</summary>
     public IReadOnlyDictionary<string, Guid> Materials { get; init; } = new SortedDictionary<string, Guid>(StringComparer.Ordinal);
 
@@ -96,9 +105,30 @@ public sealed record ModelImportSettings
             return result;
         }
 
+        var aliases = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        if (settings["meshAliases"] is JObject aliasTable)
+        {
+            foreach (var property in aliasTable.Properties())
+            {
+                if (property.Value.Type == JTokenType.String && ((string)property.Value!) is { Length: > 0 } current && current != property.Name)
+                {
+                    aliases[property.Name] = current;
+                }
+                else
+                {
+                    problems?.Add($"'meshAliases.{property.Name}' must name another mesh; removed.");
+                }
+            }
+        }
+        else if (settings["meshAliases"] is not null)
+        {
+            problems?.Add("'meshAliases' must be an object of old name: \"current name\"; reset.");
+        }
+
         return new ModelImportSettings
         {
             Materials = Remaps("materials"),
+            MeshAliases = aliases,
             Textures = Remaps("textures"),
             Scale = scale,
             GenerateMissingNormals = Bool("generateMissingNormals", defaults.GenerateMissingNormals),
@@ -107,6 +137,8 @@ public sealed record ModelImportSettings
             ImportMaterials = Bool("importMaterials", defaults.ImportMaterials),
             ImportAnimations = Bool("importAnimations", defaults.ImportAnimations),
             ImportSkins = Bool("importSkins", defaults.ImportSkins),
+            ImportLights = Bool("importLights", defaults.ImportLights),
+            ImportCameras = Bool("importCameras", defaults.ImportCameras),
         };
     }
 
@@ -119,6 +151,9 @@ public sealed record ModelImportSettings
         ["importMaterials"] = ImportMaterials,
         ["importAnimations"] = ImportAnimations,
         ["importSkins"] = ImportSkins,
+        ["importLights"] = ImportLights,
+        ["importCameras"] = ImportCameras,
+        ["meshAliases"] = new JObject(MeshAliases.Select(p => new JProperty(p.Key, p.Value))),
         ["materials"] = new JObject(Materials.Select(p => new JProperty(p.Key, AssetPrefix + p.Value.ToString("D")))),
         ["textures"] = new JObject(Textures.Select(p => new JProperty(p.Key, AssetPrefix + p.Value.ToString("D")))),
     };
@@ -207,6 +242,8 @@ public sealed class ModelImporter(IReadOnlyList<IModelReader> readers) : IAssetI
         context.Properties["textures"] = model.Textures.Count.ToString(culture);
         context.Properties["skins"] = model.Skins.Count.ToString(culture);
         context.Properties["animations"] = model.Animations.Count.ToString(culture);
+        context.Properties["lights"] = model.Lights.Count.ToString(culture);
+        context.Properties["cameras"] = model.Cameras.Count.ToString(culture);
     }
 }
 

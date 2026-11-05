@@ -19,11 +19,12 @@ project so the runtime can read it without the importer):
 - **Materials,** metallic-roughness: base color, metallic, roughness, emission, normal scale, occlusion strength, alpha mode (opaque, mask, blend), double-sided, and textures by role.
 - **Textures:** a project texture (by GUID), an image embedded in the file, or an unresolved source path.
 - **Skins** (joints and inverse bind matrices) and **animations** (translation, rotation, scale and blend shape weight channels; step, linear or cubic spline). They play with [`ModelAnimator`](#animation-and-skinning).
+- **Lights and cameras** on nodes. See [Lights and cameras](#lights-and-cameras).
 
 Names are made unique (`Body`, `Body_1`, ...) and stripped of `#`, `/`, `\` and `"`, so they are safe in references.
 FBX meshes are named after their node (the object name in the modelling tool), not the FBX geometry name, which tools
 rename freely; glTF meshes keep their mesh names. A renamed node or mesh breaks references to it: they log a warning
-and draw nothing until they are re-pointed.
+and draw nothing until they are relinked (see [Relinking renamed meshes](#relinking-renamed-meshes)).
 
 ## Import settings
 
@@ -35,9 +36,10 @@ Stored in the model's `.meta` under `settings`; invalid values are reported and 
 | `generateMissingNormals` | true | Smooth normals for meshes without any. |
 | `generateTangents` | true | Tangents for meshes with normals and UVs (needed by normal maps). |
 | `optimizeMeshes` | true | FBX: merge identical vertices, reorder for the vertex cache. |
-| `importMaterials`, `importSkins`, `importAnimations` | true | Skip that part of the file. |
+| `importMaterials`, `importSkins`, `importAnimations`, `importLights`, `importCameras` | true | Skip that part of the file. |
 | `materials` | `{}` | Source material name to `"asset:<guid>"` of a `.mnvtmat` used instead (Extract Materials, Remap). |
 | `textures` | `{}` | Model texture name to `"asset:<guid>"` of a project texture used instead (Extract Textures). |
+| `meshAliases` | `{}` | Old mesh name to a current mesh name, so references to the old name keep drawing (Relink). |
 
 ## Textures
 
@@ -63,6 +65,12 @@ up once it is copied in. Textures embedded in the file stay in the artifact unti
 A texture listed in the `textures` remap table is replaced by that project texture, and its problem is no longer
 reported. Texture names are unique within the model (`diffuse`, `diffuse_1`, ...).
 
+**UV sets.** Each map samples the UV set its source chooses: glTF `texCoord`, FBX through Assimp's UV source. The
+Standard shader has a property per map (`_BaseColorUVSet`, `_MetallicRoughnessUVSet`, `_NormalUVSet`,
+`_OcclusionUVSet`, `_EmissiveUVSet`): 0 (the default) samples the first UV set, 1 the second. The Unlit shader has
+`_BaseColorUVSet`. Imported materials, extracted `.mnvtmat` files and the shadows of cutout materials keep the sets.
+A map on set 1 of a mesh without a second UV set is reported; a set above 1 is reported and sampled with set 0.
+
 ## Model inspector
 
 Select a model in the Project panel. The inspector shows its import messages and facts, then:
@@ -75,11 +83,23 @@ Select a model in the Project panel. The inspector shows its import messages and
   - **Extract Materials** writes `<Model>_<Material>.mnvtmat` (Standard shader, the imported values and textures) into a `Materials` folder next to the model. Embedded textures are extracted first, because a material file can only reference project textures. Existing files are reused and never overwritten, so extracting again creates no duplicates and keeps your edits.
   - **Reset remaps** draws the imported materials again; extracted files stay.
 - **Textures:** project, embedded or missing. **Extract Textures** writes embedded images, and images found outside `Assets/`, as `<Model>_<Texture>.<ext>` into a `Textures` folder next to the model. Identical images are written once. A different file already at that path gets a content-hash suffix. EXR and other formats the engine cannot read are skipped and reported.
-- **Meshes, skins and animations,** with vertex, triangle, joint and channel counts.
+- **Meshes, skins, animations, lights and cameras,** with vertex, triangle, joint and channel counts.
+- **Relink meshes:** see below.
 
 All of it is `ModelWorkflow` (Editor.Services, UI-free and tested). Every change goes through the model's meta and a
 reimport; source files are never modified. A remap whose source material or texture no longer exists is reported as
 a warning (renamed in the source?) and ignored. A remap target that cannot be loaded falls back to the imported material.
+
+## Relinking renamed meshes
+
+Scenes reference model meshes by name (`asset:<guid>#mesh/<name>`). When a mesh is renamed in the source file, those
+references draw nothing. In the model inspector, **Relink meshes > Find missing references** scans the saved scenes and
+prefabs for mesh names the model no longer has, and lists the files using each. **Point at...** picks the current
+mesh. The model gets a `meshAliases` entry (old name to current name), and the references resolve again without
+editing the scenes. **Remove** deletes an alias.
+
+An alias whose old name is a mesh of the model again, or whose target is not a mesh, is reported and ignored.
+`ModelWorkflow.FindMissingMeshReferences` and `Relink` do the same from code.
 
 ## Artifacts
 
@@ -106,6 +126,23 @@ Who imports:
   - With `Material` empty, each submesh uses the model's material: the remapped `.mnvtmat` if there is one, else the imported material on the Standard shader. `Material` set draws every submesh with it.
   - A missing model or mesh logs one warning and draws nothing.
 - **At runtime.** `ResourceCache.GetModel`, `GetModelMesh` and `GetModelMaterial` read the artifact on first use. Reimports evict the model, its materials, its embedded textures and its GPU meshes.
+
+## Lights and cameras
+
+Lights (glTF `KHR_lights_punctual`, FBX lights through Assimp) and cameras are kept with their nodes. Adding the model
+to a scene gives the node's GameObject a `Light` or a `Camera`. A light or camera that points another way than the
+engine's -Z goes on a child GameObject with that rotation.
+
+- **Lights** are directional, point or spot. Ambient and area lights are reported and skipped.
+  - glTF colors are linear and become sRGB, like every engine color.
+  - Intensity: directional lights keep their glTF lux (Blender writes its sun strength unchanged).
+  - Point and spot lights get candela × 4π / 683 / 1000, so a 1000 W Blender lamp has intensity 1.
+  - FBX folds intensity into the color; the brightest channel becomes the intensity (100% is 1).
+  - Range: the file's range. Without one (glTF: infinite), the range is where an inverse-square light of that intensity has faded to 1%: √(intensity × 100), at least 1 m.
+  - Spot cones: glTF half angles become the engine's full angles. FBX angles are full angles already.
+- **Cameras** are perspective (vertical field of view) or orthographic (half height), with their clip planes. An infinite far plane becomes 1000.
+  - Assimp gives the horizontal field of view. The engine converts it with the camera's aspect, or 16:9 when the file has none.
+  - Cameras are added **disabled**, so they do not take over the scene's main camera. Enable one to look through it.
 
 ## Animation and skinning
 
@@ -154,6 +191,4 @@ squash and stretch.
 
 - **Animation state machines** (graphs of states and transitions): drive `Play`, `CrossFade` and layers from game code.
 - **Root motion rotation** (turning in place from the animation).
-- **Lights and cameras** in model files are reported and skipped.
 - **Metallic and roughness maps** are used only as a combined glTF-style map; separate FBX maps are not combined.
-- **Texture UV sets.** Textures on UV set 1 are sampled with UV set 0 (a warning says so).

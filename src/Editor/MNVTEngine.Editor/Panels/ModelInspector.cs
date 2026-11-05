@@ -20,7 +20,8 @@ namespace MNVTEngine.Editor.Panels;
 /// <item>import settings with Apply and Revert;</item>
 /// <item>materials: imported, extracted or remapped, with Extract Materials, per-material Remap and Reset;</item>
 /// <item>textures: project, embedded or missing, with Extract Textures;</item>
-/// <item>meshes, skins and animations; Add to scene.</item>
+/// <item>meshes, skins, animations, lights and cameras; Add to scene;</item>
+/// <item>relinking references to meshes renamed in the source (mesh aliases).</item>
 /// </list>
 /// Every change goes through <see cref="ModelWorkflow"/>, which writes the model's meta and reimports it.
 /// </summary>
@@ -35,6 +36,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
     private ModelImportSettings _settings = new();
     private ModelImportSettings _applied = new();
     private List<string> _report = [];
+    private IReadOnlyList<MissingMeshReference>? _missing;
     private ViewTarget? _preview;
     private GpuMeshCache? _meshes;
     private Renderer3D? _renderer;
@@ -70,6 +72,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
             DrawMaterials(workflow, model);
             DrawTextures(workflow, model);
             DrawContents(model);
+            DrawRelink(workflow, model);
         }
         else
         {
@@ -182,6 +185,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         if (_workflow?.Guid != guid)
         {
             _report = [];
+            _missing = null;
             (_yaw, _pitch, _zoom) = (30f, 20f, 1f);
         }
 
@@ -254,6 +258,8 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         Toggle("Import materials", _settings.ImportMaterials, v => _settings = _settings with { ImportMaterials = v });
         Toggle("Import skins", _settings.ImportSkins, v => _settings = _settings with { ImportSkins = v });
         Toggle("Import animations", _settings.ImportAnimations, v => _settings = _settings with { ImportAnimations = v });
+        Toggle("Import lights", _settings.ImportLights, v => _settings = _settings with { ImportLights = v });
+        Toggle("Import cameras", _settings.ImportCameras, v => _settings = _settings with { ImportCameras = v });
 
         var dirty = _settings.ToJson().ToString() != _applied.ToJson().ToString();
         ImGui.BeginDisabled(!dirty);
@@ -379,7 +385,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
 
     private static void DrawContents(ModelData model)
     {
-        if (!ImGui.CollapsingHeader($"Meshes ({model.Meshes.Count}), skins ({model.Skins.Count}), animations ({model.Animations.Count})"))
+        if (!ImGui.CollapsingHeader($"Meshes ({model.Meshes.Count}), skins ({model.Skins.Count}), animations ({model.Animations.Count}), lights ({model.Lights.Count}), cameras ({model.Cameras.Count})"))
         {
             return;
         }
@@ -397,6 +403,84 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         foreach (var animation in model.Animations)
         {
             Gui.Bullet($"animation {animation.Name}: {animation.Duration:0.##} s, {animation.Channels.Count} channels");
+        }
+
+        foreach (var light in model.Lights)
+        {
+            Gui.Bullet($"light {light.Name}: {light.Type}, intensity {light.Intensity:0.###} on {model.Nodes[light.Node].Name}");
+        }
+
+        foreach (var camera in model.Cameras)
+        {
+            Gui.Bullet($"camera {camera.Name}: {(camera.Orthographic ? $"orthographic, size {camera.OrthographicSize:0.##}" : $"perspective, {camera.FieldOfView:0.#} degrees")} on {model.Nodes[camera.Node].Name}");
+        }
+    }
+
+    private void DrawRelink(ModelWorkflow workflow, ModelData model)
+    {
+        if (!ImGui.CollapsingHeader($"Relink meshes ({model.MeshAliases.Count} alias(es))"))
+        {
+            return;
+        }
+
+        Gui.TextWrapped("A mesh renamed in the source file breaks the scene references to its old name; they draw nothing. Find them and point the old name at a current mesh.");
+        if (ImGui.Button("Find missing references"))
+        {
+            Run("Find missing mesh references", () => _missing = workflow.FindMissingMeshReferences());
+        }
+
+        if (ImGui.IsItemHovered())
+        {
+            Gui.Tooltip("Scans the saved scenes and prefabs of the project; save open scenes first.");
+        }
+
+        if (_missing is { Count: 0 })
+        {
+            Gui.Muted("Every saved reference to this model's meshes resolves.");
+        }
+
+        foreach (var reference in _missing ?? [])
+        {
+            ImGui.PushID(reference.Mesh);
+            Gui.TextColored(Warning, $"mesh/{reference.Mesh}");
+            ImGui.SameLine();
+            Gui.Muted($"used by {string.Join(", ", reference.UsedBy)}");
+            if (ImGui.Button("Point at...", new SysVector2(ImGui.GetContentRegionAvail().X, 0f)))
+            {
+                ImGui.OpenPopup("relink");
+            }
+
+            if (ImGui.BeginPopup("relink"))
+            {
+                foreach (var mesh in model.Meshes)
+                {
+                    if (ImGui.MenuItem($"mesh/{mesh.Name}"))
+                    {
+                        Run($"Relink {reference.Mesh}", () =>
+                        {
+                            _report = [.. workflow.Relink(reference.Mesh, mesh.Name)];
+                            _missing = workflow.FindMissingMeshReferences();
+                        });
+                    }
+                }
+
+                ImGui.EndPopup();
+            }
+
+            ImGui.PopID();
+        }
+
+        foreach (var (alias, current) in model.MeshAliases)
+        {
+            ImGui.PushID(alias);
+            Gui.Bullet($"mesh/{alias} -> mesh/{current}");
+            ImGui.SameLine();
+            if (ImGui.SmallButton("Remove"))
+            {
+                Run($"Remove the mesh alias {alias}", () => _report = [.. workflow.Relink(alias, null)]);
+            }
+
+            ImGui.PopID();
         }
     }
 

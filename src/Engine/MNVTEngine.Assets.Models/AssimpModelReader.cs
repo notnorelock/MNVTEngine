@@ -48,7 +48,8 @@ public sealed unsafe class AssimpModelReader : IModelReader
             api.SetImportPropertyInteger(store, "AI_CONFIG_PP_LBW_MAX_WEIGHTS", 4);
             fixed (byte* data = source.Data)
             {
-                scene = api.ImportFileFromMemoryWithProperties(data, (uint)source.Data.Length, (uint)flags, "fbx", store);
+                // The format hint is the file's extension: FBX for imports (the only extension offered); tests feed other formats.
+                scene = api.ImportFileFromMemoryWithProperties(data, (uint)source.Data.Length, (uint)flags, source.Extension.TrimStart('.'), store);
             }
         }
         finally
@@ -89,7 +90,7 @@ public sealed unsafe class AssimpModelReader : IModelReader
         {
             for (var i = 0; i < scene->MNumMaterials; i++)
             {
-                model.Materials.Add(ConvertMaterial(api, scene, scene->MMaterials[i], materialNames[i], model, textures, embeddedIndex));
+                model.Materials.Add(ConvertMaterial(api, scene, scene->MMaterials[i], materialNames[i], model, textures, embeddedIndex, warnings));
             }
         }
 
@@ -174,17 +175,93 @@ public sealed unsafe class AssimpModelReader : IModelReader
             }
         }
 
-        if (scene->MNumLights > 0)
+        if (settings.ImportLights)
         {
-            warnings.Add($"The file has {scene->MNumLights} light(s); lights are not imported.");
+            ConvertLights(scene, model, nodeIndex, warnings);
         }
 
-        if (scene->MNumCameras > 0)
+        if (settings.ImportCameras)
         {
-            warnings.Add($"The file has {scene->MNumCameras} camera(s); cameras are not imported.");
+            ConvertCameras(scene, model, nodeIndex, warnings);
         }
 
         return model;
+    }
+
+    /// <summary>
+    /// Assimp lights hang on the node of the same name, with a direction in that node's space. FBX intensity is folded into
+    /// the color (100% gives 1), so the brightest channel becomes the intensity; cone angles are full angles in radians.
+    /// </summary>
+    private static void ConvertLights(AiScene* scene, ModelData model, Dictionary<string, int> nodeIndex, ICollection<string> warnings)
+    {
+        var names = ModelProcessing.UniqueNames(Enumerable.Range(0, (int)scene->MNumLights).Select(i => scene->MLights[i]->MName.AsString), "Light");
+        for (var i = 0; i < scene->MNumLights; i++)
+        {
+            var light = scene->MLights[i];
+            var type = light->MType switch
+            {
+                LightSourceType.Directional => ModelLightType.Directional,
+                LightSourceType.Point => ModelLightType.Point,
+                LightSourceType.Spot => ModelLightType.Spot,
+                _ => (ModelLightType?)null,
+            };
+            if (type is null)
+            {
+                warnings.Add($"Light '{names[i]}' is a {light->MType} light, which the engine does not have; it is not imported.");
+                continue;
+            }
+
+            if (!nodeIndex.TryGetValue(light->MName.AsString, out var node))
+            {
+                warnings.Add($"Light '{names[i]}' has no node of its name; it is not imported.");
+                continue;
+            }
+
+            var c = light->MColorDiffuse;
+            var intensity = MathF.Max(c.X, MathF.Max(c.Y, c.Z));
+            var color = intensity > 0f ? new Color(c.X / intensity, c.Y / intensity, c.Z / intensity, 1f) : Color.White;
+            var outer = type == ModelLightType.Spot && light->MAngleOuterCone > 0f ? Math.Clamp(light->MAngleOuterCone * Mathf.Rad2Deg, 1f, 179f) : 30f;
+            var inner = type == ModelLightType.Spot ? Math.Clamp(light->MAngleInnerCone * Mathf.Rad2Deg, 0f, outer) : outer * 0.7f;
+            model.Lights.Add(new ModelLight(names[i], node, type.Value, color, intensity, null, outer, inner, ToForward(V3(light->MDirection), V3(light->MUp))));
+        }
+    }
+
+    /// <summary>
+    /// Assimp cameras: a look-at direction and up in the node's space, and the horizontal field of view in radians. Assimp
+    /// documents it as the half angle, but its FBX and glTF importers store the full angle.
+    /// </summary>
+    private static void ConvertCameras(AiScene* scene, ModelData model, Dictionary<string, int> nodeIndex, ICollection<string> warnings)
+    {
+        var names = ModelProcessing.UniqueNames(Enumerable.Range(0, (int)scene->MNumCameras).Select(i => scene->MCameras[i]->MName.AsString), "Camera");
+        for (var i = 0; i < scene->MNumCameras; i++)
+        {
+            var camera = scene->MCameras[i];
+            if (!nodeIndex.TryGetValue(camera->MName.AsString, out var node))
+            {
+                warnings.Add($"Camera '{names[i]}' has no node of its name; it is not imported.");
+                continue;
+            }
+
+            var aspect = camera->MAspect > 0f ? camera->MAspect : 16f / 9f; // unknown aspect: assume widescreen
+            var near = camera->MClipPlaneNear > 0f ? camera->MClipPlaneNear : 0.1f;
+            var far = camera->MClipPlaneFar > near ? camera->MClipPlaneFar : MathF.Max(1000f, near * 10f);
+            var vertical = 2f * MathF.Atan(MathF.Tan(camera->MHorizontalFOV / 2f) / aspect) * Mathf.Rad2Deg;
+            var orthographic = camera->MOrthographicWidth > 0f;
+            model.Cameras.Add(new ModelCamera(names[i], node, orthographic, Math.Clamp(float.IsFinite(vertical) && vertical > 0f ? vertical : 60f, 1f, 179f),
+                orthographic ? camera->MOrthographicWidth / aspect : 5f, near, far, ToForward(V3(camera->MLookAt), V3(camera->MUp))));
+        }
+    }
+
+    /// <summary>The rotation that turns the engine's forward (-Z) and up (+Y) to a source direction and up.</summary>
+    private static Quaternion ToForward(Vector3 direction, Vector3 up)
+    {
+        if (direction.SqrMagnitude < 1e-12f)
+        {
+            return Quaternion.Identity;
+        }
+
+        var rotation = Quaternion.LookRotation(direction, up.SqrMagnitude < 1e-12f ? Vector3.Up : up);
+        return MathF.Abs(rotation.W) > 0.99999f ? Quaternion.Identity : rotation;
     }
 
     private static ModelMesh ConvertMesh(List<nint> parts, string name, ModelImportSettings settings, ICollection<string> warnings)
@@ -511,7 +588,7 @@ public sealed unsafe class AssimpModelReader : IModelReader
         return result;
     }
 
-    private static ModelMaterial ConvertMaterial(Assimp api, AiScene* scene, AiMaterial* source, string name, ModelData model, TextureResolver textures, Dictionary<int, int> embeddedIndex)
+    private static ModelMaterial ConvertMaterial(Assimp api, AiScene* scene, AiMaterial* source, string name, ModelData model, TextureResolver textures, Dictionary<int, int> embeddedIndex, ICollection<string> warnings)
     {
         var material = new ModelMaterial(name);
         var pbr = TryFloat(api, source, "$mat.metallicFactor") is not null || TryFloat(api, source, "$mat.roughnessFactor") is not null;
@@ -559,7 +636,8 @@ public sealed unsafe class AssimpModelReader : IModelReader
             }
 
             AssimpString path;
-            if (api.GetMaterialTexture(source, type, 0, &path, null, null, null, null, null, null) != Return.Success)
+            uint uvSet = 0;
+            if (api.GetMaterialTexture(source, type, 0, &path, null, &uvSet, null, null, null, null) != Return.Success)
             {
                 continue;
             }
@@ -591,6 +669,14 @@ public sealed unsafe class AssimpModelReader : IModelReader
             }
 
             material.Textures[role] = index;
+            if (uvSet == 1)
+            {
+                material.UVSets[role] = 1;
+            }
+            else if (uvSet > 1)
+            {
+                warnings.Add($"Material '{name}': the {role} texture uses UV set {uvSet}; the engine has UV sets 0 and 1 and samples set 0.");
+            }
         }
 
         if (material.Textures.ContainsKey(TextureRole.Opacity) && material.AlphaMode == ModelAlphaMode.Opaque)

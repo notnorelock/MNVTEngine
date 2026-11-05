@@ -133,6 +133,11 @@ public sealed partial class ResourceCache
             {
                 material.SetTexture(property, texture);
             }
+
+            if (source.UVSets.TryGetValue(role, out var set))
+            {
+                material.SetFloat(ModelMaterialSlots.UVSetProperty(property), set);
+            }
         }
 
         MaterialShaders.ApplyDefaults(material, MaterialShaders.StandardProperties, GetDefaultTexture);

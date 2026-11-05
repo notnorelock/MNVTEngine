@@ -96,6 +96,28 @@ public class VulkanLightingTests
     });
 
     [Fact]
+    public void TextureMaps_SampleTheUVSetTheMaterialChooses() => Run(device =>
+    {
+        using var floor = new Floor(device, Color.White);
+        using var redGreen = device.CreateTexture(2, 1, [255, 0, 0, 255, 0, 255, 0, 255], SamplerState.PointClamp);
+        floor.Material.SetTexture("_BaseColorMap", redGreen);
+        // UV0 is (0, 0) everywhere (red); UV1 spans the texture, so the two halves of the view differ.
+        var plane = MeshPrimitives.Plane();
+        plane.UV1 = plane.UV0;
+        plane.UV0 = new Vector2[plane.VertexCount];
+        var raised = floor.Item(plane, Matrix4x4.Translate(new Vector3(0f, 0.5f, 0f)));
+
+        var uv0 = floor.Render(null, raised);
+        AssertColor(Color.Red, Pixel(uv0, Size, Size / 4, Size / 2));
+        AssertColor(Color.Red, Pixel(uv0, Size, Size * 3 / 4, Size / 2));
+
+        floor.Material.SetFloat("_BaseColorUVSet", 1f);
+        var uv1 = floor.Render(null, raised);
+        Assert.NotEqual(Pixel(uv1, Size, Size / 4, Size / 2), Pixel(uv1, Size, Size * 3 / 4, Size / 2));
+        Assert.Contains(Color.Green, new[] { Pixel(uv1, Size, Size / 4, Size / 2), Pixel(uv1, Size, Size * 3 / 4, Size / 2) });
+    });
+
+    [Fact]
     public void DirectionalLight_LightsSurfacesFacingIt_AndNotThoseFacingAway() => Run(device =>
     {
         using var floor = new Floor(device, Color.White);

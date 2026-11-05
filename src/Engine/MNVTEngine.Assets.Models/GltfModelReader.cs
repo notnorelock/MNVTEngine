@@ -146,12 +146,59 @@ public sealed class GltfModelReader : IModelReader
             }
         }
 
-        if (root.LogicalCameras.Count > 0)
+        var lightNames = ModelProcessing.UniqueNames(order.Select(o => o.Node.PunctualLight?.Name), "Light");
+        var cameraNames = ModelProcessing.UniqueNames(order.Select(o => o.Node.Camera?.Name), "Camera");
+        for (var i = 0; i < order.Count; i++)
         {
-            warnings.Add($"The file has {root.LogicalCameras.Count} camera(s); cameras are not imported.");
+            if (settings.ImportLights && order[i].Node.PunctualLight is { } light)
+            {
+                model.Lights.Add(ConvertLight(light, lightNames[i], i + 1));
+            }
+
+            if (settings.ImportCameras && order[i].Node.Camera is { } camera)
+            {
+                model.Cameras.Add(ConvertCamera(camera, cameraNames[i], i + 1));
+            }
         }
 
         return model;
+    }
+
+    /// <summary>KHR_lights_punctual: linear color to sRGB, photometric intensity to engine units (see <see cref="ModelLight"/>).</summary>
+    private static ModelLight ConvertLight(SharpGLTF.Schema2.PunctualLight light, string name, int node)
+    {
+        var type = light.LightType switch
+        {
+            PunctualLightType.Directional => ModelLightType.Directional,
+            PunctualLightType.Spot => ModelLightType.Spot,
+            _ => ModelLightType.Point,
+        };
+        var color = new Color(ModelProcessing.LinearToSrgb(light.Color.X), ModelProcessing.LinearToSrgb(light.Color.Y), ModelProcessing.LinearToSrgb(light.Color.Z), 1f);
+        var intensity = type == ModelLightType.Directional ? light.Intensity : light.Intensity * 4f * MathF.PI / 683f / 1000f;
+        float? range = light.Range > 0f && float.IsFinite(light.Range) ? light.Range : null;
+        // glTF cone angles are half angles in radians; the engine's are full angles in degrees.
+        var outer = type == ModelLightType.Spot ? 2f * light.OuterConeAngle * Mathf.Rad2Deg : 30f;
+        var inner = type == ModelLightType.Spot ? 2f * light.InnerConeAngle * Mathf.Rad2Deg : outer * 0.7f;
+        return new ModelLight(name, node, type, color, MathF.Max(0f, intensity), range, outer, inner, Quaternion.Identity);
+    }
+
+    private static ModelCamera ConvertCamera(SharpGLTF.Schema2.Camera camera, string name, int node)
+    {
+        static (float Near, float Far) Clip(float near, float far)
+        {
+            near = near > 0f && float.IsFinite(near) ? near : 0.1f;
+            return (near, float.IsFinite(far) && far > near ? far : MathF.Max(1000f, near * 10f)); // an infinite far plane is capped
+        }
+
+        if (camera.Settings is CameraOrthographic orthographic)
+        {
+            var (near, far) = Clip(orthographic.ZNear, orthographic.ZFar);
+            return new ModelCamera(name, node, true, 60f, MathF.Max(0.001f, orthographic.YMag), near, far, Quaternion.Identity);
+        }
+
+        var perspective = (CameraPerspective)camera.Settings;
+        var (pNear, pFar) = Clip(perspective.ZNear, perspective.ZFar);
+        return new ModelCamera(name, node, false, Math.Clamp(perspective.VerticalFOV * Mathf.Rad2Deg, 1f, 179f), 5f, pNear, pFar, Quaternion.Identity);
     }
 
     private static ModelMesh? ConvertMesh(GltfMesh source, string name, ModelImportSettings settings, ICollection<string> warnings)
@@ -322,9 +369,13 @@ public sealed class GltfModelReader : IModelReader
                 return null;
             }
 
-            if (channel.Value.TextureCoordinate != 0)
+            if (channel.Value.TextureCoordinate is 1)
             {
-                warnings.Add($"Material '{name}': the {role} texture uses UV set {channel.Value.TextureCoordinate}; the engine samples UV set 0.");
+                material.UVSets[role] = 1;
+            }
+            else if (channel.Value.TextureCoordinate > 1)
+            {
+                warnings.Add($"Material '{name}': the {role} texture uses UV set {channel.Value.TextureCoordinate}; the engine has UV sets 0 and 1 and samples set 0.");
             }
 
             if (imageIndex.TryGetValue(image.LogicalIndex, out var existing))

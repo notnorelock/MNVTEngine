@@ -80,6 +80,29 @@ public sealed class ModelRuntimeTests : IDisposable
     }
 
     [Fact]
+    public void Instantiate_AddsTheModelsLights_AndDisabledCameras()
+    {
+        var lights = ImportFixture("Lights", "PunctualLights.gltf", out var lightModel);
+        var scene = new Scene();
+        ModelInstantiation.Instantiate(scene, lights, lightModel, "Lamps");
+        var spot = scene.Find("SpotNode")!.GetComponent<Light>()!;
+        Assert.Equal((LightType.Spot, 12f), (spot.Type, spot.Range));
+        Assert.Equal(1f, spot.Intensity, 3);
+        var bulb = scene.Find("BulbNode")!.GetComponent<Light>()!;
+        Assert.Equal(MathF.Sqrt(10f), bulb.Range, 3); // no range in the file: where it has faded to 1%
+        Assert.Equal(LightType.Directional, scene.Find("SunNode")!.GetComponent<Light>()!.Type);
+
+        var cameras = ImportFixture("Khronos", "Cameras.gltf", out var cameraModel);
+        var withCameras = new Scene();
+        ModelInstantiation.Instantiate(withCameras, cameras, cameraModel, "Cameras");
+        var all = withCameras.FindObjectsOfType<Camera>().ToList();
+        Assert.Equal(2, all.Count);
+        Assert.All(all, c => Assert.False(c.Enabled)); // they do not take over the scene's main camera
+        Assert.Contains(all, c => c.Projection == CameraProjection.Orthographic && c.OrthographicSize == 1f);
+        Assert.Null(withCameras.MainCamera);
+    }
+
+    [Fact]
     public void ModelMesh_RendersFromTheArtifact_WithItsTexturedMaterial()
     {
         // The scene the editor would save after dropping the model: its instantiated hierarchy, seen from the front.
