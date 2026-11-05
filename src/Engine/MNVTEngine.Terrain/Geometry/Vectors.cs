@@ -49,6 +49,8 @@ public readonly record struct Vec3(double X, double Y, double Z)
 
     public static Vec3 UnitZ => new(0, 0, 1);
 
+    public static Vec3 One => new(1, 1, 1);
+
     public double Length => Math.Sqrt((X * X) + (Y * Y) + (Z * Z));
 
     public double LengthSquared => (X * X) + (Y * Y) + (Z * Z);

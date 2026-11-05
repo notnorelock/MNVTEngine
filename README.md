@@ -92,6 +92,7 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 - [Physics2D: rigidbodies, colliders, callbacks, ray casts](docs/engine/physics2d.md); [Physics 3D (BepuPhysics v2)](docs/engine/physics3d.md)
 - [Audio: sources, listener, spatial audio, decoding](docs/engine/audio.md)
 - [Sprite animation](docs/engine/animation.md) and [tilemaps](docs/engine/tilemaps.md)
+- [Terrain: roads, rivers, terrain cuts, foliage, TerrainHeaven projects](docs/engine/terrain.md)
 - [Materials, 3D lighting and shadows, 2D lighting](docs/graphics/materials-and-lighting.md)
 - [Logging: named loggers, levels per namespace/class, call sites](docs/engine/logging.md)
 - [Runtime diagnostics: in-game debug UI, HUD, profiler, console, budgets, debug drawing](docs/engine/diagnostics.md)

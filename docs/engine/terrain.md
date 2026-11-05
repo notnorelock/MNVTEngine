@@ -1,0 +1,79 @@
+# Terrain (TerrainHeaven port)
+
+`MNVTEngine.Terrain` is the world-building toolkit from [TerrainHeaven](https://github.com/borsuczyna/TerrainHeaven), ported from TypeScript to C# with its author's permission. It covers roads, intersections, rivers, terrain cuts, stairs, fences, polygon patches and the adaptive terrain mesher. All geometry is pure double-precision math, with no rendering or platform dependencies. Third-party code it carries is listed in `src/Engine/MNVTEngine.Terrain/THIRD-PARTY-NOTICES.md`.
+
+TerrainHeaven's buildings are not part of the port. When a project file contains them, the loader skips them and logs a warning.
+
+## Elements
+
+`TerrainWorld` holds the elements and rebuilds them in dependency order. It replaces TerrainHeaven's `SceneManager`.
+
+- Terrain tiles are rebuilt last, because roads, rivers and other cutters carve holes in them.
+- `CutPoints` are free-standing circular terrain cuts.
+- `GroupMesher` merges touching tiles into one mesh.
+- `LodPreviewLevel` previews export LODs.
+
+| Type (`ElementData.Type`) | Class | Notes |
+|---|---|---|
+| `terrain` | `Terrain` | Rectangular tile with adaptive meshing, smoothing, painted heights and four splat texture layers. |
+| `terrainPolygon` | `PolygonTerrain` | Patch with any closed outline. Each vertex has its own height. |
+| `road` | `Road` | Cubic spline road: lanes, sidewalks or curbs, crown, bridges with pillars. |
+| `intersection` | `Intersection` | Three-way (T) or four-way cross with fixed outlets. Connected roads taper to the outlet width. |
+| `river` | `RiverSpline` | River bed and water surface. |
+| `terrainCutSpline` | `TerrainCutSpline` | Spline that carves a channel in the terrain. |
+| `stairs` | `Stairs` | Stepped prism with optional railings. It cuts one ramp into the terrain. |
+| `fence` | `Fence` | Plane or box panels. Posts sit at a fixed spacing and wherever the curve turns. |
+
+Each element follows the same pattern:
+
+- It exposes nodes. Connected elements share one node.
+- `Update()` rebuilds `Geometry`: named `GeometryGroup`s of triangles with UVs.
+- `GetProperties()` describes its inspector fields.
+- `Serialize`/`Deserialize` read and write the project format.
+
+## Projects
+
+`TerrainProject` reads and writes TerrainHeaven's project JSON (version 1). It bundles:
+
+- the `World`;
+- `Settings` (`ProjectSettings`);
+- `Foliage` (`FoliageStore`);
+- `Meshes` (`MeshStore`, placed props).
+
+```csharp
+var project = new TerrainProject(logger);
+project.Load(File.ReadAllText("world.terrain.json"));
+project.World.Update();
+File.WriteAllText("world.terrain.json", project.Save());
+```
+
+**Field names.**
+
+- Element, settings and connection fields are camelCase, as TerrainHeaven writes them.
+- Foliage and mesh records are PascalCase, the Unity exporter's contract.
+- Dictionary keys, such as texture group names, are kept exactly as written.
+
+**Validation.** Project files are untrusted input.
+
+- Malformed JSON, an empty file or another version throws `InvalidDataException`.
+- An unknown element type is skipped with warning 7110.
+- A connection to a missing element or node is skipped with warning 7111.
+
+**Texture paths** are normalized as TerrainHeaven does it (`TerrainProject.NormalizeTexturePath`):
+
+- Backslashes become forward slashes, and a leading `./` is removed.
+- A URL becomes its decoded file name.
+- An embedded `data:` URL from old projects becomes `legacy-texture-<fnv1a>.png`.
+
+`GetTexturePaths()` lists every texture a project references.
+
+**Settings.** `ProjectSettings` stores the sky color, the time of day, the day/night cycle and its length, and the LOD switch distances. Clamping matches TerrainHeaven.
+
+- `Evaluate()` returns a `SkyEnvironment` (linear colors) for the active mode: flat sky color, basic day/night, or enhanced visuals. The enhanced mode adds a sky dome, fog, sun glow, stars, clouds and a shadow-casting sun or moon.
+- `Advance(delta)` moves the clock, in steps of at least 0.1 s, only while enhanced visuals are on.
+
+**Foliage and props.**
+
+- `FoliageStore` holds foliage presets and one layer of placed billboard instances per preset. An instance stores its scale and color as normalized 0..1 factors, so editing a preset resizes and recolors every instance.
+- `MeshStore` holds prop assets and their placed instances. An asset references a mesh library file and has a scale and pivot calibration. An instance has a full Euler rotation and a uniform scale.
+- Removing a preset or asset renumbers the layers after it.
