@@ -20,7 +20,7 @@ internal sealed partial class ProfilerPanel(EditorContext context, FrameProfiler
 
     public void Draw()
     {
-        if (!ImGui.Begin("Profiler"))
+        if (!ImGui.Begin(EditorWindows.Title("Profiler")))
         {
             ImGui.End();
             return;
@@ -32,7 +32,7 @@ internal sealed partial class ProfilerPanel(EditorContext context, FrameProfiler
         }
 
         ImGui.SameLine();
-        if (ImGui.SmallButton("Save report"))
+        if (Gui.IconButton(Icons.Save, "Save a profiler report"))
         {
             SaveReport();
         }

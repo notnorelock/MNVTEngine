@@ -62,7 +62,7 @@ internal sealed class MaterialInspector(EditorContext context) : IDisposable
         ImGui.Separator();
         DrawPreview(document);
         ImGui.BeginDisabled(!document.CanUndo);
-        if (ImGui.Button("Undo"))
+        if (Gui.IconButton(Icons.Undo2, "Undo"))
         {
             document.Undo();
         }
@@ -70,7 +70,7 @@ internal sealed class MaterialInspector(EditorContext context) : IDisposable
         ImGui.EndDisabled();
         ImGui.SameLine();
         ImGui.BeginDisabled(!document.CanRedo);
-        if (ImGui.Button("Redo"))
+        if (Gui.IconButton(Icons.Redo2, "Redo"))
         {
             document.Redo();
         }
@@ -445,7 +445,7 @@ internal sealed class MaterialInspector(EditorContext context) : IDisposable
         if (current is not null)
         {
             ImGui.SameLine();
-            if (ImGui.SmallButton("x"))
+            if (ImGui.SmallButton(Icons.X))
             {
                 definition.Properties.Remove(name);
             }
@@ -460,7 +460,7 @@ internal sealed class MaterialInspector(EditorContext context) : IDisposable
         }
 
         ImGui.SameLine();
-        if (ImGui.SmallButton("Reset"))
+        if (ImGui.SmallButton($"{Icons.Undo2}  Reset"))
         {
             document.ResetProperty(name);
         }

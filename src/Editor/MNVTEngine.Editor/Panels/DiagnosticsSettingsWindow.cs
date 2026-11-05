@@ -28,19 +28,19 @@ internal sealed class DiagnosticsSettingsWindow(EditorContext context)
 
         var open = Open;
         ImGui.SetNextWindowSize(new System.Numerics.Vector2(520, 640), ImGuiCond.FirstUseEver);
-        if (ImGui.Begin("Diagnostics", ref open, ImGuiWindowFlags.NoDocking))
+        if (ImGui.Begin(EditorWindows.Title("Diagnostics"), ref open, ImGuiWindowFlags.NoDocking))
         {
             var settings = context.DiagnosticsSettings;
             ImGui.PushTextWrapPos(0f);
             Gui.Muted("Changes apply from the next Play. Budgets of a running game can be changed in its Budgets window (F6).");
             ImGui.PopTextWrapPos();
-            if (ImGui.Button("Save to project"))
+            if (ImGui.Button($"{Icons.Save}  Save to project"))
             {
                 Save(settings);
             }
 
             ImGui.SameLine();
-            if (ImGui.Button("Revert to project"))
+            if (ImGui.Button($"{Icons.Undo2}  Revert to project"))
             {
                 context.DiagnosticsSettings = context.Session.Project.Diagnostics.Clone();
                 _status = "Reverted to the project's settings.";

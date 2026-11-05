@@ -23,7 +23,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
 
     public void Draw()
     {
-        if (ImGui.Begin("Inspector") && context.Session.Selection.Asset is { } asset)
+        if (ImGui.Begin(EditorWindows.Title("Inspector")) && context.Session.Selection.Asset is { } asset)
         {
             _assetInspector.Draw(asset);
         }
@@ -198,7 +198,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
             }
 
             ImGui.SameLine();
-            if (ImGui.SmallButton("X"))
+            if (ImGui.SmallButton(Icons.X))
             {
                 remove = group;
             }
@@ -229,7 +229,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
             context.Changed("Remove Mixer Group");
         }
 
-        if (ImGui.Button("+ Group"))
+        if (ImGui.Button($"{Icons.Plus}  Group"))
         {
             var index = 1;
             while (mixer.Find($"Group {index}") is not null)
@@ -277,7 +277,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
             ImGui.PopID();
         }
 
-        if (ImGui.SmallButton("Reset to model defaults"))
+        if (ImGui.SmallButton($"{Icons.Undo2}  Reset to model defaults"))
         {
             renderer.ResetBlendShapeWeights();
             context.Changed("Blend Shape");
@@ -595,7 +595,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
 
     private void DrawAddComponent(GameObject gameObject)
     {
-        if (ImGui.Button("Add Component", new SysVector2(-1f, 0f)))
+        if (ImGui.Button($"{Icons.Plus}  Add Component", new SysVector2(-1f, 0f)))
         {
             ImGui.OpenPopup("add_component");
         }

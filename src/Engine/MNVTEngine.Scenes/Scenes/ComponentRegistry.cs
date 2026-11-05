@@ -31,6 +31,7 @@ public sealed class ComponentRegistry
         registry.Register<ModelAnimator>();
         registry.Register<ModelAnimatorController>();
         registry.Register<SceneEnvironment>();
+        registry.Register<HierarchyStyle>();
         return registry;
     }
 

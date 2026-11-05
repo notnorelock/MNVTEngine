@@ -47,7 +47,7 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
         _window = window;
         _device = VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"), VulkanDeviceOptions.ForApplication("Editor", window.Options.VSync, window.Options.GraphicsValidation));
         _renderer = new Renderer2D(_device);
-        _imgui = new ImGuiRenderer(_device, _renderer.DefaultMaterial, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "segoeui.ttf"), 17f);
+        _imgui = new ImGuiRenderer(_device, _renderer.DefaultMaterial, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "segoeui.ttf"), 17f, iconFont: Icons.Font);
         _logo = _device.CreateTexture(Graphics.Svg.EngineLogo.Render(520), SamplerState.LinearClamp, "MNVTEngine logo");
         Gui.ApplyDarkTheme();
         _recent = recent.Load();
@@ -188,7 +188,7 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
         }
 
         Gui.Muted($"Creates {Path.Combine(_location, _name)}");
-        if (ImGui.Button("Create project", new SysVector2(160, 0)) && _engineRoot is not null && _templates.Count > 0)
+        if (ImGui.Button($"{Icons.Plus}  Create project", new SysVector2(160, 0)) && _engineRoot is not null && _templates.Count > 0)
         {
             try
             {
@@ -205,7 +205,7 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
     {
         ImGui.SeparatorText("Open project");
         ImGui.InputText("Folder or .mnvtproj", ref _openPath, 400);
-        if (ImGui.Button("Open", new SysVector2(160, 0)))
+        if (ImGui.Button($"{Icons.FolderOpen}  Open", new SysVector2(160, 0)))
         {
             try
             {

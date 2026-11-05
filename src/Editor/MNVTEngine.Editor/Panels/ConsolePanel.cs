@@ -26,10 +26,10 @@ internal sealed class ConsolePanel(EditorContext context)
 
     public void Draw()
     {
-        if (ImGui.Begin("Console"))
+        if (ImGui.Begin(EditorWindows.Title("Console")))
         {
             var entries = context.Logs.Snapshot();
-            if (ImGui.SmallButton("Clear"))
+            if (Gui.IconButton(Icons.Trash2, "Clear the console"))
             {
                 context.Logs.Clear();
                 entries = [];
@@ -45,7 +45,7 @@ internal sealed class ConsolePanel(EditorContext context)
             ImGui.SetNextItemWidth(220f);
             ImGui.InputTextWithHint("##filter", "Filter (text, namespace, class...)", ref _filter, 128);
             ImGui.SameLine();
-            if (ImGui.SmallButton("Levels..."))
+            if (Gui.IconButton(Icons.Filter, "Log levels per category"))
             {
                 ImGui.OpenPopup("##levels");
             }
@@ -178,7 +178,7 @@ internal sealed class ConsolePanel(EditorContext context)
             ImGui.SameLine();
             ImGui.TextUnformatted(name);
             ImGui.SameLine();
-            if (ImGui.SmallButton("X"))
+            if (ImGui.SmallButton(Icons.X))
             {
                 remove = name;
             }
@@ -221,7 +221,7 @@ internal sealed class ConsolePanel(EditorContext context)
         }
 
         ImGui.Separator();
-        if (ImGui.Button("Save to Settings/logging.json"))
+        if (ImGui.Button($"{Icons.Save}  Save to Settings/logging.json"))
         {
             try
             {

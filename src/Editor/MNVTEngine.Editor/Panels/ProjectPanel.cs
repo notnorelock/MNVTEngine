@@ -30,7 +30,7 @@ internal sealed class ProjectPanel(EditorContext context)
 
     public void Draw()
     {
-        if (ImGui.Begin("Project"))
+        if (ImGui.Begin(EditorWindows.Title("Project")))
         {
             Rescan(force: false);
             DrawBreadcrumb();
@@ -85,7 +85,7 @@ internal sealed class ProjectPanel(EditorContext context)
 
     private void DrawBreadcrumb()
     {
-        if (ImGui.SmallButton("Assets"))
+        if (ImGui.SmallButton($"{Icons.Folder}  Assets"))
         {
             Navigate("");
         }
@@ -106,6 +106,26 @@ internal sealed class ProjectPanel(EditorContext context)
         Gui.Muted($"   {Assets.Assets.Count} assets, {Assets.Diagnostics.Count} problems");
     }
 
+    /// <summary>The icon of an asset type in lists (textures show their image instead).</summary>
+    internal static string AssetIcon(string? type) => type switch
+    {
+        AssetTypes.Texture => Icons.FileImage,
+        AssetTypes.Scene => Icons.Boxes,
+        AssetTypes.Prefab => Icons.Package,
+        AssetTypes.Audio => Icons.FileAudio,
+        AssetTypes.Font => Icons.FileType,
+        AssetTypes.Shader => Icons.FileCog,
+        AssetTypes.Script => Icons.FileCode,
+        AssetTypes.Json => Icons.FileJson,
+        AssetTypes.Animation => Icons.Clapperboard,
+        AssetTypes.Material => Icons.Palette,
+        AssetTypes.Text => Icons.FileText,
+        AssetTypes.Model => Icons.FileBox,
+        AssetTypes.UILayout => Icons.LayoutTemplate,
+        AssetTypes.AnimatorController => Icons.Workflow,
+        _ => Icons.File,
+    };
+
     private void DrawFolderTree(string fullPath, string relative)
     {
         var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanAvailWidth | ImGuiTreeNodeFlags.DefaultOpen;
@@ -120,7 +140,8 @@ internal sealed class ProjectPanel(EditorContext context)
             flags |= ImGuiTreeNodeFlags.Selected;
         }
 
-        var open = ImGui.TreeNodeEx(relative.Length == 0 ? "Assets" : Path.GetFileName(fullPath), flags);
+        var name = relative.Length == 0 ? "Assets" : Path.GetFileName(fullPath);
+        var open = ImGui.TreeNodeEx($"{(relative == _directory ? Icons.FolderOpen : Icons.Folder)}  {name}###{name}", flags);
         if (ImGui.IsItemClicked() && !ImGui.IsItemToggledOpen())
         {
             Navigate(relative);
@@ -143,7 +164,7 @@ internal sealed class ProjectPanel(EditorContext context)
     {
         foreach (var folder in _folders)
         {
-            if (ImGui.Selectable($"[dir] {folder}", false, ImGuiSelectableFlags.AllowDoubleClick) && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+            if (ImGui.Selectable($"{Icons.Folder}  {folder}", false, ImGuiSelectableFlags.AllowDoubleClick) && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
             {
                 Navigate(Combine(folder));
             }
@@ -164,7 +185,11 @@ internal sealed class ProjectPanel(EditorContext context)
             }
             else
             {
-                Gui.Muted($"[{(record?.Type ?? "?").ToLowerInvariant(),-7}]");
+                Gui.Muted(AssetIcon(record?.Type));
+                if (ImGui.IsItemHovered())
+                {
+                    Gui.Tooltip(record?.Type ?? "Not imported");
+                }
             }
 
             ImGui.SameLine();

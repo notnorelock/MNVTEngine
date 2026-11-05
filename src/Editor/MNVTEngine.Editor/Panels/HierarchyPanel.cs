@@ -1,26 +1,78 @@
 using ImGuiNET;
 using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Mathematics;
+using SysVector2 = System.Numerics.Vector2;
+using SysVector4 = System.Numerics.Vector4;
 
 namespace MNVTEngine.Editor.Panels;
 
-/// <summary>Tree of GameObjects: select, reparent by drag and drop, create and delete.</summary>
+/// <summary>
+/// Tree of GameObjects: select, reparent by drag and drop, create and delete, search. Rows show an icon for what the
+/// object is, badges for its other components, tree lines, and the object's <see cref="HierarchyStyle"/> (colored labels,
+/// gradients, section headers).
+/// </summary>
 internal sealed class HierarchyPanel(EditorContext context)
 {
+    private static readonly (string Name, Color Color)[] LabelColors =
+    [
+        ("Orange", new(0.91f, 0.5f, 0.16f)), ("Blue", new(0.25f, 0.55f, 0.95f)), ("Green", new(0.3f, 0.75f, 0.35f)),
+        ("Red", new(0.88f, 0.28f, 0.28f)), ("Purple", new(0.62f, 0.4f, 0.92f)), ("Teal", new(0.2f, 0.72f, 0.7f)),
+        ("Grey", new(0.45f, 0.47f, 0.52f)),
+    ];
+
     private GameObject? _pendingDelete;
+    private string _search = "";
+    private int _row;
+    private ImDrawListPtr _drawList;
 
     public void Draw()
     {
-        if (ImGui.Begin("Hierarchy"))
+        if (ImGui.Begin(EditorWindows.Title("Hierarchy")))
         {
             var scene = context.ActiveScene;
-            Gui.Muted(context.PlayMode.IsPlaying ? $"{scene.Name} (playing copy)" : context.Session.DisplayName);
+            if (Gui.IconButton(Icons.Plus, "Create"))
+            {
+                ImGui.OpenPopup("##hierarchy_create");
+            }
+
+            if (ImGui.BeginPopup("##hierarchy_create"))
+            {
+                DrawCreateMenu(context.Selected?.Transform);
+                ImGui.EndPopup();
+            }
+
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(-1f);
+            ImGui.InputTextWithHint("##hierarchy_search", $"{Icons.Search}  Search", ref _search, 128);
+
+            using (Gui.StyleColor(ImGuiCol.Text, new SysVector4(0.85f, 0.86f, 0.9f, 1f)))
+            {
+                ImGui.TextUnformatted($"{Icons.Boxes}  {(context.PlayMode.IsPlaying ? $"{scene.Name} (playing copy)" : context.Session.DisplayName)}");
+            }
+
             ImGui.Separator();
 
-            foreach (var root in scene.RootObjects.ToArray())
+            // Row backgrounds (stripes, labels, headers) go on a channel under the rows' text.
+            _drawList = ImGui.GetWindowDrawList();
+            _drawList.ChannelsSplit(2);
+            _drawList.ChannelsSetCurrent(1);
+            _row = 0;
+            if (_search.Trim() is { Length: > 0 } search)
             {
-                DrawNode(root);
+                foreach (var match in scene.RootObjects.SelectMany(Descendants).Where(g => g.Name.Contains(search, StringComparison.OrdinalIgnoreCase)).ToArray())
+                {
+                    DrawNode(match, flat: true);
+                }
             }
+            else
+            {
+                foreach (var root in scene.RootObjects.ToArray())
+                {
+                    DrawNode(root, flat: false);
+                }
+            }
+
+            _drawList.ChannelsMerge();
 
             // Remaining space: drop here to move an object to the root; right-click to create.
             var avail = ImGui.GetContentRegionAvail();
@@ -61,9 +113,14 @@ internal sealed class HierarchyPanel(EditorContext context)
 
     public void DrawCreateMenu(Transform? parent)
     {
-        if (ImGui.MenuItem("Create Empty"))
+        if (ImGui.MenuItem($"{Icons.Box}  Create Empty"))
         {
             context.CreateGameObject("GameObject", parent);
+        }
+
+        if (ImGui.MenuItem($"{Icons.Heading}  Create Header"))
+        {
+            context.CreateGameObject("Header", parent).AddComponent<HierarchyStyle>().Kind = HierarchyStyleKind.Header;
         }
 
         if (ImGui.MenuItem("Create Sprite"))
@@ -141,25 +198,86 @@ internal sealed class HierarchyPanel(EditorContext context)
         }
     }
 
-    private void DrawNode(GameObject gameObject)
+    private static IEnumerable<GameObject> Descendants(GameObject root) =>
+        root.Transform.Children.SelectMany(c => Descendants(c.GameObject)).Prepend(root);
+
+    /// <summary>Draws a row (and, unless <paramref name="flat"/>, its open subtree); returns where tree lines meet it.</summary>
+    private (float MidY, float Left, bool HasChildren) DrawNode(GameObject gameObject, bool flat)
     {
-        var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.OpenOnDoubleClick | ImGuiTreeNodeFlags.SpanAvailWidth | ImGuiTreeNodeFlags.DefaultOpen;
-        if (gameObject.Transform.ChildCount == 0)
+        var style = gameObject.GetComponent<HierarchyStyle>();
+        var header = style?.Kind == HierarchyStyleKind.Header;
+        var hasChildren = !flat && gameObject.Transform.ChildCount > 0;
+        var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.OpenOnDoubleClick | ImGuiTreeNodeFlags.SpanFullWidth | ImGuiTreeNodeFlags.DefaultOpen;
+        if (!hasChildren)
         {
-            flags |= ImGuiTreeNodeFlags.Leaf;
+            flags |= ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen;
         }
 
-        if (context.Session.Selection.IsSelected(gameObject))
+        var selected = context.Session.Selection.IsSelected(gameObject);
+        if (selected)
         {
             flags |= ImGuiTreeNodeFlags.Selected;
         }
 
-        bool open;
-        using (Gui.StyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled], !gameObject.ActiveInHierarchy))
+        // The label is drawn by hand (colored icon, badges, headers): the node itself has none. The row spans the full
+        // width, so the indented start is taken from the cursor.
+        var left = ImGui.GetCursorScreenPos().X;
+        var right = left + ImGui.GetContentRegionAvail().X; // the content edge, left of the scrollbar
+        var open = ImGui.TreeNodeEx($"##{gameObject.Id}", flags);
+        var (min, max) = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        var hovered = ImGui.IsItemHovered();
+        HandleRowInput(gameObject);
+
+        var rowMin = new SysVector2(ImGui.GetWindowPos().X, min.Y);
+        var rowMax = new SysVector2(right, max.Y);
+        DrawRowBackground(rowMin, rowMax, style, selected || hovered);
+
+        var font = ImGui.GetFontSize();
+        var textY = min.Y + ((max.Y - min.Y - font) * 0.5f);
+        var textColor = gameObject.ActiveInHierarchy ? ImGui.GetStyle().Colors[(int)ImGuiCol.Text] : ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled];
+        var labelX = left + ImGui.GetTreeNodeToLabelSpacing();
+        if (header)
         {
-            open = ImGui.TreeNodeEx(gameObject.Id.ToString(), flags, gameObject.Name);
+            var width = ImGui.CalcTextSize(gameObject.Name).X;
+            _drawList.AddText(new SysVector2(((rowMin.X + rowMax.X) * 0.5f) - (width * 0.5f), textY), ImGui.GetColorU32(textColor), gameObject.Name);
+        }
+        else
+        {
+            var (icon, iconColor) = HierarchyIcons.Primary(gameObject, open && hasChildren);
+            if (!gameObject.ActiveInHierarchy)
+            {
+                iconColor.W *= 0.45f;
+            }
+
+            _drawList.AddText(new SysVector2(labelX, textY), ImGui.GetColorU32(iconColor), icon);
+            _drawList.AddText(new SysVector2(labelX + font + 6f, textY), ImGui.GetColorU32(textColor), gameObject.Name);
+            DrawBadges(gameObject, icon, rowMax.X - 2f, textY, font);
         }
 
+        if (open && hasChildren)
+        {
+            // Tree lines: from under this row's arrow down to each child, then across to it.
+            var lineX = left + (ImGui.GetTreeNodeToLabelSpacing() * 0.5f);
+            var lineColor = ImGui.GetColorU32(new SysVector4(1f, 1f, 1f, 0.18f));
+            var lastY = max.Y;
+            foreach (var child in gameObject.Transform.Children.ToArray())
+            {
+                var (midY, childLeft, childHasChildren) = DrawNode(child.GameObject, flat: false);
+                var end = childLeft + (childHasChildren ? 2f : ImGui.GetTreeNodeToLabelSpacing() * 0.75f);
+                _drawList.AddLine(new SysVector2(lineX, midY), new SysVector2(end, midY), lineColor);
+                lastY = midY;
+            }
+
+            _drawList.AddLine(new SysVector2(lineX, max.Y), new SysVector2(lineX, lastY), lineColor);
+            ImGui.TreePop();
+        }
+
+        return ((min.Y + max.Y) * 0.5f, left, hasChildren);
+    }
+
+    /// <summary>Selection, drag and drop and the context menu of the row just drawn.</summary>
+    private void HandleRowInput(GameObject gameObject)
+    {
         if (ImGui.IsItemClicked() && !ImGui.IsItemToggledOpen())
         {
             context.Session.Selection.Select(gameObject);
@@ -190,22 +308,121 @@ internal sealed class HierarchyPanel(EditorContext context)
             context.Session.Selection.Select(gameObject);
             DrawCreateMenu(gameObject.Transform);
             ImGui.Separator();
-            if (ImGui.MenuItem("Delete", "Del"))
+            DrawStyleMenu(gameObject);
+            ImGui.Separator();
+            if (ImGui.MenuItem($"{Icons.Trash2}  Delete", "Del"))
             {
                 _pendingDelete = gameObject;
             }
 
             ImGui.EndPopup();
         }
+    }
 
-        if (open)
+    private void DrawStyleMenu(GameObject gameObject)
+    {
+        if (!ImGui.BeginMenu($"{Icons.Palette}  Hierarchy Style"))
         {
-            foreach (var child in gameObject.Transform.Children.ToArray())
-            {
-                DrawNode(child.GameObject);
-            }
+            return;
+        }
 
-            ImGui.TreePop();
+        var style = gameObject.GetComponent<HierarchyStyle>();
+        HierarchyStyle Ensure() => style ??= gameObject.AddComponent<HierarchyStyle>();
+        if (ImGui.MenuItem("Header", "", style?.Kind == HierarchyStyleKind.Header))
+        {
+            var edited = Ensure();
+            edited.Kind = edited.Kind == HierarchyStyleKind.Header ? HierarchyStyleKind.Label : HierarchyStyleKind.Header;
+            context.Changed("Hierarchy Style");
+        }
+
+        if (ImGui.MenuItem("Gradient", "", style?.Gradient == true))
+        {
+            var edited = Ensure();
+            edited.Gradient = !edited.Gradient;
+            context.Changed("Hierarchy Style");
+        }
+
+        ImGui.Separator();
+        foreach (var (name, color) in LabelColors)
+        {
+            using (Gui.StyleColor(ImGuiCol.Text, new SysVector4(color.R, color.G, color.B, 1f)))
+            {
+                if (ImGui.MenuItem($"{Icons.Square}  {name}", "", style is not null && style.Color == color))
+                {
+                    Ensure().Color = color;
+                    context.Changed("Hierarchy Style");
+                }
+            }
+        }
+
+        ImGui.Separator();
+        if (ImGui.MenuItem("Clear", "", false, style is not null))
+        {
+            style!.Destroy();
+            context.Changed("Hierarchy Style");
+        }
+
+        ImGui.EndMenu();
+    }
+
+    /// <summary>Stripes on every other row; a label's marker and fill or a header's bar; under the row's text.</summary>
+    private void DrawRowBackground(SysVector2 min, SysVector2 max, HierarchyStyle? style, bool highlighted)
+    {
+        _drawList.ChannelsSetCurrent(0);
+        if (_row++ % 2 == 1 && !highlighted)
+        {
+            _drawList.AddRectFilled(min, max, ImGui.GetColorU32(new SysVector4(1f, 1f, 1f, 0.025f)));
+        }
+
+        if (style is not null)
+        {
+            var color = new SysVector4(style.Color.R, style.Color.G, style.Color.B, 1f);
+            uint Alpha(float a) => ImGui.GetColorU32(color with { W = a });
+            if (style.Kind == HierarchyStyleKind.Header)
+            {
+                var bar = (new SysVector2(min.X + 4f, min.Y + 1f), new SysVector2(max.X - 4f, max.Y - 1f));
+                if (style.Gradient)
+                {
+                    var middle = (bar.Item1.X + bar.Item2.X) * 0.5f;
+                    _drawList.AddRectFilledMultiColor(bar.Item1, new SysVector2(middle, bar.Item2.Y), Alpha(0f), Alpha(0.85f), Alpha(0.85f), Alpha(0f));
+                    _drawList.AddRectFilledMultiColor(new SysVector2(middle, bar.Item1.Y), bar.Item2, Alpha(0.85f), Alpha(0f), Alpha(0f), Alpha(0.85f));
+                }
+                else
+                {
+                    _drawList.AddRectFilled(bar.Item1, bar.Item2, Alpha(0.85f), 3f);
+                }
+            }
+            else
+            {
+                _drawList.AddRectFilled(new SysVector2(min.X + 2f, min.Y + 2f), new SysVector2(min.X + 5f, max.Y - 2f), Alpha(1f));
+                if (style.Gradient)
+                {
+                    var from = min.X + ((max.X - min.X) * 0.25f);
+                    _drawList.AddRectFilledMultiColor(new SysVector2(from, min.Y + 1f), new SysVector2(max.X, max.Y - 1f), Alpha(0f), Alpha(0.8f), Alpha(0.8f), Alpha(0f));
+                }
+                else
+                {
+                    _drawList.AddRectFilled(new SysVector2(min.X + 6f, min.Y + 1f), new SysVector2(max.X, max.Y - 1f), Alpha(0.22f));
+                }
+            }
+        }
+
+        _drawList.ChannelsSetCurrent(1);
+    }
+
+    /// <summary>Component badges, right-aligned, with the component names on hover.</summary>
+    private void DrawBadges(GameObject gameObject, string primary, float right, float y, float size)
+    {
+        var mouse = ImGui.GetMousePos();
+        var x = right;
+        foreach (var (icon, color, name) in HierarchyIcons.Badges(gameObject, primary).Take(6))
+        {
+            x -= size + 2f;
+            _drawList.AddText(new SysVector2(x, y), ImGui.GetColorU32(gameObject.ActiveInHierarchy ? color : color with { W = color.W * 0.45f }), icon);
+            if (ImGui.IsWindowHovered() && mouse.X >= x && mouse.X < x + size && mouse.Y >= y && mouse.Y < y + size)
+            {
+                Gui.Tooltip(name);
+            }
         }
     }
 

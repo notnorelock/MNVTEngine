@@ -33,7 +33,7 @@ internal sealed class GameViewPanel : IDisposable
     public void Draw()
     {
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, System.Numerics.Vector2.Zero);
-        var visible = ImGui.Begin("Game");
+        var visible = ImGui.Begin(EditorWindows.Title("Game"));
         ImGui.PopStyleVar();
         _visible = visible;
         _focused = visible && ImGui.IsWindowFocused();
@@ -180,7 +180,7 @@ internal sealed class GameViewPanel : IDisposable
     {
         if (_focusFrames > 0)
         {
-            ImGui.SetWindowFocus("Game");
+            ImGui.SetWindowFocus(EditorWindows.Id("Game"));
             _focusFrames--;
         }
     }

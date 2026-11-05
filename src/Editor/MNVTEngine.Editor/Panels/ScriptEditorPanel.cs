@@ -100,10 +100,10 @@ internal sealed unsafe class ScriptEditorPanel(EditorContext context, ScriptRelo
         if (_focusFrames > 0)
         {
             _focusFrames--;
-            ImGui.SetWindowFocus("Script Editor");
+            ImGui.SetWindowFocus(EditorWindows.Id("Script Editor"));
         }
 
-        if (!ImGui.Begin("Script Editor"))
+        if (!ImGui.Begin(EditorWindows.Title("Script Editor")))
         {
             IsFocused = false;
             ImGui.End();
@@ -157,13 +157,13 @@ internal sealed unsafe class ScriptEditorPanel(EditorContext context, ScriptRelo
 
     private void DrawToolbar()
     {
-        if (ImGui.Button("Save (Ctrl+S)") && _active is not null)
+        if (Gui.IconButton(Icons.Save, "Save (Ctrl+S)") && _active is not null)
         {
             SaveActive();
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("Open externally") && _active is not null)
+        if (Gui.IconButton(Icons.ExternalLink, "Open in the external editor") && _active is not null)
         {
             try
             {
@@ -195,13 +195,13 @@ internal sealed unsafe class ScriptEditorPanel(EditorContext context, ScriptRelo
         ImGui.SetNextItemWidth(160f);
         ImGui.InputTextWithHint("##newname", "NewName", ref _newName, 64);
         ImGui.SameLine();
-        if (ImGui.Button("+ C# component"))
+        if (ImGui.Button($"{Icons.Plus}  C# component"))
         {
             Create(() => ScriptTemplates.CreateComponent(context.Session.Project, _newName.Trim()));
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("+ Mission"))
+        if (ImGui.Button($"{Icons.Plus}  Mission"))
         {
             Create(() => ScriptTemplates.CreateMission(context.Session.Project, _newName.Trim()));
         }

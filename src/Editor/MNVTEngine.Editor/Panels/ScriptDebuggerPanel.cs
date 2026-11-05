@@ -25,7 +25,7 @@ internal sealed class ScriptDebuggerPanel(EditorContext context)
         }
 
         _shown = debugger.Break;
-        if (!ImGui.Begin("Script Debugger"))
+        if (!ImGui.Begin(EditorWindows.Title("Script Debugger")))
         {
             ImGui.End();
             return;
@@ -35,13 +35,13 @@ internal sealed class ScriptDebuggerPanel(EditorContext context)
         {
             var asset = context.Session.Assets.Get(current.Script)?.Path ?? current.Script.ToString();
             Gui.TextColored(StopColor, $"Stopped at {asset}:{current.Line} in '{current.Fiber.Name}'");
-            if (ImGui.Button("Continue (F5)"))
+            if (Gui.IconButton(Icons.Play, "Continue (F5)"))
             {
                 debugger.Continue();
             }
 
             ImGui.SameLine();
-            if (ImGui.Button("Step (F10)"))
+            if (Gui.IconButton(Icons.StepForward, "Step (F10)"))
             {
                 debugger.Step();
             }
@@ -92,7 +92,7 @@ internal sealed class ScriptDebuggerPanel(EditorContext context)
         if (_focusFrames > 0)
         {
             _focusFrames--;
-            ImGui.SetWindowFocus("Script Debugger");
+            ImGui.SetWindowFocus(EditorWindows.Id("Script Debugger"));
         }
     }
 

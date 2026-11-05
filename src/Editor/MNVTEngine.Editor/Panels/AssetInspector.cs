@@ -56,7 +56,7 @@ internal sealed class AssetInspector(EditorContext context) : IDisposable
         {
             DrawTexture(guid, record);
         }
-        else if (record.Type == AssetTypes.Prefab && ImGui.Button("Instantiate in scene"))
+        else if (record.Type == AssetTypes.Prefab && ImGui.Button($"{Icons.Plus}  Instantiate in scene"))
         {
             context.InstantiatePrefab(guid, null);
         }
@@ -64,7 +64,7 @@ internal sealed class AssetInspector(EditorContext context) : IDisposable
         {
             _model.Draw(guid);
         }
-        else if (record.Type == AssetTypes.Scene && ImGui.Button("Open scene"))
+        else if (record.Type == AssetTypes.Scene && ImGui.Button($"{Icons.FolderOpen}  Open scene"))
         {
             context.OpenSceneRequest = record.Path;
         }
@@ -72,17 +72,17 @@ internal sealed class AssetInspector(EditorContext context) : IDisposable
         {
             _material.Draw(guid);
         }
-        else if (record.Type == AssetTypes.UILayout && ImGui.Button("Edit in UI Editor"))
+        else if (record.Type == AssetTypes.UILayout && ImGui.Button($"{Icons.LayoutTemplate}  Edit in UI Editor"))
         {
             context.OpenUILayoutRequest = assets.FullPath(guid);
         }
-        else if (record.Type == AssetTypes.AnimatorController && ImGui.Button("Edit in Animator"))
+        else if (record.Type == AssetTypes.AnimatorController && ImGui.Button($"{Icons.Workflow}  Edit in Animator"))
         {
             context.OpenAnimatorRequest = assets.FullPath(guid);
         }
         else if (record.Type == AssetTypes.Script)
         {
-            if (ImGui.Button("Edit in Script Editor"))
+            if (ImGui.Button($"{Icons.FileCode}  Edit in Script Editor"))
             {
                 context.OpenScriptRequest = assets.FullPath(guid);
             }
@@ -168,7 +168,7 @@ internal sealed class AssetInspector(EditorContext context) : IDisposable
         }
 
         ImGui.BeginDisabled(!_settingsDirty);
-        if (ImGui.Button("Apply"))
+        if (ImGui.Button($"{Icons.Check}  Apply"))
         {
             var problems = context.Session.Assets.UpdateSettings(guid, JObject.FromObject(_settings, MnvtJson.CreateSerializer()));
             foreach (var problem in problems)
@@ -180,7 +180,7 @@ internal sealed class AssetInspector(EditorContext context) : IDisposable
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("Revert"))
+        if (ImGui.Button($"{Icons.Undo2}  Revert"))
         {
             _editing = Guid.Empty;
         }

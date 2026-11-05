@@ -22,7 +22,11 @@ public sealed unsafe class ImGuiRenderer : IDisposable
     private nint _nextId = 1;
 
     /// <param name="fontScale">Framebuffer pixels per logical pixel: the font is rasterized that much larger and drawn scaled down, so text stays sharp on high-DPI displays.</param>
-    public ImGuiRenderer(IGraphicsDevice device, Material material, string? fontPath, float fontSize, float fontScale = 1f)
+    /// <param name="iconFont">
+    /// An icon font merged into the text font (its glyphs in <paramref name="iconFont"/>.First to Last, e.g. a private use
+    /// area), so labels can mix text and icons. Skipped when the file is missing.
+    /// </param>
+    public ImGuiRenderer(IGraphicsDevice device, Material material, string? fontPath, float fontSize, float fontScale = 1f, (string Path, char First, char Last)? iconFont = null)
     {
         _device = device;
         _material = material;
@@ -49,7 +53,22 @@ public sealed unsafe class ImGuiRenderer : IDisposable
 
         io.FontGlobalScale = 1f / fontScale;
 
+        // The glyph ranges must stay alive until the atlas is built (GetTexDataAsRGBA32).
+        var ranges = (ushort*)NativeMemory.Alloc(3, sizeof(ushort));
+        if (iconFont is { } icons && File.Exists(icons.Path))
+        {
+            (ranges[0], ranges[1], ranges[2]) = (icons.First, icons.Last, 0);
+            var config = ImGuiNative.ImFontConfig_ImFontConfig();
+            config->MergeMode = 1;
+            config->PixelSnapH = 1;
+            config->GlyphMinAdvanceX = fontSize * fontScale; // monospaced icons line up in toolbars and trees
+            config->GlyphOffset = new System.Numerics.Vector2(0f, fontSize * fontScale * 0.12f); // onto the text baseline
+            io.Fonts.AddFontFromFileTTF(icons.Path, fontSize * fontScale * 0.95f, config, (nint)ranges);
+            ImGuiNative.ImFontConfig_destroy(config);
+        }
+
         io.Fonts.GetTexDataAsRGBA32(out byte* pixels, out var width, out var height, out _);
+        NativeMemory.Free(ranges);
         _fontTexture = device.CreateTexture(width, height, new ReadOnlySpan<byte>(pixels, width * height * 4), SamplerState.LinearClamp, "ImGui.Font");
         io.Fonts.SetTexID(Register(_fontTexture));
         io.Fonts.ClearTexData();

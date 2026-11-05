@@ -39,7 +39,7 @@ internal sealed class SceneViewPanel : IDisposable
     public void Draw()
     {
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, System.Numerics.Vector2.Zero);
-        var visible = ImGui.Begin("Scene");
+        var visible = ImGui.Begin(EditorWindows.Title("Scene"));
         ImGui.PopStyleVar();
         if (visible)
         {
@@ -123,24 +123,25 @@ internal sealed class SceneViewPanel : IDisposable
     private void DrawToolbar()
     {
         ImGui.SetCursorPos(ImGui.GetCursorPos() + new System.Numerics.Vector2(6f, 4f));
-        foreach (var (tool, label) in new[] { (GizmoTool.Move, "Move (W)"), (GizmoTool.Rotate, "Rotate (E)"), (GizmoTool.Scale, "Scale (R)") })
+        foreach (var (tool, icon, label) in new[] { (GizmoTool.Move, Icons.Move, "Move (W)"), (GizmoTool.Rotate, Icons.RotateCw, "Rotate (E)"), (GizmoTool.Scale, Icons.Scale3D, "Scale (R)") })
         {
-            if (ImGui.RadioButton(label, _gizmo.Tool == tool))
+            if (Gui.IconButton(icon, label, _gizmo.Tool == tool))
             {
                 _gizmo.Tool = tool;
             }
 
-            ImGui.SameLine();
+            ImGui.SameLine(0f, 2f);
         }
 
+        ImGui.SameLine(0f, 12f);
         var is3D = Is3D;
-        if (ImGui.RadioButton("2D", !is3D))
+        if (Gui.IconButton(Icons.RectangleHorizontal, "2D view", !is3D))
         {
             _mode3D = false;
         }
 
-        ImGui.SameLine();
-        if (ImGui.RadioButton("3D", is3D))
+        ImGui.SameLine(0f, 2f);
+        if (Gui.IconButton(Icons.Cuboid, "3D view", is3D))
         {
             _mode3D = true;
         }

@@ -61,7 +61,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
             return;
         }
 
-        if (ImGui.Button("Add to scene"))
+        if (ImGui.Button($"{Icons.Plus}  Add to scene"))
         {
             context.InstantiateModel(guid, null);
         }
@@ -266,13 +266,13 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
 
         var dirty = _settings.ToJson().ToString() != _applied.ToJson().ToString();
         ImGui.BeginDisabled(!dirty);
-        if (ImGui.Button("Apply"))
+        if (ImGui.Button($"{Icons.Check}  Apply"))
         {
             Run("Apply import settings", () => workflow.ApplySettings(_settings));
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("Revert"))
+        if (ImGui.Button($"{Icons.Undo2}  Revert"))
         {
             _settings = _applied;
         }
@@ -340,14 +340,14 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
             ImGui.PopID();
         }
 
-        if (ImGui.Button("Extract Materials"))
+        if (ImGui.Button($"{Icons.WandSparkles}  Extract Materials"))
         {
             Run("Extract materials", () => _report = [.. workflow.ExtractMaterials(workflow.DefaultFolder("Materials"), workflow.DefaultFolder("Textures"))]);
         }
 
         ImGui.SameLine();
         ImGui.BeginDisabled(model.Materials.TrueForAll(m => m.Override is null));
-        if (ImGui.Button("Reset remaps"))
+        if (ImGui.Button($"{Icons.Undo2}  Reset remaps"))
         {
             Run("Reset material remaps", workflow.ResetMaterialRemaps);
         }
@@ -377,7 +377,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         }
 
         ImGui.BeginDisabled(model.Textures.TrueForAll(t => t.ProjectAsset is not null));
-        if (ImGui.Button("Extract Textures"))
+        if (ImGui.Button($"{Icons.WandSparkles}  Extract Textures"))
         {
             Run("Extract textures", () => _report = [.. workflow.ExtractTextures(workflow.DefaultFolder("Textures"))]);
         }
@@ -427,7 +427,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         }
 
         Gui.TextWrapped("A mesh renamed in the source file breaks the scene references to its old name; they draw nothing. Find them and point the old name at a current mesh.");
-        if (ImGui.Button("Find missing references"))
+        if (ImGui.Button($"{Icons.Search}  Find missing references"))
         {
             Run("Find missing mesh references", () => _missing = workflow.FindMissingMeshReferences());
         }
@@ -448,7 +448,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
             Gui.TextColored(Warning, $"mesh/{reference.Mesh}");
             ImGui.SameLine();
             Gui.Muted($"used by {string.Join(", ", reference.UsedBy)}");
-            if (ImGui.Button("Point at...", new SysVector2(ImGui.GetContentRegionAvail().X, 0f)))
+            if (ImGui.Button($"{Icons.Link}  Point at...", new SysVector2(ImGui.GetContentRegionAvail().X, 0f)))
             {
                 ImGui.OpenPopup("relink");
             }
@@ -478,7 +478,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
             ImGui.PushID(alias);
             Gui.Bullet($"mesh/{alias} -> mesh/{current}");
             ImGui.SameLine();
-            if (ImGui.SmallButton("Remove"))
+            if (ImGui.SmallButton($"{Icons.Trash2}  Remove"))
             {
                 Run($"Remove the mesh alias {alias}", () => _report = [.. workflow.Relink(alias, null)]);
             }

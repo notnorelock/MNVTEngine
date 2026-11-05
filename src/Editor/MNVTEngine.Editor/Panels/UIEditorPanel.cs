@@ -97,7 +97,7 @@ internal sealed class UIEditorPanel : IDisposable
         if (_focusFrames > 0)
         {
             _focusFrames--;
-            ImGui.SetWindowFocus("UI Editor");
+            ImGui.SetWindowFocus(EditorWindows.Id("UI Editor"));
         }
 
         if (_context.CenterDockId != 0)
@@ -106,7 +106,7 @@ internal sealed class UIEditorPanel : IDisposable
         }
 
         ImGui.SetNextWindowSize(new SysVector2(1100f, 650f), ImGuiCond.FirstUseEver);
-        _visible = ImGui.Begin("UI Editor");
+        _visible = ImGui.Begin(EditorWindows.Title("UI Editor"));
         IsFocused = _visible && ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows);
         if (!_visible)
         {
@@ -190,7 +190,7 @@ internal sealed class UIEditorPanel : IDisposable
 
         ImGui.SameLine();
         ImGui.BeginDisabled(!document.CanUndo);
-        if (ImGui.Button("Undo"))
+        if (Gui.IconButton(Icons.Undo2, "Undo (Ctrl+Z)"))
         {
             document.Undo();
         }
@@ -198,7 +198,7 @@ internal sealed class UIEditorPanel : IDisposable
         ImGui.EndDisabled();
         ImGui.SameLine();
         ImGui.BeginDisabled(!document.CanRedo);
-        if (ImGui.Button("Redo"))
+        if (Gui.IconButton(Icons.Redo2, "Redo (Ctrl+Y)"))
         {
             document.Redo();
         }
@@ -220,7 +220,7 @@ internal sealed class UIEditorPanel : IDisposable
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("Add"))
+        if (ImGui.Button($"{Icons.Plus}  Add"))
         {
             document.Add(_addType);
         }
@@ -375,7 +375,7 @@ internal sealed class UIEditorPanel : IDisposable
             if (element.StateStyles.TryGetValue(_stateStyle, out var style))
             {
                 DrawStyle(element, style, _stateStyle.ToString());
-                if (ImGui.Button("Remove state style"))
+                if (ImGui.Button($"{Icons.Trash2}  Remove state style"))
                 {
                     element.StateStyles.Remove(_stateStyle);
                     element.InvalidateLayout();

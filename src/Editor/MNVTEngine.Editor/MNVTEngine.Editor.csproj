@@ -11,6 +11,11 @@
     <InternalsVisibleTo Include="MNVTEngine.Editor.Tests" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Lucide icons (ISC), merged into the editor font; see Icons.cs. -->
+    <None Include="Resources\Fonts\lucide.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Resources\Fonts\lucide-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\Engine\MNVTEngine.Audio.OpenAL\MNVTEngine.Audio.OpenAL.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.CrashReporting\MNVTEngine.CrashReporting.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.DebugUI\MNVTEngine.DebugUI.csproj" />

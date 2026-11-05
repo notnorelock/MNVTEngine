@@ -100,7 +100,7 @@ internal sealed class AnimatorEditorPanel(EditorContext context)
         if (_focusFrames > 0)
         {
             _focusFrames--;
-            ImGui.SetWindowFocus("Animator");
+            ImGui.SetWindowFocus(EditorWindows.Id("Animator"));
         }
 
         if (context.CenterDockId != 0)
@@ -109,7 +109,7 @@ internal sealed class AnimatorEditorPanel(EditorContext context)
         }
 
         ImGui.SetNextWindowSize(new SysVector2(1100f, 600f), ImGuiCond.FirstUseEver);
-        var visible = ImGui.Begin("Animator");
+        var visible = ImGui.Begin(EditorWindows.Title("Animator"));
         IsFocused = visible && ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows);
         if (!visible)
         {
@@ -156,14 +156,14 @@ internal sealed class AnimatorEditorPanel(EditorContext context)
     {
         ImGui.TextUnformatted(Path.GetFileName(document.FullPath) + (document.IsDirty ? " *" : ""));
         ImGui.SameLine();
-        if (ImGui.Button("Save"))
+        if (Gui.IconButton(Icons.Save, "Save (Ctrl+S)"))
         {
             Save();
         }
 
         ImGui.SameLine();
         ImGui.BeginDisabled(!document.CanUndo);
-        if (ImGui.Button("Undo"))
+        if (Gui.IconButton(Icons.Undo2, "Undo (Ctrl+Z)"))
         {
             Undo();
         }
@@ -171,14 +171,14 @@ internal sealed class AnimatorEditorPanel(EditorContext context)
         ImGui.EndDisabled();
         ImGui.SameLine();
         ImGui.BeginDisabled(!document.CanRedo);
-        if (ImGui.Button("Redo"))
+        if (Gui.IconButton(Icons.Redo2, "Redo (Ctrl+Y)"))
         {
             Redo();
         }
 
         ImGui.EndDisabled();
         ImGui.SameLine();
-        if (ImGui.Button("Frame"))
+        if (Gui.IconButton(Icons.Scan, "Frame all states"))
         {
             Frame(document);
         }
@@ -282,7 +282,7 @@ internal sealed class AnimatorEditorPanel(EditorContext context)
             }
 
             ImGui.SameLine();
-            if (ImGui.SmallButton("x"))
+            if (ImGui.SmallButton(Icons.X))
             {
                 document.RemoveParameter(parameter);
             }
@@ -652,7 +652,7 @@ internal sealed class AnimatorEditorPanel(EditorContext context)
             }
 
             ImGui.SameLine();
-            if (ImGui.SmallButton("x"))
+            if (ImGui.SmallButton(Icons.X))
             {
                 transition.Conditions.Remove(condition);
             }
@@ -660,13 +660,13 @@ internal sealed class AnimatorEditorPanel(EditorContext context)
             ImGui.PopID();
         }
 
-        if (ImGui.Button("+ Condition"))
+        if (ImGui.Button($"{Icons.Plus}  Condition"))
         {
             document.AddCondition(transition);
         }
 
         ImGui.Separator();
-        if (ImGui.Button("Delete transition"))
+        if (ImGui.Button($"{Icons.Trash2}  Delete transition"))
         {
             document.Transitions.Remove(transition);
             _selectedTransition = null;

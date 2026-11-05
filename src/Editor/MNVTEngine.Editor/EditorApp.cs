@@ -84,7 +84,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             Renderer = renderer,
             Resources = resources,
             SceneRenderer = new SceneRenderer(renderer, resources, _logger),
-            ImGui = new ImGuiRenderer(device, renderer.DefaultMaterial, font, 17f),
+            ImGui = new ImGuiRenderer(device, renderer.DefaultMaterial, font, 17f, iconFont: Icons.Font),
             GameUI = new UI.UIRenderer(device, renderer.DefaultMaterial),
             Session = session,
             PlayMode = new PlayModeController(session, loggerFactory) { Audio = AudioDevices.CreateOrSilent(Audio.OpenAL.OpenALAudioDevice.Create, loggerFactory.CreateLogger("Audio")) },
@@ -111,7 +111,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _iniPath = Path.Combine(project.RootDirectory, "Library", "Editor", "layout.ini");
         if (File.Exists(_iniPath))
         {
-            ImGui.LoadIniSettingsFromDisk(_iniPath);
+            ImGui.LoadIniSettingsFromMemory(EditorWindows.MigrateLayout(File.ReadAllText(_iniPath)));
         }
 
         _hierarchy = new HierarchyPanel(_context);
@@ -269,7 +269,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         if (_focusSceneFrames > 0)
         {
             _focusSceneFrames--;
-            ImGui.SetWindowFocus("Scene");
+            ImGui.SetWindowFocus(EditorWindows.Id("Scene"));
         }
 
         _gameView.ApplyPendingFocus();
@@ -465,16 +465,16 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         DockBuilder.SplitNode(dockId, DockBuilder.Direction.Left, 0.18f, out var left, out var rest);
         DockBuilder.SplitNode(rest, DockBuilder.Direction.Right, 0.28f, out var right, out rest);
         DockBuilder.SplitNode(rest, DockBuilder.Direction.Down, 0.30f, out var bottom, out var center);
-        DockBuilder.DockWindow("Hierarchy", left);
-        DockBuilder.DockWindow("Inspector", right);
-        DockBuilder.DockWindow("Project", bottom);
-        DockBuilder.DockWindow("Console", bottom);
-        DockBuilder.DockWindow("Profiler", bottom);
-        DockBuilder.DockWindow("Script Debugger", bottom);
-        DockBuilder.DockWindow("Game", center);
-        DockBuilder.DockWindow("Script Editor", center);
-        DockBuilder.DockWindow("UI Editor", center);
-        DockBuilder.DockWindow("Scene", center);
+        DockBuilder.DockWindow(EditorWindows.Id("Hierarchy"), left);
+        DockBuilder.DockWindow(EditorWindows.Id("Inspector"), right);
+        DockBuilder.DockWindow(EditorWindows.Id("Project"), bottom);
+        DockBuilder.DockWindow(EditorWindows.Id("Console"), bottom);
+        DockBuilder.DockWindow(EditorWindows.Id("Profiler"), bottom);
+        DockBuilder.DockWindow(EditorWindows.Id("Script Debugger"), bottom);
+        DockBuilder.DockWindow(EditorWindows.Id("Game"), center);
+        DockBuilder.DockWindow(EditorWindows.Id("Script Editor"), center);
+        DockBuilder.DockWindow(EditorWindows.Id("UI Editor"), center);
+        DockBuilder.DockWindow(EditorWindows.Id("Scene"), center);
         DockBuilder.Finish(dockId);
     }
 
@@ -611,27 +611,27 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     {
         var play = _context.PlayMode;
         var width = ImGui.GetContentRegionAvail().X;
-        ImGui.SetCursorPosX((width * 0.5f) - 110f);
+        ImGui.SetCursorPosX((width * 0.5f) - (ImGui.GetFrameHeight() * 1.5f));
 
         // The button toggles Play Mode, so IsPlaying may differ after it: the scope remembers whether it pushed.
-        using (Gui.StyleColor(ImGuiCol.Button, new System.Numerics.Vector4(0.26f, 0.42f, 0.64f, 1f), play.IsPlaying))
+        using (Gui.StyleColor(ImGuiCol.Text, new System.Numerics.Vector4(0.45f, 0.7f, 1f, 1f), play.IsPlaying))
         {
-            if (ImGui.Button(play.IsPlaying ? "Stop" : "Play", new SysVector2(70f, 0f)))
+            if (Gui.IconButton(Icons.Play, play.IsPlaying ? "Stop (Ctrl+P)" : "Play (Ctrl+P)", play.IsPlaying))
             {
                 TogglePlay();
             }
         }
 
-        ImGui.SameLine();
+        ImGui.SameLine(0f, 2f);
         ImGui.BeginDisabled(!play.IsPlaying);
-        if (ImGui.Button(play.State == PlayState.Paused ? "Resume" : "Pause", new SysVector2(70f, 0f)))
+        if (Gui.IconButton(Icons.Pause, play.State == PlayState.Paused ? "Resume" : "Pause", play.State == PlayState.Paused))
         {
             play.TogglePause();
         }
 
-        ImGui.SameLine();
+        ImGui.SameLine(0f, 2f);
         ImGui.BeginDisabled(play.State != PlayState.Paused);
-        if (ImGui.Button("Step", new SysVector2(60f, 0f)))
+        if (Gui.IconButton(Icons.StepForward, "Step one frame"))
         {
             play.Step();
         }
@@ -662,7 +662,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         if (_scripts.State != ScriptState.None)
         {
             ImGui.SameLine();
-            if (ImGui.SmallButton("Recompile"))
+            if (Gui.IconButton(Icons.RefreshCw, "Recompile scripts"))
             {
                 _scripts.Rebuild();
             }
@@ -976,7 +976,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
         ImGui.SetNextWindowSize(new System.Numerics.Vector2(560, 0), ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowPos(ImGui.GetMainViewport().GetCenter(), ImGuiCond.FirstUseEver, new System.Numerics.Vector2(0.5f, 0.5f));
-        if (ImGui.Begin("Build Settings", ref _showBuildSettings, ImGuiWindowFlags.NoDocking))
+        if (ImGui.Begin(EditorWindows.Title("Build Settings"), ref _showBuildSettings, ImGuiWindowFlags.NoDocking))
         {
             var profiles = project.EffectiveBuildProfiles;
             var names = profiles.Select(p => p.Name).ToArray();
@@ -992,26 +992,26 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             Gui.Muted("Profiles are defined in the project file (\"buildProfiles\"); see docs/build-system/building.md.");
             ImGui.Spacing();
             ImGui.BeginDisabled(_build.IsBusy);
-            if (ImGui.Button("Build"))
+            if (ImGui.Button($"{Icons.Hammer}  Build"))
             {
                 StartBuild(run: false);
             }
 
             ImGui.SameLine();
-            if (ImGui.Button("Build and Run"))
+            if (ImGui.Button($"{Icons.CirclePlay}  Build and Run"))
             {
                 StartBuild(run: true);
             }
 
             ImGui.SameLine();
-            if (ImGui.Button("Validate"))
+            if (ImGui.Button($"{Icons.ShieldCheck}  Validate"))
             {
                 GuardUnsaved(_build.StartValidation);
             }
 
             ImGui.EndDisabled();
             ImGui.SameLine();
-            if (ImGui.Button("Open Folder") && Directory.Exists(_build.OutputDirectory))
+            if (ImGui.Button($"{Icons.FolderOpen}  Open Folder") && Directory.Exists(_build.OutputDirectory))
             {
                 OpenFolder(_build.OutputDirectory);
             }

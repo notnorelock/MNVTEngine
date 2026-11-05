@@ -135,6 +135,30 @@ public static class Gui
     }
 
     /// <summary>
+    /// A square button showing an icon glyph (from an icon font merged into the current font), with
+    /// <paramref name="tooltip"/> on hover; <paramref name="active"/> draws it pressed (a selected tool, a toggle that is on).
+    /// </summary>
+    public static bool IconButton(string icon, string tooltip, bool active = false)
+    {
+        var size = ImGui.GetFrameHeight();
+        bool clicked;
+        using (StyleColor(ImGuiCol.Button, ImGui.GetStyle().Colors[(int)ImGuiCol.ButtonActive], active))
+        {
+            using (StyleColor(ImGuiCol.Button, new SysVector4(0f, 0f, 0f, 0f), !active))
+            {
+                clicked = ImGui.Button($"{icon}##{tooltip}", new SysVector2(size, size));
+            }
+        }
+
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+        {
+            Tooltip(tooltip);
+        }
+
+        return clicked;
+    }
+
+    /// <summary>
     /// A number field built on InputText (parsed with the invariant culture when Enter is pressed or focus leaves).
     /// Used instead of ImGui.InputDouble, which hung inside Dear ImGui in debug windows of large views.
     /// </summary>
