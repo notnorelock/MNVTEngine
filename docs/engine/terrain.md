@@ -83,3 +83,24 @@ File.WriteAllText("world.terrain.json", project.Save());
 - `MeshCalibration` applies an asset's scale, then its offset, to loaded `MeshGroup`s (triangle soups per material). `ComputeGroundedCenterOffset` centers a prop on X/Z and rests it on Y = 0.
 - `MeshLodGenerator` builds LOD1 to LOD3 by decimating LOD0 to 40 %, 15 % and 5 % of its vertices, and caches the result per asset path. It uses `MeshSimplifier`, a port of three.js's SimplifyModifier (Melax edge collapse).
 - The ratio counts welded vertices. TerrainHeaven counted soup vertices, which emptied every LOD of a closed mesh.
+
+## Export
+
+`ObjWriter` writes Wavefront OBJ and MTL text from triangle soups.
+
+- Every vertex gets its own `v`/`vt`/`vn` line.
+- Normals are "auto smoothed" at 30°: a vertex averages the face normals of neighbouring triangles, across every group, that lie within 30° of its own face.
+- Group and material names are sanitized.
+
+`UnityExporter.Export(project, folder, options, source)` writes the layout TerrainHeaven's Unity importer reads:
+
+| Path | Contents |
+|---|---|
+| `Meshes/<kind>_<n>_lod<i>.obj/.mtl` | One pair per element and LOD. `options.Scale` is baked into the vertices. Cut splines are skipped: they have no geometry. |
+| `Meshes/prop_<id>_lod<i>.obj/.mtl` | Each placed prop asset once per LOD, calibrated and decimated, unscaled. |
+| `Textures/` | Every referenced texture. A missing texture is skipped with warning 7121. |
+| `ControlMaps/<terrain>_control.png` | Splat weights, with the rows flipped so the image origin is bottom-left (Unity's UV convention). |
+| `foliage.json`, `meshes.json` | Foliage store, plus prop assets and their placements (unscaled). |
+| `manifest.json` | Scale, LOD count and distances, objects with their LOD files and texture per submesh, terrain paint layers, and the texture list. |
+
+`ITerrainExportSource` supplies texture bytes and prop LOD0 meshes, so the exporter does not depend on where assets live.

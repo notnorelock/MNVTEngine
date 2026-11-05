@@ -7,6 +7,7 @@
   <ItemGroup>
     <PackageReference Include="Clipper2" />
     <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="StbImageWriteSharp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MNVTEngine.Mathematics\MNVTEngine.Mathematics.csproj" />
