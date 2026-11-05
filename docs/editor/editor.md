@@ -69,7 +69,7 @@ The game's debug interface runs inside the Game view during Play Mode, with its 
 
 The Script Editor is docked next to the Scene and Game views.
 
-- **Opening files:** double-click a script or text asset in the Project panel, or press **Edit in Script Editor** in a script's inspector. Assets that open here include `.mnvts`, `.json`, shaders, `.mnvtanim`, `.mnvtanimator` and `.mnvtmat`. The **C# scripts** list opens files from `Scripts/`.
+- **Opening files:** double-click a script or text asset in the Project panel, or press **Edit in Script Editor** in a script's inspector. Assets that open here include `.mnvts`, `.json`, shaders, `.mnvtanim` and `.mnvtmat` (`.mnvtanimator` opens in the Animator). The **C# scripts** list opens files from `Scripts/`.
 - **Saving:** Ctrl+S saves the file while the Script Editor has focus (and saves the scene otherwise). Tabs mark unsaved files.
 - **Changes from outside:** a clean tab reloads when the file changes on disk; a tab with unsaved edits keeps them and shows a warning.
 - **Checking:**
@@ -96,6 +96,23 @@ The UI Editor edits game UI layouts (`.mnvtui`, see [game UI](../ui/ui-system.md
   - Units take `120`, `50%` or `auto`, and asset fields take a path; press Enter to apply.
 - **Saving and undo:** Ctrl+S saves and Ctrl+Z / Ctrl+Y undo and redo while the window has focus. A drag or a typed value becomes one step. **Save*** marks unsaved changes.
 - **Limitations:** no drag and drop in the tree or preview, and quitting the editor does not ask about an unsaved layout.
+
+## Animator
+
+The Animator window edits animator controllers (`.mnvtanimator`, see [animator controllers](../engine/models.md#animator-controllers)) as a graph, docked next to the UI Editor.
+
+- **Open:** double-click a `.mnvtanimator` asset in the Project panel, or press **Edit in Animator** in its inspector. **Create > Animator Controller** in the Project panel makes a new one with an Idle state. `--edit <file.mnvtanimator>` opens one at startup.
+- **Parameters** (left): add a float, int, bool or trigger, rename it (conditions follow), set its default, delete it (its conditions go too).
+- **Graph** (middle):
+  - States are nodes: the default state has an orange border. During Play Mode, a state a running `ModelAnimatorController` of this asset is in is green, with a bar showing how far it has played.
+  - **Any State** is the teal node.
+  - Drag nodes to move them. Middle-drag or Alt+drag pans, and **Frame** brings the nodes back into view.
+  - Right-click the graph for **Add State**. Right-click a state for **Make Transition** (then click the target state), **Set as Default State** and **Delete**.
+  - Click an arrow to select its transition; Delete removes it.
+- **Inspector** (right): a state's name (transitions follow renames), clip, speed and looping. A transition's fade, exit time and conditions; each condition offers the comparisons its parameter's type allows.
+- **Clip names:** pick a model in the toolbar to choose clips from its animations; otherwise type them.
+- The toolbar shows whether the controller is valid; hover the problem count for the runtime's messages. **Ctrl+S** saves, **Ctrl+Z/Y** undo and redo while the window has focus.
+- Node positions are saved under `"editor"` in the file; the runtime ignores them.
 
 ## Material inspector
 

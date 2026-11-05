@@ -76,6 +76,10 @@ internal sealed class AssetInspector(EditorContext context) : IDisposable
         {
             context.OpenUILayoutRequest = assets.FullPath(guid);
         }
+        else if (record.Type == AssetTypes.AnimatorController && ImGui.Button("Edit in Animator"))
+        {
+            context.OpenAnimatorRequest = assets.FullPath(guid);
+        }
         else if (record.Type == AssetTypes.Script)
         {
             if (ImGui.Button("Edit in Script Editor"))

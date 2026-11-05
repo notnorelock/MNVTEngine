@@ -44,6 +44,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private BuildController _build = null!;
     private ScriptEditorPanel _scriptEditor = null!;
     private UIEditorPanel _uiEditor = null!;
+    private AnimatorEditorPanel _animator = null!;
     private bool _showBuildSettings;
     private DiagnosticsSettingsWindow _diagnosticsWindow = null!;
     private int _focusSceneFrames;
@@ -146,12 +147,17 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _scripts.Reloaded += _inspector.ClearCaches;
         _scriptEditor = new ScriptEditorPanel(_context, _scripts);
         _uiEditor = new UIEditorPanel(_context, gameUIServices);
+        _animator = new AnimatorEditorPanel(_context);
         if (options.EditFile is { } file)
         {
             var full = Path.IsPathRooted(file) ? file : Path.Combine(project.RootDirectory, file);
             if (full.EndsWith(UI.UILayoutSerializer.Extension, StringComparison.OrdinalIgnoreCase))
             {
                 _context.OpenUILayoutRequest = full;
+            }
+            else if (full.EndsWith(AnimatorControllerDefinition.Extension, StringComparison.OrdinalIgnoreCase))
+            {
+                _context.OpenAnimatorRequest = full;
             }
             else
             {
@@ -242,6 +248,13 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         }
 
         _uiEditor.Draw();
+        if (_context.OpenAnimatorRequest is { } controller)
+        {
+            _context.OpenAnimatorRequest = null;
+            _animator.Open(controller);
+        }
+
+        _animator.Draw();
         if (options.FocusWindow is { } focus && _frames == 10) // after the dock layout and Play Mode focus settle
         {
             ImGui.SetWindowFocus(focus);
@@ -769,6 +782,26 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         {
             _scriptEditor.SaveActive();
             _lastAssetRefresh = double.MinValue; // pick the change up next frame, not in up to 2 s
+            return;
+        }
+
+        // The Animator window has its own undo and save while it has focus.
+        if (io.KeyCtrl && _animator.IsFocused)
+        {
+            if (ImGui.IsKeyPressed(ImGuiKey.S, false))
+            {
+                _animator.Save();
+                _lastAssetRefresh = double.MinValue;
+            }
+            else if (!io.WantTextInput && (ImGui.IsKeyPressed(ImGuiKey.Y, false) || (io.KeyShift && ImGui.IsKeyPressed(ImGuiKey.Z, false))))
+            {
+                _animator.Redo();
+            }
+            else if (!io.WantTextInput && ImGui.IsKeyPressed(ImGuiKey.Z, false))
+            {
+                _animator.Undo();
+            }
+
             return;
         }
 

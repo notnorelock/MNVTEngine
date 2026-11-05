@@ -72,6 +72,9 @@ internal sealed class EditorContext
     /// <summary>A UI layout (full path) to open in the UI Editor this frame.</summary>
     public string? OpenUILayoutRequest { get; set; }
 
+    /// <summary>An animator controller (<c>.mnvtanimator</c>) to open in the Animator window next frame.</summary>
+    public string? OpenAnimatorRequest { get; set; }
+
     public GameObject CreateGameObject(string name, Transform? parent = null)
     {
         var gameObject = ActiveScene.CreateGameObject(name, parent);

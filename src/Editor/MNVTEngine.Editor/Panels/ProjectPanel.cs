@@ -52,6 +52,11 @@ internal sealed class ProjectPanel(EditorContext context)
                 {
                     if (ImGui.BeginMenu("Create"))
                     {
+                        if (ImGui.MenuItem("Animator Controller"))
+                        {
+                            CreateAnimatorController();
+                        }
+
                         if (ImGui.MenuItem("UI Layout"))
                         {
                             CreateUILayout();
@@ -178,8 +183,12 @@ internal sealed class ProjectPanel(EditorContext context)
                     {
                         context.OpenUILayoutRequest = context.Session.Assets.FullPath(guid);
                     }
+                    else if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && record.Type == AssetTypes.AnimatorController)
+                    {
+                        context.OpenAnimatorRequest = context.Session.Assets.FullPath(guid);
+                    }
                     else if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && record.Type is AssetTypes.Script or AssetTypes.Text or AssetTypes.Json
-                        or AssetTypes.Shader or AssetTypes.Animation or AssetTypes.Material or AssetTypes.AnimatorController)
+                        or AssetTypes.Shader or AssetTypes.Animation or AssetTypes.Material)
                     {
                         context.OpenScriptRequest = context.Session.Assets.FullPath(guid); // text assets open in the Script Editor
                     }
@@ -352,6 +361,30 @@ internal sealed class ProjectPanel(EditorContext context)
         }
 
         Try($"Create material {path}", () => context.Session.Selection.SelectAsset(Assets.WriteText(path, Services.MaterialDocument.NewStandardMaterialJson())));
+        Rescan(force: true);
+    }
+
+    /// <summary>A new animator controller with one state in the current folder, opened in the Animator window.</summary>
+    private void CreateAnimatorController()
+    {
+        var path = Combine("New Animator.mnvtanimator");
+        for (var i = 1; File.Exists(Path.Combine(Assets.AssetsDirectory, path)); i++)
+        {
+            path = Combine($"New Animator {i}.mnvtanimator");
+        }
+
+        var full = Path.Combine(Assets.AssetsDirectory, path);
+        Try($"Create animator controller {path}", () =>
+        {
+            Services.AnimatorControllerDocument.CreateNew(full);
+            Assets.Refresh();
+            if (Assets.TryGetGuid(path, out var guid))
+            {
+                context.Session.Selection.SelectAsset(guid);
+            }
+
+            context.OpenAnimatorRequest = full;
+        });
         Rescan(force: true);
     }
 

@@ -237,4 +237,4 @@ controller.StateChanged += (_, from, to) => Log.Info($"{from} -> {to}");
 - **Validation.** The importer checks state, parameter and condition kinds and names and reports every mistake on the asset. Clip names are checked against the model when they play.
 - **From code:** `Use(AnimatorControllerDefinition.Create(...))` runs a controller built in code, and `Play(state, fade)` forces a state. `CurrentState`, `StateTime` and `NormalizedTime` tell where it is.
 - **Layers** stay in game code (`ModelAnimator.SetLayer`); a controller drives the base layer.
-- **Editing.** Edit the JSON in the Script Editor; double-click the asset to open it. There is no graph editor yet.
+- **Editing.** The editor's [Animator window](../editor/editor.md#animator) edits a controller as a graph (double-click the asset); the JSON stays hand-editable.
