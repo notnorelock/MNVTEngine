@@ -29,7 +29,7 @@ public override void Update()
 | `Render.Sprites`, `Render.Lighting` | `SceneRenderer` |
 | `PlayMode`, `Editor.SceneView`, `Editor.GameView` | Editor |
 | `Sprites drawn`, `Sprites culled`, `Draw calls`, `Lights`, `Game objects`, `Physics bodies`, `Audio voices` | counters |
-| `Meshes drawn`, `Meshes culled`, `Mesh triangles`, `Material switches`, `Lights 3D`, `Skinned meshes`, `GPU skinned meshes`, `Shadow casters`, `Physics 3D bodies` | 3D counters |
+| `Meshes drawn`, `Meshes culled`, `Mesh triangles`, `Material switches`, `Lights 3D`, `Skinned meshes`, `GPU skinned meshes`, `Instanced meshes`, `Mesh draw calls`, `Shadow casters`, `Physics 3D bodies` | 3D counters |
 | `Render.Meshes`, `Render.Shadows` | 3D samples |
 
 Each frame also records its total time, the bytes allocated on the main thread, and the gen0, gen1 and gen2 collections.

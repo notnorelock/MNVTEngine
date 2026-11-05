@@ -65,6 +65,11 @@ half of a rotated mesh (the GPU mesh test covers this case). Every engine render
   - Front faces are counter-clockwise on screen.
   - Drawing with depth state into a target without depth throws.
 - **Per-draw data.** `DrawCommand.World` reaches shaders as `uModel`, and its inverse transpose as `uNormalMatrix`; both are names reserved for the renderer. Pipelines feed only the vertex attributes a shader reads.
+- **GPU instancing.** `Renderer3D.InstancedVariant` turns on instanced draws. Opaque items that share a mesh, submesh, material and culling, and are not GPU-skinned, are drawn together with one instanced draw per 64 copies. The draw goes where the nearest of them is in the draw order.
+  - `DrawCommand.Instances` reach shaders as `mat4 uInstances[64]`, indexed by `gl_InstanceIndex`. The instanced Standard and Unlit variants use it in place of `uModel`, with normals by its inverse transpose.
+  - The 3D pass instances built-in Standard and Unlit materials (`SceneRenderer.GpuInstancing`, `GameRuntimeOptions.GpuInstancing`). Renderers of a shared `.mnvtmat` or of a model's materials qualify. Primitives with their own color each have their own built-in material, and so do renderers with material overrides; they draw one by one.
+  - Shadow maps still draw casters one by one.
+  - `Render3DStatistics.DrawCalls` and `InstancedItems` count draws and instanced items.
 - **GPU skinning.** `GpuMesh.UploadSkinned` adds four joints and weights per vertex (`SkinnedMeshVertex`, 104 bytes, locations 6 and 7). `DrawCommand.Joints` (and `MeshDrawItem.Joints`) reach shaders as the `mat4 uJoints[128]` array, which shader reflection reads with its length and stride. Per-stage uniform blocks hold up to 16 KB.
 - **`Renderer3D`** (backend-independent):
   - frustum-culls each `MeshDrawItem` by its world-space bounds;

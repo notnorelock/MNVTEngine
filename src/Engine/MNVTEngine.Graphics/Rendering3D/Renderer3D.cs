@@ -1,3 +1,4 @@
+using MNVTEngine.Graphics.Materials;
 using MNVTEngine.Graphics.Meshes;
 using MNVTEngine.Mathematics;
 
@@ -24,7 +25,8 @@ public readonly record struct MeshDrawItem(GpuMesh Mesh, int SubMesh, Material M
 }
 
 /// <param name="MaterialSwitches">Draws that used a different material than the draw before (pipeline and descriptor changes).</param>
-public readonly record struct Render3DStatistics(int Visible, int Culled, int DrawCalls, int Triangles, int MaterialSwitches = 0);
+/// <param name="InstancedItems">Visible items drawn by instanced draws (they share <see cref="DrawCalls"/>).</param>
+public readonly record struct Render3DStatistics(int Visible, int Culled, int DrawCalls, int Triangles, int MaterialSwitches = 0, int InstancedItems = 0);
 
 /// <summary>
 /// Draws meshes for one camera, independent of the graphics backend:
@@ -34,6 +36,8 @@ public readonly record struct Render3DStatistics(int Visible, int Culled, int Dr
 /// band by material and mesh, so draws that share state follow each other (fewer pipeline and descriptor changes);</item>
 /// <item>then transparent materials by queue, then back to front.</item>
 /// </list>
+/// With <see cref="InstancedVariant"/>, opaque items that share a mesh, submesh, material and culling are drawn with
+/// instanced draws (up to <see cref="MaterialShaders.MaxInstances"/> per draw), placed where the nearest of them is.
 /// Materials whose shader reads the lighting uniforms (the Standard shader) get the pass's lights and shadow map
 /// (<see cref="LightingUniforms"/>); without lighting they show unlit. The caller sets the target (with a depth buffer)
 /// and clears it.
@@ -43,6 +47,17 @@ public sealed class Renderer3D(IGraphicsDevice device)
     private readonly List<(MeshDrawItem Item, float Distance)> _opaque = [];
     private readonly List<(MeshDrawItem Item, float Distance)> _transparent = [];
     private readonly HashSet<Material> _lit = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<(GpuMesh, int, Material, CullMode?), List<Matrix4x4>> _groups = [];
+    private readonly HashSet<(GpuMesh, int, Material, CullMode?)> _drawnGroups = [];
+
+    /// <summary>
+    /// The instancing twin of a material (its values on the instanced variant of its shader, copied after lighting), or
+    /// null when it has none: those items draw one by one. Null (the default) turns instancing off.
+    /// </summary>
+    public Func<Material, Material?>? InstancedVariant { get; set; }
+
+    /// <summary>Items that share mesh and material are instanced from this many on.</summary>
+    public int InstancingThreshold { get; set; } = 2;
 
     /// <param name="lighting">The pass's lights; null draws lit materials unlit (<see cref="SceneLighting.Unlit"/>).</param>
     /// <param name="shadows">The shadow maps rendered for this pass, if any.</param>
@@ -78,15 +93,77 @@ public sealed class Renderer3D(IGraphicsDevice device)
         _transparent.Sort((a, b) => a.Item.Material.RenderQueue != b.Item.Material.RenderQueue ? a.Item.Material.RenderQueue.CompareTo(b.Item.Material.RenderQueue) : b.Distance.CompareTo(a.Distance));
         var triangles = 0;
         var switches = 0;
+        var draws = 0;
+        var instanced = 0;
         Material? previous = null;
+        GroupInstances();
         foreach (var (item, _) in _opaque.Concat(_transparent))
         {
+            var key = (item.Mesh, item.SubMesh, item.Material, item.Cull);
+            if (_groups.TryGetValue(key, out var worlds))
+            {
+                if (!_drawnGroups.Add(key))
+                {
+                    continue; // drawn with its group
+                }
+
+                if (InstancedVariant!(item.Material) is { } twin)
+                {
+                    switches += ReferenceEquals(twin, previous) ? 0 : 1;
+                    previous = twin;
+                    for (var start = 0; start < worlds.Count; start += MaterialShaders.MaxInstances)
+                    {
+                        var batch = worlds.GetRange(start, Math.Min(MaterialShaders.MaxInstances, worlds.Count - start)).ToArray();
+                        triangles += Draw(item with { Material = twin }, viewProjection, batch);
+                        draws++;
+                    }
+
+                    instanced += worlds.Count;
+                    continue;
+                }
+
+                // No twin: drawn one by one below, with the other members as they come.
+                _groups.Remove(key);
+            }
+
             switches += ReferenceEquals(item.Material, previous) ? 0 : 1;
             previous = item.Material;
             triangles += Draw(item, viewProjection);
+            draws++;
         }
 
-        return new Render3DStatistics(_opaque.Count + _transparent.Count, culled, _opaque.Count + _transparent.Count, triangles, switches);
+        return new Render3DStatistics(_opaque.Count + _transparent.Count, culled, draws, triangles, switches, instanced);
+    }
+
+    /// <summary>Opaque items that can share an instanced draw: the same mesh, submesh, material and culling, not GPU-skinned.</summary>
+    private void GroupInstances()
+    {
+        _groups.Clear();
+        _drawnGroups.Clear();
+        if (InstancedVariant is null)
+        {
+            return;
+        }
+
+        foreach (var (item, _) in _opaque)
+        {
+            if (item.Joints.IsEmpty)
+            {
+                var key = (item.Mesh, item.SubMesh, item.Material, item.Cull);
+                if (!_groups.TryGetValue(key, out var worlds))
+                {
+                    worlds = [];
+                    _groups[key] = worlds;
+                }
+
+                worlds.Add(item.World);
+            }
+        }
+
+        foreach (var key in _groups.Where(g => g.Value.Count < Math.Max(2, InstancingThreshold)).Select(g => g.Key).ToList())
+        {
+            _groups.Remove(key);
+        }
     }
 
     /// <summary>World-space box around a transformed box (its eight corners).</summary>
@@ -102,7 +179,7 @@ public sealed class Renderer3D(IGraphicsDevice device)
         return new Bounds(center, extents * 2f);
     }
 
-    private int Draw(in MeshDrawItem item, Matrix4x4 viewProjection)
+    private int Draw(in MeshDrawItem item, Matrix4x4 viewProjection, Matrix4x4[]? instances = null)
     {
         var material = item.Material;
         var state = new RenderState(material.DepthTest, material.DepthWrite, item.Cull ?? material.Cull);
@@ -113,8 +190,8 @@ public sealed class Renderer3D(IGraphicsDevice device)
         }
 
         var sub = mesh.SubMeshes[item.SubMesh];
-        device.Draw(new DrawCommand(item.Material, item.Texture, mesh.Vertices, mesh.Indices, sub.IndexStart, sub.IndexCount, viewProjection, State: state, World: item.World, Joints: item.Joints));
-        return sub.IndexCount / 3;
+        device.Draw(new DrawCommand(item.Material, item.Texture, mesh.Vertices, mesh.Indices, sub.IndexStart, sub.IndexCount, viewProjection, State: state, World: item.World, Joints: item.Joints, Instances: instances));
+        return sub.IndexCount / 3 * (instances?.Length ?? 1);
     }
 
     private static int MaterialOrder(Material material) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(material);

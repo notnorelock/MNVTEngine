@@ -56,6 +56,14 @@ public static class MaterialShaders
     /// <summary>Joints a GPU-skinned mesh can have (the <c>uJoints</c> array); meshes with more are skinned on the CPU.</summary>
     public const int MaxJoints = 128;
 
+    /// <summary>Ids of the instancing variants: one draw for up to <see cref="MaxInstances"/> copies of a mesh and material.</summary>
+    public const string StandardInstancedId = "builtin:standard-instanced";
+
+    public const string UnlitInstancedId = "builtin:unlit-instanced";
+
+    /// <summary>Instances per instanced draw (the <c>uInstances</c> array); more are drawn in several batches.</summary>
+    public const int MaxInstances = 64;
+
     private const string MeshVertex = """
         #version 450 core
         layout(location = 0) in vec3 aPosition;
@@ -82,6 +90,40 @@ public static class MaterialShaders
             vWorldPosition = world.xyz;
             vNormal = normalize(mat3(uNormalMatrix) * aNormal);
             vTangent = vec4(normalize(mat3(uModel) * aTangent.xyz), aTangent.w);
+            vTexCoord = aTexCoord;
+            vTexCoord1 = aTexCoord1;
+            vColor = aColor;
+            gl_Position = uViewProjection * world;
+        }
+        """;
+
+    private const string InstancedMeshVertex = """
+        #version 450 core
+        layout(location = 0) in vec3 aPosition;
+        layout(location = 1) in vec3 aNormal;
+        layout(location = 2) in vec4 aTangent;
+        layout(location = 3) in vec2 aTexCoord;
+        layout(location = 4) in vec2 aTexCoord1;
+        layout(location = 5) in vec4 aColor;
+
+        uniform mat4 uViewProjection;
+        uniform mat4 uInstances[64];
+
+        out vec3 vWorldPosition;
+        out vec3 vNormal;
+        out vec4 vTangent;
+        out vec2 vTexCoord;
+        out vec2 vTexCoord1;
+        out vec4 vColor;
+
+        void main()
+        {
+            // Each instance has its own object-to-world matrix; normals use its inverse transpose, as uNormalMatrix does.
+            mat4 model = uInstances[gl_InstanceIndex];
+            vec4 world = model * vec4(aPosition, 1.0);
+            vWorldPosition = world.xyz;
+            vNormal = normalize(transpose(inverse(mat3(model))) * aNormal);
+            vTangent = vec4(normalize(mat3(model) * aTangent.xyz), aTangent.w);
             vTexCoord = aTexCoord;
             vTexCoord1 = aTexCoord1;
             vColor = aColor;
@@ -419,6 +461,9 @@ public static class MaterialShaders
     /// <summary>The Standard shader for GPU-skinned meshes (<see cref="SkinnedMeshVertex"/>, <c>uJoints</c>).</summary>
     public static ShaderSource StandardSkinned { get; } = new("Builtin/StandardSkinned", SkinnedMeshVertex, Standard.FragmentGlsl);
 
+    /// <summary>The Standard shader for instanced draws (<c>uInstances</c> instead of <c>uModel</c>).</summary>
+    public static ShaderSource StandardInstanced { get; } = new("Builtin/StandardInstanced", InstancedMeshVertex, Standard.FragmentGlsl);
+
     /// <summary>
     /// Writes the depth seen from a light into an RGBA8 target, 8 bits per channel (see <c>ShadowMap</c>); the Standard
     /// shader unpacks it. Built in; not a material shader.
@@ -568,6 +613,9 @@ public static class MaterialShaders
 
     /// <summary>The Unlit shader for GPU-skinned meshes.</summary>
     public static ShaderSource UnlitSkinned { get; } = new("Builtin/UnlitSkinned", SkinnedMeshVertex, Unlit.FragmentGlsl);
+
+    /// <summary>The Unlit shader for instanced draws.</summary>
+    public static ShaderSource UnlitInstanced { get; } = new("Builtin/UnlitInstanced", InstancedMeshVertex, Unlit.FragmentGlsl);
 
     private static readonly Vector4 One = new(1f, 1f, 1f, 1f);
 

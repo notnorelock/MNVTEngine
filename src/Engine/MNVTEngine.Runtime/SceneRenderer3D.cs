@@ -22,6 +22,7 @@ public sealed partial class SceneRenderer
     private readonly ConditionalWeakTable<MeshRenderer, Material> _rendererMaterials = [];
     private readonly ConditionalWeakTable<MeshRenderer, Dictionary<Material, Material>> _overriddenMaterials = [];
     private readonly ConditionalWeakTable<Material, Material> _skinnedMaterials = [];
+    private readonly ConditionalWeakTable<Material, Material> _instancedMaterials = [];
     private readonly ConditionalWeakTable<MeshRenderer, HashSet<string>> _warnedOverrides = [];
     private Renderer3D? _renderer3D;
     private GpuMeshCache? _meshes;
@@ -46,6 +47,18 @@ public sealed partial class SceneRenderer
 
     /// <summary>Skinned meshes the GPU skinned in the last 3D pass.</summary>
     public int GpuSkinnedMeshes { get; private set; }
+
+    /// <summary>
+    /// Draws copies of a mesh that share a built-in Standard or Unlit material with instanced draws (default): one draw
+    /// per mesh, submesh and material instead of one per renderer. Off draws each renderer by itself.
+    /// </summary>
+    public bool GpuInstancing { get; set; } = true;
+
+    /// <summary>Mesh items drawn by instanced draws in the last 3D pass.</summary>
+    public int InstancedMeshes { get; private set; }
+
+    /// <summary>Draw calls of the last 3D pass's main view.</summary>
+    public int MeshDrawCalls { get; private set; }
 
     /// <summary>Mesh renderers outside the camera's view in the last 3D pass.</summary>
     public int MeshesCulled { get; private set; }
@@ -129,6 +142,7 @@ public sealed partial class SceneRenderer
         using var sample = Core.Diagnostics.Profiler.Sample("Render.Meshes");
         var device = renderer.Device;
         _renderer3D ??= new Renderer3D(device);
+        _renderer3D.InstancedVariant = GpuInstancing ? InstancedVariant : null;
         var view = new View3D(camera.ViewMatrix, camera.ProjectionMatrix, camera.Transform.Position);
         var lighting = CollectLighting(scene, camera, view.Position);
         var shadows = RenderShadows(lighting, view, camera, device, target);
@@ -137,7 +151,7 @@ public sealed partial class SceneRenderer
         device.ClearDepth();
         AddSky(scene, camera, view.Position);
         var stats = _renderer3D.Render(view, _items, lighting, shadows);
-        (MeshesDrawn, MeshesCulled, MeshTriangles, MaterialSwitches, SkinnedMeshes) = (stats.Visible, stats.Culled, stats.Triangles, stats.MaterialSwitches, _skins.Count);
+        (MeshesDrawn, MeshesCulled, MeshTriangles, MaterialSwitches, SkinnedMeshes, InstancedMeshes, MeshDrawCalls) = (stats.Visible, stats.Culled, stats.Triangles, stats.MaterialSwitches, _skins.Count, stats.InstancedItems, stats.DrawCalls);
         Core.Diagnostics.Profiler.Count("Meshes drawn", MeshesDrawn);
         Core.Diagnostics.Profiler.Count("Meshes culled", MeshesCulled);
         Core.Diagnostics.Profiler.Count("Mesh triangles", MeshTriangles);
@@ -145,6 +159,8 @@ public sealed partial class SceneRenderer
         Core.Diagnostics.Profiler.Count("Lights 3D", LightsUsed);
         Core.Diagnostics.Profiler.Count("Skinned meshes", SkinnedMeshes);
         Core.Diagnostics.Profiler.Count("GPU skinned meshes", GpuSkinnedMeshes);
+        Core.Diagnostics.Profiler.Count("Instanced meshes", InstancedMeshes);
+        Core.Diagnostics.Profiler.Count("Mesh draw calls", MeshDrawCalls);
     }
 
     /// <summary>One item per submesh of a model mesh, with the renderer's material or the model's material of each submesh.</summary>
@@ -179,6 +195,27 @@ public sealed partial class SceneRenderer
             var material = joints is not null ? SkinnedVariant(materials[i])! : materials[i];
             _items.Add(new MeshDrawItem(mesh, i, material, white, world, cull, joints ?? default(ReadOnlyMemory<Matrix4x4>), bounds));
         }
+    }
+
+    /// <summary>The instancing twin of a built-in Standard or Unlit material (values copied each time); null for other shaders.</summary>
+    private Material? InstancedVariant(Material material)
+    {
+        var id = ReferenceEquals(material.Shader, resources.GetBuiltinShader(Serialization.MaterialDefinition.BuiltinStandard)) ? MaterialShaders.StandardInstancedId
+            : ReferenceEquals(material.Shader, resources.GetBuiltinShader(Serialization.MaterialDefinition.BuiltinUnlit)) ? MaterialShaders.UnlitInstancedId : null;
+        if (id is null)
+        {
+            return null;
+        }
+
+        var shader = resources.GetBuiltinShader(id);
+        if (!_instancedMaterials.TryGetValue(material, out var twin) || !ReferenceEquals(twin.Shader, shader))
+        {
+            twin = new Material(shader, material.BlendMode, material.Name + " (instanced)");
+            _instancedMaterials.AddOrUpdate(material, twin);
+        }
+
+        twin.CopyFrom(material);
+        return twin;
     }
 
     /// <summary>

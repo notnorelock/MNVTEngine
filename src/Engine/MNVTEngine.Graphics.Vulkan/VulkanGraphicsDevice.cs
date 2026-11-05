@@ -638,7 +638,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
             _boundIndices = (ib.Buffer, ib.Offset);
         }
 
-        vk.CmdDrawIndexed(_cmd, (uint)command.IndexCount, 1, (uint)command.IndexOffset, 0, 0);
+        vk.CmdDrawIndexed(_cmd, (uint)command.IndexCount, (uint)Math.Max(1, command.Instances.Length), (uint)command.IndexOffset, 0, 0);
         if (texture.Image.View.Handle != _lastTextureView.Handle)
         {
             _lastTextureView = texture.Image.View;
@@ -1294,6 +1294,26 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         }
     }
 
+    /// <summary>Writes per-draw matrices (joints, instances) into a <c>mat4</c> array uniform of the stage, up to its length.</summary>
+    private static void WriteMatrices(VulkanShader shader, ShaderStage stage, string name, ReadOnlySpan<Matrix4x4> matrices, Span<byte> data)
+    {
+        if (matrices.IsEmpty)
+        {
+            return;
+        }
+
+        foreach (var slot in shader.Slots(name))
+        {
+            if (slot.Stage == stage && slot.Member.ElementKind == UniformKind.Matrix4x4)
+            {
+                for (var i = 0; i < Math.Min(matrices.Length, slot.Member.ArrayLength); i++)
+                {
+                    MemoryMarshal.Write(data[(slot.Member.Offset + (i * slot.Member.ArrayStride))..], in matrices[i]);
+                }
+            }
+        }
+    }
+
     /// <summary>Fills a stage's uniform block; streams it only when it differs from the last one. Returns true when it changed.</summary>
     private bool WriteBlock(VulkanShader shader, ShaderStage stage, SpirvUniformBlock block, in DrawCommand command, byte[] scratch, byte[] last, ref (VkBuffer Buffer, ulong Offset, int Size) current)
     {
@@ -1335,20 +1355,8 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
             }
         }
 
-        if (!command.Joints.IsEmpty)
-        {
-            foreach (var slot in shader.Slots("uJoints"))
-            {
-                if (slot.Stage == stage && slot.Member.ElementKind == UniformKind.Matrix4x4)
-                {
-                    var joints = command.Joints.Span;
-                    for (var j = 0; j < Math.Min(joints.Length, slot.Member.ArrayLength); j++)
-                    {
-                        MemoryMarshal.Write(data[(slot.Member.Offset + (j * slot.Member.ArrayStride))..], in joints[j]);
-                    }
-                }
-            }
-        }
+        WriteMatrices(shader, stage, "uJoints", command.Joints.Span, data);
+        WriteMatrices(shader, stage, "uInstances", command.Instances.Span, data);
 
         foreach (var (name, value) in command.Material.Uniforms)
         {

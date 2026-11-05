@@ -235,6 +235,36 @@ public sealed class RuntimeTests : IDisposable
         Assert.Equal(Mathematics.Color.Green, At(2, 2));                              // ...which fills the rest of the view
     }
 
+    [Fact]
+    public void CopiesOfAMeshAndMaterial_DrawInstanced_AndLookTheSameAsSeparateDraws()
+    {
+        var material = Guid.NewGuid();
+        File.WriteAllText(Path.Combine(_root, "Assets", "Blue.mnvtmat"), """{ "schemaVersion": 2, "shader": "builtin:standard", "blend": "Opaque", "properties": { "_BaseColor": [0.2, 0.4, 1, 1] } }""");
+        File.WriteAllText(Path.Combine(_root, "Assets", "Blue.mnvtmat.meta"), $$"""{ "schemaVersion": 1, "guid": "{{material}}", "settings": {} }""");
+        string Cube(int i) =>
+            $$"""{ "id": "{{Guid.NewGuid()}}", "name": "Cube {{i}}", "transform": { "localPosition": { "x": {{(i % 4) - 1.5f}}, "y": {{(i / 4) - 1.5f}}, "z": 0 }, "localRotation": { "x": 0, "y": 0.38, "z": 0, "w": 0.92 }, "localScale": { "x": 0.6, "y": 0.6, "z": 0.6 } }, "components": [ { "type": "MNVTEngine.MeshRenderer", "data": { "primitive": "Cube", "material": "asset:{{material}}" } } ] }""";
+        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt"), $$"""
+            { "schemaVersion": 3, "name": "Crowd", "gameObjects": [
+              { "id": "{{Guid.NewGuid()}}", "name": "Camera", "transform": { "localPosition": { "x": 0, "y": 0, "z": 6 }, "localRotation": { "x": 0, "y": 0, "z": 0, "w": 1 }, "localScale": { "x": 1, "y": 1, "z": 1 } },
+                "components": [ { "type": "MNVTEngine.Camera", "data": { "projection": "Perspective", "fieldOfView": 60.0, "backgroundColor": { "r": 0, "g": 0, "b": 0, "a": 1 } } } ] },
+              { "id": "{{Guid.NewGuid()}}", "name": "Sun", "transform": { "localPosition": { "x": 0, "y": 0, "z": 0 }, "localRotation": { "x": -0.3, "y": 0.2, "z": 0, "w": 0.93 }, "localScale": { "x": 1, "y": 1, "z": 1 } },
+                "components": [ { "type": "MNVTEngine.Light", "data": { "type": "Directional" } } ] },
+              {{string.Join(",", Enumerable.Range(0, 16).Select(Cube))}} ] }
+            """);
+        using var logs = new InMemoryLoggerProvider(minimumLevel: LogLevel.Debug);
+        using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
+        var instancedShot = Path.Combine(_root, "instanced.png");
+        Assert.Equal(0, RunHidden(GameProject.Load(WriteProject()), EngineComponents.CreateRegistry(), factory, frames: 3, instancedShot).ExitCode);
+        Assert.Contains(logs.Snapshot(), e => e.Message.Contains("16 meshes drawn", StringComparison.Ordinal) && e.Message.Contains("16 instanced in 1 draws", StringComparison.Ordinal));
+
+        var separateShot = Path.Combine(_root, "separate.png");
+        Assert.Equal(0, RunHidden(GameProject.Load(_root), EngineComponents.CreateRegistry(), factory, frames: 3, separateShot, instancing: false).ExitCode);
+        var (a, b) = (Graphics.Image.Load(instancedShot), Graphics.Image.Load(separateShot));
+        var different = Enumerable.Range(0, a.Pixels.Length).Count(i => Math.Abs(a.Pixels[i] - b.Pixels[i]) > 4);
+        Assert.True(different <= a.Pixels.Length / 500, $"{different} of {a.Pixels.Length} channels differ");
+        Assert.Contains(Enumerable.Range(0, a.Width * a.Height), i => a.Pixels[(i * 4) + 2] > 100); // the cubes are on screen
+    }
+
     [ComponentId("Test.Tint")]
     public sealed class Tint : Component
     {
@@ -323,7 +353,7 @@ public sealed class RuntimeTests : IDisposable
         Assert.Contains("Draw calls", profiler.LastFrame!.Counters.Keys);
     }
 
-    private static GameRuntime RunHidden(GameProject project, ComponentRegistry registry, ILoggerFactory factory, int frames, string? screenshot = null, Core.Diagnostics.FrameProfiler? profiler = null)
+    private static GameRuntime RunHidden(GameProject project, ComponentRegistry registry, ILoggerFactory factory, int frames, string? screenshot = null, Core.Diagnostics.FrameProfiler? profiler = null, bool instancing = true)
     {
         GameWindow window;
         try
@@ -338,7 +368,7 @@ public sealed class RuntimeTests : IDisposable
 
         var runtime = new GameRuntime(project, registry,
             (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }),
-            factory, new GameRuntimeOptions { ExitAfterFrames = frames, ScreenshotPath = screenshot, Profiler = profiler });
+            factory, new GameRuntimeOptions { ExitAfterFrames = frames, ScreenshotPath = screenshot, Profiler = profiler, GpuInstancing = instancing });
         using (window)
         {
             try

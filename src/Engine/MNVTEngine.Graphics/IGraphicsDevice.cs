@@ -14,6 +14,8 @@ public enum PrimitiveTopology
 /// <param name="World">Object-to-world matrix, given to shaders as <c>uModel</c> (and its inverse transpose as
 /// <c>uNormalMatrix</c>); identity when null.</param>
 /// <param name="Joints">Skinning matrices, given to shaders as the <c>mat4 uJoints[]</c> array (GPU skinning); empty otherwise.</param>
+/// <param name="Instances">Instanced draws: one object-to-world matrix per instance, given to shaders as <c>mat4 uInstances[]</c>
+/// (indexed by <c>gl_InstanceIndex</c>); the draw runs once per matrix. Empty draws one instance.</param>
 public readonly record struct DrawCommand(
     Material Material,
     Texture2D Texture,
@@ -26,7 +28,8 @@ public readonly record struct DrawCommand(
     Rect? Scissor = null,
     RenderState State = default,
     Matrix4x4? World = null,
-    ReadOnlyMemory<Matrix4x4> Joints = default);
+    ReadOnlyMemory<Matrix4x4> Joints = default,
+    ReadOnlyMemory<Matrix4x4> Instances = default);
 
 public enum CullMode
 {
