@@ -235,6 +235,45 @@ public sealed class RuntimeTests : IDisposable
         Assert.Equal(Mathematics.Color.Green, At(2, 2));                              // ...which fills the rest of the view
     }
 
+    [ComponentId("Test.Tint")]
+    public sealed class Tint : Component
+    {
+        public override void Start()
+        {
+            var renderer = GetComponent<MeshRenderer>()!;
+            renderer.SetMaterialColor("_BaseColor", Mathematics.Color.Blue);
+            renderer.SetMaterialFloat("uLight0", 1f); // the renderer's own: ignored with one warning
+        }
+    }
+
+    [Fact]
+    public void MaterialOverrides_ChangeOneRenderer_NotOthersSharingTheMaterial()
+    {
+        var material = Guid.NewGuid();
+        File.WriteAllText(Path.Combine(_root, "Assets", "Red.mnvtmat"), """{ "schemaVersion": 2, "shader": "builtin:standard", "blend": "Opaque", "properties": { "_BaseColor": [1, 0, 0, 1] } }""");
+        File.WriteAllText(Path.Combine(_root, "Assets", "Red.mnvtmat.meta"), $$"""{ "schemaVersion": 1, "guid": "{{material}}", "settings": {} }""");
+        string Cube(string name, float x, string extra) =>
+            $$"""{ "id": "{{Guid.NewGuid()}}", "name": "{{name}}", "transform": { "localPosition": { "x": {{x}}, "y": 0, "z": 0 }, "localRotation": { "x": 0, "y": 0, "z": 0, "w": 1 }, "localScale": { "x": 2, "y": 2, "z": 2 } }, "components": [ { "type": "MNVTEngine.MeshRenderer", "data": { "primitive": "Cube", "material": "asset:{{material}}" } }{{extra}} ] }""";
+        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt"), $$"""
+            { "schemaVersion": 3, "name": "Tints", "gameObjects": [
+              { "id": "{{Guid.NewGuid()}}", "name": "Camera", "transform": { "localPosition": { "x": 0, "y": 0, "z": 8 }, "localRotation": { "x": 0, "y": 0, "z": 0, "w": 1 }, "localScale": { "x": 1, "y": 1, "z": 1 } },
+                "components": [ { "type": "MNVTEngine.Camera", "data": { "projection": "Perspective", "fieldOfView": 60.0, "backgroundColor": { "r": 0, "g": 0, "b": 0, "a": 1 } } } ] },
+              {{Cube("Left", -2f, "")}},
+              {{Cube("Right", 2f, """, { "type": "Test.Tint", "data": {} }""")}} ] }
+            """);
+        var screenshot = Path.Combine(_root, "tints.png");
+        using var logs = new InMemoryLoggerProvider(minimumLevel: LogLevel.Debug);
+        using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
+        var runtime = RunHidden(GameProject.Load(WriteProject()), EngineComponents.CreateRegistry().Register<Tint>(), factory, frames: 3, screenshot);
+
+        Assert.Equal(0, runtime.ExitCode);
+        var image = Graphics.Image.Load(screenshot);
+        Mathematics.Color At(float fraction) => Mathematics.Color.FromBytes(image.Pixels[(((image.Height / 2) * image.Width) + (int)(image.Width * fraction)) * 4], image.Pixels[((((image.Height / 2) * image.Width) + (int)(image.Width * fraction)) * 4) + 1], image.Pixels[((((image.Height / 2) * image.Width) + (int)(image.Width * fraction)) * 4) + 2], 255);
+        Assert.Equal(Mathematics.Color.Red, At(0.5f - (0.2f * image.Height / image.Width)));  // the shared material, unchanged
+        Assert.Equal(Mathematics.Color.Blue, At(0.5f + (0.2f * image.Height / image.Width))); // the overridden renderer
+        Assert.Single(logs.Snapshot(), e => e.Message.Contains("'uLight0' is set by the renderer", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void Lights_LightTheScene_CastShadows_AndTheBrightestEightAreUsed()
     {

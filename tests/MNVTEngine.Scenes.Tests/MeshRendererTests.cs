@@ -69,6 +69,31 @@ public sealed class MeshRendererTests
     }
 
     [Fact]
+    public void MaterialOverrides_AreKeptPerRenderer_AndNotSaved()
+    {
+        var scene = new Scene();
+        var renderer = scene.CreateGameObject("Crate").AddComponent<MeshRenderer>();
+        var texture = new AssetRef(Guid.Parse("e3000000-0000-4000-8000-000000000003"));
+        renderer.SetMaterialColor("_BaseColor", new Color(1f, 0.5f, 0f, 1f));
+        renderer.SetMaterialFloat("_Roughness", 0.2f);
+        renderer.SetMaterialTexture("_NormalMap", texture);
+
+        Assert.Equal(new Vector4(1f, 0.5f, 0f, 1f), renderer.MaterialOverrides["_BaseColor"].Value);
+        Assert.Equal(0.2f, renderer.MaterialOverrides["_Roughness"].Value.X);
+        Assert.True(renderer.MaterialOverrides["_NormalMap"].IsTexture);
+        Assert.Throws<ArgumentException>(() => renderer.SetMaterialTexture("_NormalMap", default));
+        Assert.True(renderer.ClearMaterialOverride("_Roughness"));
+        Assert.False(renderer.ClearMaterialOverride("_Roughness"));
+
+        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var json = serializer.Serialize(scene);
+        Assert.DoesNotContain("_BaseColor", json, StringComparison.Ordinal); // runtime only
+        Assert.Empty(serializer.Deserialize(json).Scene.Find("Crate")!.GetComponent<MeshRenderer>()!.MaterialOverrides);
+        renderer.ClearMaterialOverrides();
+        Assert.Empty(renderer.MaterialOverrides);
+    }
+
+    [Fact]
     public void BlendShapeWeights_ByIndexOrName_KeepDefaults_AndSurviveSerialization()
     {
         var scene = new Scene { ModelAnimations = new ShapeProvider() };

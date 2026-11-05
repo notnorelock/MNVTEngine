@@ -96,6 +96,36 @@ public sealed class MeshRenderer : Component
     /// <summary>Changes whenever a weight is set, so renderers know when to deform again.</summary>
     public int BlendShapeVersion { get; private set; }
 
+    private readonly Dictionary<string, MaterialOverride> _materialOverrides = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Material properties this renderer draws with instead of its materials' own values (every submesh), set from game
+    /// code: <c>SetMaterialColor("_BaseColor", Color.Red)</c>. Other renderers sharing the material are unaffected.
+    /// Runtime only: not saved with the scene. Only values change; blend mode and render queue stay the material's.
+    /// </summary>
+    public IReadOnlyDictionary<string, MaterialOverride> MaterialOverrides => _materialOverrides;
+
+    /// <summary>Colors are sRGB, like every engine color (and the material inspector).</summary>
+    public void SetMaterialColor(string property, Color color) => SetOverride(property, new MaterialOverride(new Vector4(color.R, color.G, color.B, color.A), default));
+
+    public void SetMaterialFloat(string property, float value) => SetOverride(property, new MaterialOverride(new Vector4(value, 0f, 0f, 0f), default));
+
+    public void SetMaterialVector(string property, Vector4 value) => SetOverride(property, new MaterialOverride(value, default));
+
+    /// <summary>A texture asset for a sampler property (<c>_BaseColorMap</c>, <c>_NormalMap</c>, ...).</summary>
+    public void SetMaterialTexture(string property, AssetRef texture) => SetOverride(property, new MaterialOverride(default, texture.IsNone ? throw new ArgumentException("Use ClearMaterialOverride to remove a texture override.", nameof(texture)) : texture));
+
+    /// <summary>Draws a property with the material's own value again; false when it was not overridden.</summary>
+    public bool ClearMaterialOverride(string property) => _materialOverrides.Remove(property);
+
+    public void ClearMaterialOverrides() => _materialOverrides.Clear();
+
+    private void SetOverride(string property, MaterialOverride value)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(property);
+        _materialOverrides[property] = value;
+    }
+
     /// <summary>A shape's current weight: the one set, else the model's default, else 0.</summary>
     public float GetBlendShapeWeight(int index) =>
         index >= 0 && index < _blendShapeWeights.Length ? _blendShapeWeights[index] : DefaultWeight(index);
@@ -168,4 +198,10 @@ public sealed class MeshRenderer : Component
 
         return -1;
     }
+}
+
+/// <summary>A material property value set on one <see cref="MeshRenderer"/>: a texture when <see cref="Texture"/> is set, else <see cref="Value"/> (a float is its X).</summary>
+public readonly record struct MaterialOverride(Vector4 Value, AssetRef Texture)
+{
+    public bool IsTexture => !Texture.IsNone;
 }

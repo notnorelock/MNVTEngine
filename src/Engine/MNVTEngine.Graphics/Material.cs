@@ -116,6 +116,33 @@ public sealed class Material
     /// <summary>Textures by sampler name (e.g. <c>_BaseColorMap</c>); <c>uTexture</c> comes from the draw instead.</summary>
     public IReadOnlyDictionary<string, Texture2D> Textures => _textures;
 
+    /// <summary>Takes every value, texture and render state of <paramref name="source"/> (same shader), replacing its own.</summary>
+    public void CopyFrom(Material source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (!ReferenceEquals(source.Shader, Shader))
+        {
+            throw new ArgumentException("Materials of different shaders cannot be copied.", nameof(source));
+        }
+
+        _uniforms.Clear();
+        foreach (var (name, value) in source._uniforms)
+        {
+            _uniforms[name] = value;
+        }
+
+        _textures.Clear();
+        foreach (var (name, texture) in source._textures)
+        {
+            _textures[name] = texture;
+        }
+
+        (BlendMode, Cull, DepthTest, DepthWrite, RenderQueue) = (source.BlendMode, source.Cull, source.DepthTest, source.DepthWrite, source.RenderQueue);
+    }
+
+    /// <summary>Names a game cannot set as a material property: per-draw values and the renderer's lighting uniforms.</summary>
+    public static bool IsRendererOwned(string name) => ReservedNames.Contains(name) || RendererNames.Contains(name);
+
     /// <exception cref="ArgumentException"><paramref name="name"/> is reserved for the renderer.</exception>
     public Material SetTexture(string name, Texture2D? texture)
     {

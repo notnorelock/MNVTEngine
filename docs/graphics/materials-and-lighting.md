@@ -84,6 +84,24 @@ void main()
 - **Fallback.** An invalid material or a shader that fails to compile logs one error with the compiler output, and the sprite draws with the default material.
 - **Reloading.** Editing a material, its shaders or its textures reloads it in the editor.
 
+**Changing material properties from game code.** `MeshRenderer` overrides material properties for itself only, like
+Unity's property blocks. Other renderers that share the material are unaffected:
+
+```csharp
+var renderer = GetComponent<MeshRenderer>()!;
+renderer.SetMaterialColor("_BaseColor", Color.Red);          // sRGB, like the inspector
+renderer.SetMaterialFloat("_Roughness", 0.2f);
+renderer.SetMaterialVector("_EmissiveColor", new Vector4(2f, 1f, 0f, 1f));
+renderer.SetMaterialTexture("_BaseColorMap", damagedTexture); // an AssetRef
+renderer.ClearMaterialOverride("_Roughness");                 // back to the material's value
+```
+
+- **Scope.** Overrides apply to every submesh the renderer draws: its `Material`, the model's materials, or the built-in one.
+- **How it draws.** The 3D pass draws the renderer with its own copy of each material. The copy is refreshed from the material every frame, so inspector edits still show, and then the overrides are applied. Overridden renderers do not share material batches.
+- **Values only.** Blend mode, culling and render queue stay the material's. Setting `_BaseColor` alpha below 1 does not make an opaque material transparent.
+- **Reserved names.** Properties the renderer sets (`uModel`, the light and shadow uniforms) are ignored, with one warning per renderer.
+- **Not saved.** Overrides are runtime state, not saved with the scene. Set them from a component (`Start`, `Update`).
+
 ## 3D lighting
 
 | Component | Settings |

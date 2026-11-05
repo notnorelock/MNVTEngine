@@ -20,6 +20,8 @@ public sealed partial class SceneRenderer
     private static readonly Dictionary<PrimitiveMesh, Mesh> Primitives = [];
     private readonly List<MeshDrawItem> _items = [];
     private readonly ConditionalWeakTable<MeshRenderer, Material> _rendererMaterials = [];
+    private readonly ConditionalWeakTable<MeshRenderer, Dictionary<Material, Material>> _overriddenMaterials = [];
+    private readonly ConditionalWeakTable<MeshRenderer, HashSet<string>> _warnedOverrides = [];
     private Renderer3D? _renderer3D;
     private GpuMeshCache? _meshes;
     private ShadowMap? _shadowMap;
@@ -151,7 +153,7 @@ public sealed partial class SceneRenderer
         {
             var index = i < modelMesh.SubMeshMaterials.Count ? modelMesh.SubMeshMaterials[i] : -1;
             var material = custom ?? resources.GetModelMaterial(meshRenderer.Mesh.Guid, index) ?? BuiltinMaterial(meshRenderer);
-            _items.Add(new MeshDrawItem(mesh, i, material, white, world, cull));
+            _items.Add(new MeshDrawItem(mesh, i, WithOverrides(meshRenderer, material), white, world, cull));
         }
     }
 
@@ -348,7 +350,51 @@ public sealed partial class SceneRenderer
         var white = resources.GetDefaultTexture(DefaultTexture.White);
         CullMode? cull = meshRenderer.DoubleSided ? CullMode.None : null;
         var world = meshRenderer.Transform.LocalToWorldMatrix;
-        return new MeshDrawItem(mesh, 0, resources.GetMaterial(meshRenderer.Material) ?? BuiltinMaterial(meshRenderer), white, world, cull);
+        return new MeshDrawItem(mesh, 0, WithOverrides(meshRenderer, resources.GetMaterial(meshRenderer.Material) ?? BuiltinMaterial(meshRenderer)), white, world, cull);
+    }
+
+    /// <summary>
+    /// The material a renderer draws with: <paramref name="material"/> itself, or, when the renderer overrides
+    /// properties, its own copy of it, refreshed from the material every frame (inspector edits show) and then overridden.
+    /// </summary>
+    private Material WithOverrides(MeshRenderer meshRenderer, Material material)
+    {
+        if (meshRenderer.MaterialOverrides.Count == 0)
+        {
+            return material;
+        }
+
+        var copies = _overriddenMaterials.GetOrCreateValue(meshRenderer);
+        if (!copies.TryGetValue(material, out var copy))
+        {
+            copy = new Material(material.Shader, material.BlendMode, material.Name + " (overridden)");
+            copies[material] = copy;
+        }
+
+        copy.CopyFrom(material);
+        foreach (var (name, value) in meshRenderer.MaterialOverrides)
+        {
+            if (Material.IsRendererOwned(name))
+            {
+                if (_warnedOverrides.GetOrCreateValue(meshRenderer).Add(name))
+                {
+                    LogRendererOwnedOverride(logger, meshRenderer.GameObject.Name, name);
+                }
+
+                continue;
+            }
+
+            if (value.IsTexture)
+            {
+                copy.SetTexture(name, resources.GetTexture(value.Texture));
+            }
+            else
+            {
+                copy.SetVector(name, value.Value);
+            }
+        }
+
+        return copy;
     }
 
     /// <summary>The built-in material: Standard with the renderer's color and texture, one per renderer.</summary>
@@ -528,6 +574,9 @@ public sealed partial class SceneRenderer
 
     [LoggerMessage(EventId = 2105, Level = LogLevel.Warning, Message = "Scene '{Scene}' has {Count} lights; only the {Max} that matter most for the camera are used")]
     private static partial void LogTooManyLights(ILogger logger, string scene, int count, int max);
+
+    [LoggerMessage(EventId = 2106, Level = LogLevel.Warning, Message = "'{GameObject}': the material property '{Property}' is set by the renderer; the override is ignored")]
+    private static partial void LogRendererOwnedOverride(ILogger logger, string gameObject, string property);
 
     [LoggerMessage(EventId = 2104, Level = LogLevel.Warning, Message = "Render target '{Target}' has no depth buffer: 3D meshes are not drawn into it")]
     private static partial void LogNoDepth(ILogger logger, string target);
