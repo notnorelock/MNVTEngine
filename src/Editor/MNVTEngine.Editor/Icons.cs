@@ -3,11 +3,20 @@
 
 namespace MNVTEngine.Editor;
 
-/// <summary>Lucide icon glyphs, merged into the editor font (Resources/Fonts/lucide.ttf): use them in any ImGui label.</summary>
+/// <summary>Lucide icon glyphs, merged into the editor font (Resources/Fonts/lucide.ttf, embedded in the editor assembly): use them in any ImGui label.</summary>
 internal static class Icons
 {
-    /// <summary>The icon font next to the editor executable, with the range of its glyphs.</summary>
-    public static (string Path, char First, char Last) Font => (System.IO.Path.Combine(AppContext.BaseDirectory, "Resources", "Fonts", "lucide.ttf"), '\uE038', '\uE837');
+    /// <summary>The embedded icon font, with the range of its glyphs.</summary>
+    public static (byte[] Ttf, char First, char Last) Font
+    {
+        get
+        {
+            using var stream = typeof(Icons).Assembly.GetManifestResourceStream("MNVTEngine.Editor.lucide.ttf") ?? throw new InvalidOperationException("The icon font resource is missing from the editor build.");
+            var data = new byte[stream.Length];
+            stream.ReadExactly(data);
+            return (data, '\uE038', '\uE837');
+        }
+    }
 
     public const string Activity = "\uE038"; // activity
     public const string AppWindow = "\uE426"; // app-window

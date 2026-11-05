@@ -24,9 +24,9 @@ public sealed unsafe class ImGuiRenderer : IDisposable
     /// <param name="fontScale">Framebuffer pixels per logical pixel: the font is rasterized that much larger and drawn scaled down, so text stays sharp on high-DPI displays.</param>
     /// <param name="iconFont">
     /// An icon font merged into the text font (its glyphs in <paramref name="iconFont"/>.First to Last, e.g. a private use
-    /// area), so labels can mix text and icons. Skipped when the file is missing.
+    /// area), so labels can mix text and icons. The TrueType data is copied: the caller keeps its array.
     /// </param>
-    public ImGuiRenderer(IGraphicsDevice device, Material material, string? fontPath, float fontSize, float fontScale = 1f, (string Path, char First, char Last)? iconFont = null)
+    public ImGuiRenderer(IGraphicsDevice device, Material material, string? fontPath, float fontSize, float fontScale = 1f, (byte[] Ttf, char First, char Last)? iconFont = null)
     {
         _device = device;
         _material = material;
@@ -55,7 +55,7 @@ public sealed unsafe class ImGuiRenderer : IDisposable
 
         // The glyph ranges must stay alive until the atlas is built (GetTexDataAsRGBA32).
         var ranges = (ushort*)NativeMemory.Alloc(3, sizeof(ushort));
-        if (iconFont is { } icons && File.Exists(icons.Path))
+        if (iconFont is { Ttf.Length: > 0 } icons)
         {
             (ranges[0], ranges[1], ranges[2]) = (icons.First, icons.Last, 0);
             var config = ImGuiNative.ImFontConfig_ImFontConfig();
@@ -63,7 +63,10 @@ public sealed unsafe class ImGuiRenderer : IDisposable
             config->PixelSnapH = 1;
             config->GlyphMinAdvanceX = fontSize * fontScale; // monospaced icons line up in toolbars and trees
             config->GlyphOffset = new System.Numerics.Vector2(0f, fontSize * fontScale * 0.12f); // onto the text baseline
-            io.Fonts.AddFontFromFileTTF(icons.Path, fontSize * fontScale * 0.95f, config, (nint)ranges);
+            // The atlas owns and frees the data (FontDataOwnedByAtlas), so it must come from ImGui's allocator.
+            var data = ImGui.MemAlloc((uint)icons.Ttf.Length);
+            Marshal.Copy(icons.Ttf, 0, data, icons.Ttf.Length);
+            io.Fonts.AddFontFromMemoryTTF(data, icons.Ttf.Length, fontSize * fontScale * 0.95f, config, (nint)ranges);
             ImGuiNative.ImFontConfig_destroy(config);
         }
 

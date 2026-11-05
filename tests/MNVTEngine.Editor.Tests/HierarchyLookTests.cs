@@ -22,6 +22,14 @@ public sealed class HierarchyLookTests
     }
 
     [Fact]
+    public void IconFont_IsEmbeddedInTheEditor()
+    {
+        var (ttf, first, last) = Icons.Font;
+        Assert.True(ttf.Length > 100_000 && ttf[0] == 0 && ttf[1] == 1); // a TrueType file (version 1.0 header)
+        Assert.InRange(Icons.Play[0], first, last);
+    }
+
+    [Fact]
     public void Windows_HaveIconTitles_OnStableIds_AndOldLayoutsAreMigrated()
     {
         Assert.Equal($"{Icons.ListTree}  Hierarchy###Hierarchy", EditorWindows.Title("Hierarchy"));

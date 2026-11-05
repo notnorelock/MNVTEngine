@@ -12,7 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Lucide icons (ISC), merged into the editor font; see Icons.cs. -->
-    <None Include="Resources\Fonts\lucide.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Resources\Fonts\lucide.ttf" LogicalName="MNVTEngine.Editor.lucide.ttf" />
     <None Include="Resources\Fonts\lucide-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>

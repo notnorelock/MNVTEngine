@@ -28,8 +28,8 @@ This replaces the nine Editor projects in the original proposal. They would have
 - **Layout:** docking is enabled. ImGui.NET doesn't wrap the DockBuilder API, so the default layout is built through P/Invoke calls into the bundled `cimgui` library. Window → Reset Layout rebuilds it.
 - **Layout file:** stored per project in `Library/Editor/layout.ini`. `Library/` is gitignored. Windows are saved under
   stable ids (`###Hierarchy`), so their icon titles can change; layouts saved before the icons are migrated on load.
-- **Icons:** [Lucide](https://lucide.dev) 1.69.0 (ISC, `src/Editor/MNVTEngine.Editor/Resources/Fonts/lucide.ttf`) is
-  merged into the editor font. Every glyph can go in any label (`$"{Icons.Save}  Save"`). `Icons.cs` lists the ones
+- **Icons:** [Lucide](https://lucide.dev) 1.69.0 (ISC, `src/Editor/MNVTEngine.Editor/Resources/Fonts/lucide.ttf`, embedded in the
+  editor assembly) is merged into the editor font. Every glyph can go in any label (`$"{Icons.Save}  Save"`). `Icons.cs` lists the ones
   in use. To add one, find its name at lucide.dev and its codepoint in the `lucide-static` package's
   `font/codepoints.json`. Toolbars use `Gui.IconButton(icon, tooltip, active)`: a square button with the tooltip on
   hover. Dialog buttons (Save, Cancel) stay text.
