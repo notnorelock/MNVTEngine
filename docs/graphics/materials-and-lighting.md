@@ -89,21 +89,29 @@ void main()
 | Component | Settings |
 |---|---|
 | `Light` | `Type` (Directional, Point, Spot), `Color`, `Intensity`, `Range` (point, spot), `SpotAngle` and `InnerSpotAngle` (full cone angles), `Shadows`, `ShadowStrength`, `ShadowDistance` (directional) |
-| `AmbientLight` | `Color` and `Intensity` of the light that reaches everything from all around (default when absent: blue-grey 0.25, 0.26, 0.3) |
+| `AmbientLight` | `Color` and `Intensity` of the light that reaches everything from all around (default when absent: blue-grey 0.25, 0.26, 0.3; black when the scene has an environment) |
+| `SceneEnvironment` | `Sky` (an equirectangular 2:1 texture), `Intensity`, `Rotation`, `DrawSkybox`: image-based lighting and the skybox |
+| `Camera` | `ToneMapping` (None, ACES) and `Exposure` for lit 3D scenes |
 
-- **When a scene is lit.** A scene with an enabled `Light` or `AmbientLight` is lit. One with neither draws Standard surfaces unlit, at full brightness, so existing scenes look unchanged.
+- **When a scene is lit.** A scene with an enabled `Light`, `AmbientLight` or `SceneEnvironment` is lit. One with neither draws Standard surfaces unlit, at full brightness, so existing scenes look unchanged.
 - **Direction.** Directional and spot lights shine along the GameObject's forward (-Z). **GameObject > Light** creates them already pointing down.
 - **Shading (Standard).** Physically based: GGX distribution, Smith geometry and Schlick Fresnel, with metallic-roughness, normal and occlusion maps.
-  - Colors and textures are sRGB. Lighting is computed in linear space and written back as sRGB; there is no tone mapping yet, so very bright light clips to white.
+  - Colors and textures are sRGB. Lighting is computed in linear space and written back as sRGB.
+  - The camera's `Exposure` scales the result. Its `ToneMapping`, ACES (Narkowicz fit), rolls highlights off instead of clipping them at white.
   - A white light of intensity 1 lights a white surface facing it to full white.
   - Point and spot lights fade smoothly to zero at `Range`. The spot edge fades between the inner and outer cones.
-  - Ambient light adds a diffuse term and a rough reflection, so metals are not black without lights. There is no image-based lighting yet.
+  - Ambient light adds a diffuse term and a rough reflection, so metals are not black without lights.
+  - **Image-based lighting** (`SceneEnvironment`):
+    - Surfaces reflect the sky image. The reflection gets blurrier with roughness, which samples smaller mips; the image always loads with mipmaps.
+    - They are also lit diffusely by its blurriest mip.
+    - `DrawSkybox` draws the sky behind the scene, on a cube around the camera drawn first.
 - **How many.** Up to 8 lights per frame: directional lights first, then the point and spot lights whose range comes closest to the camera. More logs one warning.
-- **Directional shadows.** The first directional light with `Shadows` casts them from opaque meshes onto every Standard surface.
-  - The shadow map is 2048×2048 and covers the camera's view up to `ShadowDistance`. It is fit to a bounding sphere and moves in whole texels, so edges do not shimmer.
-  - It is filtered with 3×3 PCF, with a slope-scaled depth bias. Depth is packed into an RGBA8 target, so it works on every device.
-  - Transparent and alpha-cutout surfaces do not cast shadows.
-  - Spot and point light shadows are not implemented yet.
+- **Shadows.** Lights with `Shadows` cast them from opaque and alpha-cutout meshes onto every Standard surface.
+  - **Directional:** the first one. A 2048×2048 map covering the camera's view up to `ShadowDistance`, fit to a bounding sphere and moved in whole texels, so edges do not shimmer.
+  - **Spot:** up to 2 per frame (the most important). A 1024×1024 perspective map of the cone, out to the range.
+  - **Point:** 1 per frame. Six 90° faces in a 3×2 atlas of 512×512 faces, out to the range; the shader picks the face.
+  - All are filtered with 3×3 PCF with a slope-scaled depth bias. Depth is packed into RGBA8 targets, so it works on every device.
+  - **Cutout surfaces** (`_AlphaCutoff` above 0) cast the shape they draw. Transparent surfaces do not cast shadows.
 - **Custom shaders** (with a custom vertex stage on meshes) can read the same uniforms. The renderer sets them on every material that declares them; material files cannot set them:
   - `vec4 uCameraPosition`;
   - `vec4 uAmbient` (w = 0 in an unlit scene);

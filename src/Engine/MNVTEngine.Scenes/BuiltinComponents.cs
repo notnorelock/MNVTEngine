@@ -119,6 +119,16 @@ public sealed class Camera : Component
     [SerializeField]
     public Color BackgroundColor { get; set; } = new(0.1f, 0.1f, 0.14f);
 
+    /// <summary>3D: how lit colors map to the screen (lit scenes); ACES rolls bright highlights off instead of clipping.</summary>
+    [SerializeField]
+    public ToneMappingMode ToneMapping { get; set; }
+
+    /// <summary>3D: brightness multiplier before tone mapping (lit scenes); 2 is one stop brighter.</summary>
+    [SerializeField]
+    public float Exposure { get => _exposure; set => _exposure = Math.Clamp(value, 0.01f, 64f); }
+
+    private float _exposure = 1f;
+
     /// <summary>Output size in pixels; maintained by the renderer, not persisted.</summary>
     public Vector2 ViewportSize { get; set; } = new(1280f, 720f);
 

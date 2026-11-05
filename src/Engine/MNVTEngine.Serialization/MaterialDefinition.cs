@@ -70,7 +70,9 @@ public sealed partial class MaterialDefinition
     [
         "uViewProjection", "uTexture", "uTime", "uModel", "uNormalMatrix",
         "uCameraPosition", "uAmbient", "uLightCount", "uLight0", "uLight1", "uLight2", "uLight3", "uLight4", "uLight5", "uLight6", "uLight7",
-        "uShadowMatrix", "uShadowParams", "uShadowMap",
+        "uShadowMatrix", "uShadowParams", "uShadowMap", "uShadowMatrix1", "uShadowParams1", "uShadowMap1", "uShadowMatrix2",
+        "uShadowParams2", "uShadowMap2", "uPointShadowMatrix0", "uPointShadowMatrix1", "uPointShadowMatrix2", "uPointShadowMatrix3",
+        "uPointShadowMatrix4", "uPointShadowMatrix5", "uPointShadowParams", "uPointShadowMap", "uToneMapping", "uEnvironment", "uEnvironmentMap",
     ];
 
     /// <summary>A built-in shader id (<see cref="BuiltinShaders"/>), or null when <see cref="Shader"/> is a custom one.</summary>

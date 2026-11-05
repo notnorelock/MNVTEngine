@@ -39,11 +39,11 @@ public sealed class Renderer3D(IGraphicsDevice device)
     private readonly HashSet<Material> _lit = new(ReferenceEqualityComparer.Instance);
 
     /// <param name="lighting">The pass's lights; null draws lit materials unlit (<see cref="SceneLighting.Unlit"/>).</param>
-    /// <param name="shadow">The directional shadow map rendered for this pass, if any.</param>
-    public Render3DStatistics Render(in View3D view, IReadOnlyList<MeshDrawItem> items, SceneLighting? lighting = null, ShadowState? shadow = null)
+    /// <param name="shadows">The shadow maps rendered for this pass, if any.</param>
+    public Render3DStatistics Render(in View3D view, IReadOnlyList<MeshDrawItem> items, SceneLighting? lighting = null, ShadowSet? shadows = null)
     {
         ArgumentNullException.ThrowIfNull(items);
-        ApplyLighting(items, lighting ?? SceneLighting.Unlit, view.Position, shadow ?? ShadowState.None);
+        ApplyLighting(items, lighting ?? SceneLighting.Unlit, view.Position, shadows ?? ShadowSet.None);
         var viewProjection = view.ViewProjection;
         var frustum = Frustum.FromViewProjection(viewProjection);
         _opaque.Clear();
@@ -119,7 +119,7 @@ public sealed class Renderer3D(IGraphicsDevice device)
     private static int Band(float squaredDistance) => (int)MathF.Log2(1f + squaredDistance);
 
     /// <summary>Sets the lighting uniforms once per lit material (uniforms are copied at each draw, so passes do not interfere).</summary>
-    private void ApplyLighting(IReadOnlyList<MeshDrawItem> items, SceneLighting lighting, Vector3 camera, in ShadowState shadow)
+    private void ApplyLighting(IReadOnlyList<MeshDrawItem> items, SceneLighting lighting, Vector3 camera, ShadowSet shadows)
     {
         _lit.Clear();
         foreach (var item in items)
@@ -127,7 +127,7 @@ public sealed class Renderer3D(IGraphicsDevice device)
             // The draw's texture stands in for the shadow map when there is none: the sampler must be bound, and is not read.
             if (_lit.Add(item.Material) && LightingUniforms.Uses(item.Material))
             {
-                LightingUniforms.Apply(item.Material, lighting, camera, shadow, item.Texture);
+                LightingUniforms.Apply(item.Material, lighting, camera, shadows, item.Texture);
             }
         }
     }

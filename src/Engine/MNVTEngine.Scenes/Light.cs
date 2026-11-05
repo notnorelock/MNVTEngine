@@ -52,8 +52,8 @@ public sealed class Light : Component
     public float InnerSpotAngle { get => _innerSpotAngle; set => _innerSpotAngle = Math.Clamp(value, 0f, 179f); }
 
     /// <summary>
-    /// Directional lights: cast shadows from opaque meshes onto everything drawn with the Standard shader. One
-    /// directional light per frame casts shadows (the first); spot and point light shadows are not supported yet.
+    /// Cast shadows from opaque and alpha-cutout meshes onto everything drawn with the Standard shader. Per frame: the
+    /// first directional light, the two most important spot lights and the most important point light cast shadows.
     /// </summary>
     [SerializeField]
     public bool Shadows { get; set; }
@@ -62,7 +62,7 @@ public sealed class Light : Component
     [SerializeField]
     public float ShadowStrength { get => _shadowStrength; set => _shadowStrength = Math.Clamp(value, 0f, 1f); }
 
-    /// <summary>Directional shadows: how far from the camera (world units) shadows are drawn; smaller is sharper.</summary>
+    /// <summary>Directional shadows: how far from the camera (world units) shadows are drawn; smaller is sharper. Spot and point shadows reach the light's range.</summary>
     [SerializeField]
     public float ShadowDistance { get => _shadowDistance; set => _shadowDistance = Math.Max(1f, value); }
 }
@@ -79,4 +79,38 @@ public sealed class AmbientLight : Component
 
     [SerializeField]
     public float Intensity { get; set; } = 1f;
+}
+
+public enum ToneMappingMode
+{
+    /// <summary>Colors above 1 clip to white.</summary>
+    None,
+
+    /// <summary>The ACES filmic curve: highlights roll off smoothly, the look of most modern games.</summary>
+    Aces,
+}
+
+/// <summary>
+/// The scene's surroundings for 3D: an equirectangular (2:1 latitude-longitude) sky image that surfaces drawn with the
+/// Standard shader reflect (sharper when smoother) and are lit by (image-based lighting), optionally drawn as the
+/// skybox behind everything. The image is loaded with mipmaps. A scene with an environment is lit.
+/// </summary>
+[ComponentId("MNVTEngine.SceneEnvironment")]
+public sealed class SceneEnvironment : Component
+{
+    [SerializeField]
+    [AssetType(Serialization.AssetTypes.Texture)]
+    public AssetRef Sky { get; set; }
+
+    /// <summary>Brightness of the reflections and the light the environment gives.</summary>
+    [SerializeField]
+    public float Intensity { get; set; } = 1f;
+
+    /// <summary>Turns the environment around the vertical axis (degrees).</summary>
+    [SerializeField]
+    public float Rotation { get; set; }
+
+    /// <summary>Draws the sky image behind the scene instead of the camera's background color.</summary>
+    [SerializeField]
+    public bool DrawSkybox { get; set; } = true;
 }

@@ -197,6 +197,7 @@ public sealed partial class ResourceCache : IDisposable
                 MaterialDefinition.BuiltinUnlit => Graphics.Materials.MaterialShaders.Unlit,
                 MaterialDefinition.BuiltinSprite => BuiltinShaders.Sprite,
                 Graphics.Materials.MaterialShaders.ShadowCasterId => Graphics.Materials.MaterialShaders.ShadowCaster,
+                Graphics.Materials.MaterialShaders.SkyId => Graphics.Materials.MaterialShaders.Sky,
                 _ => throw new ArgumentException($"Unknown built-in shader '{id}'.", nameof(id)),
             });
             _builtinShaders.Add(id, shader);
@@ -242,6 +243,7 @@ public sealed partial class ResourceCache : IDisposable
     {
         _assets.AssetsChanged -= Evict;
         DisposeModels();
+        DisposeEnvironments();
         foreach (var texture in _textures.Values.Distinct())
         {
             texture.Dispose();
@@ -293,6 +295,7 @@ public sealed partial class ResourceCache : IDisposable
         }
 
         EvictModels(changed);
+        EvictEnvironments(changed);
         if (evicted.Count > 0)
         {
             TexturesEvicted?.Invoke(evicted);

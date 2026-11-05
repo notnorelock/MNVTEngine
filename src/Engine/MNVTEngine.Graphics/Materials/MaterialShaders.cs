@@ -114,6 +114,23 @@ public static class MaterialShaders
         uniform mat4 uShadowMatrix;
         uniform vec4 uShadowParams;
         uniform sampler2D uShadowMap;
+        uniform mat4 uShadowMatrix1;
+        uniform vec4 uShadowParams1;
+        uniform sampler2D uShadowMap1;
+        uniform mat4 uShadowMatrix2;
+        uniform vec4 uShadowParams2;
+        uniform sampler2D uShadowMap2;
+        uniform mat4 uPointShadowMatrix0;
+        uniform mat4 uPointShadowMatrix1;
+        uniform mat4 uPointShadowMatrix2;
+        uniform mat4 uPointShadowMatrix3;
+        uniform mat4 uPointShadowMatrix4;
+        uniform mat4 uPointShadowMatrix5;
+        uniform vec4 uPointShadowParams;
+        uniform sampler2D uPointShadowMap;
+        uniform vec4 uToneMapping;
+        uniform vec4 uEnvironment;
+        uniform sampler2D uEnvironmentMap;
 
         out vec4 fragColor;
 
@@ -125,30 +142,80 @@ public static class MaterialShaders
 
         float unpackDepth(vec4 rgba) { return dot(rgba, vec4(1.0, 1.0 / 255.0, 1.0 / 65025.0, 1.0 / 16581375.0)); }
 
-        // 3x3 percentage-closer filtering over the packed shadow map; 1 = lit.
-        float shadowVisibility(vec3 normal, vec3 toLight)
+        // 3x3 percentage-closer filtering over a packed shadow map region (a whole map, or one face of the point atlas);
+        // 1 = lit. The viewport is flipped (negative height), so +y in clip space is row 0 of the map.
+        float pcf(sampler2D map, mat4 shadowMatrix, vec2 texel, float baseBias, vec2 regionOffset, vec2 regionScale, float slope)
         {
-            vec4 clip = uShadowMatrix * vec4(vWorldPosition, 1.0);
+            vec4 clip = shadowMatrix * vec4(vWorldPosition, 1.0);
             vec3 ndc = clip.xyz / clip.w;
-            vec2 uv = vec2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5); // the viewport is flipped (negative height): +y is row 0
-            if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || ndc.z > 1.0)
+            vec2 local = vec2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+            if (clip.w <= 0.0 || local.x < 0.0 || local.x > 1.0 || local.y < 0.0 || local.y > 1.0 || ndc.z > 1.0)
             {
                 return 1.0;
             }
 
-            float slope = 1.0 - clamp(dot(normal, toLight), 0.0, 1.0);
-            float bias = uShadowParams.y * (1.0 + 3.0 * slope);
+            float bias = baseBias * (1.0 + 3.0 * slope);
+            vec2 uv = regionOffset + local * regionScale;
+            vec2 lo = regionOffset + texel;
+            vec2 hi = regionOffset + regionScale - texel;
             float lit = 0.0;
             for (int x = -1; x <= 1; x++)
             {
                 for (int y = -1; y <= 1; y++)
                 {
-                    float stored = unpackDepth(texture(uShadowMap, uv + vec2(x, y) * uShadowParams.z));
+                    float stored = unpackDepth(texture(map, clamp(uv + vec2(x, y) * texel, lo, hi)));
                     lit += ndc.z - bias <= stored ? 1.0 : 0.0;
                 }
             }
 
             return lit / 9.0;
+        }
+
+        float shadowVisibility(int slot, vec3 lightPosition, vec3 normal, vec3 toLight)
+        {
+            float slope = 1.0 - clamp(dot(normal, toLight), 0.0, 1.0);
+            if (slot == 0 && uShadowParams.x > 0.5)
+            {
+                return pcf(uShadowMap, uShadowMatrix, vec2(uShadowParams.z), uShadowParams.y, vec2(0.0), vec2(1.0), slope);
+            }
+
+            if (slot == 1 && uShadowParams1.x > 0.5)
+            {
+                return pcf(uShadowMap1, uShadowMatrix1, vec2(uShadowParams1.z), uShadowParams1.y, vec2(0.0), vec2(1.0), slope);
+            }
+
+            if (slot == 2 && uShadowParams2.x > 0.5)
+            {
+                return pcf(uShadowMap2, uShadowMatrix2, vec2(uShadowParams2.z), uShadowParams2.y, vec2(0.0), vec2(1.0), slope);
+            }
+
+            if (slot == 3 && uPointShadowParams.x > 0.5)
+            {
+                // The cube face the point is on (the largest axis of the light-to-point vector), then its atlas cell.
+                vec3 d = vWorldPosition - lightPosition;
+                vec3 a = abs(d);
+                int face = a.x >= a.y && a.x >= a.z ? (d.x > 0.0 ? 0 : 1) : a.y >= a.z ? (d.y > 0.0 ? 2 : 3) : (d.z > 0.0 ? 4 : 5);
+                mat4 m = face == 0 ? uPointShadowMatrix0 : face == 1 ? uPointShadowMatrix1 : face == 2 ? uPointShadowMatrix2
+                    : face == 3 ? uPointShadowMatrix3 : face == 4 ? uPointShadowMatrix4 : uPointShadowMatrix5;
+                vec2 cell = vec2(1.0 / 3.0, 0.5);
+                vec2 offset = vec2(float(face % 3), float(face / 3)) * cell;
+                return pcf(uPointShadowMap, m, uPointShadowParams.zw, uPointShadowParams.y, offset, cell, slope);
+            }
+
+            return 1.0;
+        }
+
+        // Direction to equirectangular (latitude-longitude) coordinates, top-left origin, turned by the environment rotation.
+        vec2 equirect(vec3 d)
+        {
+            float u = atan(d.x, -d.z) / 6.28318531 + 0.5 + uEnvironment.w / 6.28318531;
+            float v = acos(clamp(d.y, -1.0, 1.0)) / 3.14159265;
+            return vec2(u, v);
+        }
+
+        vec3 aces(vec3 x)
+        {
+            return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
         }
 
         float distributionGgx(float nDotH, float roughness)
@@ -196,9 +263,9 @@ public static class MaterialShaders
                 return vec3(0.0);
             }
 
-            if (light[3].z > -0.5 && uShadowParams.x > 0.5)
+            if (light[3].z > -0.5)
             {
-                attenuation *= mix(1.0, shadowVisibility(n, l), light[3].w);
+                attenuation *= mix(1.0, shadowVisibility(int(light[3].z + 0.5), light[0].xyz, n, l), light[3].w);
             }
 
             vec3 h = normalize(v + l);
@@ -266,7 +333,21 @@ public static class MaterialShaders
             // Ambient light from all around: diffuse plus a rough reflection, so metals are not black without lights.
             vec3 fAmbient = f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(1.0 - max(dot(n, v), 0.0), 5.0);
             vec3 ambient = toLinear(uAmbient.rgb) * ((1.0 - fAmbient) * (1.0 - metallic) * albedo + fAmbient) * occlusion;
+            if (uEnvironment.x > 0.5)
+            {
+                // Image-based lighting: the environment's blurriest mips light diffusely; reflections get blurrier with roughness.
+                vec3 irradiance = toLinear(textureLod(uEnvironmentMap, equirect(n), uEnvironment.z).rgb);
+                vec3 reflected = toLinear(textureLod(uEnvironmentMap, equirect(reflect(-v, n)), roughness * uEnvironment.z).rgb);
+                ambient += ((1.0 - fAmbient) * (1.0 - metallic) * albedo * irradiance + fAmbient * reflected) * uEnvironment.y * occlusion;
+            }
+
             color += ambient + toLinear(emission);
+            color *= uToneMapping.y;
+            if (uToneMapping.x > 0.5)
+            {
+                color = aces(color);
+            }
+
             fragColor = vec4(toSrgb(color), base.a);
         }
         """);
@@ -280,26 +361,82 @@ public static class MaterialShaders
         """
         #version 450 core
         layout(location = 0) in vec3 aPosition;
+        layout(location = 3) in vec2 aTexCoord;
 
         uniform mat4 uViewProjection;
         uniform mat4 uModel;
 
+        out vec2 vTexCoord;
+
         void main()
         {
+            vTexCoord = aTexCoord;
             gl_Position = uViewProjection * uModel * vec4(aPosition, 1.0);
         }
         """,
         """
         #version 450 core
+        in vec2 vTexCoord;
+
+        uniform vec4 _BaseColor;
+        uniform float _AlphaCutoff;
+        uniform sampler2D _BaseColorMap;
+
         out vec4 fragColor;
 
         void main()
         {
+            // Alpha-cutout materials cast the shape they draw.
+            if (_AlphaCutoff > 0.0 && texture(_BaseColorMap, vTexCoord).a * _BaseColor.a < _AlphaCutoff)
+            {
+                discard;
+            }
+
             vec4 packed = fract(vec4(1.0, 255.0, 65025.0, 16581375.0) * gl_FragCoord.z);
             packed -= packed.yzww * vec4(1.0 / 255.0, 1.0 / 255.0, 1.0 / 255.0, 0.0);
             fragColor = packed;
         }
         """);
+
+    /// <summary>
+    /// The sky: an equirectangular environment image around the camera (drawn on a large cube behind everything).
+    /// Built in; used by the renderer when the scene has an <c>Environment</c> with a skybox.
+    /// </summary>
+    public static ShaderSource Sky { get; } = new(
+        "Builtin/Sky",
+        MeshVertex,
+        """
+        #version 450 core
+        in vec3 vWorldPosition;
+        in vec3 vNormal;
+        in vec4 vTangent;
+        in vec2 vTexCoord;
+        in vec4 vColor;
+
+        uniform vec4 uCameraPosition;
+        uniform vec4 uEnvironment;
+        uniform vec4 uToneMapping;
+        uniform sampler2D uEnvironmentMap;
+
+        out vec4 fragColor;
+
+        void main()
+        {
+            vec3 d = normalize(vWorldPosition - uCameraPosition.xyz);
+            float u = atan(d.x, -d.z) / 6.28318531 + 0.5 + uEnvironment.w / 6.28318531;
+            float v = acos(clamp(d.y, -1.0, 1.0)) / 3.14159265;
+            vec3 color = pow(textureLod(uEnvironmentMap, vec2(u, v), 0.0).rgb, vec3(2.2)) * uEnvironment.y * uToneMapping.y;
+            if (uToneMapping.x > 0.5)
+            {
+                color = clamp((color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14), 0.0, 1.0);
+            }
+
+            fragColor = vec4(pow(color, vec3(1.0 / 2.2)), 1.0);
+        }
+        """);
+
+    /// <summary>Id of the built-in sky shader (<see cref="Sky"/>); not selectable in material files.</summary>
+    public const string SkyId = "builtin:sky";
 
     public static ShaderSource Unlit { get; } = new(
         "Builtin/Unlit",

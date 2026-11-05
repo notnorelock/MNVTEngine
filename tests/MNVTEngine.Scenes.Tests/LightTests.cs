@@ -41,4 +41,22 @@ public sealed class LightTests
             """{ "schemaVersion": 2, "shader": "builtin:standard", "blend": "Opaque", "properties": { "uLight0": [1, 2, 3, 4] } }""", "Bad.mnvtmat"));
         Assert.Contains("uLight0", error.Message, StringComparison.Ordinal);
     }
+    [Fact]
+    public void EnvironmentAndCameraToneMapping_SurviveSerialization()
+    {
+        var scene = new Scene();
+        var environment = scene.CreateGameObject("Env").AddComponent<SceneEnvironment>();
+        (environment.Sky, environment.Intensity, environment.Rotation, environment.DrawSkybox) = (new AssetRef(Guid.Parse("e5100000-0000-4000-8000-000000000001")), 0.7f, 45f, false);
+        var camera = scene.CreateGameObject("Camera").AddComponent<Camera>();
+        (camera.ToneMapping, camera.Exposure) = (ToneMappingMode.Aces, 1.5f);
+
+        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var copy = serializer.Deserialize(serializer.Serialize(scene)).Scene;
+        var e = copy.Find("Env")!.GetComponent<SceneEnvironment>()!;
+        Assert.Equal((environment.Sky, 0.7f, 45f, false), (e.Sky, e.Intensity, e.Rotation, e.DrawSkybox));
+        var c = copy.Find("Camera")!.GetComponent<Camera>()!;
+        Assert.Equal((ToneMappingMode.Aces, 1.5f), (c.ToneMapping, c.Exposure));
+        c.Exposure = 0f;
+        Assert.Equal(0.01f, c.Exposure); // clamped
+    }
 }

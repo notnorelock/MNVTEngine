@@ -23,6 +23,9 @@ public sealed partial class SceneRenderer
     private Renderer3D? _renderer3D;
     private GpuMeshCache? _meshes;
     private ShadowMap? _shadowMap;
+    private readonly ShadowMap?[] _spotShadowMaps = new ShadowMap?[ShadowSet.MaxSpotShadows];
+    private PointShadowMap? _pointShadowMap;
+    private Material? _skyMaterial;
     private readonly Dictionary<MeshRenderer, SkinState> _skins = new(ReferenceEqualityComparer.Instance);
     private int _frame;
     private bool _warnedNoDepth;
@@ -114,24 +117,13 @@ public sealed partial class SceneRenderer
         var device = renderer.Device;
         _renderer3D ??= new Renderer3D(device);
         var view = new View3D(camera.ViewMatrix, camera.ProjectionMatrix, camera.Transform.Position);
-        var lighting = CollectLighting(scene, view.Position);
-        ShadowState? shadow = null;
-        if (lighting.Lights.Select((light, index) => (light, index)).FirstOrDefault(l => l.light.Kind == LightKind.Directional && l.light.Shadows) is { light.Shadows: true } caster)
-        {
-            using (Core.Diagnostics.Profiler.Sample("Render.Shadows"))
-            {
-                _shadowMap ??= new ShadowMap(device);
-                shadow = _shadowMap.Render(caster.light, caster.index, view.ViewProjection, camera.NearClip, camera.FarClip, _items,
-                    resources.GetBuiltinShader(MaterialShaders.ShadowCasterId));
-                device.SetRenderTarget(target);
-                Core.Diagnostics.Profiler.Count("Shadow casters", _shadowMap.CasterCount);
-            }
-        }
-
+        var lighting = CollectLighting(scene, camera, view.Position);
+        var shadows = RenderShadows(lighting, view, camera, device, target);
         PruneSkins();
-        (LightsUsed, ShadowsRendered) = (lighting.Lights.Count, shadow is not null);
+        (LightsUsed, ShadowsRendered) = (lighting.Lights.Count, shadows.Directional is not null);
         device.ClearDepth();
-        var stats = _renderer3D.Render(view, _items, lighting, shadow);
+        AddSky(scene, camera, view.Position);
+        var stats = _renderer3D.Render(view, _items, lighting, shadows);
         (MeshesDrawn, MeshesCulled, MeshTriangles, MaterialSwitches, SkinnedMeshes) = (stats.Visible, stats.Culled, stats.Triangles, stats.MaterialSwitches, _skins.Count);
         Core.Diagnostics.Profiler.Count("Meshes drawn", MeshesDrawn);
         Core.Diagnostics.Profiler.Count("Meshes culled", MeshesCulled);
@@ -374,8 +366,89 @@ public sealed partial class SceneRenderer
         return material;
     }
 
-    /// <summary>The scene's lights for this camera; unlit when it has neither <see cref="Light"/> nor <see cref="AmbientLight"/>.</summary>
-    private SceneLighting CollectLighting(Scene scene, Vector3 camera)
+    /// <summary>
+    /// Shadow maps for the lights that cast them: the first directional light, the two nearest spot lights and the
+    /// nearest point light (lights are ordered by importance already). Restores the main target afterwards.
+    /// </summary>
+    private ShadowSet RenderShadows(SceneLighting lighting, View3D view, Camera camera, IGraphicsDevice device, RenderTarget2D? target)
+    {
+        var casters = lighting.Lights.Select((light, index) => (light, index)).Where(l => l.light.Shadows).ToList();
+        if (casters.Count == 0)
+        {
+            return ShadowSet.None;
+        }
+
+        using var sample = Core.Diagnostics.Profiler.Sample("Render.Shadows");
+        var shader = resources.GetBuiltinShader(MaterialShaders.ShadowCasterId);
+        ShadowState? directional = null;
+        var spots = new List<ShadowState>();
+        PointShadowState? point = null;
+        var count = 0;
+        foreach (var (light, index) in casters)
+        {
+            switch (light.Kind)
+            {
+                case LightKind.Directional when directional is null:
+                    _shadowMap ??= new ShadowMap(device);
+                    directional = _shadowMap.Render(light, index, view.ViewProjection, camera.NearClip, camera.FarClip, _items, shader);
+                    count += _shadowMap.CasterCount;
+                    break;
+                case LightKind.Spot when spots.Count < ShadowSet.MaxSpotShadows:
+                    var map = _spotShadowMaps[spots.Count] ??= new ShadowMap(device, 1024);
+                    spots.Add(map.RenderSpot(light, index, _items, shader));
+                    count += map.CasterCount;
+                    break;
+                case LightKind.Point when point is null:
+                    _pointShadowMap ??= new PointShadowMap(device);
+                    point = _pointShadowMap.Render(light, index, _items, shader);
+                    count += _pointShadowMap.CasterCount;
+                    break;
+            }
+        }
+
+        device.SetRenderTarget(target);
+        Core.Diagnostics.Profiler.Count("Shadow casters", count);
+        return new ShadowSet(directional, spots, point);
+    }
+
+    /// <summary>The skybox: a large cube around the camera with the sky shader, drawn first (background queue) without depth writes.</summary>
+    private void AddSky(Scene scene, Camera camera, Vector3 position)
+    {
+        if (FindEnvironment(scene) is not { DrawSkybox: true } environment || resources.GetEnvironmentTexture(environment.Sky) is null)
+        {
+            return;
+        }
+
+        _skyMaterial ??= new Material(resources.GetBuiltinShader(MaterialShaders.SkyId), BlendMode.Opaque, "Skybox")
+        {
+            RenderQueue = 1000, // before all geometry
+            DepthWrite = false,
+            DepthTest = false,
+            Cull = CullMode.None,
+        };
+        var size = camera.FarClip * 0.5f;
+        _items.Add(new MeshDrawItem(Meshes().Get(GetPrimitive(PrimitiveMesh.Cube)), 0, _skyMaterial, resources.GetDefaultTexture(DefaultTexture.White),
+            Matrix4x4.TRS(position, Quaternion.Identity, new Vector3(size, size, size))));
+    }
+
+    private static SceneEnvironment? FindEnvironment(Scene scene)
+    {
+        foreach (var environment in scene.World.Pool<SceneEnvironment>().Components)
+        {
+            if (environment.IsActiveAndEnabled && !environment.Sky.IsNone)
+            {
+                return environment;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The scene's lights for this camera, with its tone mapping and the scene's environment; unlit when it has no
+    /// <see cref="Light"/>, <see cref="AmbientLight"/> or <see cref="SceneEnvironment"/>.
+    /// </summary>
+    private SceneLighting CollectLighting(Scene scene, Camera viewCamera, Vector3 camera)
     {
         var all = new List<LightData>();
         foreach (var light in scene.World.Pool<Light>().Components)
@@ -384,7 +457,7 @@ public sealed partial class SceneRenderer
             {
                 var kind = light.Type switch { LightType.Point => LightKind.Point, LightType.Spot => LightKind.Spot, _ => LightKind.Directional };
                 all.Add(new LightData(kind, light.Transform.Position, light.Transform.Forward, light.Color, light.Intensity, light.Range,
-                    light.SpotAngle, light.InnerSpotAngle, light.Shadows && kind == LightKind.Directional, light.ShadowStrength, light.ShadowDistance));
+                    light.SpotAngle, light.InnerSpotAngle, light.Shadows, light.ShadowStrength, light.ShadowDistance));
             }
         }
 
@@ -398,7 +471,8 @@ public sealed partial class SceneRenderer
             }
         }
 
-        if (all.Count == 0 && ambient is null)
+        var environment = FindEnvironment(scene);
+        if (all.Count == 0 && ambient is null && environment is null)
         {
             return SceneLighting.Unlit;
         }
@@ -410,7 +484,19 @@ public sealed partial class SceneRenderer
             _warnedTooManyLights = true;
         }
 
-        return ambient is null ? new SceneLighting { Lights = lights } : new SceneLighting { Lights = lights, Ambient = ambient.Color, AmbientIntensity = ambient.Intensity };
+        // With an environment and no ambient light, the environment is the ambient light.
+        var ambientColor = ambient?.Color ?? (environment is null ? new SceneLighting().Ambient : Color.Black);
+        return new SceneLighting
+        {
+            Lights = lights,
+            Ambient = ambientColor,
+            AmbientIntensity = ambient?.Intensity ?? 1f,
+            ToneMapping = viewCamera.ToneMapping == ToneMappingMode.Aces ? Graphics.Rendering3D.ToneMapping.Aces : Graphics.Rendering3D.ToneMapping.None,
+            Exposure = viewCamera.Exposure,
+            Environment = environment is null ? null : resources.GetEnvironmentTexture(environment.Sky),
+            EnvironmentIntensity = environment?.Intensity ?? 1f,
+            EnvironmentRotation = environment?.Rotation ?? 0f,
+        };
     }
 
     private void Dispose3D()
@@ -423,6 +509,14 @@ public sealed partial class SceneRenderer
         _skins.Clear();
         _shadowMap?.Dispose();
         _shadowMap = null;
+        for (var i = 0; i < _spotShadowMaps.Length; i++)
+        {
+            _spotShadowMaps[i]?.Dispose();
+            _spotShadowMaps[i] = null;
+        }
+
+        _pointShadowMap?.Dispose();
+        _pointShadowMap = null;
         if (_meshes is not null)
         {
             resources.MeshesEvicted -= OnMeshesEvicted;
