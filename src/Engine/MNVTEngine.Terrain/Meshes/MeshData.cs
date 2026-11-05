@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using MNVTEngine.Terrain.Elements;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
@@ -13,8 +12,6 @@ namespace MNVTEngine.Terrain.Meshes;
 [JsonObject(NamingStrategyType = typeof(DefaultNamingStrategy))]
 public sealed class MeshAssetData
 {
-    private const string Base36 = "0123456789abcdefghijklmnopqrstuvwxyz";
-
     public string Id { get; set; } = "";
 
     public string DisplayName { get; set; } = "";
@@ -27,7 +24,7 @@ public sealed class MeshAssetData
 
     public static MeshAssetData Create(string displayName, string libraryPath) => new()
     {
-        Id = $"{ToBase36(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())}-{RandomNumberGenerator.GetString(Base36, 7)}",
+        Id = Geometry.Js.NewId(),
         DisplayName = displayName,
         LibraryPath = libraryPath,
     };
@@ -39,21 +36,6 @@ public sealed class MeshAssetData
         return clone;
     }
 
-    private static string ToBase36(long value)
-    {
-        if (value == 0)
-        {
-            return "0";
-        }
-
-        var chars = new Stack<char>();
-        for (; value > 0; value /= 36)
-        {
-            chars.Push(Base36[(int)(value % 36)]);
-        }
-
-        return string.Concat(chars);
-    }
 }
 
 /// <summary>One placed prop: full Euler rotation in degrees (props rest at any orientation) and a uniform scale.</summary>

@@ -43,4 +43,18 @@ public static class Js
 
     /// <summary>A numeric comparator result (a - b) as a sign, NaN as equal.</summary>
     public static int Sign(double difference) => difference > 0 ? 1 : difference < 0 ? -1 : 0;
+
+    private const string Base36 = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+    /// <summary>TerrainHeaven's ids: Date.now() in base 36, a dash and seven random base-36 characters.</summary>
+    public static string NewId()
+    {
+        var chars = new Stack<char>();
+        for (var value = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); value > 0 || chars.Count == 0; value /= 36)
+        {
+            chars.Push(Base36[(int)(value % 36)]);
+        }
+
+        return $"{string.Concat(chars)}-{System.Security.Cryptography.RandomNumberGenerator.GetString(Base36, 7)}";
+    }
 }

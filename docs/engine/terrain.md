@@ -104,3 +104,24 @@ File.WriteAllText("world.terrain.json", project.Save());
 | `manifest.json` | Scale, LOD count and distances, objects with their LOD files and texture per submesh, terrain paint layers, and the texture list. |
 
 `ITerrainExportSource` supplies texture bytes and prop LOD0 meshes, so the exporter does not depend on where assets live.
+
+## Editing helpers
+
+These helpers have no UI. The editor wires them to its panels and shortcuts.
+
+**`TerrainHistory`** gives snapshot undo and redo: each entry is a full `Save()`, and undo restores it with `Load()`.
+
+- Wrap a drag or a brush stroke in `BeginAction`/`EndAction` so it becomes one entry.
+- An edit that leaves the project unchanged adds no entry.
+- `JumpTo(index)` restores any entry from the history list.
+
+**`TerrainClipboard`** copies an element or only its settings.
+
+- A copy carries every inspector value except positions, plus texture references, texture rotations and UV transforms.
+- `PasteElement` spawns the copy 8 m in front of the camera. It keeps the source's span and direction for roads, fences and stairs, the outlet count for intersections, and the size for terrain tiles.
+- `PastePropertiesOnto` applies the settings to another element of the same type.
+
+**`ElementPresets`** stores named presets and one default per element type, in TerrainHeaven's preset JSON (`ToJson`/`Load`).
+
+- `ApplyPreset` reads the inspector in several passes, so fields that appear only after a discriminator changes (such as a box fence's thickness) still get their values.
+- `ApplyDefault` applies the type's default preset; call it when an element is placed.
