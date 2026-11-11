@@ -155,7 +155,7 @@ The Terrain window (docked next to the Inspector) edits the terrain world of a `
 - The selected element shows its TerrainHeaven properties (sections, numbers, toggles, choices and buttons).
 - **Textures and UVs** sets each group's texture (drop one from the Project panel), rotation and UV offset/scale.
 - Delete removes the element. Copy / Copy properties / Paste properties, and Ctrl+C / Ctrl+V in the Scene view, paste it in front of the camera.
-- **Presets** saves the element's settings under a name, applies them, or makes them the default for new elements of that type.
+- **Presets** saves the element's settings under a name, applies them, or makes them the default for new elements of that type. Presets are per project, kept in `Library/Editor/terrain-presets.json`.
 
 **Other sections.**
 

@@ -40,6 +40,7 @@ internal sealed class TerrainPanel(EditorContext context)
     ];
 
     private string _presetName = "";
+    private bool _presetsLoaded;
     private int _exportLods = 4;
     private double _exportScale = 1;
 
@@ -47,6 +48,11 @@ internal sealed class TerrainPanel(EditorContext context)
 
     public void Draw()
     {
+        if (!_presetsLoaded)
+        {
+            LoadPresets();
+        }
+
         if (context.InspectorDockId != 0)
         {
             ImGui.SetNextWindowDockID(context.InspectorDockId, ImGuiCond.FirstUseEver);
@@ -804,6 +810,37 @@ internal sealed class TerrainPanel(EditorContext context)
         {
             Editor.Tool = TerrainTool.Select;
         }
+    }
+
+    /// <summary>Element presets are per project, in <c>Library/Editor/terrain-presets.json</c>, saved on every change.</summary>
+    private void LoadPresets()
+    {
+        _presetsLoaded = true;
+        var file = Path.Combine(context.Session.Project.RootDirectory, "Library", "Editor", "terrain-presets.json");
+        try
+        {
+            if (File.Exists(file) && !Editor.Presets.Load(File.ReadAllText(file)))
+            {
+                EditorLog.Warning(context.Logger, "Terrain presets file is not a version 1 preset store; starting with no presets.");
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            EditorLog.ActionFailed(context.Logger, ex, "Load terrain presets");
+        }
+
+        Editor.Presets.Changed += () =>
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+                File.WriteAllText(file, Editor.Presets.ToJson());
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                EditorLog.ActionFailed(context.Logger, ex, "Save terrain presets");
+            }
+        };
     }
 
     private string? FileOf(Guid guid) => context.Session.Assets.Get(guid) is { } record ? Path.Combine(context.Session.Assets.AssetsDirectory, record.Path) : null;
