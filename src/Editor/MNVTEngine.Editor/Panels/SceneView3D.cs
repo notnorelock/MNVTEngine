@@ -18,7 +18,10 @@ namespace MNVTEngine.Editor.Panels;
 /// <list type="bullet">
 /// <item>Left click: select (nearest mesh triangle, or an icon), or drag a gizmo handle (Ctrl snaps).</item>
 /// <item>Alt + left drag: orbit. Middle drag: pan. Right drag: look around, with WASD/QE to fly (Shift faster). Wheel: zoom.</item>
-/// <item>F: frame the selection.</item>
+/// <item>F: frame the selection. Q: hand tool (left drag pans).</item>
+/// <item>The orientation gizmo (top right, Blender and Unity style): click an axis to look along it (again for the
+/// opposite side), drag it to orbit; the label under it switches perspective and orthographic ("Iso"). Beside it: drag
+/// to zoom, drag to pan, and align the view with the scene's main camera.</item>
 /// <item>While a terrain world is edited (Terrain window), left click and drag use the terrain tool instead; Esc cancels
 /// a placement, Enter finishes a polygon, Delete removes the selected element, Ctrl+C/Ctrl+V copy and paste it.</item>
 /// </list>
@@ -36,6 +39,21 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
     private Mesh? _grid;
     private float _gridSpacing;
     private bool _terrainDragging;
+    private int _hoveredAxis = -1;
+    private Vector2 _navPress;
+
+    /// <summary>Left drag pans the view instead of selecting (Unity's hand tool, Q).</summary>
+    public bool HandTool { get; set; }
+
+    public bool ShowGrid { get; set; } = true;
+
+    /// <summary>Light and camera icons and the selection's bounds.</summary>
+    public bool ShowGizmos { get; set; } = true;
+
+    /// <summary>Snap without holding Ctrl (Ctrl then moves freely).</summary>
+    public bool AlwaysSnap { get; set; }
+
+    public TransformGizmo3D Gizmo => _gizmo;
 
     public GizmoTool Tool { get => _gizmo.Tool; set => _gizmo.Tool = value; }
 
@@ -53,19 +71,24 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
 
         if (focused && !io.WantTextInput && !looking && terrain is null)
         {
+            if (ImGui.IsKeyPressed(ImGuiKey.Q, false))
+            {
+                HandTool = true;
+            }
+
             if (ImGui.IsKeyPressed(ImGuiKey.W, false))
             {
-                Tool = GizmoTool.Move;
+                (Tool, HandTool) = (GizmoTool.Move, false);
             }
 
             if (ImGui.IsKeyPressed(ImGuiKey.E, false))
             {
-                Tool = GizmoTool.Rotate;
+                (Tool, HandTool) = (GizmoTool.Rotate, false);
             }
 
             if (ImGui.IsKeyPressed(ImGuiKey.R, false))
             {
-                Tool = GizmoTool.Scale;
+                (Tool, HandTool) = (GizmoTool.Scale, false);
             }
 
             if (ImGui.IsKeyPressed(ImGuiKey.F, false) && selected is not null)
@@ -86,9 +109,14 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
         }
 
         var delta = io.MouseDelta.ToEngine();
-        if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Middle))
+        if (ImGui.IsItemActive() && (ImGui.IsMouseDragging(ImGuiMouseButton.Middle) || (HandTool && !io.KeyAlt && ImGui.IsMouseDragging(ImGuiMouseButton.Left))))
         {
             _camera.Pan(delta);
+        }
+
+        if (HandTool)
+        {
+            return;
         }
 
         if (looking)
@@ -131,7 +159,7 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
         {
             if (selected is not null && ImGui.IsMouseDown(ImGuiMouseButton.Left))
             {
-                if (_gizmo.Drag(selected.Transform, _camera, mouse, io.KeyCtrl))
+                if (_gizmo.Drag(selected.Transform, _camera, mouse, io.KeyCtrl != AlwaysSnap))
                 {
                     context.Changed("Transform");
                 }
@@ -180,8 +208,15 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
 
         if (hovered && !io.KeyAlt && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
         {
-            terrain.PointerDown(ray, mouse, ToScreen, modifiers);
-            _terrainDragging = true;
+            if (terrain.PointerDown(ray, mouse, ToScreen, modifiers))
+            {
+                _terrainDragging = true;
+            }
+            else
+            {
+                // Not a terrain click: select whatever is there, as outside terrain editing.
+                context.Session.Selection.Select(ScenePicker3D.Pick(context.ActiveScene, ray, MeshOf, _camera.UnitsPerPixel));
+            }
         }
 
         if (_terrainDragging && !ImGui.IsMouseDown(ImGuiMouseButton.Left))
@@ -274,6 +309,12 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
         context.SceneRenderer.RenderView(scene, SceneRenderer.CreateView(_camera.Camera, (int)size.X, (int)size.Y), background, target, _camera.Camera);
         var device = context.Device;
         device.SetRenderTarget(target);
+        if (!ShowGrid)
+        {
+            device.SetRenderTarget(null);
+            return;
+        }
+
         _gridRenderer ??= new Renderer3D(device);
         _meshes ??= new GpuMeshCache(device);
         var white = context.Resources.GetDefaultTexture(DefaultTexture.White);
@@ -309,7 +350,7 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
             }
         }
 
-        foreach (var gameObject in context.ActiveScene.GameObjects.Where(g => g.ActiveInHierarchy && ScenePicker3D.HasIcon(g)))
+        foreach (var gameObject in context.ActiveScene.GameObjects.Where(g => ShowGizmos && g.ActiveInHierarchy && ScenePicker3D.HasIcon(g)))
         {
             if (Screen(gameObject.Transform.Position) is not { } at)
             {
@@ -340,12 +381,20 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
             return;
         }
 
-        var bounds = BoundsOf(selected);
-        var (min, max) = (bounds.Min, bounds.Max);
-        Vector3 Corner(int i) => new((i & 1) == 0 ? min.X : max.X, (i & 2) == 0 ? min.Y : max.Y, (i & 4) == 0 ? min.Z : max.Z);
-        foreach (var (a, b) in new[] { (0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7) })
+        if (ShowGizmos)
         {
-            Line(Corner(a), Corner(b), 0xFF1A99FF, 1f);
+            var bounds = BoundsOf(selected);
+            var (min, max) = (bounds.Min, bounds.Max);
+            Vector3 Corner(int i) => new((i & 1) == 0 ? min.X : max.X, (i & 2) == 0 ? min.Y : max.Y, (i & 4) == 0 ? min.Z : max.Z);
+            foreach (var (a, b) in new[] { (0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7) })
+            {
+                Line(Corner(a), Corner(b), 0xFF1A99FF, 1f);
+            }
+        }
+
+        if (HandTool)
+        {
+            return;
         }
 
         foreach (var (handle, from, to) in _gizmo.Lines(selected.Transform, _camera))
@@ -359,6 +408,134 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
         {
             var half = TransformGizmo3D.UniformHandlePixels;
             list.AddRectFilled(center - new SysVector2(half), center + new SysVector2(half), _hovered == Gizmo3DHandle.Uniform || _gizmo.ActiveHandle == Gizmo3DHandle.Uniform ? Highlight : 0xFFE0E0E0);
+        }
+    }
+
+    private static readonly (Vector3 Axis, string Label, uint Color, float Yaw, float Pitch, string View)[] NavigationAxes =
+    [
+        (Vector3.UnitX, "X", 0xFF4D4DE6, 90f, 0f, "Right"),
+        (Vector3.UnitY, "Y", 0xFF4DD94D, 0f, -90f, "Top"),
+        (Vector3.UnitZ, "Z", 0xFFE6804D, 0f, 0f, "Front"),
+        (-Vector3.UnitX, "", 0xFF4D4DE6, -90f, 0f, "Left"),
+        (-Vector3.UnitY, "", 0xFF4DD94D, 0f, 90f, "Bottom"),
+        (-Vector3.UnitZ, "", 0xFFE6804D, 180f, 0f, "Back"),
+    ];
+
+    /// <summary>
+    /// The orientation gizmo in the top-right corner of the view (Blender's navigation gizmo with Unity's Persp/Iso
+    /// label) and Blender's zoom, pan and camera buttons beside it. Call after <see cref="HandleInput"/>: these are
+    /// widgets over the view.
+    /// </summary>
+    public void DrawNavigation(Vector2 origin, Vector2 size)
+    {
+        const float Radius = 44f;
+        const float Bubble = 10f;
+        var list = ImGui.GetWindowDrawList();
+        var center = new SysVector2(origin.X + size.X - Radius - 22f, origin.Y + Radius + 22f);
+        var toView = _camera.Rotation.Inverse;
+        var placed = NavigationAxes.Select((a, i) =>
+        {
+            var v = toView * a.Axis;
+            return (Index: i, At: center + (new SysVector2(v.X, -v.Y) * Radius), Depth: v.Z);
+        }).OrderBy(p => p.Depth).ToList();
+
+        // The gizmo: a click on an axis looks along it, a drag orbits.
+        ImGui.SetCursorScreenPos(center - new SysVector2(Radius + Bubble));
+        ImGui.InvisibleButton("##nav_gizmo", new SysVector2((Radius + Bubble) * 2f));
+        var mouse = ImGui.GetIO().MousePos;
+        if (!ImGui.IsItemActive())
+        {
+            _hoveredAxis = ImGui.IsItemHovered()
+                ? placed.Where(p => SysVector2.Distance(p.At, mouse) <= Bubble + 2f).OrderByDescending(p => p.Depth).Select(p => p.Index).DefaultIfEmpty(-1).First()
+                : -1;
+        }
+
+        if (ImGui.IsItemActivated())
+        {
+            _navPress = mouse.ToEngine();
+        }
+
+        if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left, 2f))
+        {
+            _camera.Orbit(ImGui.GetIO().MouseDelta.ToEngine());
+            _hoveredAxis = -1;
+        }
+        else if (ImGui.IsItemDeactivated() && _hoveredAxis >= 0 && Vector2.Distance(_navPress, mouse.ToEngine()) < 3f)
+        {
+            var axis = NavigationAxes[_hoveredAxis];
+            var already = MathF.Abs(Mathf.DeltaAngle(_camera.Yaw, axis.Yaw)) < 0.5f && MathF.Abs(_camera.Pitch - axis.Pitch) < 0.5f;
+            var target = already ? NavigationAxes[(_hoveredAxis + 3) % 6] : axis; // clicking the facing axis flips to the other side
+            _camera.SetView(target.Yaw, target.Pitch);
+        }
+
+        if (ImGui.IsItemHovered() || ImGui.IsItemActive())
+        {
+            list.AddCircleFilled(center, Radius + Bubble + 4f, 0x30FFFFFF);
+        }
+
+        foreach (var (index, at, depth) in placed)
+        {
+            var (_, label, color, _, _, _) = NavigationAxes[index];
+            var hot = index == _hoveredAxis;
+            if (label.Length > 0)
+            {
+                list.AddLine(center, at, color, 2f);
+                list.AddCircleFilled(at, Bubble, hot ? Highlight : color);
+                list.AddText(at - new SysVector2(4f, 7f), 0xFF101010, label);
+            }
+            else
+            {
+                list.AddCircleFilled(at, Bubble - 2f, hot ? Highlight : (color & 0x00FFFFFF) | 0x70000000);
+                list.AddCircle(at, Bubble - 2f, color, 0, 1.5f);
+            }
+        }
+
+        // Unity's label: the axis view it is looking along, and Persp/Iso (click to switch).
+        var aligned = NavigationAxes.FirstOrDefault(a => MathF.Abs(Mathf.DeltaAngle(_camera.Yaw, a.Yaw)) < 0.5f && MathF.Abs(_camera.Pitch - a.Pitch) < 0.5f);
+        var text = (aligned.View is { } view ? $"{view} " : "") + (_camera.Orthographic ? "Iso" : "Persp");
+        var textSize = ImGui.CalcTextSize(text);
+        ImGui.SetCursorScreenPos(new SysVector2(center.X - (textSize.X * 0.5f) - 4f, center.Y + Radius + Bubble + 6f));
+        if (ImGui.SmallButton($"{text}##nav_projection"))
+        {
+            _camera.Orthographic = !_camera.Orthographic;
+        }
+
+        // Blender's buttons: drag to zoom, drag to pan, and look through the main camera.
+        var buttons = new SysVector2(center.X - Radius - Bubble - 34f, center.Y - Radius);
+        ImGui.SetCursorScreenPos(buttons);
+        ImGui.Button($"{Icons.Search}##nav_zoom", new SysVector2(26f, 26f));
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+        {
+            Gui.Tooltip("Drag up or down to zoom");
+        }
+        if (ImGui.IsItemActive())
+        {
+            _camera.Zoom(-ImGui.GetIO().MouseDelta.Y * 0.05f);
+        }
+
+        ImGui.SetCursorScreenPos(buttons + new SysVector2(0f, 30f));
+        ImGui.Button($"{Icons.Hand}##nav_pan", new SysVector2(26f, 26f));
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+        {
+            Gui.Tooltip("Drag to pan");
+        }
+        if (ImGui.IsItemActive())
+        {
+            _camera.Pan(ImGui.GetIO().MouseDelta.ToEngine());
+        }
+
+        ImGui.SetCursorScreenPos(buttons + new SysVector2(0f, 60f));
+        var main = context.ActiveScene.MainCamera;
+        ImGui.BeginDisabled(main is null);
+        if (ImGui.Button($"{Icons.Video}##nav_camera", new SysVector2(26f, 26f)) && main is not null)
+        {
+            _camera.AlignTo(main.Transform.Position, main.Transform.Rotation);
+        }
+
+        ImGui.EndDisabled();
+        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+        {
+            Gui.Tooltip("Align the view with the main camera");
         }
     }
 

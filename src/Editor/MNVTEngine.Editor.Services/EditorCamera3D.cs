@@ -44,6 +44,31 @@ public sealed class EditorCamera3D
 
     public Vector3 Position => Pivot - (Rotation * Vector3.Forward * Distance);
 
+    /// <summary>Orthographic ("Iso") instead of perspective; the view keeps its size at the pivot when switching.</summary>
+    public bool Orthographic
+    {
+        get => Camera.Projection == CameraProjection.Orthographic;
+        set
+        {
+            Camera.Projection = value ? CameraProjection.Orthographic : CameraProjection.Perspective;
+            Apply();
+        }
+    }
+
+    /// <summary>Vertical field of view in degrees (perspective).</summary>
+    public float FieldOfView
+    {
+        get => Camera.FieldOfView;
+        set
+        {
+            Camera.FieldOfView = Math.Clamp(value, 5f, 150f);
+            Apply();
+        }
+    }
+
+    /// <summary>Multiplies the fly speed (right drag + WASD).</summary>
+    public float FlySpeed { get; set; } = 1f;
+
     public Quaternion Rotation => Quaternion.Euler(Pitch, Yaw, 0f);
 
     public void SetViewport(int width, int height)
@@ -93,8 +118,26 @@ public sealed class EditorCamera3D
             return;
         }
 
-        var speed = MathF.Max(2f, Distance) * (fast ? 3f : 1f);
+        var speed = MathF.Max(2f, Distance) * (fast ? 3f : 1f) * FlySpeed;
         Pivot += Rotation * new Vector3(direction.X, direction.Y, -direction.Z) * speed * seconds;
+        Apply();
+    }
+
+    /// <summary>Looks at the pivot from a direction (yaw and pitch in degrees; pitch ±90 looks straight down or up).</summary>
+    public void SetView(float yaw, float pitch)
+    {
+        Yaw = yaw;
+        Pitch = Math.Clamp(pitch, -90f, 90f);
+        Apply();
+    }
+
+    /// <summary>Takes another camera's position and direction (the pivot stays <see cref="Distance"/> in front).</summary>
+    public void AlignTo(Vector3 position, Quaternion rotation)
+    {
+        var forward = (rotation * Vector3.Forward).Normalized;
+        Yaw = MathF.Atan2(-forward.X, -forward.Z) * Mathf.Rad2Deg;
+        Pitch = Math.Clamp(MathF.Asin(Math.Clamp(forward.Y, -1f, 1f)) * Mathf.Rad2Deg, -90f, 90f);
+        _pivot = position + (forward * Distance);
         Apply();
     }
 
@@ -116,6 +159,11 @@ public sealed class EditorCamera3D
     /// <summary>World units per pixel at a point, so overlays (gizmos, icons) keep a constant size on screen.</summary>
     public float UnitsPerPixel(Vector3 world)
     {
+        if (Orthographic)
+        {
+            return 2f * Camera.OrthographicSize / Camera.ViewportSize.Y;
+        }
+
         var depth = MathF.Max(0.01f, -Camera.ViewMatrix.MultiplyPoint3x4(world).Z);
         return 2f * depth * MathF.Tan(Camera.FieldOfView * 0.5f * Mathf.Deg2Rad) / Camera.ViewportSize.Y;
     }
@@ -124,5 +172,8 @@ public sealed class EditorCamera3D
     {
         Camera.Transform.Rotation = Rotation;
         Camera.Transform.Position = Position;
+
+        // The same visible height at the pivot as the perspective view, so switching does not jump.
+        Camera.OrthographicSize = MathF.Max(0.01f, Distance * MathF.Tan(Camera.FieldOfView * 0.5f * Mathf.Deg2Rad));
     }
 }

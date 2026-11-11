@@ -315,12 +315,16 @@ public sealed partial class TerrainEditor(ILogger logger)
     /// <summary>A left press in the Scene view.</summary>
     /// <param name="ray">The mouse ray in world space.</param>
     /// <param name="toScreen">World point to view pixels, or null when behind the camera (for node picking).</param>
-    public void PointerDown(Ray ray, Vector2 mouse, Func<Vector3, Vector2?> toScreen, TerrainModifiers modifiers)
+    /// <returns>
+    /// False when the click is not for the terrain: the Select tool hit no node and no surface of this world, or a
+    /// placing tool found no ground. The Scene view then selects whatever else is under the mouse, as usual.
+    /// </returns>
+    public bool PointerDown(Ray ray, Vector2 mouse, Func<Vector3, Vector2?> toScreen, TerrainModifiers modifiers)
     {
         ArgumentNullException.ThrowIfNull(toScreen);
         if (Project is null || Target is null)
         {
-            return;
+            return false;
         }
 
         UpdateTransform();
@@ -330,6 +334,12 @@ public sealed partial class TerrainEditor(ILogger logger)
         switch (Tool)
         {
             case TerrainTool.Select:
+                if (node is null && Raycast(origin, direction) is null)
+                {
+                    ClearSelection();
+                    return false;
+                }
+
                 SelectedNode = node;
                 SelectedElement = node?.Parent ?? (node is null ? Raycast(origin, direction)?.Element : null);
                 _dragPrevious = node?.Position ?? Raycast(origin, direction)?.Point;
@@ -342,11 +352,12 @@ public sealed partial class TerrainEditor(ILogger logger)
                 break;
             case TerrainTool.Road or TerrainTool.River or TerrainTool.CutSpline or TerrainTool.Fence or TerrainTool.Stairs:
                 var start = node?.Position ?? ground;
-                if (start is { } a)
+                if (start is not { } a)
                 {
-                    (_dragStart, _dragStartNode, Placement) = (a, node, (a, a));
+                    return false;
                 }
 
+                (_dragStart, _dragStartNode, Placement) = (a, node, (a, a));
                 break;
             case TerrainTool.Intersection when ground is { } at:
                 Add(new Intersection(at, 4), "Add Intersection");
@@ -363,19 +374,22 @@ public sealed partial class TerrainEditor(ILogger logger)
                 Commit("Add Cut Point");
                 break;
             case TerrainTool.Height or TerrainTool.Texture or TerrainTool.Foliage or TerrainTool.Props:
-                if (Raycast(origin, direction) is { } hit)
+                if (Raycast(origin, direction) is not { } hit)
                 {
-                    _actionLabel = BrushLabel(modifiers);
-                    History!.BeginAction(_actionLabel);
-                    _lastDab = hit.Point;
-                    Dab(hit.Point, modifiers);
-                    Target.MarkChanged();
+                    return false;
                 }
 
+                _actionLabel = BrushLabel(modifiers);
+                History!.BeginAction(_actionLabel);
+                _lastDab = hit.Point;
+                Dab(hit.Point, modifiers);
+                Target.MarkChanged();
                 break;
             default:
-                break;
+                return false; // a placing tool with no ground under the mouse
         }
+
+        return true;
     }
 
     /// <summary>The mouse moved (button held or not): previews, brushes and drags.</summary>
@@ -550,7 +564,7 @@ public sealed partial class TerrainEditor(ILogger logger)
             {
                 foreach (var t in group.Triangles)
                 {
-                    if (IntersectTriangle(origin, direction, t.A, t.B, t.C) is { } hit && hit < bestT)
+                    if (Terrain.Geometry.RayCasting.IntersectTriangle(origin, direction, t.A, t.B, t.C) is { } hit && hit < bestT)
                     {
                         (bestT, best) = (hit, (element, origin + (direction * hit)));
                     }
@@ -559,25 +573,6 @@ public sealed partial class TerrainEditor(ILogger logger)
         }
 
         return best;
-    }
-
-    /// <summary>Möller–Trumbore, both faces; the ray distance or null.</summary>
-    internal static double? IntersectTriangle(Vector3 origin, Vector3 direction, Vector3 a, Vector3 b, Vector3 c)
-    {
-        var (e1, e2) = (b - a, c - a);
-        var p = direction.Cross(e2);
-        var det = e1.Dot(p);
-        if (Math.Abs(det) < 1e-12)
-        {
-            return null;
-        }
-
-        var s = origin - a;
-        var u = s.Dot(p) / det;
-        var q = s.Cross(e1);
-        var v = direction.Dot(q) / det;
-        var t = e2.Dot(q) / det;
-        return u is < 0 or > 1 || v < 0 || u + v > 1 || t < 0 ? null : t;
     }
 
     /// <summary>Placement plane: local y = 0, as TerrainHeaven's tools place on the ground plane.</summary>

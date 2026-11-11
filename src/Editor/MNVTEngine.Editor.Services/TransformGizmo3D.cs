@@ -48,6 +48,16 @@ public sealed class TransformGizmo3D
 
     public GizmoTool Tool { get; set; } = GizmoTool.Move;
 
+    /// <summary>Move and rotate along the object's own axes instead of the world's (scale always uses its own).</summary>
+    public bool LocalSpace { get; set; }
+
+    /// <summary>Snap increments: units for move, degrees for rotate, factor steps for scale.</summary>
+    public float MoveSnap { get; set; } = 0.5f;
+
+    public float RotateSnap { get; set; } = 15f;
+
+    public float ScaleSnap { get; set; } = 0.1f;
+
     public Gizmo3DHandle ActiveHandle { get; private set; }
 
     public bool IsDragging => ActiveHandle != Gizmo3DHandle.None;
@@ -62,7 +72,7 @@ public sealed class TransformGizmo3D
             Gizmo3DHandle.Y or Gizmo3DHandle.XZ => Vector3.UnitY,
             _ => Vector3.UnitZ,
         };
-        return Tool == GizmoTool.Scale ? (transform.Rotation * axis).Normalized : axis;
+        return Tool == GizmoTool.Scale || LocalSpace ? (transform.Rotation * axis).Normalized : axis;
     }
 
     /// <summary>World length of the axis handles at the object.</summary>
@@ -180,7 +190,7 @@ public sealed class TransformGizmo3D
                     return false;
                 }
 
-                var moved = Snap(s - _startParameter, snap ? 0.5f : 0f);
+                var moved = Snap(s - _startParameter, snap ? MoveSnap : 0f);
                 return Set(transform, _startPosition + (axis * moved));
             }
 
@@ -194,7 +204,7 @@ public sealed class TransformGizmo3D
                 var delta = point - _startPoint;
                 if (snap)
                 {
-                    delta = new Vector3(Snap(delta.X, 0.5f), Snap(delta.Y, 0.5f), Snap(delta.Z, 0.5f));
+                    delta = new Vector3(Snap(delta.X, MoveSnap), Snap(delta.Y, MoveSnap), Snap(delta.Z, MoveSnap));
                 }
 
                 return Set(transform, _startPosition + delta);
@@ -210,7 +220,7 @@ public sealed class TransformGizmo3D
                 var from = (_startPoint - _startPosition).Normalized;
                 var to = (point - _startPosition).Normalized;
                 var angle = MathF.Atan2(Vector3.Dot(Vector3.Cross(from, to), axis), Vector3.Dot(from, to)) * Mathf.Rad2Deg;
-                var rotation = Quaternion.AngleAxis(Snap(angle, snap ? 15f : 0f), axis) * _startRotation;
+                var rotation = Quaternion.AngleAxis(Snap(angle, snap ? RotateSnap : 0f), axis) * _startRotation;
                 if (Quaternion.Approximately(rotation, transform.Rotation))
                 {
                     return false;
@@ -223,7 +233,7 @@ public sealed class TransformGizmo3D
             case (GizmoTool.Scale, Gizmo3DHandle.Uniform):
             {
                 var factor = MathF.Max(0.01f, 1f + ((mouse.X - _startMouse.X - (mouse.Y - _startMouse.Y)) / 100f));
-                return SetScale(transform, _startScale * Snap(factor, snap ? 0.1f : 0f));
+                return SetScale(transform, _startScale * Snap(factor, snap ? ScaleSnap : 0f));
             }
 
             default:
@@ -233,7 +243,7 @@ public sealed class TransformGizmo3D
                     return false;
                 }
 
-                var factor = MathF.Max(0.01f, Snap(s / _startParameter, snap ? 0.1f : 0f));
+                var factor = MathF.Max(0.01f, Snap(s / _startParameter, snap ? ScaleSnap : 0f));
                 var scale = _startScale;
                 scale = handle switch
                 {

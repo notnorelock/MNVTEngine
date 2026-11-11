@@ -8,7 +8,9 @@ namespace MNVTEngine.Editor.Panels;
 
 /// <summary>
 /// Free editor camera over the active scene, in 2D or 3D (toolbar toggle; 3D is chosen for scenes with meshes or
-/// lights, see <see cref="SceneView3D"/> for its controls). In 2D: left click selects or drags gizmo handles; right/middle drag pans;
+/// lights, see <see cref="SceneView3D"/> for its controls). Laid out like Unity's Scene view: a toolbar (2D/3D,
+/// Global/Local, snapping, grid, gizmos, camera settings) and the tool palette (hand, move, rotate, scale) floating
+/// over the view's top-left corner. In 2D: left click selects or drags gizmo handles; right/middle drag pans;
 /// wheel zooms at the cursor; W/E/R pick the tool, F frames the selection, Delete removes it. Dropping a texture
 /// from the Project panel creates a sprite at the drop point. With a Tilemap selected and painting on (B), left drag
 /// paints the palette tile and Ctrl + left drag erases.
@@ -26,6 +28,7 @@ internal sealed class SceneViewPanel : IDisposable
     private GizmoHandle _hovered;
     private Vector2? _lastPaint;
     private Vector2 _mouseWorld;
+    private bool _hand;
 
     public SceneViewPanel(EditorContext context)
     {
@@ -54,20 +57,24 @@ internal sealed class SceneViewPanel : IDisposable
             var origin = ImGui.GetCursorScreenPos();
             Gui.Image(_view.Id, _view.Target, new System.Numerics.Vector2(width, height));
             ImGui.SetCursorScreenPos(origin);
+            ImGui.SetNextItemAllowOverlap(); // the tool palette and navigation gizmo sit on top of the view
             ImGui.InvisibleButton("##scene_canvas", new System.Numerics.Vector2(width, height), ImGuiButtonFlags.MouseButtonLeft | ImGuiButtonFlags.MouseButtonRight | ImGuiButtonFlags.MouseButtonMiddle);
             if (Is3D)
             {
-                _view3D.Tool = _gizmo.Tool;
-                _view3D.HandleInput(origin.ToEngine(), ImGui.IsItemHovered(), ImGui.IsWindowFocused());
-                _gizmo.Tool = _view3D.Tool;
+                (_view3D.Tool, _view3D.HandTool) = (_gizmo.Tool, _hand);
+                _view3D.HandleInput(origin.ToEngine(), ImGui.IsItemHovered(), ImGui.IsWindowFocused(ImGuiFocusedFlags.ChildWindows));
+                (_gizmo.Tool, _hand) = (_view3D.Tool, _view3D.HandTool);
+                HandleDrop(origin.ToEngine());
                 _view3D.DrawOverlay(origin.ToEngine());
+                _view3D.DrawNavigation(origin.ToEngine(), new Vector2(width, height));
             }
             else
             {
-                HandleInput(origin.ToEngine(), ImGui.IsItemHovered(), ImGui.IsWindowFocused());
+                HandleInput(origin.ToEngine(), ImGui.IsItemHovered(), ImGui.IsWindowFocused(ImGuiFocusedFlags.ChildWindows));
+                HandleDrop(origin.ToEngine());
             }
 
-            HandleDrop(origin.ToEngine());
+            DrawToolPalette(origin);
         }
 
         ImGui.End();
@@ -108,7 +115,10 @@ internal sealed class SceneViewPanel : IDisposable
                 DrawQuad(batch, SceneEditing.SpriteCorners(sprite), new Color(1f, 0.6f, 0.1f), upp);
             }
 
-            _gizmo.Draw(batch, selected.Transform, upp, _hovered);
+            if (!_hand)
+            {
+                _gizmo.Draw(batch, selected.Transform, upp, _hovered);
+            }
         }
 
         _context.Renderer.End();
@@ -120,20 +130,33 @@ internal sealed class SceneViewPanel : IDisposable
         _view.Dispose();
     }
 
+    /// <summary>Unity's tool palette: a vertical strip floating over the view's top-left corner.</summary>
+    private void DrawToolPalette(System.Numerics.Vector2 origin)
+    {
+        var list = ImGui.GetWindowDrawList();
+        var size = ImGui.GetFrameHeight();
+        var top = origin + new System.Numerics.Vector2(8f, 8f);
+        list.AddRectFilled(top - new System.Numerics.Vector2(4f), top + new System.Numerics.Vector2(size + 4f, (4 * (size + 2f)) + 2f), 0xE0202226, 5f);
+        var tools = new (bool Active, string Icon, string Label, Action Choose)[]
+        {
+            (_hand, Icons.Hand, "Hand: left drag pans (Q)", () => _hand = true),
+            (!_hand && _gizmo.Tool == GizmoTool.Move, Icons.Move, "Move (W)", () => (_gizmo.Tool, _hand) = (GizmoTool.Move, false)),
+            (!_hand && _gizmo.Tool == GizmoTool.Rotate, Icons.RotateCw, "Rotate (E)", () => (_gizmo.Tool, _hand) = (GizmoTool.Rotate, false)),
+            (!_hand && _gizmo.Tool == GizmoTool.Scale, Icons.Scale3D, "Scale (R)", () => (_gizmo.Tool, _hand) = (GizmoTool.Scale, false)),
+        };
+        for (var i = 0; i < tools.Length; i++)
+        {
+            ImGui.SetCursorScreenPos(top + new System.Numerics.Vector2(0f, i * (size + 2f)));
+            if (Gui.IconButton(tools[i].Icon, tools[i].Label, tools[i].Active))
+            {
+                tools[i].Choose();
+            }
+        }
+    }
+
     private void DrawToolbar()
     {
         ImGui.SetCursorPos(ImGui.GetCursorPos() + new System.Numerics.Vector2(6f, 4f));
-        foreach (var (tool, icon, label) in new[] { (GizmoTool.Move, Icons.Move, "Move (W)"), (GizmoTool.Rotate, Icons.RotateCw, "Rotate (E)"), (GizmoTool.Scale, Icons.Scale3D, "Scale (R)") })
-        {
-            if (Gui.IconButton(icon, label, _gizmo.Tool == tool))
-            {
-                _gizmo.Tool = tool;
-            }
-
-            ImGui.SameLine(0f, 2f);
-        }
-
-        ImGui.SameLine(0f, 12f);
         var is3D = Is3D;
         if (Gui.IconButton(Icons.RectangleHorizontal, "2D view", !is3D))
         {
@@ -146,9 +169,112 @@ internal sealed class SceneViewPanel : IDisposable
             _mode3D = true;
         }
 
-        ImGui.SameLine();
+        if (is3D)
+        {
+            DrawToolbar3D();
+        }
+
+        ImGui.SameLine(0f, 12f);
         Gui.Muted(is3D ? "Alt+drag orbit, middle pan, right look + WASD, F frame" : $"zoom {_camera.Zoom:0.##}x");
         ImGui.Spacing();
+    }
+
+    /// <summary>Unity's Scene toolbar for 3D: handle orientation, snapping, grid, gizmos and the camera.</summary>
+    private void DrawToolbar3D()
+    {
+        var gizmo = _view3D.Gizmo;
+        ImGui.SameLine(0f, 12f);
+        if (Gui.IconButton(gizmo.LocalSpace ? Icons.Cuboid : Icons.Globe, gizmo.LocalSpace ? "Local: handles follow the object's rotation (click for Global)" : "Global: handles along the world axes (click for Local)"))
+        {
+            gizmo.LocalSpace = !gizmo.LocalSpace;
+        }
+
+        ImGui.SameLine(0f, 2f);
+        if (Gui.IconButton(Icons.Magnet, _view3D.AlwaysSnap ? "Snapping on (Ctrl moves freely)" : "Snapping off (hold Ctrl to snap)", _view3D.AlwaysSnap))
+        {
+            _view3D.AlwaysSnap = !_view3D.AlwaysSnap;
+        }
+
+        if (ImGui.IsItemClicked(ImGuiMouseButton.Right))
+        {
+            ImGui.OpenPopup("##snap_settings");
+        }
+
+        ImGui.SameLine(0f, 0f);
+        if (ImGui.ArrowButton("##snap_menu", ImGuiDir.Down))
+        {
+            ImGui.OpenPopup("##snap_settings");
+        }
+
+        if (ImGui.BeginPopup("##snap_settings"))
+        {
+            ImGui.SeparatorText("Increment snapping");
+            var (move, rotate, scale) = (gizmo.MoveSnap, gizmo.RotateSnap, gizmo.ScaleSnap);
+            ImGui.SetNextItemWidth(120f);
+            if (ImGui.DragFloat("Move", ref move, 0.05f, 0.01f, 100f, "%.2f"))
+            {
+                gizmo.MoveSnap = MathF.Max(0.01f, move);
+            }
+
+            ImGui.SetNextItemWidth(120f);
+            if (ImGui.DragFloat("Rotate (degrees)", ref rotate, 0.5f, 1f, 180f, "%.0f"))
+            {
+                gizmo.RotateSnap = Math.Clamp(rotate, 1f, 180f);
+            }
+
+            ImGui.SetNextItemWidth(120f);
+            if (ImGui.DragFloat("Scale", ref scale, 0.01f, 0.01f, 10f, "%.2f"))
+            {
+                gizmo.ScaleSnap = MathF.Max(0.01f, scale);
+            }
+
+            ImGui.EndPopup();
+        }
+
+        ImGui.SameLine(0f, 8f);
+        if (Gui.IconButton(Icons.Grid3x3, "Grid", _view3D.ShowGrid))
+        {
+            _view3D.ShowGrid = !_view3D.ShowGrid;
+        }
+
+        ImGui.SameLine(0f, 2f);
+        if (Gui.IconButton(_view3D.ShowGizmos ? Icons.Eye : Icons.EyeOff, "Gizmos: light and camera icons, selection bounds", _view3D.ShowGizmos))
+        {
+            _view3D.ShowGizmos = !_view3D.ShowGizmos;
+        }
+
+        ImGui.SameLine(0f, 2f);
+        if (Gui.IconButton(Icons.Video, "Scene camera settings"))
+        {
+            ImGui.OpenPopup("##camera_settings");
+        }
+
+        if (ImGui.BeginPopup("##camera_settings"))
+        {
+            var camera = _view3D.Camera;
+            ImGui.SeparatorText("Scene camera");
+            var fov = camera.FieldOfView;
+            ImGui.SetNextItemWidth(160f);
+            if (ImGui.SliderFloat("Field of view", ref fov, 10f, 120f, "%.0f"))
+            {
+                camera.FieldOfView = fov;
+            }
+
+            var speed = camera.FlySpeed;
+            ImGui.SetNextItemWidth(160f);
+            if (ImGui.SliderFloat("Fly speed", ref speed, 0.1f, 10f, "%.1fx"))
+            {
+                camera.FlySpeed = speed;
+            }
+
+            var orthographic = camera.Orthographic;
+            if (ImGui.Checkbox("Orthographic", ref orthographic))
+            {
+                camera.Orthographic = orthographic;
+            }
+
+            ImGui.EndPopup();
+        }
     }
 
     /// <summary>The selected tilemap while tile painting is on.</summary>
@@ -165,19 +291,24 @@ internal sealed class SceneViewPanel : IDisposable
 
         if (focused && !io.WantTextInput)
         {
+            if (ImGui.IsKeyPressed(ImGuiKey.Q, false))
+            {
+                _hand = true;
+            }
+
             if (ImGui.IsKeyPressed(ImGuiKey.W, false))
             {
-                _gizmo.Tool = GizmoTool.Move;
+                (_gizmo.Tool, _hand) = (GizmoTool.Move, false);
             }
 
             if (ImGui.IsKeyPressed(ImGuiKey.E, false))
             {
-                _gizmo.Tool = GizmoTool.Rotate;
+                (_gizmo.Tool, _hand) = (GizmoTool.Rotate, false);
             }
 
             if (ImGui.IsKeyPressed(ImGuiKey.R, false))
             {
-                _gizmo.Tool = GizmoTool.Scale;
+                (_gizmo.Tool, _hand) = (GizmoTool.Scale, false);
             }
 
             if (ImGui.IsKeyPressed(ImGuiKey.B, false))
@@ -205,7 +336,7 @@ internal sealed class SceneViewPanel : IDisposable
             _camera.Position += before - _camera.ScreenToWorld(io.MousePos.ToEngine() - origin);
         }
 
-        if (ImGui.IsItemActive() && (ImGui.IsMouseDragging(ImGuiMouseButton.Right) || ImGui.IsMouseDragging(ImGuiMouseButton.Middle)))
+        if (ImGui.IsItemActive() && (ImGui.IsMouseDragging(ImGuiMouseButton.Right) || ImGui.IsMouseDragging(ImGuiMouseButton.Middle) || (_hand && ImGui.IsMouseDragging(ImGuiMouseButton.Left))))
         {
             var delta = io.MouseDelta;
             _camera.Position -= Vector2.Rotate(new Vector2(delta.X, -delta.Y) * upp, _camera.Rotation);
@@ -214,6 +345,12 @@ internal sealed class SceneViewPanel : IDisposable
         if (PaintTarget() is { } tilemap)
         {
             Paint(tilemap, mouseWorld, hovered, io.KeyCtrl);
+            return;
+        }
+
+        if (_hand)
+        {
+            _hovered = GizmoHandle.None;
             return;
         }
 

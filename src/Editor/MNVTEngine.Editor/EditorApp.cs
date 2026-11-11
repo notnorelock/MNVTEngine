@@ -56,6 +56,9 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private Graphics.Text.Font _gameUIFont = null!;
     private string _iniPath = "";
     private bool _resetLayout;
+    private EditorLayout _layoutKind;
+    private string? _pendingLayoutIni;
+    private string _newLayoutName = "";
     private Action? _afterUnsavedPrompt;
     private bool _openUnsavedPrompt;
     private bool _openSaveAs;
@@ -120,6 +123,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _inspector = new InspectorPanel(_context);
         _sceneView = new SceneViewPanel(_context);
         _terrainPanel = new TerrainPanel(_context);
+        _context.TerrainTools = _terrainPanel;
         _gameView = new GameViewPanel(_context);
         _projectPanel = new ProjectPanel(_context);
         _console = new ConsolePanel(_context);
@@ -211,6 +215,13 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         }
 
         _context.ImGui.PruneDisposed();
+        if (_pendingLayoutIni is { } ini)
+        {
+            // ImGui takes saved settings only between frames.
+            _pendingLayoutIni = null;
+            ImGui.LoadIniSettingsFromMemory(ini);
+        }
+
         ImGuiInput.NewFrame(_context.Window, time.UnscaledDeltaTime);
         ImGui.NewFrame();
 
@@ -237,7 +248,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _hierarchy.Draw();
         _inspector.Draw();
         _sceneView.Draw();
-        _terrainPanel.Draw();
+        _terrainPanel.Update();
         _gameView.Draw();
         _projectPanel.Draw();
         _console.Draw();
@@ -465,34 +476,12 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         if (_resetLayout || DockBuilder.GetNode(dockId) == 0)
         {
             _resetLayout = false;
-            BuildDefaultLayout(dockId, size);
+            EditorLayouts.Build(_layoutKind, dockId, size);
             _focusSceneFrames = 2; // the last panel drawn would otherwise be the selected tab
         }
 
         ImGui.DockSpace(dockId, size);
         ImGui.End();
-    }
-
-    private static void BuildDefaultLayout(uint dockId, SysVector2 size)
-    {
-        DockBuilder.RemoveNode(dockId);
-        _ = DockBuilder.AddNode(dockId, DockBuilder.DockSpaceFlag);
-        DockBuilder.SetNodeSize(dockId, size);
-        DockBuilder.SplitNode(dockId, DockBuilder.Direction.Left, 0.18f, out var left, out var rest);
-        DockBuilder.SplitNode(rest, DockBuilder.Direction.Right, 0.28f, out var right, out rest);
-        DockBuilder.SplitNode(rest, DockBuilder.Direction.Down, 0.30f, out var bottom, out var center);
-        DockBuilder.DockWindow(EditorWindows.Id("Hierarchy"), left);
-        DockBuilder.DockWindow(EditorWindows.Id("Inspector"), right);
-        DockBuilder.DockWindow(EditorWindows.Id("Terrain"), right);
-        DockBuilder.DockWindow(EditorWindows.Id("Project"), bottom);
-        DockBuilder.DockWindow(EditorWindows.Id("Console"), bottom);
-        DockBuilder.DockWindow(EditorWindows.Id("Profiler"), bottom);
-        DockBuilder.DockWindow(EditorWindows.Id("Script Debugger"), bottom);
-        DockBuilder.DockWindow(EditorWindows.Id("Game"), center);
-        DockBuilder.DockWindow(EditorWindows.Id("Script Editor"), center);
-        DockBuilder.DockWindow(EditorWindows.Id("UI Editor"), center);
-        DockBuilder.DockWindow(EditorWindows.Id("Scene"), center);
-        DockBuilder.Finish(dockId);
     }
 
     /// <summary>The editor's menus: shown in the native menu bar on Windows, else as an ImGui menu bar.</summary>
@@ -597,6 +586,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             Gui.Muted($"t = {play.Time.TotalTime:0.00}s  (changes made while playing are discarded on Stop)");
         }
 
+        ImGui.SameLine(ImGui.GetWindowWidth() - 420f);
+        DrawLayoutMenu();
         ImGui.SameLine(ImGui.GetWindowWidth() - 300f);
         var color = _scripts.State switch
         {
@@ -922,6 +913,101 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         {
             LogOpenFailed(_logger, ex, path);
         }
+    }
+
+    private string LayoutsFolder => Path.Combine(Path.GetDirectoryName(_iniPath)!, "Layouts");
+
+    /// <summary>Unity's Layout menu: the built-in arrangements, saved layouts, Save Layout and Delete Layout.</summary>
+    private void DrawLayoutMenu()
+    {
+        if (ImGui.Button($"{Icons.LayoutTemplate}  Layout {Icons.ChevronDown}"))
+        {
+            ImGui.OpenPopup("##layouts");
+        }
+
+        if (!ImGui.BeginPopup("##layouts"))
+        {
+            return;
+        }
+
+        foreach (var (kind, name) in EditorLayouts.BuiltIn)
+        {
+            if (ImGui.MenuItem(name))
+            {
+                (_layoutKind, _resetLayout) = (kind, true);
+            }
+        }
+
+        var saved = EditorLayouts.Saved(LayoutsFolder);
+        if (saved.Count > 0)
+        {
+            ImGui.Separator();
+            foreach (var name in saved)
+            {
+                if (ImGui.MenuItem(name) && EditorLayouts.FileOf(LayoutsFolder, name) is { } file)
+                {
+                    try
+                    {
+                        _pendingLayoutIni = EditorWindows.MigrateLayout(File.ReadAllText(file));
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        EditorLog.ActionFailed(_context.Logger, ex, "Load layout");
+                    }
+                }
+            }
+        }
+
+        ImGui.Separator();
+        if (ImGui.BeginMenu("Save Layout..."))
+        {
+            ImGui.SetNextItemWidth(180f);
+            var submit = ImGui.InputTextWithHint("##layout_name", "Layout name", ref _newLayoutName, 64, ImGuiInputTextFlags.EnterReturnsTrue);
+            ImGui.SameLine();
+            if ((ImGui.Button("Save") || submit) && EditorLayouts.FileOf(LayoutsFolder, _newLayoutName) is { } file)
+            {
+                try
+                {
+                    Directory.CreateDirectory(LayoutsFolder);
+                    File.WriteAllText(file, ImGui.SaveIniSettingsToMemory());
+                    _newLayoutName = "";
+                    ImGui.CloseCurrentPopup();
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    EditorLog.ActionFailed(_context.Logger, ex, "Save layout");
+                }
+            }
+
+            ImGui.EndMenu();
+        }
+
+        if (ImGui.BeginMenu("Delete Layout", saved.Count > 0))
+        {
+            foreach (var name in saved)
+            {
+                if (ImGui.MenuItem(name) && EditorLayouts.FileOf(LayoutsFolder, name) is { } file)
+                {
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        EditorLog.ActionFailed(_context.Logger, ex, "Delete layout");
+                    }
+                }
+            }
+
+            ImGui.EndMenu();
+        }
+
+        if (ImGui.MenuItem("Reset All Layouts"))
+        {
+            (_layoutKind, _resetLayout) = (EditorLayout.Default, true);
+        }
+
+        ImGui.EndPopup();
     }
 
     private void SaveLayout()

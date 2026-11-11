@@ -21,7 +21,6 @@ internal static partial class EditorWindows
         ["Script Editor"] = Icons.FileCode,
         ["UI Editor"] = Icons.LayoutTemplate,
         ["Animator"] = Icons.Workflow,
-        ["Terrain"] = Icons.Mountain,
         ["Build Settings"] = Icons.Hammer,
         ["Diagnostics"] = Icons.SlidersHorizontal,
     };

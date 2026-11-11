@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
@@ -109,6 +110,40 @@ public sealed partial class WorldTerrain : Component, IMeshDataSource
             {
                 Physics.RefreshShape(collider);
             }
+        }
+    }
+
+    /// <summary>Distance along a world-space ray to the nearest surface of the world (any element), or null.</summary>
+    public float? Raycast(Ray ray)
+    {
+        if (Data is not { } data || GameObject is null)
+        {
+            return null;
+        }
+
+        var toWorld = Transform.LocalToWorldMatrix;
+        if (!Matrix4x4.TryInvert(toWorld, out var toLocal))
+        {
+            return null;
+        }
+
+        var origin = Point(toLocal, ray.Origin, 1f);
+        var direction = Point(toLocal, ray.Direction, 0f);
+        double? best = null;
+        foreach (var triangle in data.World.Elements.SelectMany(e => e.Geometry).SelectMany(g => g.Triangles))
+        {
+            if (Terrain.Geometry.RayCasting.IntersectTriangle(origin, direction, triangle.A, triangle.B, triangle.C) is { } t && (best is null || t < best))
+            {
+                best = t;
+            }
+        }
+
+        return best is { } hit ? Vector3.Distance(ray.Origin, Point(toWorld, origin + (direction * hit), 1f)) : null;
+
+        static Vector3 Point(Matrix4x4 m, Vector3 v, float w)
+        {
+            var r = m * new Vector4(v.X, v.Y, v.Z, w);
+            return new Vector3(r.X, r.Y, r.Z);
         }
     }
 

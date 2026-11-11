@@ -179,4 +179,15 @@ public sealed class TerrainEditorTests : IDisposable
         Assert.Null(_editor.Project);
         Assert.False(_editor.Begin(_component, _file + ".missing"));
     }
+
+    [Fact]
+    public void ClicksOffTheTerrainAreNotHandled_SoTheSceneViewSelectsAsUsual()
+    {
+        _editor.Tool = TerrainTool.Select;
+        Assert.True(_editor.PointerDown(Down(0f, 0f), Pixel(0f, 0f), Screen, TerrainModifiers.None)); // on the tile
+        Assert.False(_editor.PointerDown(Down(80f, 0f), Pixel(80f, 0f), Screen, TerrainModifiers.None)); // past its edge
+        Assert.Null(_editor.SelectedElement);
+        _editor.Tool = TerrainTool.Intersection;
+        Assert.False(_editor.PointerDown(new Ray(new Vector3(0f, 5f, 0f), Vector3.Up), Pixel(0f, 0f), Screen, TerrainModifiers.None)); // no ground
+    }
 }

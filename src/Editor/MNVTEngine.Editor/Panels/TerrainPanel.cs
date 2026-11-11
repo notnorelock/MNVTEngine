@@ -14,8 +14,8 @@ using TerrainTile = MNVTEngine.Terrain.Elements.Terrain;
 namespace MNVTEngine.Editor.Panels;
 
 /// <summary>
-/// The terrain tools (TerrainHeaven's toolbar and panels): start editing the selected <see cref="WorldTerrain"/>, pick a
-/// tool, set brushes, edit the selected element's properties, textures and UVs, foliage presets, props, project
+/// The terrain tools (TerrainHeaven's toolbar and panels), shown in the Inspector under the selected
+/// <see cref="WorldTerrain"/> as Unity shows its terrain tools: pick a tool, set brushes, edit the selected element's properties, textures and UVs, foliage presets, props, project
 /// settings, presets and history. The Scene view does the placing and painting.
 /// </summary>
 internal sealed class TerrainPanel(EditorContext context)
@@ -40,25 +40,20 @@ internal sealed class TerrainPanel(EditorContext context)
 
     private string _presetName = "";
     private bool _presetsLoaded;
+    private WorldTerrain? _failed;
 
     private TerrainEditor Editor => context.TerrainEditor;
 
-    public void Draw()
+    /// <summary>
+    /// Every frame: editing follows the selection, as Unity's terrain tools do. Selecting a GameObject with a
+    /// WorldTerrain (clicking its surface, or in the Hierarchy) starts editing its world; selecting anything else, Play
+    /// or another scene stops it.
+    /// </summary>
+    public void Update()
     {
         if (!_presetsLoaded)
         {
             LoadPresets();
-        }
-
-        if (context.InspectorDockId != 0)
-        {
-            ImGui.SetNextWindowDockID(context.InspectorDockId, ImGuiCond.FirstUseEver);
-        }
-
-        if (!ImGui.Begin(EditorWindows.Title("Terrain")))
-        {
-            ImGui.End();
-            return;
         }
 
         if (context.OpenTerrainRequest is { } requested && !context.PlayMode.IsPlaying)
@@ -67,60 +62,57 @@ internal sealed class TerrainPanel(EditorContext context)
             OpenWorld(requested);
         }
 
-        var selected = context.Selected?.GetComponent<WorldTerrain>();
-        if (Editor.Target is { } target && (target.GameObject?.Scene != context.ActiveScene || context.PlayMode.IsPlaying))
+        var selected = context.PlayMode.IsPlaying ? null : context.Selected?.GetComponent<WorldTerrain>();
+        if (Editor.Target is { } target && !ReferenceEquals(target, selected))
         {
-            Editor.End(); // the scene changed or Play started: stop editing the old world
+            Editor.End();
         }
 
-        if (Editor.Target is null)
+        if (selected is { Project.IsNone: false, LoadError: null } && Editor.Target is null && !ReferenceEquals(selected, _failed) && FileOf(selected.Project.Guid) is { } file)
         {
-            DrawStart(selected);
+            if (Editor.Begin(selected, file))
+            {
+                Editor.Tool = TerrainTool.Select;
+            }
+            else
+            {
+                _failed = selected; // logged once; not retried every frame
+            }
         }
-        else
-        {
-            DrawEditing();
-        }
-
-        ImGui.End();
     }
 
-    private void DrawStart(WorldTerrain? selected)
+    /// <summary>The terrain tools, under the WorldTerrain component in the Inspector.</summary>
+    public void DrawInspector(WorldTerrain terrain)
     {
-        if (selected is null)
-        {
-            Gui.TextWrapped("Select a GameObject with a WorldTerrain component (Add Component > WorldTerrain) to edit its terrain world.");
-            return;
-        }
-
+        ImGui.SeparatorText($"{Icons.Mountain}  Terrain tools");
         if (context.PlayMode.IsPlaying)
         {
             Gui.Muted("Stop Play Mode to edit the terrain.");
             return;
         }
 
-        if (selected.Project.IsNone)
+        if (terrain.Project.IsNone)
         {
             Gui.TextWrapped("This WorldTerrain has no world asset yet.");
             if (ImGui.Button($"{Icons.Plus}  Create world asset"))
             {
-                CreateWorld(selected);
+                CreateWorld(terrain);
             }
 
             return;
         }
 
-        if (selected.LoadError is { } error)
+        if (terrain.LoadError is { } error)
         {
             Gui.TextColored(new System.Numerics.Vector4(1f, 0.45f, 0.4f, 1f), error);
+            return;
         }
 
-        if (ImGui.Button($"{Icons.Mountain}  Edit terrain in Scene view") && FileOf(selected.Project.Guid) is { } file)
+        if (Editor.IsEditing(terrain))
         {
-            if (Editor.Begin(selected, file))
-            {
-                Editor.Tool = TerrainTool.Select;
-            }
+            ImGui.PushID("terrain-tools");
+            DrawEditing();
+            ImGui.PopID();
         }
     }
 
@@ -140,24 +132,23 @@ internal sealed class TerrainPanel(EditorContext context)
             Editor.Redo();
         }
 
-        ImGui.SameLine(0f, 2f);
-        if (Gui.IconButton(Icons.X, "Stop editing"))
-        {
-            Editor.End();
-            return;
-        }
 
-        foreach (var (tool, icon, label) in Tools)
+        // The palette wraps to the Inspector's width.
+        var right = ImGui.GetCursorScreenPos().X + ImGui.GetContentRegionAvail().X;
+        for (var i = 0; i < Tools.Length; i++)
         {
+            var (tool, icon, label) = Tools[i];
             if (Gui.IconButton(icon, label, Editor.Tool == tool))
             {
                 Editor.Tool = tool;
             }
 
-            ImGui.SameLine(0f, 2f);
+            if (i + 1 < Tools.Length && ImGui.GetItemRectMax().X + 2f + ImGui.GetItemRectSize().X <= right)
+            {
+                ImGui.SameLine(0f, 2f);
+            }
         }
 
-        ImGui.NewLine();
         Gui.Muted(Tools.First(t => t.Tool == Editor.Tool).Label);
 
         switch (Editor.Tool)

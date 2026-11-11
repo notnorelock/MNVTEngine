@@ -28,9 +28,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
 
     public void Draw()
     {
-        var open = ImGui.Begin(EditorWindows.Title("Inspector"));
-        context.InspectorDockId = ImGui.GetWindowDockID();
-        if (open && context.Session.Selection.Asset is { } asset)
+        if (ImGui.Begin(EditorWindows.Title("Inspector")) && context.Session.Selection.Asset is { } asset)
         {
             _assetInspector.Draw(asset);
         }
@@ -327,6 +325,11 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
             if (component is MeshRenderer meshRenderer)
             {
                 DrawBlendShapes(meshRenderer);
+            }
+
+            if (component is WorldTerrain worldTerrain)
+            {
+                context.TerrainTools?.DrawInspector(worldTerrain);
             }
 
             if (component is AudioMixer mixer)

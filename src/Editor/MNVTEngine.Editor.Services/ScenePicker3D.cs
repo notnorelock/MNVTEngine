@@ -35,10 +35,19 @@ public static class ScenePicker3D
             }
         }
 
+        // Terrain worlds: their element surfaces (clicking anywhere on one selects the whole terrain object).
+        foreach (var terrain in scene.FindObjectsOfType<WorldTerrain>())
+        {
+            if (terrain.GameObject.ActiveInHierarchy && terrain.Raycast(ray) is { } distance && distance < bestDistance)
+            {
+                (best, bestDistance) = (terrain.GameObject, distance);
+            }
+        }
+
         // Objects drawn as icons: lights, cameras, and anything else without a mesh.
         foreach (var gameObject in scene.GameObjects)
         {
-            if (!gameObject.ActiveInHierarchy || gameObject.GetComponent<MeshRenderer>() is not null || !HasIcon(gameObject))
+            if (!gameObject.ActiveInHierarchy || gameObject.GetComponent<MeshRenderer>() is not null || gameObject.GetComponent<WorldTerrain>() is not null || !HasIcon(gameObject))
             {
                 continue;
             }
