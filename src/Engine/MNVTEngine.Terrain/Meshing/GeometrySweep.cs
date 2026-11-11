@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Elements;
 using MNVTEngine.Terrain.Geometry;
 
@@ -10,7 +11,7 @@ public readonly record struct GeometryLineVertex(double Lateral, double Height, 
 public readonly record struct GeometryLineSegment(string Group, GeometryLineVertex Start, GeometryLineVertex End);
 
 /// <summary>A cross-section at a point of the path: its origin, its sideways axis and its segments.</summary>
-public sealed record GeometryLineSection(Vec3 Origin, Vec3 Right, IReadOnlyList<GeometryLineSegment> Segments);
+public sealed record GeometryLineSection(Vector3 Origin, Vector3 Right, IReadOnlyList<GeometryLineSegment> Segments);
 
 /// <summary>Sweeps cross-sections along a path into triangle strips (TerrainHeaven's GeometrySweepManager).</summary>
 public static class GeometrySweep
@@ -53,10 +54,10 @@ public static class GeometrySweep
         return groups;
     }
 
-    private static Vec3 Place(GeometryLineSection section, GeometryLineVertex vertex) =>
-        section.Origin + (section.Right * vertex.Lateral) + new Vec3(0, vertex.Height, 0);
+    private static Vector3 Place(GeometryLineSection section, GeometryLineVertex vertex) =>
+        section.Origin + (section.Right * vertex.Lateral) + new Vector3(0, vertex.Height, 0);
 
-    private static Vec2 Uv(GeometryLineVertex vertex) => new(vertex.U, vertex.V);
+    private static Vector2 Uv(GeometryLineVertex vertex) => new(vertex.U, vertex.V);
 }
 
 /// <summary>
@@ -66,12 +67,12 @@ public static class GeometrySweep
 public sealed class SurfaceHeightSampler
 {
     private const double Epsilon = 1e-7;
-    private readonly List<(Vec3 A, Vec3 B, Vec3 C)> _triangles = [];
+    private readonly List<(Vector3 A, Vector3 B, Vector3 C)> _triangles = [];
     private readonly Dictionary<(long, long), List<int>> _buckets = [];
     private readonly List<int> _largeTriangles = [];
     private double _cellSize = 1;
 
-    public SurfaceHeightSampler(IEnumerable<(Vec3 A, Vec3 B, Vec3 C)> triangles)
+    public SurfaceHeightSampler(IEnumerable<(Vector3 A, Vector3 B, Vector3 C)> triangles)
     {
         ArgumentNullException.ThrowIfNull(triangles);
         foreach (var (a, b, c) in triangles)
@@ -162,7 +163,7 @@ public sealed class SurfaceHeightSampler
 
     private (long, long) BucketKey(double x, double z) => ((long)Math.Floor(x / _cellSize), (long)Math.Floor(z / _cellSize));
 
-    private static double? SampleTriangle((Vec3 A, Vec3 B, Vec3 C) t, double x, double z)
+    private static double? SampleTriangle((Vector3 A, Vector3 B, Vector3 C) t, double x, double z)
     {
         var denominator = ((t.B.Z - t.C.Z) * (t.A.X - t.C.X)) + ((t.C.X - t.B.X) * (t.A.Z - t.C.Z));
         if (Math.Abs(denominator) <= Epsilon)

@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Geometry;
 using MNVTEngine.Terrain.Meshing;
 
@@ -17,9 +18,9 @@ public enum NodeKind
 /// one node. <see cref="Host"/> is the element it is attached to for moving and rotating (in TerrainHeaven: the element
 /// whose mesh it is a child of; attaching it elsewhere detaches it, as three.js reparenting does).
 /// </summary>
-public sealed class WorldNode(Vec3 position, NodeKind kind = NodeKind.Node)
+public sealed class WorldNode(Vector3 position, NodeKind kind = NodeKind.Node)
 {
-    public Vec3 Position { get; set; } = position;
+    public Vector3 Position { get; set; } = position;
 
     public NodeKind Kind { get; set; } = kind;
 
@@ -30,7 +31,7 @@ public sealed class WorldNode(Vec3 position, NodeKind kind = NodeKind.Node)
     public WorldElement? Host { get; internal set; }
 
     /// <summary>Moves the node and rebuilds the element it drives.</summary>
-    public void Update(Vec3 position)
+    public void Update(Vector3 position)
     {
         Position = position;
         Parent?.Update();
@@ -38,19 +39,19 @@ public sealed class WorldNode(Vec3 position, NodeKind kind = NodeKind.Node)
 }
 
 /// <summary>A triangle with UVs (TerrainHeaven's Vertex.ts) and optional per-corner debug labels.</summary>
-public sealed class Triangle(Vec3 a, Vec3 b, Vec3 c, Vec2 uvA = default, Vec2 uvB = default, Vec2 uvC = default)
+public sealed class Triangle(Vector3 a, Vector3 b, Vector3 c, Vector2 uvA = default, Vector2 uvB = default, Vector2 uvC = default)
 {
-    public Vec3 A { get; set; } = a;
+    public Vector3 A { get; set; } = a;
 
-    public Vec3 B { get; set; } = b;
+    public Vector3 B { get; set; } = b;
 
-    public Vec3 C { get; set; } = c;
+    public Vector3 C { get; set; } = c;
 
-    public Vec2 UvA { get; set; } = uvA;
+    public Vector2 UvA { get; set; } = uvA;
 
-    public Vec2 UvB { get; set; } = uvB;
+    public Vector2 UvB { get; set; } = uvB;
 
-    public Vec2 UvC { get; set; } = uvC;
+    public Vector2 UvC { get; set; } = uvC;
 
     public string? LabelA { get; set; }
 
@@ -62,7 +63,7 @@ public sealed class Triangle(Vec3 a, Vec3 b, Vec3 c, Vec2 uvA = default, Vec2 uv
 /// <summary>A named group of triangles: one material (texture) slot of an element's mesh.</summary>
 public sealed record GeometryGroup(string Name, List<Triangle> Triangles);
 
-public readonly record struct NodeBasis(Vec3 Forward, Vec3 Right, Vec3 Up);
+public readonly record struct NodeBasis(Vector3 Forward, Vector3 Right, Vector3 Up);
 
 public sealed record ConnectionProfile(double HalfWidth, double SidewalkWidth, double CurbHeight);
 
@@ -107,7 +108,7 @@ public abstract class WorldElement
     public virtual MaterialHint? GetMaterialHint(string groupName) => null;
 
     /// <summary>The offset of an element without nodes (TerrainHeaven moves those through their mesh position).</summary>
-    public Vec3 Offset { get; protected set; }
+    public Vector3 Offset { get; protected set; }
 
     public int NodeCount => Nodes.Count;
 
@@ -372,7 +373,7 @@ public abstract class WorldElement
         return GetSidewalkWidth() <= 0 || connection.Element.GetSidewalkWidth() <= 0 ? 0 : (GetCurbHeight() + connection.Element.GetCurbHeight()) / 2;
     }
 
-    public virtual void Translate(Vec3 delta)
+    public virtual void Translate(Vector3 delta)
     {
         var childNodes = GetTransformWorldNodes();
         if (childNodes.Count == 0)
@@ -409,7 +410,7 @@ public abstract class WorldElement
 
     public virtual bool CanRotate() => GetTransformWorldNodes().Count > 0;
 
-    public virtual void RotateAround(Vec3 pivot, Quat deltaRotation)
+    public virtual void RotateAround(Vector3 pivot, Quaternion deltaRotation)
     {
         var childNodes = GetTransformWorldNodes();
         if (childNodes.Count == 0)
@@ -420,7 +421,7 @@ public abstract class WorldElement
         var touched = new List<WorldElement>();
         foreach (var node in childNodes)
         {
-            node.Position = (node.Position - pivot).ApplyQuaternion(deltaRotation) + pivot;
+            node.Position = (deltaRotation * (node.Position - pivot)) + pivot;
             foreach (var element in GetAffectedElementsForNode(node))
             {
                 if (!touched.Contains(element))
@@ -460,14 +461,14 @@ public abstract class WorldElement
                 fixedRight = -fixedRight;
             }
 
-            var fixedForward = basis.Up.Cross(fixedRight).Normalized();
-            return new NodeBasis(fixedForward, fixedRight.Normalized(), basis.Up);
+            var fixedForward = basis.Up.Cross(fixedRight).Normalized;
+            return new NodeBasis(fixedForward, fixedRight.Normalized, basis.Up);
         }
 
         // If the forwards point opposite (end to end), the connected right is flipped: negate it to keep sides consistent.
-        var averageRight = (basis.Forward.Dot(connectionBasis.Forward) < 0 ? basis.Right - connectionBasis.Right : basis.Right + connectionBasis.Right).Normalized();
-        var forward = basis.Up.Cross(averageRight).Normalized();
-        var right = forward.Cross(basis.Up).Normalized();
+        var averageRight = (basis.Forward.Dot(connectionBasis.Forward) < 0 ? basis.Right - connectionBasis.Right : basis.Right + connectionBasis.Right).Normalized;
+        var forward = basis.Up.Cross(averageRight).Normalized;
+        var right = forward.Cross(basis.Up).Normalized;
         return new NodeBasis(forward, right, basis.Up);
     }
 
@@ -528,9 +529,9 @@ public abstract class WorldElement
     public void SetTextureRotation(string groupName, double degrees) => TextureRotations[groupName] = degrees;
 
     /// <summary>One entry per raw vertex (three per triangle) with its group and debug label (the vertex-debug overlay).</summary>
-    public IReadOnlyList<(int Index, string Label, string Group, Vec3 Position)> GetVertexDebugInfo()
+    public IReadOnlyList<(int Index, string Label, string Group, Vector3 Position)> GetVertexDebugInfo()
     {
-        var result = new List<(int, string, string, Vec3)>();
+        var result = new List<(int, string, string, Vector3)>();
         var index = 0;
         foreach (var group in Geometry)
         {

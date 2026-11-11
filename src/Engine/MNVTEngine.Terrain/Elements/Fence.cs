@@ -1,10 +1,11 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Geometry;
 using MNVTEngine.Terrain.Meshing;
 
 namespace MNVTEngine.Terrain.Elements;
 
 /// <summary>A curved fence: a double-sided plane or box panel along the path, and posts at a spacing and at sharp turns.</summary>
-public sealed class Fence(Vec3 positionA, Vec3 positionB) : SplineElement(positionA, positionB, NodeKind.Node)
+public sealed class Fence(Vector3 positionA, Vector3 positionB) : SplineElement(positionA, positionB, NodeKind.Node)
 {
     private readonly Dictionary<string, UVTransform> _uvTransforms = new(StringComparer.Ordinal) { ["fence"] = new(), ["posts"] = new() };
 
@@ -39,7 +40,7 @@ public sealed class Fence(Vec3 positionA, Vec3 positionB) : SplineElement(positi
     public override IReadOnlyList<GuideLine> GetGuideLines() =>
         Divisions <= 0 ? [] : [new GuideLine(GetBezierCurvePoints(), NodeKind.CurveHandle), .. base.GetGuideLines()];
 
-    public List<Vec3> GetPostPositions(int? divisionsOverride = null)
+    public List<Vector3> GetPostPositions(int? divisionsOverride = null)
     {
         var points = GetBezierCurvePoints(divisionsOverride);
         if (points.Count < 2)
@@ -65,8 +66,8 @@ public sealed class Fence(Vec3 positionA, Vec3 positionB) : SplineElement(positi
         var accumulatedTurn = 0.0;
         for (var i = 1; i < points.Count - 1; i++)
         {
-            var before = (points[i] - points[i - 1]).Normalized();
-            var after = (points[i + 1] - points[i]).Normalized();
+            var before = (points[i] - points[i - 1]).Normalized;
+            var after = (points[i + 1] - points[i]).Normalized;
             accumulatedTurn += before.AngleTo(after);
             if (accumulatedTurn + 1e-6 >= threshold)
             {
@@ -78,7 +79,7 @@ public sealed class Fence(Vec3 positionA, Vec3 positionB) : SplineElement(positi
         return distances.Select(d => SamplePolyline(points, cumulative, d)).ToList();
     }
 
-    private static Vec3 SamplePolyline(List<Vec3> points, List<double> cumulative, double distance)
+    private static Vector3 SamplePolyline(List<Vector3> points, List<double> cumulative, double distance)
     {
         for (var i = 1; i < cumulative.Count; i++)
         {
@@ -88,7 +89,7 @@ public sealed class Fence(Vec3 positionA, Vec3 positionB) : SplineElement(positi
             }
 
             var span = cumulative[i] - cumulative[i - 1];
-            return points[i - 1].Lerp(points[i], span > 1e-8 ? (distance - cumulative[i - 1]) / span : 0);
+            return points[i - 1].LerpUnclamped(points[i], span > 1e-8 ? (distance - cumulative[i - 1]) / span : 0);
         }
 
         return points[^1];
@@ -143,9 +144,9 @@ public sealed class Fence(Vec3 positionA, Vec3 positionB) : SplineElement(positi
         return [new GeometryGroup("fence", panel), new GeometryGroup("posts", posts)];
     }
 
-    private void AddPlanePanel(List<Triangle> output, Vec3 start, Vec3 end, double u0, double u1, bool includeBackFace)
+    private void AddPlanePanel(List<Triangle> output, Vector3 start, Vector3 end, double u0, double u1, bool includeBackFace)
     {
-        var up = new Vec3(0, Math.Max(0.05, Height), 0);
+        var up = new Vector3(0, Math.Max(0.05, Height), 0);
         AddQuad(output, start, end, end + up, start + up, new(u0, 0), new(u1, 0), new(u1, 1), new(u0, 1));
         if (includeBackFace)
         {
@@ -153,18 +154,18 @@ public sealed class Fence(Vec3 positionA, Vec3 positionB) : SplineElement(positi
         }
     }
 
-    private static void AddBox(List<Triangle> output, Vec3 start, Vec3 end, double bottom, double top, double width)
+    private static void AddBox(List<Triangle> output, Vector3 start, Vector3 end, double bottom, double top, double width)
     {
         var direction = end - start;
-        var length = direction.Length;
+        var length = direction.Magnitude;
         if (length < 1e-6)
         {
             return;
         }
 
-        var right = (direction / length).Cross(Vec3.UnitY).Normalized() * (width / 2);
-        var (b, t) = (new Vec3(0, bottom, 0), new Vec3(0, top, 0));
-        Vec3[] c =
+        var right = (direction / length).Cross(Vector3.UnitY).Normalized * (width / 2);
+        var (b, t) = (new Vector3(0, bottom, 0), new Vector3(0, top, 0));
+        Vector3[] c =
         [
             start - right + b, start + right + b, end + right + b, end - right + b,
             start - right + t, start + right + t, end + right + t, end - right + t,
@@ -179,17 +180,17 @@ public sealed class Fence(Vec3 positionA, Vec3 positionB) : SplineElement(positi
         AddQuadSimple(output, c[1], c[0], c[3], c[2], length, width);
     }
 
-    private void AddPost(List<Triangle> output, Vec3 center)
+    private void AddPost(List<Triangle> output, Vector3 center)
     {
         var sides = PostShape == "box" ? 4 : Math.Max(3, PostSides);
         var radius = Math.Max(0.02, PostWidth) / 2;
-        var up = new Vec3(0, Math.Max(0.05, PostHeight), 0);
-        var bottom = new List<Vec3>();
-        var top = new List<Vec3>();
+        var up = new Vector3(0, Math.Max(0.05, PostHeight), 0);
+        var bottom = new List<Vector3>();
+        var top = new List<Vector3>();
         for (var i = 0; i < sides; i++)
         {
             var angle = (i / (double)sides * Math.PI * 2) + (PostShape == "box" ? Math.PI / 4 : 0);
-            var offset = new Vec3(Math.Cos(angle) * radius, 0, Math.Sin(angle) * radius);
+            var offset = new Vector3(Math.Cos(angle) * radius, 0, Math.Sin(angle) * radius);
             bottom.Add(center + offset);
             top.Add(center + offset + up);
         }
@@ -206,10 +207,10 @@ public sealed class Fence(Vec3 positionA, Vec3 positionB) : SplineElement(positi
         }
     }
 
-    private static void AddQuadSimple(List<Triangle> output, Vec3 a, Vec3 b, Vec3 c, Vec3 d, double width, double height) =>
+    private static void AddQuadSimple(List<Triangle> output, Vector3 a, Vector3 b, Vector3 c, Vector3 d, double width, double height) =>
         AddQuad(output, a, b, c, d, new(0, 0), new(width, 0), new(width, height), new(0, height));
 
-    private static void AddQuad(List<Triangle> output, Vec3 a, Vec3 b, Vec3 c, Vec3 d, Vec2 uvA, Vec2 uvB, Vec2 uvC, Vec2 uvD)
+    private static void AddQuad(List<Triangle> output, Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector2 uvA, Vector2 uvB, Vector2 uvC, Vector2 uvD)
     {
         output.Add(new Triangle(a, b, c, uvA, uvB, uvC));
         output.Add(new Triangle(a, c, d, uvA, uvC, uvD));
@@ -218,7 +219,7 @@ public sealed class Fence(Vec3 positionA, Vec3 positionB) : SplineElement(positi
     private void ApplyUV(string group, List<Triangle> triangles)
     {
         var t = _uvTransforms[group];
-        Vec2 Map(Vec2 uv) => new((uv.X * t.ScaleX) + t.OffsetX, (uv.Y * t.ScaleY) + t.OffsetY);
+        Vector2 Map(Vector2 uv) => new((uv.X * t.ScaleX) + t.OffsetX, (uv.Y * t.ScaleY) + t.OffsetY);
         foreach (var tri in triangles)
         {
             tri.UvA = Map(tri.UvA);
@@ -332,7 +333,7 @@ public sealed class Fence(Vec3 positionA, Vec3 positionB) : SplineElement(positi
 
     public static Fence Deserialize(ElementData data)
     {
-        var (a, b) = EndPositions(data, new Vec3(1, 0, 0));
+        var (a, b) = EndPositions(data, new Vector3(1, 0, 0));
         var fence = new Fence(a, b)
         {
             Style = data.FenceStyle == "box" ? "box" : "plane",

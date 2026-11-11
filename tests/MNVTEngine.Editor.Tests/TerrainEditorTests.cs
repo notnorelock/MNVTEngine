@@ -4,7 +4,6 @@ using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Elements;
 using MNVTEngine.Terrain.Foliage;
 using MNVTEngine.Terrain.Project;
-using TerrainVec3 = MNVTEngine.Terrain.Geometry.Vec3;
 
 namespace MNVTEngine.Editor.Tests;
 
@@ -17,7 +16,7 @@ public sealed class TerrainEditorTests : IDisposable
     public TerrainEditorTests()
     {
         var project = new TerrainProject();
-        project.World.Add(new Terrain.Elements.Terrain(TerrainVec3.Zero, 40, 40));
+        project.World.Add(new Terrain.Elements.Terrain(Vector3.Zero, 40, 40));
         File.WriteAllText(_file, project.Save());
         _component = new Scene().CreateGameObject("Terrain").AddComponent<WorldTerrain>();
         Assert.True(_editor.Begin(_component, _file));
@@ -131,9 +130,9 @@ public sealed class TerrainEditorTests : IDisposable
         _editor.Tool = TerrainTool.Foliage;
         Drag(0f, 0f, 4f, 0f);
         Assert.NotEmpty(store.GetInstances(grass));
-        Assert.All(store.GetInstances(grass), i => Assert.True(i.Position.ToVec3().DistanceTo(TerrainVec3.Zero) < 7));
+        Assert.All(store.GetInstances(grass), i => Assert.True(i.Position.ToVector3().DistanceTo(Vector3.Zero) < 7));
         Drag(2f, 0f, 2f, 0f, TerrainModifiers.Ctrl);
-        Assert.DoesNotContain(store.GetInstances(grass), i => i.Position.ToVec3().DistanceTo(new TerrainVec3(2, 0, 0)) <= _editor.FoliageRadius);
+        Assert.DoesNotContain(store.GetInstances(grass), i => i.Position.ToVector3().DistanceTo(new Vector3(2, 0, 0)) <= _editor.FoliageRadius);
     }
 
     [Fact]

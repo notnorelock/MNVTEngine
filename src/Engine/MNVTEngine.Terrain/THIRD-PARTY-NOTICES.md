@@ -11,7 +11,3 @@
   copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that
   the above copyright notice and this permission notice appear in all copies.
 - **Clipper2** (NuGet package), Boost Software License 1.0, by Angus Johnson.
-- **three.js SimplifyModifier and mergeVertices** (`Meshes/MeshSimplifier.cs`), MIT: Copyright (c) 2010-2026 three.js
-  authors. Permission is hereby granted, free of charge, to any person obtaining a copy of this software, to deal in it
-  without restriction, provided the copyright notice and this permission notice are included in all copies or
-  substantial portions. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.

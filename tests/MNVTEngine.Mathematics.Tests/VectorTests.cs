@@ -144,4 +144,32 @@ public class VectorTests
         var (x, y) = new Vector2(1f, 2f);
         Assert.Equal((1f, 2f), (x, y));
     }
+
+    [Fact]
+    public void DoublePrecisionHelpers_RoundToFloatOnlyAtTheEnd()
+    {
+        Assert.Equal(new Vector3(0.1f, 0.2f, 0.3f), new Vector3(0.1, 0.2, 0.3));
+        Assert.Equal(new Vector2(1.5f, -2f), new Vector2(1.5, -2.0));
+        Assert.Equal(new Vector3(1f, 2f, 3f), new Vector3(2f, 4f, 6f) * 0.5);
+        Assert.Equal(new Vector3(1f, 2f, 3f), 0.5 * new Vector3(2f, 4f, 6f));
+        Assert.Equal(new Vector2(1f, 2f), new Vector2(3f, 6f) / 3.0);
+    }
+
+    [Fact]
+    public void InstanceHelpers_MatchTheStaticOnes()
+    {
+        var (a, b) = (new Vector3(1f, 2f, 3f), new Vector3(-2f, 0.5f, 4f));
+        Assert.Equal(Vector3.Dot(a, b), a.Dot(b));
+        Assert.Equal(Vector3.Cross(a, b), a.Cross(b));
+        Assert.Equal(Vector3.Distance(a, b), a.DistanceTo(b));
+        Assert.Equal(Vector3.DistanceSquared(a, b), a.DistanceToSquared(b));
+        Assert.Equal(new Vector3(-5f, -1f, 5f), a.LerpUnclamped(b, 2)); // extrapolates past 1
+        Assert.Equal(new Vector3(1f, 9f, 3f), a.WithY(9));
+        Assert.Equal(new Vector2(1f, 3f), a.Xz);
+        Assert.Equal(Math.PI / 2, Vector3.UnitX.AngleTo(Vector3.UnitZ), 6);
+        Assert.Equal(Math.PI / 2, Vector3.Zero.AngleTo(Vector3.UnitZ)); // zero vectors: π/2, as three.js
+        var (p, q) = (new Vector2(1f, 2f), new Vector2(3f, -1f));
+        Assert.Equal((Vector2.Dot(p, q), Vector2.Cross(p, q), Vector2.Distance(p, q)), (p.Dot(q), p.Cross(q), p.DistanceTo(q)));
+        Assert.Equal(new Vector2(5f, -4f), p.LerpUnclamped(q, 2));
+    }
 }

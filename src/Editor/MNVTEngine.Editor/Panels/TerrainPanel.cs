@@ -1,23 +1,22 @@
+using MNVTEngine.Mathematics;
 using ImGuiNET;
 using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Editor.Services;
 using MNVTEngine.Serialization;
 using MNVTEngine.Terrain.Elements;
-using MNVTEngine.Terrain.Export;
 using MNVTEngine.Terrain.Foliage;
 using MNVTEngine.Terrain.Meshes;
 using MNVTEngine.Terrain.Meshing;
 using MNVTEngine.Terrain.Project;
 using SysVector3 = System.Numerics.Vector3;
 using TerrainTile = MNVTEngine.Terrain.Elements.Terrain;
-using Vec3 = MNVTEngine.Terrain.Geometry.Vec3;
 
 namespace MNVTEngine.Editor.Panels;
 
 /// <summary>
 /// The terrain tools (TerrainHeaven's toolbar and panels): start editing the selected <see cref="WorldTerrain"/>, pick a
 /// tool, set brushes, edit the selected element's properties, textures and UVs, foliage presets, props, project
-/// settings, presets and history, and export for Unity. The Scene view does the placing and painting.
+/// settings, presets and history. The Scene view does the placing and painting.
 /// </summary>
 internal sealed class TerrainPanel(EditorContext context)
 {
@@ -41,8 +40,6 @@ internal sealed class TerrainPanel(EditorContext context)
 
     private string _presetName = "";
     private bool _presetsLoaded;
-    private int _exportLods = 4;
-    private double _exportScale = 1;
 
     private TerrainEditor Editor => context.TerrainEditor;
 
@@ -200,10 +197,6 @@ internal sealed class TerrainPanel(EditorContext context)
             DrawHistory();
         }
 
-        if (ImGui.CollapsingHeader("Export for Unity"))
-        {
-            DrawExport(project);
-        }
     }
 
     private void DrawHeightBrush()
@@ -393,17 +386,17 @@ internal sealed class TerrainPanel(EditorContext context)
             if (Editor.PropAsset == index)
             {
                 var changed = Number("Base scale", asset.BaseScale, v => store.UpdateAsset(index, baseScale: v));
-                var offset = asset.PositionOffset.ToVec3();
+                var offset = asset.PositionOffset.ToVector3();
                 var value = new SysVector3((float)offset.X, (float)offset.Y, (float)offset.Z);
                 if (ImGui.DragFloat3("Pivot offset", ref value, 0.01f))
                 {
-                    store.UpdateAsset(index, positionOffset: new Vec3(value.X, value.Y, value.Z));
+                    store.UpdateAsset(index, positionOffset: new Vector3(value.X, value.Y, value.Z));
                     changed = true;
                 }
 
-                if (ImGui.SmallButton("Center on ground") && PropGroups(asset) is { } groups)
+                if (ImGui.SmallButton("Center on ground") && PropPositions(asset) is { } positions)
                 {
-                    store.UpdateAsset(index, positionOffset: MeshCalibration.ComputeGroundedCenterOffset(MeshCalibration.MeasureBounds(groups), asset.BaseScale));
+                    store.UpdateAsset(index, positionOffset: MeshCalibration.ComputeGroundedCenterOffset(MeshCalibration.MeasureBounds(positions), asset.BaseScale));
                     changed = true;
                 }
 
@@ -432,11 +425,9 @@ internal sealed class TerrainPanel(EditorContext context)
         }
     }
 
-    /// <summary>A prop's LOD0 groups (one per submesh) from its model, for measuring.</summary>
-    private List<MeshGroup>? PropGroups(MeshAssetData asset) =>
-        AssetRef.TryParse(asset.LibraryPath, out var reference) && context.Resources.GetModelMesh(reference) is { } model
-            ? [new MeshGroup(model.Name, [.. model.Mesh.Positions.SelectMany(p => (double[])[p.X, p.Y, p.Z])], [], Vec3.One, null)]
-            : null;
+    /// <summary>A prop's raw model vertices, for measuring; null when the model is missing.</summary>
+    private Mathematics.Vector3[]? PropPositions(MeshAssetData asset) =>
+        AssetRef.TryParse(asset.LibraryPath, out var reference) && context.Resources.GetModelMesh(reference) is { } model ? model.Mesh.Positions : null;
 
     private void DrawElement(WorldElement element)
     {
@@ -628,7 +619,7 @@ internal sealed class TerrainPanel(EditorContext context)
                 var sys = new SysVector3((float)v.X, (float)v.Y, (float)v.Z);
                 if (ImGui.DragFloat3(vector.Label, ref sys, 0.05f))
                 {
-                    vector.Set(new Vec3(sys.X, sys.Y, sys.Z));
+                    vector.Set(new Vector3(sys.X, sys.Y, sys.Z));
                     Changed();
                 }
 
@@ -700,7 +691,7 @@ internal sealed class TerrainPanel(EditorContext context)
             Editor.Commit("Time of Day");
         }
 
-        Gui.Muted("These settings travel with the world and the Unity export; the scene's lights stay the scene's.");
+        Gui.Muted("These settings travel with the world; the scene's lights stay the scene's.");
     }
 
     private void DrawHistory()
@@ -712,54 +703,6 @@ internal sealed class TerrainPanel(EditorContext context)
             {
                 history.JumpTo(i);
             }
-        }
-    }
-
-    private void DrawExport(TerrainProject project)
-    {
-        ImGui.SliderInt("LOD levels", ref _exportLods, 1, 4);
-        Gui.InputNumber("Scale", ref _exportScale);
-        var folder = Path.Combine(context.Session.Project.RootDirectory, "Exports", Path.GetFileNameWithoutExtension(Editor.FilePath ?? "Terrain"));
-        Gui.Muted(folder);
-        if (ImGui.Button($"{Icons.ExternalLink}  Export"))
-        {
-            try
-            {
-                var manifest = new UnityExporter(context.Logger).Export(project, folder, new UnityExportOptions(_exportLods, _exportScale), new ExportSource(context, Editor.Target!.Project));
-                var message = $"Terrain exported for Unity: {manifest.Objects.Count} objects, {manifest.Textures.Count} textures in {folder}";
-                EditorLog.Info(context.Logger, message);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                EditorLog.ActionFailed(context.Logger, ex, "Export terrain");
-            }
-        }
-    }
-
-    /// <summary>Texture bytes and prop meshes for the exporter, from the project's assets.</summary>
-    private sealed class ExportSource(EditorContext context, AssetRef terrain) : ITerrainExportSource
-    {
-        public byte[]? ReadTexture(string projectPath) =>
-            context.Resources.ResolveTerrainReference(terrain, projectPath) is { IsNone: false } asset ? context.Session.Assets.ReadAllBytes(asset.Guid) : null;
-
-        public IReadOnlyList<MeshGroup>? LoadMesh(MeshAssetData asset)
-        {
-            if (context.Resources.ResolveTerrainReference(terrain, asset.LibraryPath) is not { IsNone: false } reference || context.Resources.GetModelMesh(reference) is not { } model)
-            {
-                return null;
-            }
-
-            var mesh = model.Mesh;
-            return [.. mesh.SubMeshes.Select((sub, i) =>
-            {
-                var indices = Enumerable.Range(sub.IndexStart, sub.IndexCount).Select(k => (int)mesh.Indices[k]).ToList();
-                return new MeshGroup(
-                    $"{model.Name}_{i}",
-                    [.. indices.SelectMany(v => (double[])[mesh.Positions[v].X, mesh.Positions[v].Y, mesh.Positions[v].Z])],
-                    [.. indices.SelectMany(v => mesh.UV0 is { } uv ? (double[])[uv[v].X, 1 - uv[v].Y] : [0, 0])],
-                    Vec3.One,
-                    null);
-            })];
         }
     }
 
@@ -778,7 +721,7 @@ internal sealed class TerrainPanel(EditorContext context)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(full)!);
             var project = new TerrainProject();
-            project.World.Add(new TerrainTile(Vec3.Zero, 60, 60));
+            project.World.Add(new TerrainTile(Vector3.Zero, 60, 60));
             File.WriteAllText(full, project.Save());
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

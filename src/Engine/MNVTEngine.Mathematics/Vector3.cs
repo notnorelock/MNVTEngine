@@ -26,6 +26,12 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     {
     }
 
+    /// <summary>From double-precision math (tools computing in double); each component is rounded to float.</summary>
+    public Vector3(double x, double y, double z)
+        : this((float)x, (float)y, (float)z)
+    {
+    }
+
     public static Vector3 Zero => default;
     public static Vector3 One => new(1f, 1f, 1f);
     public static Vector3 UnitX => new(1f, 0f, 0f);
@@ -57,6 +63,30 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     public void Normalize() => this = Normalized;
 
     public static float Dot(Vector3 a, Vector3 b) => (a.X * b.X) + (a.Y * b.Y) + (a.Z * b.Z);
+
+    public readonly float Dot(Vector3 other) => Dot(this, other);
+
+    public readonly Vector3 Cross(Vector3 other) => Cross(this, other);
+
+    public readonly float DistanceTo(Vector3 other) => Distance(this, other);
+
+    public readonly float DistanceToSquared(Vector3 other) => DistanceSquared(this, other);
+
+    /// <summary>Unclamped interpolation toward <paramref name="to"/> (t outside 0–1 extrapolates).</summary>
+    public readonly Vector3 LerpUnclamped(Vector3 to, double t) => new(X + ((to.X - X) * t), Y + ((to.Y - Y) * t), Z + ((to.Z - Z) * t));
+
+    /// <summary>This vector with another Y.</summary>
+    public readonly Vector3 WithY(double y) => new(X, (float)y, Z);
+
+    /// <summary>The plan-view (X, Z) part.</summary>
+    public readonly Vector2 Xz => new(X, Z);
+
+    /// <summary>Angle in radians to another direction; π/2 when either is zero (three.js <c>angleTo</c>).</summary>
+    public readonly double AngleTo(Vector3 other)
+    {
+        var denominator = Math.Sqrt((double)SqrMagnitude * other.SqrMagnitude);
+        return denominator == 0 ? Math.PI / 2 : Math.Acos(Math.Clamp(Dot(this, other) / denominator, -1, 1));
+    }
 
     public static Vector3 Cross(Vector3 a, Vector3 b) => new(
         (a.Y * b.Z) - (a.Z * b.Y),
@@ -120,6 +150,13 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     public static Vector3 operator *(float s, Vector3 v) => new(v.X * s, v.Y * s, v.Z * s);
     public static Vector3 operator *(Vector3 a, Vector3 b) => new(a.X * b.X, a.Y * b.Y, a.Z * b.Z);
     public static Vector3 operator /(Vector3 v, float s) => new(v.X / s, v.Y / s, v.Z / s);
+
+    // Double scalars: the product is computed in double, then rounded to float.
+    public static Vector3 operator *(Vector3 v, double s) => new(v.X * s, v.Y * s, v.Z * s);
+
+    public static Vector3 operator *(double s, Vector3 v) => new(v.X * s, v.Y * s, v.Z * s);
+
+    public static Vector3 operator /(Vector3 v, double s) => new(v.X / s, v.Y / s, v.Z / s);
     public static Vector3 operator /(Vector3 a, Vector3 b) => new(a.X / b.X, a.Y / b.Y, a.Z / b.Z);
     public static bool operator ==(Vector3 a, Vector3 b) => a.Equals(b);
     public static bool operator !=(Vector3 a, Vector3 b) => !a.Equals(b);

@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Elements;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
@@ -32,7 +33,7 @@ public sealed class MeshAssetData
     public MeshAssetData Clone()
     {
         var clone = (MeshAssetData)MemberwiseClone();
-        clone.PositionOffset = PointData.From((PositionOffset ?? new PointData()).ToVec3());
+        clone.PositionOffset = PointData.From((PositionOffset ?? new PointData()).ToVector3());
         return clone;
     }
 
@@ -57,7 +58,7 @@ public sealed class MeshInstanceData
     public MeshInstanceData Clone()
     {
         var clone = (MeshInstanceData)MemberwiseClone();
-        clone.Position = PointData.From(Position.ToVec3());
+        clone.Position = PointData.From(Position.ToVector3());
         return clone;
     }
 }
@@ -108,7 +109,7 @@ public sealed class MeshStore
     }
 
     /// <summary>Sets the calibration; a non-positive scale is ignored.</summary>
-    public void UpdateAsset(int assetIndex, double? baseScale = null, Geometry.Vec3? positionOffset = null)
+    public void UpdateAsset(int assetIndex, double? baseScale = null, Mathematics.Vector3? positionOffset = null)
     {
         if (assetIndex < 0 || assetIndex >= Assets.Count)
         {
@@ -162,8 +163,8 @@ public sealed class MeshStore
         _layers[assetIndex].Instances.Add(copy);
     }
 
-    public bool IsTooClose(int assetIndex, Geometry.Vec3 point, double spacing) =>
-        GetInstances(assetIndex).Any(i => i.Position.ToVec3().DistanceToSquared(point) < spacing * spacing);
+    public bool IsTooClose(int assetIndex, Mathematics.Vector3 point, double spacing) =>
+        GetInstances(assetIndex).Any(i => i.Position.ToVector3().DistanceToSquared(point) < spacing * spacing);
 
     public bool RemoveInstanceAt(int assetIndex, int instanceIndex)
     {
@@ -176,8 +177,8 @@ public sealed class MeshStore
         return true;
     }
 
-    public int RemoveInstancesNear(Geometry.Vec3 position, double radius) =>
-        _layers.Sum(layer => layer.Instances.RemoveAll(i => i.Position.ToVec3().DistanceToSquared(position) <= radius * radius));
+    public int RemoveInstancesNear(Mathematics.Vector3 position, double radius) =>
+        _layers.Sum(layer => layer.Instances.RemoveAll(i => i.Position.ToVector3().DistanceToSquared(position) <= radius * radius));
 
     public void Clear() => _layers = Assets.Select(_ => new MeshAssetLayerData()).ToList();
 
@@ -203,7 +204,7 @@ public sealed class MeshStore
         {
             Instances = [.. (data?.Layers?.ElementAtOrDefault(index)?.Instances ?? []).Where(i => i is not null).Select(i => new MeshInstanceData
             {
-                Position = PointData.From((i.Position ?? new PointData()).ToVec3()),
+                Position = PointData.From((i.Position ?? new PointData()).ToVector3()),
                 RotationX = i.RotationX,
                 RotationY = i.RotationY,
                 RotationZ = i.RotationZ,

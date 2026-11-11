@@ -195,8 +195,8 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
     private void DrawTerrainOverlay(TerrainEditor terrain, Vector2 origin)
     {
         var list = ImGui.GetWindowDrawList();
-        SysVector2? Screen(Terrain.Geometry.Vec3 local) => _camera.WorldToScreen(terrain.ToWorld(local)) is { Z: > 0f } s ? new SysVector2(origin.X + s.X, origin.Y + s.Y) : null;
-        void Polyline(IReadOnlyList<Terrain.Geometry.Vec3> points, uint color, float thickness, bool closed = false)
+        SysVector2? Screen(Vector3 local) => _camera.WorldToScreen(terrain.ToWorld(local)) is { Z: > 0f } s ? new SysVector2(origin.X + s.X, origin.Y + s.Y) : null;
+        void Polyline(IReadOnlyList<Vector3> points, uint color, float thickness, bool closed = false)
         {
             for (var i = 0; i + 1 < points.Count + (closed ? 1 : 0); i++)
             {
@@ -255,7 +255,7 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
         if (terrain.BrushPoint is { } center && terrain.BrushRadius > 0)
         {
             const int Segments = 48;
-            var ring = Enumerable.Range(0, Segments).Select(i => center + new Terrain.Geometry.Vec3(Math.Cos(i * Math.PI * 2 / Segments) * terrain.BrushRadius, 0.05, Math.Sin(i * Math.PI * 2 / Segments) * terrain.BrushRadius)).ToList();
+            var ring = Enumerable.Range(0, Segments).Select(i => center + new Vector3(Math.Cos(i * Math.PI * 2 / Segments) * terrain.BrushRadius, 0.05, Math.Sin(i * Math.PI * 2 / Segments) * terrain.BrushRadius)).ToList();
             Polyline(ring, ImGui.GetIO().KeyCtrl ? 0xFF5555FFu : 0xFF77EE55u, 2f, closed: true);
         }
     }

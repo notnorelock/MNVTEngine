@@ -161,7 +161,6 @@ The Terrain window (docked next to the Inspector) edits the terrain world of a `
 
 - **World settings:** LOD preview, LOD switch distances, sky color, enhanced visuals, day/night cycle and hour.
 - **History:** click an entry to jump back to it.
-- **Export for Unity:** writes the [Unity export](../engine/terrain.md#export) to `Exports/<world>/` in the project folder.
 
 ## Material inspector
 

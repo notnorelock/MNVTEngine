@@ -3,7 +3,6 @@ using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
 using MNVTEngine.Terrain.Elements;
 using MNVTEngine.Terrain.Project;
-using TerrainVec3 = MNVTEngine.Terrain.Geometry.Vec3;
 
 namespace MNVTEngine.TerrainComponentsTests;
 
@@ -25,8 +24,8 @@ public sealed class WorldTerrainTests
     private static string FlatWorldWithRiver()
     {
         var project = new TerrainProject();
-        project.World.Add(new Terrain.Elements.Terrain(TerrainVec3.Zero, 20, 20));
-        project.World.Add(new RiverSpline(new TerrainVec3(-10, 0, 6), new TerrainVec3(10, 0, 6)));
+        project.World.Add(new Terrain.Elements.Terrain(Vector3.Zero, 20, 20));
+        project.World.Add(new RiverSpline(new Vector3(-10, 0, 6), new Vector3(10, 0, 6)));
         return project.Save();
     }
 
@@ -80,7 +79,7 @@ public sealed class WorldTerrainTests
     public void ABallRestsOnTheTerrain()
     {
         var project = new TerrainProject();
-        project.World.Add(new Terrain.Elements.Terrain(TerrainVec3.Zero, 20, 20));
+        project.World.Add(new Terrain.Elements.Terrain(Vector3.Zero, 20, 20));
         project.World.Update();
         var scene = new Scene { RethrowScriptExceptions = true };
         var ground = scene.CreateGameObject("Terrain");

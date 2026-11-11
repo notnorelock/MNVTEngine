@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Geometry;
 using MNVTEngine.Terrain.Meshing;
 
@@ -18,7 +19,7 @@ public sealed class Road : SplineElement
     private readonly Dictionary<string, UVTransform> _uvTransforms = UvGroupNames.ToDictionary(g => g, _ => new UVTransform(), StringComparer.Ordinal);
     private SurfaceHeightSampler? _terrainSampler;
 
-    public Road(Vec3 positionA, Vec3 positionB)
+    public Road(Vector3 positionA, Vector3 positionB)
         : base(positionA, positionB, NodeKind.Node)
     {
     }
@@ -26,7 +27,7 @@ public sealed class Road : SplineElement
     private sealed record GeometryLineContext(double HalfWidth, double SidewalkWidth, double CurbHeight, double DeckThickness,
         double LeftDistance, double RightDistance, double CenterDistance, double CenterTotal, double CrownHeight);
 
-    private sealed record EdgeData(List<Vec3> Points, List<Vec3> RightVecs, List<double> HalfWidths, List<double> LeftCumDist,
+    private sealed record EdgeData(List<Vector3> Points, List<Vector3> RightVecs, List<double> HalfWidths, List<double> LeftCumDist,
         List<double> RightCumDist, List<double> CenterCumDist, double CenterTotal);
 
     public double Width { get; set; } = 3;
@@ -148,13 +149,13 @@ public sealed class Road : SplineElement
         for (var b = 0; b <= laneCount; b++)
         {
             var fraction = b / (double)laneCount;
-            var offsetPoints = new List<Vec3>();
+            var offsetPoints = new List<Vector3>();
             for (var i = 0; i < points.Count; i++)
             {
                 var t = i / (double)(points.Count - 1);
                 var hw = halfWidthStart + ((halfWidthEnd - halfWidthStart) * t);
                 var offset = -hw + (2 * hw * fraction);
-                offsetPoints.Add(points[i] + (RightAt(points, i) * offset) + new Vec3(0, LaneHeightAtFraction(fraction, CrownAt(t)), 0));
+                offsetPoints.Add(points[i] + (RightAt(points, i) * offset) + new Vector3(0, LaneHeightAtFraction(fraction, CrownAt(t)), 0));
             }
 
             var isEdge = b == 0 || b == laneCount;
@@ -164,7 +165,7 @@ public sealed class Road : SplineElement
         return lines;
     }
 
-    private Vec3 RightAt(List<Vec3> points, int index)
+    private Vector3 RightAt(List<Vector3> points, int index)
     {
         if (index == 0)
         {
@@ -176,7 +177,7 @@ public sealed class Road : SplineElement
             return GetResolvedNodeBasis(1).Right;
         }
 
-        return (points[index + 1] - points[index - 1]).Normalized().Cross(Vec3.UnitY).Normalized();
+        return (points[index + 1] - points[index - 1]).Normalized.Cross(Vector3.UnitY).Normalized;
     }
 
     private double GetEndCrown(int nodeIndex)
@@ -221,7 +222,7 @@ public sealed class Road : SplineElement
             return;
         }
 
-        Vec2 Map(Vec2 uv) => new((uv.X * t.ScaleX) + t.OffsetX, (uv.Y * t.ScaleY) + t.OffsetY);
+        Vector2 Map(Vector2 uv) => new((uv.X * t.ScaleX) + t.OffsetX, (uv.Y * t.ScaleY) + t.OffsetY);
         foreach (var tri in triangles)
         {
             tri.UvA = Map(tri.UvA);
@@ -343,7 +344,7 @@ public sealed class Road : SplineElement
     public static Road Deserialize(ElementData data)
     {
         ArgumentNullException.ThrowIfNull(data);
-        var road = new Road(data.Nodes[0].ToVec3(), data.Nodes[1].ToVec3())
+        var road = new Road(data.Nodes[0].ToVector3(), data.Nodes[1].ToVector3())
         {
             Width = data.Width ?? 3,
             Lanes = data.Lanes ?? 2,
@@ -746,8 +747,8 @@ public sealed class Road : SplineElement
         var last = edge.Points.Count - 1;
         var ends = new[]
         {
-            (Index: 0, NodeIndex: 0, Deck: GetResolvedBridgeDeckThickness(0), Outward: (edge.Points[0] - edge.Points[1]).Normalized()),
-            (Index: last, NodeIndex: 1, Deck: GetResolvedBridgeDeckThickness(1), Outward: (edge.Points[last] - edge.Points[last - 1]).Normalized()),
+            (Index: 0, NodeIndex: 0, Deck: GetResolvedBridgeDeckThickness(0), Outward: (edge.Points[0] - edge.Points[1]).Normalized),
+            (Index: last, NodeIndex: 1, Deck: GetResolvedBridgeDeckThickness(1), Outward: (edge.Points[last] - edge.Points[last - 1]).Normalized),
         };
         foreach (var end in ends)
         {
@@ -762,10 +763,10 @@ public sealed class Road : SplineElement
             var deckThickness = Math.Max(0.05, end.Deck);
             foreach (var side in new[] { -1, 1 })
             {
-                var innerBottom = origin + (right * (side * halfWidth)) + new Vec3(0, -deckThickness, 0);
-                var outerBottom = origin + (right * (side * (halfWidth + wallWidth))) + new Vec3(0, -deckThickness, 0);
-                var innerTop = origin + (right * (side * halfWidth)) + new Vec3(0, wallHeight, 0);
-                var outerTop = origin + (right * (side * (halfWidth + wallWidth))) + new Vec3(0, wallHeight, 0);
+                var innerBottom = origin + (right * (side * halfWidth)) + new Vector3(0, -deckThickness, 0);
+                var outerBottom = origin + (right * (side * (halfWidth + wallWidth))) + new Vector3(0, -deckThickness, 0);
+                var innerTop = origin + (right * (side * halfWidth)) + new Vector3(0, wallHeight, 0);
+                var outerTop = origin + (right * (side * (halfWidth + wallWidth))) + new Vector3(0, wallHeight, 0);
                 var normal = (innerTop - innerBottom).Cross(outerTop - innerBottom);
                 PushBridgeEdgeQuad(triangles, innerBottom, innerTop, outerTop, outerBottom, wallHeight + deckThickness, wallWidth, normal.Dot(end.Outward) < 0);
             }
@@ -787,14 +788,14 @@ public sealed class Road : SplineElement
         var spacing = Math.Max(0.25, BridgeEdgeDistance);
         var sectionCount = (int)Math.Max(2, Math.Ceiling(edge.CenterTotal / spacing));
         var (deckStart, deckEnd) = (GetResolvedBridgeDeckThickness(0), GetResolvedBridgeDeckThickness(1));
-        var topNodesBySide = new Dictionary<int, List<Vec3>>();
-        var sectionRightAxes = new List<Vec3>();
+        var topNodesBySide = new Dictionary<int, List<Vector3>>();
+        var sectionRightAxes = new List<Vector3>();
         var jointKeys = new HashSet<(long, long, long)>();
         foreach (var side in new[] { -1, 1 })
         {
-            var bottomNodes = new List<Vec3>();
-            var topNodes = new List<Vec3>();
-            var sideAxes = new List<Vec3>();
+            var bottomNodes = new List<Vector3>();
+            var topNodes = new List<Vector3>();
+            var sideAxes = new List<Vector3>();
             for (var i = 0; i <= sectionCount; i++)
             {
                 if (SampleEdgeAtDistance(edge, edge.CenterTotal * i / sectionCount) is not { } sample)
@@ -806,15 +807,15 @@ public sealed class Road : SplineElement
                 var ramp = Math.Min(1, Math.Min(t / 0.2, (1 - t) / 0.2));
                 var deckThickness = MathUtil.Lerp(deckStart, deckEnd, sample.T);
                 var lateral = side * (sample.HalfWidth + (beamWidth * 0.5));
-                var bottom = sample.Origin + (sample.Right * lateral) + new Vec3(0, -deckThickness + (beamWidth * 0.5), 0);
+                var bottom = sample.Origin + (sample.Right * lateral) + new Vector3(0, -deckThickness + (beamWidth * 0.5), 0);
                 bottomNodes.Add(bottom);
-                topNodes.Add(bottom + new Vec3(0, trussHeight * ramp, 0));
-                sideAxes.Add(sample.Right.Normalized());
+                topNodes.Add(bottom + new Vector3(0, trussHeight * ramp, 0));
+                sideAxes.Add(sample.Right.Normalized);
             }
 
             for (var i = 0; i < bottomNodes.Count - 1; i++)
             {
-                var sideAxis = sideAxes[i].Lerp(sideAxes[i + 1], 0.5).Normalized();
+                var sideAxis = sideAxes[i].LerpUnclamped(sideAxes[i + 1], 0.5).Normalized;
                 AddBridgeBeamBox(triangles, bottomNodes[i], bottomNodes[i + 1], beamWidth, sideAxis);
                 AddBridgeBeamBox(triangles, topNodes[i], topNodes[i + 1], beamWidth, sideAxis);
                 if (i % 2 == 0)
@@ -847,12 +848,12 @@ public sealed class Road : SplineElement
         var overheadCount = Math.Min(leftTop.Count, rightTop.Count);
         for (var i = 1; i < overheadCount - 1; i++)
         {
-            AddBridgeBeamBox(triangles, leftTop[i], rightTop[i], beamWidth, Vec3.UnitY.Cross(sectionRightAxes[i]).Normalized());
+            AddBridgeBeamBox(triangles, leftTop[i], rightTop[i], beamWidth, Vector3.UnitY.Cross(sectionRightAxes[i]).Normalized);
         }
 
         for (var i = 1; i < overheadCount - 2; i++)
         {
-            var forwardAxis = Vec3.UnitY.Cross(sectionRightAxes[i]).Normalized();
+            var forwardAxis = Vector3.UnitY.Cross(sectionRightAxes[i]).Normalized;
             AddBridgeBeamBox(triangles, leftTop[i], rightTop[i + 1], beamWidth, forwardAxis);
             AddBridgeBeamBox(triangles, rightTop[i], leftTop[i + 1], beamWidth, forwardAxis);
         }
@@ -864,7 +865,7 @@ public sealed class Road : SplineElement
     private bool HasContinuousBridgeEdgeConnection(int nodeIndex, string style) =>
         Connections.TryGetValue(nodeIndex, out var connection) && connection.Element is Road { EdgeType: "bridge" } other && other.BridgeEdgeStyle == style;
 
-    private static void AddTrussJointBox(List<Triangle> triangles, Vec3 center, double beamWidth, Vec3 sideAxis, HashSet<(long, long, long)> jointKeys)
+    private static void AddTrussJointBox(List<Triangle> triangles, Vector3 center, double beamWidth, Vector3 sideAxis, HashSet<(long, long, long)> jointKeys)
     {
         if (!jointKeys.Add(((long)MathUtil.JsRound(center.X * 10000), (long)MathUtil.JsRound(center.Y * 10000), (long)MathUtil.JsRound(center.Z * 10000))))
         {
@@ -874,13 +875,13 @@ public sealed class Road : SplineElement
         // A slightly oversized closed cube acts as a steel gusset, covering the wedges where beams meet at angles.
         var size = beamWidth * 1.3;
         var half = size * 0.5;
-        AddBridgeBeamBox(triangles, center + new Vec3(0, -half, 0), center + new Vec3(0, half, 0), size, sideAxis);
+        AddBridgeBeamBox(triangles, center + new Vector3(0, -half, 0), center + new Vector3(0, half, 0), size, sideAxis);
     }
 
-    private static void AddBridgeBeamBox(List<Triangle> triangles, Vec3 start, Vec3 end, double width, Vec3 sideAxisHint)
+    private static void AddBridgeBeamBox(List<Triangle> triangles, Vector3 start, Vector3 end, double width, Vector3 sideAxisHint)
     {
         var along = end - start;
-        var length = along.Length;
+        var length = along.Magnitude;
         if (length <= 1e-5)
         {
             return;
@@ -888,15 +889,15 @@ public sealed class Road : SplineElement
 
         along /= length;
         var sideAxis = sideAxisHint + (along * -sideAxisHint.Dot(along));
-        if (sideAxis.LengthSquared <= 1e-8)
+        if (sideAxis.SqrMagnitude <= 1e-8)
         {
-            sideAxis = Vec3.UnitY + (along * -along.Y);
+            sideAxis = Vector3.UnitY + (along * -along.Y);
         }
 
-        sideAxis = sideAxis.Normalized();
-        var otherAxis = along.Cross(sideAxis).Normalized();
+        sideAxis = sideAxis.Normalized;
+        var otherAxis = along.Cross(sideAxis).Normalized;
         var half = width * 0.5;
-        Vec3[] CornersAt(Vec3 c) =>
+        Vector3[] CornersAt(Vector3 c) =>
         [
             c + (sideAxis * -half) + (otherAxis * -half),
             c + (sideAxis * half) + (otherAxis * -half),
@@ -905,8 +906,8 @@ public sealed class Road : SplineElement
         ];
         var s = CornersAt(start);
         var e = CornersAt(end);
-        var boxCenter = start.Lerp(end, 0.5);
-        Vec3[][] faces =
+        var boxCenter = start.LerpUnclamped(end, 0.5);
+        Vector3[][] faces =
         [
             [s[0], s[1], s[2], s[3]], [e[3], e[2], e[1], e[0]], [s[0], e[0], e[1], s[1]],
             [s[1], e[1], e[2], s[2]], [s[2], e[2], e[3], s[3]], [s[3], e[3], e[0], s[0]],
@@ -946,15 +947,15 @@ public sealed class Road : SplineElement
             var endDeck = MathUtil.Lerp(deckStart, deckEnd, end.T);
             foreach (var side in new[] { -1, 1 })
             {
-                var up = new Vec3(0, wallHeight, 0);
+                var up = new Vector3(0, wallHeight, 0);
                 var startInnerTop = start.Origin + (start.Right * (side * start.HalfWidth)) + up;
                 var endInnerTop = end.Origin + (end.Right * (side * end.HalfWidth)) + up;
                 var startOuterTop = start.Origin + (start.Right * (side * (start.HalfWidth + wallWidth))) + up;
                 var endOuterTop = end.Origin + (end.Right * (side * (end.HalfWidth + wallWidth))) + up;
-                var startInnerBottom = startInnerTop + new Vec3(0, -(wallHeight + startDeck), 0);
-                var endInnerBottom = endInnerTop + new Vec3(0, -(wallHeight + endDeck), 0);
-                var startOuterBottom = startOuterTop + new Vec3(0, -(wallHeight + startDeck), 0);
-                var endOuterBottom = endOuterTop + new Vec3(0, -(wallHeight + endDeck), 0);
+                var startInnerBottom = startInnerTop + new Vector3(0, -(wallHeight + startDeck), 0);
+                var endInnerBottom = endInnerTop + new Vector3(0, -(wallHeight + endDeck), 0);
+                var startOuterBottom = startOuterTop + new Vector3(0, -(wallHeight + startDeck), 0);
+                var endOuterBottom = endOuterTop + new Vector3(0, -(wallHeight + endDeck), 0);
                 var reverse = side > 0;
                 var totalStart = wallHeight + startDeck;
                 var totalEnd = wallHeight + endDeck;
@@ -991,8 +992,8 @@ public sealed class Road : SplineElement
         var capWidth = Math.Max(0.02, BridgeEdgeCapWidth);
         var startCenter = start.HalfWidth + (wallWidth * 0.5);
         var endCenter = end.HalfWidth + (wallWidth * 0.5);
-        var up = new Vec3(0, wallHeight, 0);
-        var capUp = new Vec3(0, capHeight, 0);
+        var up = new Vector3(0, wallHeight, 0);
+        var capUp = new Vector3(0, capHeight, 0);
         var startInnerBottom = start.Origin + (start.Right * (side * Math.Max(0, startCenter - (capWidth * 0.5)))) + up;
         var endInnerBottom = end.Origin + (end.Right * (side * Math.Max(0, endCenter - (capWidth * 0.5)))) + up;
         var startOuterBottom = start.Origin + (start.Right * (side * (startCenter + (capWidth * 0.5)))) + up;
@@ -1043,13 +1044,13 @@ public sealed class Road : SplineElement
             var center = edge.HalfWidths[index] + (wallWidth * 0.5);
             var inner = Math.Max(0, center - (capWidth * 0.5));
             var outer = center + (capWidth * 0.5);
-            var outward = (origin - edge.Points[neighbour]).Normalized();
+            var outward = (origin - edge.Points[neighbour]).Normalized;
             foreach (var side in new[] { -1, 1 })
             {
-                var innerBottom = origin + (right * (side * inner)) + new Vec3(0, wallHeight, 0);
-                var outerBottom = origin + (right * (side * outer)) + new Vec3(0, wallHeight, 0);
-                var innerTop = innerBottom + new Vec3(0, capHeight, 0);
-                var outerTop = outerBottom + new Vec3(0, capHeight, 0);
+                var innerBottom = origin + (right * (side * inner)) + new Vector3(0, wallHeight, 0);
+                var outerBottom = origin + (right * (side * outer)) + new Vector3(0, wallHeight, 0);
+                var innerTop = innerBottom + new Vector3(0, capHeight, 0);
+                var outerTop = outerBottom + new Vector3(0, capHeight, 0);
                 var normal = (innerTop - innerBottom).Cross(outerTop - innerBottom);
                 PushBridgeEdgeQuad(triangles, innerBottom, innerTop, outerTop, outerBottom, capHeight, capWidth, normal.Dot(outward) < 0);
             }
@@ -1058,12 +1059,12 @@ public sealed class Road : SplineElement
         return triangles;
     }
 
-    private static void PushBridgeEdgeQuad(List<Triangle> output, Vec3 a, Vec3 b, Vec3 c, Vec3 d, double width, double height, bool reverse = false)
+    private static void PushBridgeEdgeQuad(List<Triangle> output, Vector3 a, Vector3 b, Vector3 c, Vector3 d, double width, double height, bool reverse = false)
     {
-        var uvA = new Vec2(0, 0);
-        var uvB = new Vec2(Math.Max(0.01, width), 0);
-        var uvC = new Vec2(Math.Max(0.01, width), Math.Max(0.01, height));
-        var uvD = new Vec2(0, Math.Max(0.01, height));
+        var uvA = new Vector2(0, 0);
+        var uvB = new Vector2(Math.Max(0.01, width), 0);
+        var uvC = new Vector2(Math.Max(0.01, width), Math.Max(0.01, height));
+        var uvD = new Vector2(0, Math.Max(0.01, height));
         if (reverse)
         {
             output.Add(new Triangle(a, c, b, uvA, uvC, uvB));
@@ -1154,7 +1155,7 @@ public sealed class Road : SplineElement
         };
     }
 
-    private static (Vec3 Origin, Vec3 Right, double HalfWidth, double T)? SampleEdgeAtDistance(EdgeData edge, double distance)
+    private static (Vector3 Origin, Vector3 Right, double HalfWidth, double T)? SampleEdgeAtDistance(EdgeData edge, double distance)
     {
         var pointCount = edge.Points.Count;
         if (pointCount < 2)
@@ -1176,14 +1177,14 @@ public sealed class Road : SplineElement
         var segStart = edge.CenterCumDist[segIndex];
         var segLength = edge.CenterCumDist[segIndex + 1] - segStart;
         var alpha = segLength > 1e-6 ? (target - segStart) / segLength : 0;
-        var origin = edge.Points[segIndex].Lerp(edge.Points[segIndex + 1], alpha);
-        var right = edge.RightVecs[segIndex].Lerp(edge.RightVecs[segIndex + 1], alpha);
-        if (right.LengthSquared < 1e-8)
+        var origin = edge.Points[segIndex].LerpUnclamped(edge.Points[segIndex + 1], alpha);
+        var right = edge.RightVecs[segIndex].LerpUnclamped(edge.RightVecs[segIndex + 1], alpha);
+        if (right.SqrMagnitude < 1e-8)
         {
             right = edge.RightVecs[segIndex];
         }
 
-        return (origin, right.Normalized(), MathUtil.Lerp(edge.HalfWidths[segIndex], edge.HalfWidths[segIndex + 1], alpha), (segIndex + alpha) / (pointCount - 1));
+        return (origin, right.Normalized, MathUtil.Lerp(edge.HalfWidths[segIndex], edge.HalfWidths[segIndex + 1], alpha), (segIndex + alpha) / (pointCount - 1));
     }
 
     /// <summary>The terrain below (x, z), or null where there is none (a gap in the terrain, no terrain at all).</summary>
@@ -1191,22 +1192,22 @@ public sealed class Road : SplineElement
 
     private double PillarBottomY(double x, double z, double fallbackY) => (TerrainHeightAt(x, z) ?? fallbackY) - PillarEmbedDepth;
 
-    private void AddBoxPillarTriangles(List<Triangle> output, Vec3 center, double topY, double halfSize, double fallbackY)
+    private void AddBoxPillarTriangles(List<Triangle> output, Vector3 center, double topY, double halfSize, double fallbackY)
     {
         var (x0, x1, z0, z1) = (center.X - halfSize, center.X + halfSize, center.Z - halfSize, center.Z + halfSize);
         var y0 = PillarBottomY(x0, z0, fallbackY);
         var y1 = PillarBottomY(x1, z0, fallbackY);
         var y2 = PillarBottomY(x1, z1, fallbackY);
         var y3 = PillarBottomY(x0, z1, fallbackY);
-        Vec3 b0 = new(x0, y0, z0), b1 = new(x1, y1, z0), b2 = new(x1, y2, z1), b3 = new(x0, y3, z1);
-        Vec3 t0 = new(x0, topY, z0), t1 = new(x1, topY, z0), t2 = new(x1, topY, z1), t3 = new(x0, topY, z1);
+        Vector3 b0 = new(x0, y0, z0), b1 = new(x1, y1, z0), b2 = new(x1, y2, z1), b3 = new(x0, y3, z1);
+        Vector3 t0 = new(x0, topY, z0), t1 = new(x1, topY, z0), t2 = new(x1, topY, z1), t3 = new(x0, topY, z1);
         PushPillarQuad(output, b0, b1, t1, t0, 0, 1, topY - Math.Min(y0, y1));
         PushPillarQuad(output, b1, b2, t2, t1, 0, 1, topY - Math.Min(y1, y2));
         PushPillarQuad(output, b2, b3, t3, t2, 0, 1, topY - Math.Min(y2, y3));
         PushPillarQuad(output, b3, b0, t0, t3, 0, 1, topY - Math.Min(y3, y0));
     }
 
-    private void AddCircularPillarTriangles(List<Triangle> output, Vec3 center, double topY, double radius, int segments, double fallbackY)
+    private void AddCircularPillarTriangles(List<Triangle> output, Vector3 center, double topY, double radius, int segments, double fallbackY)
     {
         for (var i = 0; i < segments; i++)
         {
@@ -1216,16 +1217,16 @@ public sealed class Road : SplineElement
             var (x1, z1) = (center.X + (Math.Cos(a1) * radius), center.Z + (Math.Sin(a1) * radius));
             var y0 = PillarBottomY(x0, z0, fallbackY);
             var y1 = PillarBottomY(x1, z1, fallbackY);
-            PushPillarQuad(output, new Vec3(x0, y0, z0), new Vec3(x1, y1, z1), new Vec3(x1, topY, z1), new Vec3(x0, topY, z0),
+            PushPillarQuad(output, new Vector3(x0, y0, z0), new Vector3(x1, y1, z1), new Vector3(x1, topY, z1), new Vector3(x0, topY, z0),
                 i / (double)segments, (i + 1) / (double)segments, topY - Math.Min(y0, y1));
         }
     }
 
-    private static void PushPillarQuad(List<Triangle> output, Vec3 bottomA, Vec3 bottomB, Vec3 topB, Vec3 topA, double u0, double u1, double height)
+    private static void PushPillarQuad(List<Triangle> output, Vector3 bottomA, Vector3 bottomB, Vector3 topB, Vector3 topA, double u0, double u1, double height)
     {
         var vBottom = Math.Max(0.01, height);
-        output.Add(new Triangle(bottomA, topB, bottomB, new Vec2(u0, vBottom), new Vec2(u1, 0), new Vec2(u1, vBottom)));
-        output.Add(new Triangle(bottomA, topA, topB, new Vec2(u0, vBottom), new Vec2(u0, 0), new Vec2(u1, 0)));
+        output.Add(new Triangle(bottomA, topB, bottomB, new Vector2(u0, vBottom), new Vector2(u1, 0), new Vector2(u1, vBottom)));
+        output.Add(new Triangle(bottomA, topA, topB, new Vector2(u0, vBottom), new Vector2(u0, 0), new Vector2(u1, 0)));
     }
 
     private EdgeData ComputeEdgeData(int? divisionsOverride)
@@ -1233,7 +1234,7 @@ public sealed class Road : SplineElement
         var points = GetBezierCurvePoints(divisionsOverride);
         var halfWidthStart = GetResolvedHalfWidth(0);
         var halfWidthEnd = GetResolvedHalfWidth(1);
-        var rightVecs = new List<Vec3>();
+        var rightVecs = new List<Vector3>();
         var halfWidths = new List<double>();
         for (var i = 0; i < points.Count; i++)
         {

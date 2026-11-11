@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Elements;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
@@ -17,7 +18,7 @@ public sealed class FoliageColor
     public FoliageColor Clone() => (FoliageColor)MemberwiseClone();
 }
 
-/// <summary>One placed billboard. PascalCase in project files: the Unity exporter's record, copied as is.</summary>
+/// <summary>One placed billboard. PascalCase in project files, as TerrainHeaven writes it.</summary>
 [JsonObject(NamingStrategyType = typeof(DefaultNamingStrategy))]
 public sealed class FoliageInstanceData
 {
@@ -35,7 +36,7 @@ public sealed class FoliageInstanceData
 
     public FoliageInstanceData Clone() => new()
     {
-        Position = PointData.From(Position.ToVec3()),
+        Position = PointData.From(Position.ToVector3()),
         RotationY = RotationY,
         ScaleT = ScaleT,
         ColorT = ColorT,
@@ -192,12 +193,12 @@ public sealed class FoliageStore
         _layers[typeIndex].Instances.Add(copy);
     }
 
-    public bool IsTooClose(int typeIndex, Geometry.Vec3 point, double spacing) =>
-        GetInstances(typeIndex).Any(i => i.Position.ToVec3().DistanceToSquared(point) < spacing * spacing);
+    public bool IsTooClose(int typeIndex, Mathematics.Vector3 point, double spacing) =>
+        GetInstances(typeIndex).Any(i => i.Position.ToVector3().DistanceToSquared(point) < spacing * spacing);
 
     /// <summary>Erases every instance (of any type) inside a sphere; returns how many went.</summary>
-    public int RemoveInstancesNear(Geometry.Vec3 position, double radius) =>
-        _layers.Sum(layer => layer.Instances.RemoveAll(i => i.Position.ToVec3().DistanceToSquared(position) <= radius * radius));
+    public int RemoveInstancesNear(Mathematics.Vector3 position, double radius) =>
+        _layers.Sum(layer => layer.Instances.RemoveAll(i => i.Position.ToVector3().DistanceToSquared(position) <= radius * radius));
 
     public void Clear() => _layers = Types.Select(_ => new FoliageTypeLayerData()).ToList();
 
@@ -214,7 +215,7 @@ public sealed class FoliageStore
         {
             Instances = [.. (data?.Layers?.ElementAtOrDefault(index)?.Instances ?? []).Where(i => i is not null).Select(i => new FoliageInstanceData
             {
-                Position = PointData.From((i.Position ?? new PointData()).ToVec3()),
+                Position = PointData.From((i.Position ?? new PointData()).ToVector3()),
                 RotationY = i.RotationY,
                 ScaleT = Clamp01(i.ScaleT),
                 ColorT = Clamp01(i.ColorT),

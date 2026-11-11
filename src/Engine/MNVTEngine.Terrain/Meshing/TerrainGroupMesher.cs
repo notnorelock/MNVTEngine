@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using System.Globalization;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Terrain.Elements;
@@ -308,12 +309,12 @@ public sealed class TerrainGroupMesher(TerrainWorld world, ILogger? logger = nul
         var zLines = InteriorLines(bounds.Select(r => r.MinZ).Concat(bounds.Select(r => r.MaxZ)));
         foreach (var triangle in triangles)
         {
-            var polygons = new List<List<Vec3>> { new() { triangle.A, triangle.B, triangle.C } };
+            var polygons = new List<List<Vector3>> { new() { triangle.A, triangle.B, triangle.C } };
             foreach (var (useX, lines) in new[] { (true, xLines), (false, zLines) })
             {
                 foreach (var line in lines)
                 {
-                    var next = new List<List<Vec3>>();
+                    var next = new List<List<Vector3>>();
                     foreach (var polygon in polygons)
                     {
                         var values = polygon.Select(p => useX ? p.X : p.Z).ToList();
@@ -373,11 +374,11 @@ public sealed class TerrainGroupMesher(TerrainWorld world, ILogger? logger = nul
         return unique.Count <= 2 ? [] : unique.GetRange(1, unique.Count - 2);
     }
 
-    private static List<Vec3> Clip(List<Vec3> polygon, bool useX, double line, bool keepBelow)
+    private static List<Vector3> Clip(List<Vector3> polygon, bool useX, double line, bool keepBelow)
     {
-        double Axis(Vec3 p) => useX ? p.X : p.Z;
-        bool Inside(Vec3 p) => keepBelow ? Axis(p) <= line + Epsilon : Axis(p) >= line - Epsilon;
-        var result = new List<Vec3>();
+        double Axis(Vector3 p) => useX ? p.X : p.Z;
+        bool Inside(Vector3 p) => keepBelow ? Axis(p) <= line + Epsilon : Axis(p) >= line - Epsilon;
+        var result = new List<Vector3>();
         for (var index = 0; index < polygon.Count; index++)
         {
             var a = polygon[index];
@@ -399,13 +400,13 @@ public sealed class TerrainGroupMesher(TerrainWorld world, ILogger? logger = nul
                 continue;
             }
 
-            result.Add(a.Lerp(b, MathUtil.Clamp((line - Axis(a)) / span, 0, 1)));
+            result.Add(a.LerpUnclamped(b, MathUtil.Clamp((line - Axis(a)) / span, 0, 1)));
         }
 
         return result;
     }
 
-    private static Elements.Terrain? FindOwner(List<Vec3> polygon, List<Elements.Terrain> group, List<TerrainRect> bounds)
+    private static Elements.Terrain? FindOwner(List<Vector3> polygon, List<Elements.Terrain> group, List<TerrainRect> bounds)
     {
         var x = polygon.Average(p => p.X);
         var z = polygon.Average(p => p.Z);

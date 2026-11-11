@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using Clipper2Lib;
 
 namespace MNVTEngine.Terrain.Geometry;
@@ -13,15 +14,15 @@ public static class PolygonClipping
     /// <summary>Decimal places Clipper2 keeps (it computes on an integer grid of this precision).</summary>
     private const int Precision = 8;
 
-    public static List<List<List<Vec2>>> Union(IEnumerable<List<List<List<Vec2>>>> multipolygons) =>
+    public static List<List<List<Vector2>>> Union(IEnumerable<List<List<List<Vector2>>>> multipolygons) =>
         Execute(ClipType.Union, [.. multipolygons], []);
 
-    public static List<List<List<Vec2>>> Union(params List<List<List<Vec2>>>[] multipolygons) => Union((IEnumerable<List<List<List<Vec2>>>>)multipolygons);
+    public static List<List<List<Vector2>>> Union(params List<List<List<Vector2>>>[] multipolygons) => Union((IEnumerable<List<List<List<Vector2>>>>)multipolygons);
 
-    public static List<List<List<Vec2>>> Difference(List<List<List<Vec2>>> subject, params List<List<List<Vec2>>>[] clips) =>
+    public static List<List<List<Vector2>>> Difference(List<List<List<Vector2>>> subject, params List<List<List<Vector2>>>[] clips) =>
         Execute(ClipType.Difference, [subject], clips);
 
-    public static List<List<List<Vec2>>> Intersection(List<List<List<Vec2>>> subject, params List<List<List<Vec2>>>[] clips)
+    public static List<List<List<Vector2>>> Intersection(List<List<List<Vector2>>> subject, params List<List<List<Vector2>>>[] clips)
     {
         // polygon-clipping intersects every argument together; Clipper2 intersects subject with the union of clips.
         var result = subject;
@@ -34,9 +35,9 @@ public static class PolygonClipping
     }
 
     /// <summary>A multipolygon of one polygon with one ring (convenience for triangles and rectangles).</summary>
-    public static List<List<List<Vec2>>> Single(IEnumerable<Vec2> ring) => [[Close([.. ring])]];
+    public static List<List<List<Vector2>>> Single(IEnumerable<Vector2> ring) => [[Close([.. ring])]];
 
-    private static List<List<List<Vec2>>> Execute(ClipType type, IReadOnlyList<List<List<List<Vec2>>>> subjects, IReadOnlyList<List<List<List<Vec2>>>> clips)
+    private static List<List<List<Vector2>>> Execute(ClipType type, IReadOnlyList<List<List<List<Vector2>>>> subjects, IReadOnlyList<List<List<List<Vector2>>>> clips)
     {
         var clipper = new ClipperD(Precision) { PreserveCollinear = false }; // polygon-clipping drops collinear points too
         foreach (var multipolygon in subjects)
@@ -51,13 +52,13 @@ public static class PolygonClipping
 
         var tree = new PolyTreeD();
         clipper.Execute(type, FillRule.NonZero, tree);
-        var result = new List<List<List<Vec2>>>();
+        var result = new List<List<List<Vector2>>>();
         AddOuters(tree, result);
         return result;
     }
 
     /// <summary>polygon-clipping input: every polygon's outer ring counts positive and its holes negative, whatever their winding.</summary>
-    private static PathsD ToPaths(List<List<List<Vec2>>> multipolygon)
+    private static PathsD ToPaths(List<List<List<Vector2>>> multipolygon)
     {
         var paths = new PathsD();
         foreach (var polygon in multipolygon)
@@ -89,11 +90,11 @@ public static class PolygonClipping
         return paths;
     }
 
-    private static void AddOuters(PolyPathBase parent, List<List<List<Vec2>>> into)
+    private static void AddOuters(PolyPathBase parent, List<List<List<Vector2>>> into)
     {
         foreach (PolyPathD outer in parent)
         {
-            var polygon = new List<List<Vec2>> { Ring(outer.Polygon!, counterClockwise: true) };
+            var polygon = new List<List<Vector2>> { Ring(outer.Polygon!, counterClockwise: true) };
             foreach (PolyPathD hole in outer)
             {
                 polygon.Add(Ring(hole.Polygon!, counterClockwise: false));
@@ -107,9 +108,9 @@ public static class PolygonClipping
         }
     }
 
-    private static List<Vec2> Ring(PathD path, bool counterClockwise)
+    private static List<Vector2> Ring(PathD path, bool counterClockwise)
     {
-        var ring = path.Select(p => new Vec2(p.x, p.y)).ToList();
+        var ring = path.Select(p => new Vector2(p.x, p.y)).ToList();
         if ((SignedArea(ring) > 0) != counterClockwise)
         {
             ring.Reverse();
@@ -118,7 +119,7 @@ public static class PolygonClipping
         return Close(ring);
     }
 
-    private static List<Vec2> Close(List<Vec2> ring)
+    private static List<Vector2> Close(List<Vector2> ring)
     {
         if (ring.Count > 0 && ring[0] != ring[^1])
         {
@@ -128,9 +129,9 @@ public static class PolygonClipping
         return ring;
     }
 
-    private static List<Vec2> Open(List<Vec2> ring) => ring.Count > 1 && ring[0] == ring[^1] ? ring[..^1] : ring;
+    private static List<Vector2> Open(List<Vector2> ring) => ring.Count > 1 && ring[0] == ring[^1] ? ring[..^1] : ring;
 
-    private static double SignedArea(List<Vec2> ring)
+    private static double SignedArea(List<Vector2> ring)
     {
         var area = 0.0;
         for (var i = 0; i < ring.Count; i++)

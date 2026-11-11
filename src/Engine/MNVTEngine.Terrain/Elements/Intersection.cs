@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using System.Globalization;
 using MNVTEngine.Terrain.Geometry;
 using MNVTEngine.Terrain.Meshing;
@@ -14,15 +15,15 @@ public sealed class Intersection : WorldElement
     private const double Eps = 1e-7;
 
     /// <summary>A 3-way junction uses west, east and north.</summary>
-    private static readonly Vec2[] Normals = [new(-1, 0), new(1, 0), new(0, -1), new(0, 1)];
+    private static readonly Vector2[] Normals = [new(-1, 0), new(1, 0), new(0, -1), new(0, 1)];
     private static readonly string[] Labels = ["West", "East", "North", "South"];
     private static readonly SelectOption[] RotationOptions = [new("0°", "0"), new("90°", "90"), new("180°", "180"), new("270°", "270")];
-    private Vec3 _center;
+    private Vector3 _center;
     private int _nodeCount;
 
     private sealed record Rect2(double MinX, double MaxX, double MinZ, double MaxZ);
 
-    public Intersection(Vec3 position, int nodeCount = 4)
+    public Intersection(Vector3 position, int nodeCount = 4)
     {
         _center = position;
         _nodeCount = ClampNodeCount(nodeCount);
@@ -62,7 +63,7 @@ public sealed class Intersection : WorldElement
 
     public double SidewalkTexOffsetY { get; set; }
 
-    public Vec3 Center => _center;
+    public Vector3 Center => _center;
 
     public int OutletCount
     {
@@ -121,23 +122,23 @@ public sealed class Intersection : WorldElement
         base.Update();
     }
 
-    private Vec3 LocalToWorld(Vec2 point, double height = 0) =>
-        new Vec3(point.X, height, point.Y).ApplyQuaternion(Quat.FromAxisAngle(Vec3.UnitY, MathUtil.DegToRad(Rotation))) + _center;
+    private Vector3 LocalToWorld(Vector2 point, double height = 0) =>
+        (Quaternion.AngleAxis((float)Rotation, Vector3.UnitY) * new Vector3(point.X, height, point.Y)) + _center;
 
-    private Vec2 OutletLocal(int index)
+    private Vector2 OutletLocal(int index)
     {
         var hx = Width / 2;
         var hz = Length / 2;
         return index switch
         {
-            0 => new Vec2(-hx - OutletLength, 0),
-            1 => new Vec2(hx + OutletLength, 0),
-            2 => new Vec2(0, -hz - OutletLength),
-            _ => new Vec2(0, hz + OutletLength),
+            0 => new Vector2(-hx - OutletLength, 0),
+            1 => new Vector2(hx + OutletLength, 0),
+            2 => new Vector2(0, -hz - OutletLength),
+            _ => new Vector2(0, hz + OutletLength),
         };
     }
 
-    private Vec3 OutletWorld(int index) => LocalToWorld(OutletLocal(index));
+    private Vector3 OutletWorld(int index) => LocalToWorld(OutletLocal(index));
 
     private void RebuildNodes()
     {
@@ -189,8 +190,8 @@ public sealed class Intersection : WorldElement
         var actual = Nodes.Select(n => n.Position).ToList();
         if (expected.Where((point, index) => point.DistanceToSquared(actual[index]) > Eps * Eps).Any())
         {
-            var expectedMean = expected.Aggregate(Vec3.Zero, (sum, p) => sum + p) / expected.Count;
-            var actualMean = actual.Aggregate(Vec3.Zero, (sum, p) => sum + p) / actual.Count;
+            var expectedMean = expected.Aggregate(Vector3.Zero, (sum, p) => sum + p) / expected.Count;
+            var actualMean = actual.Aggregate(Vector3.Zero, (sum, p) => sum + p) / actual.Count;
             double dot = 0, cross = 0;
             for (var index = 0; index < expected.Count; index++)
             {
@@ -202,7 +203,7 @@ public sealed class Intersection : WorldElement
 
             var deltaAngle = Math.Atan2(-cross, dot);
             var (oldCenter, oldRotation) = (_center, Rotation);
-            var meanOffset = (expectedMean - _center).ApplyQuaternion(Quat.FromAxisAngle(Vec3.UnitY, deltaAngle));
+            var meanOffset = Quaternion.AngleAxis((float)MathUtil.RadToDeg(deltaAngle), Vector3.UnitY) * (expectedMean - _center);
             _center = actualMean - meanOffset;
             Rotation += MathUtil.RadToDeg(deltaAngle);
             var rigid = actual.Select((point, index) => point.DistanceToSquared(OutletWorld(index)) < 1e-8).All(ok => ok);
@@ -226,8 +227,8 @@ public sealed class Intersection : WorldElement
     public override NodeBasis GetNodeBasis(int index)
     {
         var normal = Normals[index];
-        var forward = new Vec3(normal.X, 0, normal.Y).ApplyQuaternion(Quat.FromAxisAngle(Vec3.UnitY, MathUtil.DegToRad(Rotation)));
-        return new NodeBasis(forward, forward.Cross(Vec3.UnitY).Normalized(), Vec3.UnitY);
+        var forward = Quaternion.AngleAxis((float)Rotation, Vector3.UnitY) * new Vector3(normal.X, 0, normal.Y);
+        return new NodeBasis(forward, forward.Cross(Vector3.UnitY).Normalized, Vector3.UnitY);
     }
 
     public void ConnectWith(int thisNodeIndex, WorldElement other, int otherNodeIndex) => Connect(thisNodeIndex, other, otherNodeIndex);
@@ -270,7 +271,7 @@ public sealed class Intersection : WorldElement
     public static Intersection Deserialize(ElementData data)
     {
         ArgumentNullException.ThrowIfNull(data);
-        var center = data.Nodes.Aggregate(Vec3.Zero, (sum, node) => sum + node.ToVec3()) / Math.Max(1, data.Nodes.Count);
+        var center = data.Nodes.Aggregate(Vector3.Zero, (sum, node) => sum + node.ToVector3()) / Math.Max(1, data.Nodes.Count);
         var value = new Intersection(center, data.NodeCount ?? 4)
         {
             Width = data.Width ?? 8,
@@ -404,13 +405,13 @@ public sealed class Intersection : WorldElement
         return cells;
     }
 
-    private static void AddTriangle(List<Triangle> output, Vec3 a, Vec3 b, Vec3 c, Vec2 uvA, Vec2 uvB, Vec2 uvC)
+    private static void AddTriangle(List<Triangle> output, Vector3 a, Vector3 b, Vector3 c, Vector2 uvA, Vector2 uvB, Vector2 uvC)
     {
         var normal = (b - a).Cross(c - a);
         output.Add(normal.Y < -Eps ? new Triangle(a, c, b, uvA, uvC, uvB) : new Triangle(a, b, c, uvA, uvB, uvC));
     }
 
-    private void AddSidewalkStrip(List<Triangle> output, Vec2 innerA2, Vec2 innerB2, Vec2 outerA2, Vec2 outerB2)
+    private void AddSidewalkStrip(List<Triangle> output, Vector2 innerA2, Vector2 innerB2, Vector2 outerA2, Vector2 outerB2)
     {
         var innerLength = innerA2.DistanceTo(innerB2);
         var outerLength = outerA2.DistanceTo(outerB2);
@@ -432,7 +433,7 @@ public sealed class Intersection : WorldElement
         var outerB = LocalToWorld(outerB2, CurbHeight);
         var tangent = innerB - innerA;
         var outward = outerA - innerAUp;
-        if (tangent.Cross(Vec3.UnitY).Dot(outward) <= 0)
+        if (tangent.Cross(Vector3.UnitY).Dot(outward) <= 0)
         {
             AddTriangle(output, innerA, innerB, innerBUp, new(u0, v0), new(u0, v1), new(curbU, v1));
             AddTriangle(output, innerA, innerBUp, innerAUp, new(u0, v0), new(curbU, v1), new(curbU, v0));
@@ -495,13 +496,13 @@ public sealed class Intersection : WorldElement
     {
         var road = new List<Triangle>();
         var sidewalk = new List<Triangle>();
-        Vec2 RoadUV(Vec3 point) => new(((point.X - _center.X) / RoadTexWidth) + RoadTexOffsetX, ((point.Z - _center.Z) / RoadTexHeight) + RoadTexOffsetY);
+        Vector2 RoadUV(Vector3 point) => new(((point.X - _center.X) / RoadTexWidth) + RoadTexOffsetX, ((point.Z - _center.Z) / RoadTexHeight) + RoadTexOffsetY);
         foreach (var cell in Cells())
         {
-            var nw = LocalToWorld(new Vec2(cell.MinX, cell.MinZ));
-            var ne = LocalToWorld(new Vec2(cell.MaxX, cell.MinZ));
-            var se = LocalToWorld(new Vec2(cell.MaxX, cell.MaxZ));
-            var sw = LocalToWorld(new Vec2(cell.MinX, cell.MaxZ));
+            var nw = LocalToWorld(new Vector2(cell.MinX, cell.MinZ));
+            var ne = LocalToWorld(new Vector2(cell.MaxX, cell.MinZ));
+            var se = LocalToWorld(new Vector2(cell.MaxX, cell.MaxZ));
+            var sw = LocalToWorld(new Vector2(cell.MinX, cell.MaxZ));
             AddTriangle(road, nw, ne, se, RoadUV(nw), RoadUV(ne), RoadUV(se));
             AddTriangle(road, nw, se, sw, RoadUV(nw), RoadUV(se), RoadUV(sw));
         }

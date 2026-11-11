@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using System.Globalization;
 using MNVTEngine.Terrain.Geometry;
 using MNVTEngine.Terrain.Meshing;
@@ -9,12 +10,12 @@ public sealed class TerrainMesherTests
 {
     private static readonly TerrainMesherSettings DefaultSettings = new(2, 400, true, 4, 35);
 
-    private static TerrainCutPointInput CutPoint(Vec3 position, double radius = 4) => new(position, radius);
+    private static TerrainCutPointInput CutPoint(Vector3 position, double radius = 4) => new(position, radius);
 
-    private static TerrainMesherInput MakeInput(Vec3? center = null, double length = 30, IReadOnlyList<OccupiedTriangle>? cutAreas = null,
+    private static TerrainMesherInput MakeInput(Vector3? center = null, double length = 30, IReadOnlyList<OccupiedTriangle>? cutAreas = null,
         IReadOnlyList<TerrainCutPointInput>? cutPoints = null, TerrainPaintInput? paint = null, TerrainMesherSettings? settings = null) => new()
     {
-        Center = center ?? Vec3.Zero,
+        Center = center ?? Vector3.Zero,
         Width = 30,
         Length = length,
         CutAreas = cutAreas ?? [],
@@ -25,22 +26,22 @@ public sealed class TerrainMesherTests
 
     internal static List<OccupiedTriangle> RectangleCut(double minX, double maxX, double minZ, double maxZ, double y)
     {
-        var bl = new Vec3(minX, y, minZ);
-        var br = new Vec3(maxX, y, minZ);
-        var tr = new Vec3(maxX, y, maxZ);
-        var tl = new Vec3(minX, y, maxZ);
+        var bl = new Vector3(minX, y, minZ);
+        var br = new Vector3(maxX, y, minZ);
+        var tr = new Vector3(maxX, y, maxZ);
+        var tl = new Vector3(minX, y, maxZ);
         return [new(bl, br, tr), new(bl, tr, tl)];
     }
 
     private static double SignedArea(OccupiedTriangle tri) =>
         ((tri.B.X - tri.A.X) * (tri.C.Z - tri.A.Z)) - ((tri.B.Z - tri.A.Z) * (tri.C.X - tri.A.X));
 
-    private static IEnumerable<Vec3> Vertices(IEnumerable<OccupiedTriangle> triangles) => triangles.SelectMany(t => new[] { t.A, t.B, t.C });
+    private static IEnumerable<Vector3> Vertices(IEnumerable<OccupiedTriangle> triangles) => triangles.SelectMany(t => new[] { t.A, t.B, t.C });
 
     private static double? VertexHeight(IEnumerable<OccupiedTriangle> triangles, double x, double z) =>
         Vertices(triangles).Where(p => Math.Abs(p.X - x) < 1e-6 && Math.Abs(p.Z - z) < 1e-6).Select(p => (double?)p.Y).FirstOrDefault();
 
-    private static string Key(Vec3 p) => $"{p.X.ToString("F5", CultureInfo.InvariantCulture)},{p.Z.ToString("F5", CultureInfo.InvariantCulture)}";
+    private static string Key(Vector3 p) => $"{p.X.ToString("F5", CultureInfo.InvariantCulture)},{p.Z.ToString("F5", CultureInfo.InvariantCulture)}";
 
     private static List<string> TopologyKey(IEnumerable<OccupiedTriangle> triangles) =>
         triangles.Select(t => string.Join('|', new[] { t.A, t.B, t.C }.Select(Key).Order(StringComparer.Ordinal))).Order(StringComparer.Ordinal).ToList();
@@ -73,7 +74,7 @@ public sealed class TerrainMesherTests
     [Fact]
     public void KeepsATerrainCutPointExactAndRespectsTheTriangleBudget()
     {
-        var point = new Vec3(1.25, 6, -0.75);
+        var point = new Vector3(1.25, 6, -0.75);
         var input = MakeInput(cutPoints: [CutPoint(point)]);
         var triangles = new TerrainMesher().Build(input);
         var matching = Vertices(triangles).Where(p => Math.Abs(p.X - point.X) < 1e-5 && Math.Abs(p.Z - point.Z) < 1e-5).ToList();
@@ -86,8 +87,8 @@ public sealed class TerrainMesherTests
     public void ReusesTheSameXZTopologyWhenOnlyACutPointHeightChanges()
     {
         var mesher = new TerrainMesher();
-        var low = mesher.Build(MakeInput(cutPoints: [CutPoint(new Vec3(0, 2, 0))]));
-        var high = mesher.Build(MakeInput(cutPoints: [CutPoint(new Vec3(0, 8, 0))]));
+        var low = mesher.Build(MakeInput(cutPoints: [CutPoint(new Vector3(0, 2, 0))]));
+        var high = mesher.Build(MakeInput(cutPoints: [CutPoint(new Vector3(0, 8, 0))]));
         Assert.Equal(TopologyKey(low), TopologyKey(high));
         Assert.Contains(Vertices(high), p => p.X == 0 && p.Z == 0 && p.Y == 8);
     }
@@ -97,9 +98,9 @@ public sealed class TerrainMesherTests
     {
         var triangles = new TerrainMesher().Build(MakeInput(
             cutAreas: RectangleCut(-3, 3, -8, 8, -1),
-            cutPoints: [CutPoint(new Vec3(-8, 4, 0)), CutPoint(new Vec3(8, -3, 0))]));
+            cutPoints: [CutPoint(new Vector3(-8, 4, 0)), CutPoint(new Vector3(8, -3, 0))]));
         var edges = new Dictionary<string, int>();
-        static string EdgeKey(Vec3 a, Vec3 b)
+        static string EdgeKey(Vector3 a, Vector3 b)
         {
             var (ka, kb) = (Key(a), Key(b));
             return string.CompareOrdinal(ka, kb) < 0 ? $"{ka}|{kb}" : $"{kb}|{ka}";
@@ -127,8 +128,8 @@ public sealed class TerrainMesherTests
 
         // Smoothing off isolates the painted field: every vertex height is the field itself.
         var settings = DefaultSettings with { SmoothingEnabled = false };
-        var left = new TerrainMesher().Build(MakeInput(center: new Vec3(-15, 0, 0), paint: paint, settings: settings));
-        var right = new TerrainMesher().Build(MakeInput(center: new Vec3(15, 0, 0), paint: paint, settings: settings));
+        var left = new TerrainMesher().Build(MakeInput(center: new Vector3(-15, 0, 0), paint: paint, settings: settings));
+        var right = new TerrainMesher().Build(MakeInput(center: new Vector3(15, 0, 0), paint: paint, settings: settings));
         foreach (var z in new[] { -15.0, 15.0 })
         {
             Assert.Equal(5, VertexHeight(left, 0, z)!.Value, 5);
@@ -141,7 +142,7 @@ public sealed class TerrainMesherTests
     {
         // The point sits 4 units past the edge with a radius of only 2, but dropping 6 units at 35 degrees needs
         // roughly 13 units of run, so the edge has to follow it down.
-        var triangles = new TerrainMesher().Build(MakeInput(center: new Vec3(15, 0, 0), length: 8, cutPoints: [CutPoint(new Vec3(-4, -6, 0), 2)]));
+        var triangles = new TerrainMesher().Build(MakeInput(center: new Vector3(15, 0, 0), length: 8, cutPoints: [CutPoint(new Vector3(-4, -6, 0), 2)]));
         Assert.True(VertexHeight(triangles, 0, -4) < -0.5);
         Assert.Equal(0, VertexHeight(triangles, 30, -4)!.Value, 5);
     }
@@ -150,7 +151,7 @@ public sealed class TerrainMesherTests
     public void AppliesALocalCutPointSlopeAsAGeometricAngle()
     {
         var mesher = new TerrainMesher();
-        var bed = new Vec3(0, -2, 0);
+        var bed = new Vector3(0, -2, 0);
         TerrainCutPointInput SlopePoint(double degrees) => new(bed, 2 / Math.Tan(MathUtil.DegToRad(degrees)), degrees);
         var settings = DefaultSettings with { MeshDetail = 0.5, TriangleLimit = 1000 };
         var shallow = mesher.Build(MakeInput(cutPoints: [SlopePoint(20)], settings: settings));

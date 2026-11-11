@@ -2,12 +2,11 @@
   <!--
     The world/terrain toolkit ported from TerrainHeaven (https://github.com/borsuczyna/TerrainHeaven, used with its
     author's permission): roads, intersections, rivers, terrain cuts, stairs, fences and the adaptive terrain
-    mesher. Pure geometry in double precision, no rendering or platform dependencies. See THIRD-PARTY-NOTICES.md.
+    mesher. Geometry on MNVTEngine.Mathematics vectors, no rendering or platform dependencies. See THIRD-PARTY-NOTICES.md.
   -->
   <ItemGroup>
     <PackageReference Include="Clipper2" />
     <PackageReference Include="Newtonsoft.Json" />
-    <PackageReference Include="StbImageWriteSharp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MNVTEngine.Mathematics\MNVTEngine.Mathematics.csproj" />

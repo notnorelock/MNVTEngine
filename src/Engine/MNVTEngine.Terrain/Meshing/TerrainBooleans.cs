@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Elements;
 using MNVTEngine.Terrain.Geometry;
 
@@ -70,9 +71,9 @@ public static class TerrainBooleans
         return cutAreas;
     }
 
-    private static List<List<List<Vec2>>> ToMultiPolygon(IReadOnlyList<OccupiedTriangle> triangles)
+    private static List<List<List<Vector2>>> ToMultiPolygon(IReadOnlyList<OccupiedTriangle> triangles)
     {
-        var polygons = new List<List<List<List<Vec2>>>>();
+        var polygons = new List<List<List<List<Vector2>>>>();
         foreach (var tri in triangles)
         {
             var a = SnapPoint(tri.A.Xz);
@@ -100,9 +101,9 @@ public static class TerrainBooleans
         return result;
     }
 
-    private static Vec2 SnapPoint(Vec2 p) => new(MathUtil.JsRound(p.X * SnapScale) / SnapScale, MathUtil.JsRound(p.Y * SnapScale) / SnapScale);
+    private static Vector2 SnapPoint(Vector2 p) => new(MathUtil.JsRound(p.X * SnapScale) / SnapScale, MathUtil.JsRound(p.Y * SnapScale) / SnapScale);
 
-    private static List<OccupiedTriangle> TriangulateMultiPolygon(List<List<List<Vec2>>> multi, IReadOnlyList<OccupiedTriangle> sourceTriangles)
+    private static List<OccupiedTriangle> TriangulateMultiPolygon(List<List<List<Vector2>>> multi, IReadOnlyList<OccupiedTriangle> sourceTriangles)
     {
         var result = new List<OccupiedTriangle>();
         foreach (var polygon in multi)
@@ -132,9 +133,9 @@ public static class TerrainBooleans
         return result;
     }
 
-    private static List<Vec2> ToRing(List<Vec2> ring)
+    private static List<Vector2> ToRing(List<Vector2> ring)
     {
-        var result = new List<Vec2>();
+        var result = new List<Vector2>();
         for (var i = 0; i < ring.Count; i++)
         {
             if (i == ring.Count - 1 && ring[i] == ring[0])
@@ -148,20 +149,20 @@ public static class TerrainBooleans
         return result;
     }
 
-    private static Vec3 RestorePoint3D(Vec2 point, IReadOnlyList<OccupiedTriangle> sourceTriangles)
+    private static Vector3 RestorePoint3D(Vector2 point, IReadOnlyList<OccupiedTriangle> sourceTriangles)
     {
         foreach (var tri in sourceTriangles)
         {
             if (GetBarycentricXZ(point, tri) is { } b)
             {
-                return new Vec3(point.X, (tri.A.Y * b.U) + (tri.B.Y * b.V) + (tri.C.Y * b.W), point.Y);
+                return new Vector3(point.X, (tri.A.Y * b.U) + (tri.B.Y * b.V) + (tri.C.Y * b.W), point.Y);
             }
         }
 
-        return new Vec3(point.X, 0, point.Y);
+        return new Vector3(point.X, 0, point.Y);
     }
 
-    private static (double U, double V, double W)? GetBarycentricXZ(Vec2 point, OccupiedTriangle tri)
+    private static (double U, double V, double W)? GetBarycentricXZ(Vector2 point, OccupiedTriangle tri)
     {
         var denominator = ((tri.B.Z - tri.C.Z) * (tri.A.X - tri.C.X)) + ((tri.C.X - tri.B.X) * (tri.A.Z - tri.C.Z));
         if (Math.Abs(denominator) < MinArea)

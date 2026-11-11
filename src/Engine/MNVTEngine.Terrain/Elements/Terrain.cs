@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Geometry;
 using MNVTEngine.Terrain.Meshing;
 
@@ -26,14 +27,14 @@ public sealed class Terrain : WorldElement
     private readonly Dictionary<(long X, long Z), TerrainPaintHeightInput> _paintedHeights = [];
     private UVTransform _terrainUV = new();
 
-    public Terrain(Vec3 center, double width = 20, double length = 20)
+    public Terrain(Vector3 center, double width = 20, double length = 20)
     {
         Center = center;
         Width = width;
         Length = length;
     }
 
-    public Vec3 Center { get; set; }
+    public Vector3 Center { get; set; }
 
     public double Width { get; set; }
 
@@ -76,7 +77,7 @@ public sealed class Terrain : WorldElement
         TextureLayers[index].TexturePath is { Length: > 0 } path ? path
         : index == 0 && GetGroupTextureReferences().TryGetValue("terrain", out var own) ? own : "";
 
-    public bool PaintTexture(Vec3 worldPosition, double radius, int layer, double opacity, double hardness, TextureBrushShape shape, double rotation, int seed = 0)
+    public bool PaintTexture(Vector3 worldPosition, double radius, int layer, double opacity, double hardness, TextureBrushShape shape, double rotation, int seed = 0)
     {
         var bounds = GetBounds();
         return TexturePaint.Paint(new TexturePaintStroke(
@@ -89,14 +90,14 @@ public sealed class Terrain : WorldElement
 
     public void ClearTexturePaint() => TexturePaint.Clear(0);
 
-    public override void Translate(Vec3 delta)
+    public override void Translate(Vector3 delta)
     {
         Center += delta;
         ShiftPaintedHeights(delta);
         Update();
     }
 
-    public bool PaintHeight(Vec3 worldPosition, double radius, double amount)
+    public bool PaintHeight(Vector3 worldPosition, double radius, double amount)
     {
         var bounds = GetPaintBounds();
         var safeRadius = Math.Max(PaintCellSize * 0.5, radius);
@@ -147,7 +148,7 @@ public sealed class Terrain : WorldElement
     /// Blends each cell toward the average of its 3x3 neighbourhood. Computed for every affected tile from one snapshot
     /// of the field, then applied to all of them, so a seam cell's result never depends on tile order.
     /// </summary>
-    public static bool SmoothHeight(Vec3 worldPosition, double radius, double strength, IReadOnlyList<Terrain> terrains)
+    public static bool SmoothHeight(Vector3 worldPosition, double radius, double strength, IReadOnlyList<Terrain> terrains)
     {
         ArgumentNullException.ThrowIfNull(terrains);
         var safeRadius = Math.Max(PaintCellSize * 0.5, radius);
@@ -233,7 +234,7 @@ public sealed class Terrain : WorldElement
     }
 
     /// <summary>Mirrors the padded footprint PaintHeight writes into, so a brush on the margin paints the neighbour too.</summary>
-    public bool IntersectsPaintBrush(Vec3 worldPosition, double radius)
+    public bool IntersectsPaintBrush(Vector3 worldPosition, double radius)
     {
         var bounds = GetPaintBounds();
         var closestX = MathUtil.Clamp(worldPosition.X, bounds.MinX, bounds.MaxX);
@@ -341,7 +342,7 @@ public sealed class Terrain : WorldElement
     }
 
     /// <summary>The lattice is world-aligned: a moved tile carries its samples to the cells now under it.</summary>
-    private void ShiftPaintedHeights(Vec3 delta)
+    private void ShiftPaintedHeights(Vector3 delta)
     {
         var shiftX = (long)MathUtil.JsRound(delta.X / PaintCellSize);
         var shiftZ = (long)MathUtil.JsRound(delta.Z / PaintCellSize);
@@ -358,7 +359,7 @@ public sealed class Terrain : WorldElement
         }
     }
 
-    public override NodeBasis GetNodeBasis(int index) => new(Vec3.UnitX, Vec3.UnitZ, Vec3.UnitY);
+    public override NodeBasis GetNodeBasis(int index) => new(Vector3.UnitX, Vector3.UnitZ, Vector3.UnitY);
 
     public override IReadOnlyList<string> GetUVGroups() => ["terrain"];
 
@@ -387,10 +388,10 @@ public sealed class Terrain : WorldElement
     {
         var halfWidth = Width / 2;
         var halfLength = Length / 2;
-        var bl = new Vec3(Center.X - halfWidth, Center.Y, Center.Z - halfLength);
-        var br = new Vec3(Center.X + halfWidth, Center.Y, Center.Z - halfLength);
-        var tr = new Vec3(Center.X + halfWidth, Center.Y, Center.Z + halfLength);
-        var tl = new Vec3(Center.X - halfWidth, Center.Y, Center.Z + halfLength);
+        var bl = new Vector3(Center.X - halfWidth, Center.Y, Center.Z - halfLength);
+        var br = new Vector3(Center.X + halfWidth, Center.Y, Center.Z - halfLength);
+        var tr = new Vector3(Center.X + halfWidth, Center.Y, Center.Z + halfLength);
+        var tl = new Vector3(Center.X - halfWidth, Center.Y, Center.Z + halfLength);
         return [new(bl, br, tr), new(bl, tr, tl)];
     }
 
@@ -426,7 +427,7 @@ public sealed class Terrain : WorldElement
     public static Terrain Deserialize(ElementData data, Action<string>? warn = null)
     {
         ArgumentNullException.ThrowIfNull(data);
-        var node = data.Nodes.Count > 0 ? data.Nodes[0].ToVec3() : Vec3.Zero;
+        var node = data.Nodes.Count > 0 ? data.Nodes[0].ToVector3() : Vector3.Zero;
         var terrain = new Terrain(node, data.TerrainWidth ?? 20, data.TerrainLength ?? 20);
         var legacyDetail = data.TerrainGridEnabled == true ? data.TerrainGridSize : null;
         terrain.MeshDetail = MathUtil.Clamp(data.TerrainMeshDetail ?? legacyDetail ?? 2, 0.5, 5);
@@ -532,7 +533,7 @@ public sealed class Terrain : WorldElement
         var width = Math.Max(0.0001, Width);
         var length = Math.Max(0.0001, Length);
         var uv = _terrainUV;
-        Vec2 UvFor(Vec3 point) => new(
+        Vector2 UvFor(Vector3 point) => new(
             ((((point.X - Center.X) / width) + 0.5) * uv.ScaleX) + uv.OffsetX,
             ((((point.Z - Center.Z) / length) + 0.5) * uv.ScaleY) + uv.OffsetY);
         var triangles = area.Select(tri => new Triangle(tri.A, tri.B, tri.C, UvFor(tri.A), UvFor(tri.B), UvFor(tri.C))).ToList();

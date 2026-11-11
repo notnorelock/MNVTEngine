@@ -1,10 +1,11 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Geometry;
 
 namespace MNVTEngine.Terrain.Elements;
 
 /// <summary>A line the editor draws over an element (a spline, or a curve handle from an end to its control point).</summary>
 /// <param name="Color">Overrides the kind's colour (0xRRGGBB): road lane edges are white, lane dividers grey.</param>
-public sealed record GuideLine(IReadOnlyList<Vec3> Points, NodeKind Kind, uint? Color = null);
+public sealed record GuideLine(IReadOnlyList<Vector3> Points, NodeKind Kind, uint? Color = null);
 
 /// <summary>How a geometry group is drawn: an untextured colour (sRGB, 0xRRGGBB), transparency and sidedness.</summary>
 public sealed record MaterialHint(uint? Color = null, double Opacity = 1, bool DoubleSided = false, bool DepthWrite = true, double Roughness = 1, double Metalness = 0);
@@ -17,7 +18,7 @@ public abstract class SplineElement : WorldElement
 {
     private int _divisions;
 
-    protected SplineElement(Vec3 positionA, Vec3 positionB, NodeKind endKind)
+    protected SplineElement(Vector3 positionA, Vector3 positionB, NodeKind endKind)
     {
         SetNode(0, new WorldNode(positionA, endKind));
         SetNode(1, new WorldNode(positionB, endKind));
@@ -41,12 +42,12 @@ public abstract class SplineElement : WorldElement
             {
                 if (CurvePointA is null)
                 {
-                    SetCurvePointA(NodeA.Position.Lerp(NodeB.Position, 1.0 / 3));
+                    SetCurvePointA(NodeA.Position.LerpUnclamped(NodeB.Position, 1.0 / 3));
                 }
 
                 if (CurvePointB is null)
                 {
-                    SetCurvePointB(NodeA.Position.Lerp(NodeB.Position, 2.0 / 3));
+                    SetCurvePointB(NodeA.Position.LerpUnclamped(NodeB.Position, 2.0 / 3));
                 }
             }
             else
@@ -66,11 +67,11 @@ public abstract class SplineElement : WorldElement
         set => _divisions = value;
     }
 
-    public void SetCurvePointA(Vec3? point) => CurvePointA = SetCurvePoint(CurvePointA, point);
+    public void SetCurvePointA(Vector3? point) => CurvePointA = SetCurvePoint(CurvePointA, point);
 
-    public void SetCurvePointB(Vec3? point) => CurvePointB = SetCurvePoint(CurvePointB, point);
+    public void SetCurvePointB(Vector3? point) => CurvePointB = SetCurvePoint(CurvePointB, point);
 
-    private WorldNode? SetCurvePoint(WorldNode? current, Vec3? point)
+    private WorldNode? SetCurvePoint(WorldNode? current, Vector3? point)
     {
         if (point is { } position)
         {
@@ -100,7 +101,7 @@ public abstract class SplineElement : WorldElement
     protected virtual int MinimumCurveDivisions => 0;
 
     /// <summary>The curve sampled at the current (or the given) divisions: <c>divisions + 2</c> points.</summary>
-    protected List<Vec3> GetBezierCurvePoints(int? divisionsOverride = null) => Bezier.SampleCubic(
+    protected List<Vector3> GetBezierCurvePoints(int? divisionsOverride = null) => Bezier.SampleCubic(
         NodeA.Position,
         CurvePointA?.Position ?? NodeA.Position,
         CurvePointB?.Position ?? NodeB.Position,
@@ -124,9 +125,9 @@ public abstract class SplineElement : WorldElement
     public override NodeBasis GetNodeBasis(int index)
     {
         var points = GetBezierCurvePoints();
-        var up = Vec3.UnitY;
-        var forward = index == 0 ? (points[1] - points[0]).Normalized() : (points[^1] - points[^2]).Normalized();
-        var right = forward.Cross(up).Normalized();
+        var up = Vector3.UnitY;
+        var forward = index == 0 ? (points[1] - points[0]).Normalized : (points[^1] - points[^2]).Normalized;
+        var right = forward.Cross(up).Normalized;
         return new NodeBasis(forward, right, up);
     }
 
@@ -148,21 +149,21 @@ public abstract class SplineElement : WorldElement
             Divisions = divisions;
             if (data.CurvePointA is { } a)
             {
-                SetCurvePointA(a.ToVec3());
+                SetCurvePointA(a.ToVector3());
             }
 
             if (data.CurvePointB is { } b)
             {
-                SetCurvePointB(b.ToVec3());
+                SetCurvePointB(b.ToVector3());
             }
         }
     }
 
-    protected static (Vec3 A, Vec3 B) EndPositions(ElementData data, Vec3 defaultB)
+    protected static (Vector3 A, Vector3 B) EndPositions(ElementData data, Vector3 defaultB)
     {
         ArgumentNullException.ThrowIfNull(data);
-        var a = data.Nodes.Count > 0 ? data.Nodes[0].ToVec3() : Vec3.Zero;
-        var b = data.Nodes.Count > 1 ? data.Nodes[1].ToVec3() : defaultB;
+        var a = data.Nodes.Count > 0 ? data.Nodes[0].ToVector3() : Vector3.Zero;
+        var b = data.Nodes.Count > 1 ? data.Nodes[1].ToVector3() : defaultB;
         return (a, b);
     }
 }

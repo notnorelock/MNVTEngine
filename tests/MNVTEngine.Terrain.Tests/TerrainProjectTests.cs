@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Terrain.Elements;
 using MNVTEngine.Terrain.Foliage;
@@ -26,9 +27,9 @@ public sealed class TerrainProjectTests
     private static TerrainProject BuildSample()
     {
         var project = new TerrainProject();
-        var intersection = new Intersection(Vec3.Zero, 4);
-        var road = new Road(new Vec3(6, 0, 0), new Vec3(20, 0, 0)) { Width = 4 };
-        var terrain = new Elements.Terrain(new Vec3(0, -1, 0), 40, 40);
+        var intersection = new Intersection(Vector3.Zero, 4);
+        var road = new Road(new Vector3(6, 0, 0), new Vector3(20, 0, 0)) { Width = 4 };
+        var terrain = new Elements.Terrain(new Vector3(0, -1, 0), 40, 40);
         road.SetGroupTextureReference("road", "textures/asphalt.png");
         road.SetTextureRotation("road", 90);
         terrain.TextureLayers[0].TexturePath = "textures/grass.png";
@@ -36,13 +37,13 @@ public sealed class TerrainProjectTests
         project.World.Add(road);
         project.World.Add(terrain);
         road.Connect(0, intersection, 1);
-        project.World.CutPoints.SetRadius(project.World.CutPoints.AddPoint(new Vec3(10, 0, 10)), 6);
+        project.World.CutPoints.SetRadius(project.World.CutPoints.AddPoint(new Vector3(10, 0, 10)), 6);
         project.Settings.Hour = 18;
         project.Settings.SetLodDistance(1, 120);
         var grass = project.Foliage.AddType(new FoliageTypeData { DisplayName = "Grass", TexturePath = "textures/grass_blade.png" });
-        project.Foliage.AddInstance(grass, new FoliageInstanceData { Position = PointData.From(new Vec3(3, 0, 3)), ScaleT = 0.5 });
+        project.Foliage.AddInstance(grass, new FoliageInstanceData { Position = PointData.From(new Vector3(3, 0, 3)), ScaleT = 0.5 });
         var rock = project.Meshes.AddAsset(MeshAssetData.Create("Rock", "rock.obj"));
-        project.Meshes.AddInstance(rock, new MeshInstanceData { Position = PointData.From(new Vec3(1, 0, 1)), RotationY = 45 });
+        project.Meshes.AddInstance(rock, new MeshInstanceData { Position = PointData.From(new Vector3(1, 0, 1)), RotationY = 45 });
         return project;
     }
 
@@ -124,7 +125,7 @@ public sealed class TerrainProjectTests
         var settings = new ProjectSettings();
         settings.LoadData(new ProjectSettingsData { SkyColor = "#ffffff" });
         var flat = settings.Evaluate();
-        Assert.Equal((Vec3.One, false, (Vec3?)null), (flat.Background, flat.SkyDomeVisible, flat.FogColor));
+        Assert.Equal((Vector3.One, false, (Vector3?)null), (flat.Background, flat.SkyDomeVisible, flat.FogColor));
 
         settings.EnhancedVisuals = true;
         settings.Hour = 12;
@@ -142,7 +143,7 @@ public sealed class TerrainProjectTests
         settings.DayLength = 240;
         Assert.False(settings.Advance(0.05));
         Assert.True(settings.Advance(0.1));
-        Assert.Equal(0.15 * 24 / 240, settings.Hour, 9);
+        Assert.Equal(0.15 * 24 / 240, settings.Hour, 5);
     }
 
     [Fact]

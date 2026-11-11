@@ -1,6 +1,6 @@
 # Terrain (TerrainHeaven port)
 
-`MNVTEngine.Terrain` is the world-building toolkit from [TerrainHeaven](https://github.com/borsuczyna/TerrainHeaven), ported from TypeScript to C# with its author's permission. It covers roads, intersections, rivers, terrain cuts, stairs, fences, polygon patches and the adaptive terrain mesher. All geometry is pure double-precision math, with no rendering or platform dependencies. Third-party code it carries is listed in `src/Engine/MNVTEngine.Terrain/THIRD-PARTY-NOTICES.md`.
+`MNVTEngine.Terrain` is the world-building toolkit from [TerrainHeaven](https://github.com/borsuczyna/TerrainHeaven), ported from TypeScript to C# with its author's permission. It covers roads, intersections, rivers, terrain cuts, stairs, fences, polygon patches and the adaptive terrain mesher. Points and directions use the engine's `MNVTEngine.Mathematics` vectors; lengths, angles and other scalars are computed in double. The module has no rendering or platform dependencies. Third-party code it carries is listed in `src/Engine/MNVTEngine.Terrain/THIRD-PARTY-NOTICES.md`.
 
 TerrainHeaven's buildings are not part of the port. When a project file contains them, the loader skips them and logs a warning.
 
@@ -11,7 +11,7 @@ TerrainHeaven's buildings are not part of the port. When a project file contains
 - Terrain tiles are rebuilt last, because roads, rivers and other cutters carve holes in them.
 - `CutPoints` are free-standing circular terrain cuts.
 - `GroupMesher` merges touching tiles into one mesh.
-- `LodPreviewLevel` previews export LODs.
+- `LodPreviewLevel` builds every element at a coarser LOD (`WorldTerrain.LodLevel`).
 
 | Type (`ElementData.Type`) | Class | Notes |
 |---|---|---|
@@ -49,7 +49,7 @@ Put the `WorldTerrain` component (in `MNVTEngine.Terrain.Components`) on a GameO
 
 **Rendering** (in `Runtime`):
 
-- Each element group is a mesh drawn with the Standard shader. It uses the group's texture and texture rotation, the element's material hint (color, opacity, roughness, double-sided) and the same 30° auto-smooth normals as the OBJ export.
+- Each element group is a mesh drawn with the Standard shader. It uses the group's texture and texture rotation, the element's material hint (color, opacity, roughness, double-sided) and the 30° auto-smooth normals (`SmoothNormals`: a vertex averages the face normals of neighbouring triangles, across every group, within 30° of its own face).
 - Terrain tiles draw with the built-in terrain splat shader (`builtin:terrain-splat`). The tile's control map (UV1) blends four layer textures, each repeated by its tiling.
 - Foliage presets are crossed-quad cards drawn with the Unlit shader: the preset texture with its alpha cutoff, or without a texture the preset's middle tint. The wind preview is not drawn.
 - Props are their model meshes (`asset:<guid>#mesh/<name>`, or a whole model at its node transforms) with the asset calibration and each placement's position, XYZ Euler rotation and scale.
@@ -79,7 +79,7 @@ File.WriteAllText("world.terrain.json", project.Save());
 **Field names.**
 
 - Element, settings and connection fields are camelCase, as TerrainHeaven writes them.
-- Foliage and mesh records are PascalCase, the Unity exporter's contract.
+- Foliage and mesh records are PascalCase, as TerrainHeaven writes them.
 - Dictionary keys, such as texture group names, are kept exactly as written.
 
 **Validation.** Project files are untrusted input.
@@ -109,30 +109,7 @@ File.WriteAllText("world.terrain.json", project.Save());
 
 **Prop meshes.**
 
-- `MeshCalibration` applies an asset's scale, then its offset, to loaded `MeshGroup`s (triangle soups per material). `ComputeGroundedCenterOffset` centers a prop on X/Z and rests it on Y = 0.
-- `MeshLodGenerator` builds LOD1 to LOD3 by decimating LOD0 to 40 %, 15 % and 5 % of its vertices, and caches the result per asset path. It uses `MeshSimplifier`, a port of three.js's SimplifyModifier (Melax edge collapse).
-- The ratio counts welded vertices. TerrainHeaven counted soup vertices, which emptied every LOD of a closed mesh.
-
-## Export
-
-`ObjWriter` writes Wavefront OBJ and MTL text from triangle soups.
-
-- Every vertex gets its own `v`/`vt`/`vn` line.
-- Normals are "auto smoothed" at 30°: a vertex averages the face normals of neighbouring triangles, across every group, that lie within 30° of its own face.
-- Group and material names are sanitized.
-
-`UnityExporter.Export(project, folder, options, source)` writes the layout TerrainHeaven's Unity importer reads:
-
-| Path | Contents |
-|---|---|
-| `Meshes/<kind>_<n>_lod<i>.obj/.mtl` | One pair per element and LOD. `options.Scale` is baked into the vertices. Cut splines are skipped: they have no geometry. |
-| `Meshes/prop_<id>_lod<i>.obj/.mtl` | Each placed prop asset once per LOD, calibrated and decimated, unscaled. |
-| `Textures/` | Every referenced texture. A missing texture is skipped with warning 7121. |
-| `ControlMaps/<terrain>_control.png` | Splat weights, with the rows flipped so the image origin is bottom-left (Unity's UV convention). |
-| `foliage.json`, `meshes.json` | Foliage store, plus prop assets and their placements (unscaled). |
-| `manifest.json` | Scale, LOD count and distances, objects with their LOD files and texture per submesh, terrain paint layers, and the texture list. |
-
-`ITerrainExportSource` supplies texture bytes and prop LOD0 meshes, so the exporter does not depend on where assets live.
+- `MeshCalibration.MeasureBounds` measures a model's raw vertices. `ComputeGroundedCenterOffset` gives the offset that centers a prop on X/Z and rests it on Y = 0. The renderer applies an asset's scale, then its offset, to every placement.
 
 ## Editing helpers
 

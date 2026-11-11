@@ -18,6 +18,12 @@ public struct Vector2 : IEquatable<Vector2>, IFormattable
         Y = y;
     }
 
+    /// <summary>From double-precision math (tools computing in double); each component is rounded to float.</summary>
+    public Vector2(double x, double y)
+        : this((float)x, (float)y)
+    {
+    }
+
     public static Vector2 Zero => default;
     public static Vector2 One => new(1f, 1f);
     public static Vector2 UnitX => new(1f, 0f);
@@ -49,6 +55,15 @@ public struct Vector2 : IEquatable<Vector2>, IFormattable
 
     /// <summary>Z component of the 3D cross product; positive when b is counter-clockwise from a.</summary>
     public static float Cross(Vector2 a, Vector2 b) => (a.X * b.Y) - (a.Y * b.X);
+
+    public readonly float Dot(Vector2 other) => Dot(this, other);
+
+    public readonly float Cross(Vector2 other) => Cross(this, other);
+
+    public readonly float DistanceTo(Vector2 other) => Distance(this, other);
+
+    /// <summary>Unclamped interpolation toward <paramref name="to"/> (t outside 0–1 extrapolates).</summary>
+    public readonly Vector2 LerpUnclamped(Vector2 to, double t) => new(X + ((to.X - X) * t), Y + ((to.Y - Y) * t));
 
     public static float Distance(Vector2 a, Vector2 b) => (a - b).Magnitude;
     public static float DistanceSquared(Vector2 a, Vector2 b) => (a - b).SqrMagnitude;
@@ -112,6 +127,13 @@ public struct Vector2 : IEquatable<Vector2>, IFormattable
     public static Vector2 operator *(float s, Vector2 v) => new(v.X * s, v.Y * s);
     public static Vector2 operator *(Vector2 a, Vector2 b) => new(a.X * b.X, a.Y * b.Y);
     public static Vector2 operator /(Vector2 v, float s) => new(v.X / s, v.Y / s);
+
+    // Double scalars: the product is computed in double, then rounded to float.
+    public static Vector2 operator *(Vector2 v, double s) => new(v.X * s, v.Y * s);
+
+    public static Vector2 operator *(double s, Vector2 v) => new(v.X * s, v.Y * s);
+
+    public static Vector2 operator /(Vector2 v, double s) => new(v.X / s, v.Y / s);
     public static Vector2 operator /(Vector2 a, Vector2 b) => new(a.X / b.X, a.Y / b.Y);
     public static bool operator ==(Vector2 a, Vector2 b) => a.Equals(b);
     public static bool operator !=(Vector2 a, Vector2 b) => !a.Equals(b);

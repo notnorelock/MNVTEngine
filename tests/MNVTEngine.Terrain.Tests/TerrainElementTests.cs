@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using System.Globalization;
 using MNVTEngine.Terrain.Elements;
 using MNVTEngine.Terrain.Geometry;
@@ -11,9 +12,9 @@ public sealed class TerrainElementTests
 {
     private static List<Triangle> Triangles(WorldElement element) => element.Geometry.SelectMany(g => g.Triangles).ToList();
 
-    private static IEnumerable<Vec3> Vertices(WorldElement element) => Triangles(element).SelectMany(t => new[] { t.A, t.B, t.C });
+    private static IEnumerable<Vector3> Vertices(WorldElement element) => Triangles(element).SelectMany(t => new[] { t.A, t.B, t.C });
 
-    private static double SteepestSlope(IEnumerable<(Vec3 A, Vec3 B, Vec3 C)> triangles)
+    private static double SteepestSlope(IEnumerable<(Vector3 A, Vector3 B, Vector3 C)> triangles)
     {
         var worst = 0.0;
         foreach (var (a0, b0, c0) in triangles)
@@ -37,8 +38,8 @@ public sealed class TerrainElementTests
 
     /// <summary>The spline from the report the group-mesher suite exists for: across the shared edge of two tiles.</summary>
     private static TerrainCutSpline CrossingSpline() => new(
-        new Vec3(2.465868690316727, -4.235237081011675, -19.754201782271124),
-        new Vec3(2.0766671505637273, -4.2352370810116735, -9.470413082974028))
+        new Vector3(2.465868690316727, -4.235237081011675, -19.754201782271124),
+        new Vector3(2.0766671505637273, -4.2352370810116735, -9.470413082974028))
     {
         Distance = 4,
         Divisions = 5,
@@ -50,12 +51,12 @@ public sealed class TerrainElementTests
     public void SmoothHeight_PullsASharpSpikeTowardItsNeighbours()
     {
         var world = new TerrainWorld();
-        var terrain = new TerrainTile(Vec3.Zero, 20, 20);
+        var terrain = new TerrainTile(Vector3.Zero, 20, 20);
         world.Add(terrain);
-        terrain.PaintHeight(Vec3.Zero, 0.5, 10);
+        terrain.PaintHeight(Vector3.Zero, 0.5, 10);
         var before = TerrainTile.GetPaintedHeightOffsetAt([terrain], 0, 0);
         Assert.Equal(10, before, 3);
-        Assert.True(TerrainTile.SmoothHeight(Vec3.Zero, 2, 1, [terrain]));
+        Assert.True(TerrainTile.SmoothHeight(Vector3.Zero, 2, 1, [terrain]));
         var after = TerrainTile.GetPaintedHeightOffsetAt([terrain], 0, 0);
         Assert.True(after < before);
         Assert.Equal(10.0 / 9, after, 2); // averaged with its all-zero 3x3 neighbourhood at full strength
@@ -64,28 +65,28 @@ public sealed class TerrainElementTests
     [Fact]
     public void SmoothHeight_LeavesFlatTerrainUntouched()
     {
-        var terrain = new TerrainTile(Vec3.Zero, 20, 20);
+        var terrain = new TerrainTile(Vector3.Zero, 20, 20);
         new TerrainWorld().Add(terrain);
-        Assert.False(TerrainTile.SmoothHeight(Vec3.Zero, 3, 1, [terrain]));
+        Assert.False(TerrainTile.SmoothHeight(Vector3.Zero, 3, 1, [terrain]));
     }
 
     [Fact]
     public void SmoothHeight_WorksAcrossASeam_IndependentOfTileOrder()
     {
         var world = new TerrainWorld();
-        var left = new TerrainTile(new Vec3(-10, 0, 0), 20, 20);
-        var right = new TerrainTile(new Vec3(10, 0, 0), 20, 20);
+        var left = new TerrainTile(new Vector3(-10, 0, 0), 20, 20);
+        var right = new TerrainTile(new Vector3(10, 0, 0), 20, 20);
         world.Add(left);
         world.Add(right);
         foreach (var terrain in new[] { left, right })
         {
-            if (terrain.IntersectsPaintBrush(Vec3.Zero, 0.5))
+            if (terrain.IntersectsPaintBrush(Vector3.Zero, 0.5))
             {
-                terrain.PaintHeight(Vec3.Zero, 0.5, 10);
+                terrain.PaintHeight(Vector3.Zero, 0.5, 10);
             }
         }
 
-        TerrainTile.SmoothHeight(Vec3.Zero, 2, 1, [left, right]);
+        TerrainTile.SmoothHeight(Vector3.Zero, 2, 1, [left, right]);
         var resolved = TerrainTile.GetPaintedHeightOffsetAt([left, right], 0, 0);
         Assert.True(resolved < 10);
         Assert.Equal(resolved, TerrainTile.GetPaintedHeightOffsetAt([right, left], 0, 0), 5);
@@ -97,8 +98,8 @@ public sealed class TerrainElementTests
     public void GroupMesher_KeepsACutSplineCrossingASharedEdgeWithinMaxSlope()
     {
         var world = new TerrainWorld();
-        var near = new TerrainTile(Vec3.Zero, 30, 30);
-        var far = new TerrainTile(new Vec3(0, 0, -30), 30, 30);
+        var near = new TerrainTile(Vector3.Zero, 30, 30);
+        var far = new TerrainTile(new Vector3(0, 0, -30), 30, 30);
         world.Add(near);
         world.Add(far);
         world.Add(CrossingSpline());
@@ -113,8 +114,8 @@ public sealed class TerrainElementTests
     public void GroupMesher_GivesAPairOfTilesTheSameSurfaceASingleTileWouldGet()
     {
         var world = new TerrainWorld();
-        var near = new TerrainTile(Vec3.Zero, 30, 30);
-        var far = new TerrainTile(new Vec3(0, 0, -30), 30, 30);
+        var near = new TerrainTile(Vector3.Zero, 30, 30);
+        var far = new TerrainTile(new Vector3(0, 0, -30), 30, 30);
         world.Add(near);
         world.Add(far);
         world.Add(CrossingSpline());
@@ -123,7 +124,7 @@ public sealed class TerrainElementTests
         var paired = Math.Max(SteepestSlope(near), SteepestSlope(far));
 
         var singleWorld = new TerrainWorld();
-        var single = new TerrainTile(new Vec3(0, 0, -15), 30, 60);
+        var single = new TerrainTile(new Vector3(0, 0, -15), 30, 60);
         singleWorld.Add(single);
         singleWorld.Add(CrossingSpline());
         single.Update();
@@ -138,8 +139,8 @@ public sealed class TerrainElementTests
         var world = new TerrainWorld();
         TerrainTile[] tiles =
         [
-            new(new Vec3(-10, 0, -10), 20, 20), new(new Vec3(10, 0, -10), 20, 20),
-            new(new Vec3(-10, 0, 10), 20, 20), new(new Vec3(10, 0, 10), 20, 20),
+            new(new Vector3(-10, 0, -10), 20, 20), new(new Vector3(10, 0, -10), 20, 20),
+            new(new Vector3(-10, 0, 10), 20, 20), new(new Vector3(10, 0, 10), 20, 20),
         ];
         foreach (var tile in tiles)
         {
@@ -169,8 +170,8 @@ public sealed class TerrainElementTests
         string Build(bool reversed)
         {
             var world = new TerrainWorld();
-            var near = new TerrainTile(Vec3.Zero, 30, 30) { MeshDetail = 4 };
-            var far = new TerrainTile(new Vec3(0, 0, -30), 30, 30) { MeshDetail = 2 };
+            var near = new TerrainTile(Vector3.Zero, 30, 30) { MeshDetail = 4 };
+            var far = new TerrainTile(new Vector3(0, 0, -30), 30, 30) { MeshDetail = 2 };
             foreach (var tile in reversed ? new[] { far, near } : [near, far])
             {
                 world.Add(tile);
@@ -191,9 +192,9 @@ public sealed class TerrainElementTests
     public void BuildLodSurface_ThinsShapingPointsWithTheMesh()
     {
         var world = new TerrainWorld();
-        var terrain = new TerrainTile(Vec3.Zero, 40, 40) { MeshDetail = 2, TriangleLimit = 1500 };
+        var terrain = new TerrainTile(Vector3.Zero, 40, 40) { MeshDetail = 2, TriangleLimit = 1500 };
         world.Add(terrain);
-        var river = new RiverSpline(new Vec3(-18, 0, -3), new Vec3(18, 0, 3)) { DetailLevel = 2 };
+        var river = new RiverSpline(new Vector3(-18, 0, -3), new Vector3(18, 0, 3)) { DetailLevel = 2 };
         river.Divisions = 4;
         world.Add(river);
         terrain.Update();
@@ -208,9 +209,9 @@ public sealed class TerrainElementTests
     public void BuildLodSurface_KeepsEveryLevelFreeOfEdgesFarSteeperThanTheBank()
     {
         var world = new TerrainWorld();
-        var terrain = new TerrainTile(Vec3.Zero, 40, 40);
+        var terrain = new TerrainTile(Vector3.Zero, 40, 40);
         world.Add(terrain);
-        var river = new RiverSpline(new Vec3(-18, 0, -3), new Vec3(18, 0, 3)) { DetailLevel = 2 };
+        var river = new RiverSpline(new Vector3(-18, 0, -3), new Vector3(18, 0, 3)) { DetailLevel = 2 };
         river.Divisions = 4;
         world.Add(river);
         terrain.Update();
@@ -271,7 +272,7 @@ public sealed class TerrainElementTests
     [Fact]
     public void River_KeepsTerrainSealed_SculptsTheChannel_AndRendersWater()
     {
-        var river = new RiverSpline(Vec3.Zero, new Vec3(5, 0, 0));
+        var river = new RiverSpline(Vector3.Zero, new Vector3(5, 0, 0));
         river.Update();
         Assert.False(river.CutsTerrainSurface());
         var material = river.GetMaterialHint("water")!;
@@ -287,7 +288,7 @@ public sealed class TerrainElementTests
         Assert.Contains(profile, s => Math.Abs(s.Position.Y) < 1e-5);
         var terrain = new TerrainMesher().Build(new TerrainMesherInput
         {
-            Center = new Vec3(0, 3, 0),
+            Center = new Vector3(0, 3, 0),
             Width = 20,
             Length = 20,
             CutAreas = [],
@@ -302,11 +303,11 @@ public sealed class TerrainElementTests
     [Fact]
     public void River_UsesBankSlopeAsTheActualBankAngle()
     {
-        var river = new RiverSpline(Vec3.Zero, new Vec3(5, 0, 0)) { BankSlope = 20 };
+        var river = new RiverSpline(Vector3.Zero, new Vector3(5, 0, 0)) { BankSlope = 20 };
         var shallow = river.GetSampledTerrainPoints(0);
         river.BankSlope = 75;
         var steep = river.GetSampledTerrainPoints(0);
-        Assert.Equal(shallow[0].Position.Y, steep[0].Position.Y, 8);
+        Assert.Equal(shallow[0].Position.Y, steep[0].Position.Y, 5);
         Assert.True(shallow[0].Radius > steep[0].Radius * 5);
         Assert.Equal(20, shallow[0].MaxSlopeDegrees);
         Assert.Equal(75, steep[0].MaxSlopeDegrees);
@@ -315,14 +316,14 @@ public sealed class TerrainElementTests
     [Fact]
     public void River_RoundsAndRefinesTheBankProfileWithSlopeSmoothing()
     {
-        var river = new RiverSpline(Vec3.Zero, new Vec3(5, 0, 0)) { BankSlope = 45, BankSmoothing = 0 };
+        var river = new RiverSpline(Vector3.Zero, new Vector3(5, 0, 0)) { BankSlope = 45, BankSmoothing = 0 };
         var linear = river.GetSampledTerrainPoints(0);
         river.BankSmoothing = 1;
         var smooth = river.GetSampledTerrainPoints(0);
         var linearBed = linear.First(s => !s.ProfileOnly);
         var smoothBed = smooth.First(s => !s.ProfileOnly);
         var smoothProfile = smooth.Where(s => s.ProfileOnly).ToList();
-        Assert.Equal(linearBed.Radius * 1.5, smoothBed.Radius, 8);
+        Assert.Equal(linearBed.Radius * 1.5, smoothBed.Radius, 5);
         Assert.Equal(1, smoothBed.SlopeSmoothing);
         Assert.NotEmpty(smoothProfile);
         Assert.True(smoothProfile.Select(s => s.Position.Y.ToString("F5", CultureInfo.InvariantCulture)).Distinct().Count() > 2);
@@ -332,7 +333,7 @@ public sealed class TerrainElementTests
     [Fact]
     public void River_AddsDeterministicIrregularity_AndRemeshesAtHigherDetail()
     {
-        var river = new RiverSpline(Vec3.Zero, new Vec3(12, 0, 0)) { Width = 4, BankSlope = 45, BankSmoothing = 0.65, DetailLevel = 0.1 };
+        var river = new RiverSpline(Vector3.Zero, new Vector3(12, 0, 0)) { Width = 4, BankSlope = 45, BankSmoothing = 0.65, DetailLevel = 0.1 };
         var regularLowDetail = river.GetSampledTerrainPoints(0);
         river.DetailLevel = 4;
         river.IrregularityLevel = 1;
@@ -352,19 +353,19 @@ public sealed class TerrainElementTests
     [Fact]
     public void River_AcceptsFractionalDetail_AndPersistsIt()
     {
-        var river = new RiverSpline(Vec3.Zero, new Vec3(12, 0, 0)) { DetailLevel = 0.1 };
+        var river = new RiverSpline(Vector3.Zero, new Vector3(12, 0, 0)) { DetailLevel = 0.1 };
         var sparse = river.GetSampledTerrainPoints(0);
         river.DetailLevel = 1;
         var baseline = river.GetSampledTerrainPoints(0);
         Assert.True(sparse.Count < baseline.Count / 2.0);
         river.DetailLevel = 0.3;
-        Assert.Equal(0.3, RiverSpline.Deserialize(river.Serialize(1)).DetailLevel, 8);
+        Assert.Equal(0.3, RiverSpline.Deserialize(river.Serialize(1)).DetailLevel, 5);
     }
 
     [Fact]
     public void River_DivisionsAddToBothWaterAndTerrainRemeshing()
     {
-        var river = new RiverSpline(Vec3.Zero, new Vec3(12, 0, 0)) { DetailLevel = 1 };
+        var river = new RiverSpline(Vector3.Zero, new Vector3(12, 0, 0)) { DetailLevel = 1 };
         river.Update();
         var waterBefore = Vertices(river).Count();
         var terrainBefore = river.GetSampledTerrainPoints(0).Count;
@@ -376,8 +377,8 @@ public sealed class TerrainElementTests
     [Fact]
     public void River_KeepsBothMeshesValidWhenConnected()
     {
-        var first = new RiverSpline(Vec3.Zero, new Vec3(5, 0, 0));
-        var second = new RiverSpline(new Vec3(5, 0, 0), new Vec3(9, 0, 4));
+        var first = new RiverSpline(Vector3.Zero, new Vector3(5, 0, 0));
+        var second = new RiverSpline(new Vector3(5, 0, 0), new Vector3(9, 0, 4));
         first.Divisions = 4;
         second.Divisions = 4;
         Assert.True(second.Connect(0, first, 1));
@@ -400,7 +401,7 @@ public sealed class TerrainElementTests
     {
         foreach (var level in new[] { 0.0, 1, 2, 3 })
         {
-            var river = new RiverSpline(Vec3.Zero, new Vec3(40, 0, 0)) { Width = 4, DetailLevel = 2, IrregularityLevel = level };
+            var river = new RiverSpline(Vector3.Zero, new Vector3(40, 0, 0)) { Width = 4, DetailLevel = 2, IrregularityLevel = level };
             river.Divisions = 3;
             river.Update();
             Assert.Equal(level, river.IrregularityLevel);
@@ -416,7 +417,7 @@ public sealed class TerrainElementTests
     {
         double EdgeVariance(double level)
         {
-            var river = new RiverSpline(Vec3.Zero, new Vec3(60, 0, 0)) { Width = 4, DetailLevel = 2, IrregularityLevel = level };
+            var river = new RiverSpline(Vector3.Zero, new Vector3(60, 0, 0)) { Width = 4, DetailLevel = 2, IrregularityLevel = level };
             river.Divisions = 4;
             var spans = new[] { 10.0, 20, 30, 40, 50 }.Select(x => CrossSectionSpan(river, x)).ToList();
             var mean = spans.Average();
@@ -429,7 +430,7 @@ public sealed class TerrainElementTests
     [Fact]
     public void Irregularity_NeverPinchesTheChannelShut()
     {
-        var river = new RiverSpline(Vec3.Zero, new Vec3(40, 0, 0)) { Width = 4, IrregularityLevel = 3 };
+        var river = new RiverSpline(Vector3.Zero, new Vector3(40, 0, 0)) { Width = 4, IrregularityLevel = 3 };
         river.Divisions = 3;
         Assert.True(new[] { 10.0, 15, 20, 25, 30 }.Min(x => CrossSectionSpan(river, x)) > 0.3);
     }

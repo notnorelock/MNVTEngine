@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Geometry;
 using MNVTEngine.Terrain.Meshing;
 
@@ -12,7 +13,7 @@ public sealed class PolygonTerrain : WorldElement
 {
     private UVTransform _terrainUV = new();
 
-    public PolygonTerrain(IEnumerable<Vec3> points)
+    public PolygonTerrain(IEnumerable<Vector3> points)
     {
         ArgumentNullException.ThrowIfNull(points);
         var index = 0;
@@ -28,9 +29,9 @@ public sealed class PolygonTerrain : WorldElement
 
     public override bool CastsShadows => true;
 
-    public Vec3 GetPoint(int index) => Nodes[index].Position;
+    public Vector3 GetPoint(int index) => Nodes[index].Position;
 
-    public void AddPoint(Vec3 point)
+    public void AddPoint(Vector3 point)
     {
         SetNode(Nodes.Count, new WorldNode(point));
         Update();
@@ -68,7 +69,7 @@ public sealed class PolygonTerrain : WorldElement
         Update();
     }
 
-    public override NodeBasis GetNodeBasis(int index) => new(Vec3.UnitX, Vec3.UnitZ, Vec3.UnitY);
+    public override NodeBasis GetNodeBasis(int index) => new(Vector3.UnitX, Vector3.UnitZ, Vector3.UnitY);
 
     public override IReadOnlyList<string> GetUVGroups() => ["terrain"];
 
@@ -122,7 +123,7 @@ public sealed class PolygonTerrain : WorldElement
         var width = Math.Max(0.0001, maxX - minX);
         var length = Math.Max(0.0001, maxZ - minZ);
         var uv = _terrainUV;
-        Vec2 UvFor(Vec3 p) => new((((p.X - minX) / width) * uv.ScaleX) + uv.OffsetX, (((p.Z - minZ) / length) * uv.ScaleY) + uv.OffsetY);
+        Vector2 UvFor(Vector3 p) => new((((p.X - minX) / width) * uv.ScaleX) + uv.OffsetX, (((p.Z - minZ) / length) * uv.ScaleY) + uv.OffsetY);
         var triangles = new List<Triangle>();
         foreach (var face in indices)
         {
@@ -154,7 +155,7 @@ public sealed class PolygonTerrain : WorldElement
     public static PolygonTerrain Deserialize(ElementData data)
     {
         ArgumentNullException.ThrowIfNull(data);
-        var points = data.Nodes.Count >= 3 ? data.Nodes.Select(n => n.ToVec3()).ToList() : [Vec3.Zero, new Vec3(1, 0, 0), new Vec3(0, 0, 1)];
+        var points = data.Nodes.Count >= 3 ? data.Nodes.Select(n => n.ToVector3()).ToList() : [Vector3.Zero, new Vector3(1, 0, 0), new Vector3(0, 0, 1)];
         var polygon = new PolygonTerrain(points);
         if (data.UvTransforms?.GetValueOrDefault("terrain") is { } uv)
         {

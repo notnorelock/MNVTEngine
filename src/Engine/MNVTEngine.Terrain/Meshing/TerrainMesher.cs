@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Terrain.Geometry;
 
@@ -16,17 +17,17 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
     private const double Epsilon = 1e-7;
     private TopologyCache? _topologyCache;
 
-    private sealed record PolygonRegion(List<Vec2> Contour, List<List<Vec2>> Holes);
+    private sealed record PolygonRegion(List<Vector2> Contour, List<List<Vector2>> Holes);
 
-    private record Segment2(Vec2 A, Vec2 B);
+    private record Segment2(Vector2 A, Vector2 B);
 
-    private sealed record HeightSegment(Vec2 A, Vec2 B, double HeightA, double HeightB, double MaxSlope, bool UsesTerrainSlope) : Segment2(A, B);
+    private sealed record HeightSegment(Vector2 A, Vector2 B, double HeightA, double HeightB, double MaxSlope, bool UsesTerrainSlope) : Segment2(A, B);
 
     private sealed record SamplingTier(double InnerRadius, double OuterRadius, double Spacing);
 
-    private sealed record SteinerCandidate(Vec2 Point, double Spacing, int Tier, double Distance);
+    private sealed record SteinerCandidate(Vector2 Point, double Spacing, int Tier, double Distance);
 
-    private sealed record TopologyCache(string Signature, List<Vec2[]> Triangles, List<PolygonRegion> Regions, List<Segment2> RoadSegments, HashSet<string> ActiveCutPointKeys);
+    private sealed record TopologyCache(string Signature, List<Vector2[]> Triangles, List<PolygonRegion> Regions, List<Segment2> RoadSegments, HashSet<string> ActiveCutPointKeys);
 
     public IReadOnlyList<OccupiedTriangle> Build(TerrainMesherInput input)
     {
@@ -141,7 +142,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
     private static TopologyCache BuildFallbackTopology(TerrainMesherInput input, string signature)
     {
         var regions = BuildFreeRegions(input);
-        var triangles = new List<Vec2[]>();
+        var triangles = new List<Vector2[]>();
         foreach (var region in regions)
         {
             var contour = region.Contour.ToList();
@@ -166,7 +167,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return new TopologyCache(signature, withKnots, regions, roadSegments, activeCutPointKeys);
     }
 
-    private static void AssertRoadBoundariesAreSealed(List<Vec2[]> triangles, List<Segment2> roadSegments)
+    private static void AssertRoadBoundariesAreSealed(List<Vector2[]> triangles, List<Segment2> roadSegments)
     {
         var meshEdges = new HashSet<string>();
         foreach (var triangle in triangles)
@@ -185,7 +186,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
 
     private static TopologyCache BuildSolidFallbackTopology(TerrainMesherInput input, string signature)
     {
-        var triangles = new List<Vec2[]>();
+        var triangles = new List<Vector2[]>();
         var regions = new List<PolygonRegion>();
         foreach (var rect in GetFootprintRects(input))
         {
@@ -214,8 +215,8 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return new TerrainRect(rects.Min(r => r.MinX), rects.Max(r => r.MaxX), rects.Min(r => r.MinZ), rects.Max(r => r.MaxZ));
     }
 
-    private static List<Vec2> RectRing(TerrainRect rect) =>
-        new Vec2[] { new(rect.MinX, rect.MinZ), new(rect.MaxX, rect.MinZ), new(rect.MaxX, rect.MaxZ), new(rect.MinX, rect.MaxZ), new(rect.MinX, rect.MinZ) }
+    private static List<Vector2> RectRing(TerrainRect rect) =>
+        new Vector2[] { new(rect.MinX, rect.MinZ), new(rect.MaxX, rect.MinZ), new(rect.MaxX, rect.MaxZ), new(rect.MinX, rect.MaxZ), new(rect.MinX, rect.MinZ) }
             .Select(SnapPoint).ToList();
 
     private static List<PolygonRegion> BuildFreeRegions(TerrainMesherInput input)
@@ -224,17 +225,17 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
 
         // Union first: the shared edges between touching tiles disappear here, which is exactly what makes the group a
         // single surface rather than several stitched ones.
-        var surface = new List<List<List<Vec2>>> { new() { RectRing(rects[0]) } };
+        var surface = new List<List<List<Vector2>>> { new() { RectRing(rects[0]) } };
         if (rects.Count > 1)
         {
-            var union = PolygonClipping.Union(rects.Select(rect => new List<List<List<Vec2>>> { new() { RectRing(rect) } }));
+            var union = PolygonClipping.Union(rects.Select(rect => new List<List<List<Vector2>>> { new() { RectRing(rect) } }));
             if (union.Count > 0)
             {
                 surface = union;
             }
         }
 
-        var cutterPolygons = new List<List<List<List<Vec2>>>>();
+        var cutterPolygons = new List<List<List<List<Vector2>>>>();
         foreach (var tri in input.CutAreas)
         {
             var a = SnapPoint(tri.A.Xz);
@@ -279,9 +280,9 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return regions;
     }
 
-    private static List<Vec2> SanitizeRing(IEnumerable<Vec2> source, bool clockwise)
+    private static List<Vector2> SanitizeRing(IEnumerable<Vector2> source, bool clockwise)
     {
-        var ring = new List<Vec2>();
+        var ring = new List<Vector2>();
         foreach (var raw in source)
         {
             var point = SnapPoint(raw);
@@ -330,7 +331,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         var rects = GetFootprintRects(input);
         foreach (var region in regions)
         {
-            var rings = new List<List<Vec2>> { region.Contour };
+            var rings = new List<List<Vector2>> { region.Contour };
             rings.AddRange(region.Holes);
             for (var ringIndex = 0; ringIndex < rings.Count; ringIndex++)
             {
@@ -358,7 +359,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
 
     private static List<Segment2> CollectInfluenceBoundarySegments(IReadOnlyList<OccupiedTriangle> areas)
     {
-        var polygons = new List<List<List<List<Vec2>>>>();
+        var polygons = new List<List<List<List<Vector2>>>>();
         foreach (var triangle in areas)
         {
             var a = SnapPoint(triangle.A.Xz);
@@ -465,7 +466,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return result;
     }
 
-    private static List<Vec2[]> InsertRoadBoundaryKnots(List<Vec2[]> triangles, List<Segment2> boundarySegments, IReadOnlyList<OccupiedTriangle> cutAreas)
+    private static List<Vector2[]> InsertRoadBoundaryKnots(List<Vector2[]> triangles, List<Segment2> boundarySegments, IReadOnlyList<OccupiedTriangle> cutAreas)
     {
         var result = triangles.ToList();
         foreach (var segment in boundarySegments)
@@ -501,10 +502,10 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
             var start = triangle[edgeIndex];
             var third = triangle[(edgeIndex + 2) % 3];
             var ordered = PointKey(start) == PointKey(segment.A) ? knots : Enumerable.Reverse(knots).ToList();
-            var replacements = new List<Vec2[]>();
+            var replacements = new List<Vector2[]>();
             for (var i = 0; i < ordered.Count - 1; i++)
             {
-                Vec2[] split = [ordered[i], ordered[i + 1], third];
+                Vector2[] split = [ordered[i], ordered[i + 1], third];
                 if (Math.Abs(SignedArea(split)) > Epsilon)
                 {
                     replacements.Add(split);
@@ -518,11 +519,11 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return result;
     }
 
-    private static List<Vec2> GetRoadBoundaryKnots(Segment2 segment, IReadOnlyList<OccupiedTriangle> cutAreas)
+    private static List<Vector2> GetRoadBoundaryKnots(Segment2 segment, IReadOnlyList<OccupiedTriangle> cutAreas)
     {
         var order = new List<string>();
-        var candidates = new Dictionary<string, (Vec2 Point, double T)>();
-        void Add(Vec2 point)
+        var candidates = new Dictionary<string, (Vector2 Point, double T)>();
+        void Add(Vector2 point)
         {
             var snapped = SnapPoint(point);
             var projection = ProjectToSegment(snapped, segment.A, segment.B);
@@ -556,7 +557,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
 
     // A contour segment lying on one of the tile edge lines is the outer rim of the surface, not a cutter boundary, so
     // it must not pull heights toward a road. Edges shared between two tiles never reach here: the union dissolved them.
-    private static bool IsTerrainOuterBoundarySegment(Vec2 a, Vec2 b, IReadOnlyList<TerrainRect> rects)
+    private static bool IsTerrainOuterBoundarySegment(Vector2 a, Vector2 b, IReadOnlyList<TerrainRect> rects)
     {
         static bool OnSameBoundary(double valueA, double valueB, double boundary) =>
             Math.Abs(valueA - boundary) <= BoundaryEpsilon && Math.Abs(valueB - boundary) <= BoundaryEpsilon;
@@ -564,7 +565,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
             || OnSameBoundary(a.Y, b.Y, rect.MinZ) || OnSameBoundary(a.Y, b.Y, rect.MaxZ));
     }
 
-    private static List<Vec2> GenerateSteinerPoints(
+    private static List<Vector2> GenerateSteinerPoints(
         TerrainMesherInput input,
         List<PolygonRegion> regions,
         List<Segment2> roadSegments,
@@ -572,10 +573,10 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         List<TerrainCutPointInput> adaptivePoints,
         int limit)
     {
-        var result = new List<Vec2>();
+        var result = new List<Vector2>();
         var occupied = CollectBoundaryKeys(regions);
         var detail = Math.Max(0.05, input.Settings.MeshDetail);
-        void AddExactPoint(Vec2 point)
+        void AddExactPoint(Vector2 point)
         {
             if (result.Count >= limit)
             {
@@ -743,14 +744,14 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return result;
     }
 
-    private static List<Vec2> CollectRefinementPoints(
-        List<Vec2[]> triangles,
+    private static List<Vector2> CollectRefinementPoints(
+        List<Vector2[]> triangles,
         List<PolygonRegion> regions,
         List<Segment2> roadSegments,
         List<TerrainCutPointInput> cutPoints,
         TerrainMesherSettings settings,
         int limit,
-        List<Vec2> existing)
+        List<Vector2> existing)
     {
         var occupied = CollectBoundaryKeys(regions);
         foreach (var point in existing)
@@ -764,7 +765,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         var activeRadius = baseRadius * (settings.SmoothingEnabled ? 8 : 2);
         foreach (var tri in triangles)
         {
-            var centroid = new Vec2((tri[0].X + tri[1].X + tri[2].X) / 3, (tri[0].Y + tri[1].Y + tri[2].Y) / 3);
+            var centroid = new Vector2((tri[0].X + tri[1].X + tri[2].X) / 3, (tri[0].Y + tri[1].Y + tri[2].Y) / 3);
             var influenceDistance = GetNearestInfluenceDistance(centroid, roadSegments, cutPoints);
             if (influenceDistance > activeRadius)
             {
@@ -803,7 +804,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         }
 
         Js.StableSort(scored, (a, b) => a.Distance != b.Distance ? Js.Sign(a.Distance - b.Distance) : Js.LocaleCompare(PointKey(a.Point), PointKey(b.Point)));
-        var result = new List<Vec2>();
+        var result = new List<Vector2>();
         var passLimit = Math.Min(limit, Math.Max(4, (int)Math.Ceiling(triangles.Count * 0.08)));
         foreach (var item in scored)
         {
@@ -824,9 +825,9 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return result;
     }
 
-    private static List<Vec2[]> TriangulateRegions(List<PolygonRegion> regions, List<Vec2> steiner)
+    private static List<Vector2[]> TriangulateRegions(List<PolygonRegion> regions, List<Vector2> steiner)
     {
-        var result = new List<Vec2[]>();
+        var result = new List<Vector2[]>();
         foreach (var region in regions)
         {
             var context = new P2TSweepContext(region.Contour.Select(p => new P2TPoint(p.X, p.Y)));
@@ -844,7 +845,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
             context.Triangulate();
             foreach (var triangle in context.Triangles)
             {
-                Vec2[] points = [new(triangle.Points[0].X, triangle.Points[0].Y), new(triangle.Points[1].X, triangle.Points[1].Y), new(triangle.Points[2].X, triangle.Points[2].Y)];
+                Vector2[] points = [new(triangle.Points[0].X, triangle.Points[0].Y), new(triangle.Points[1].X, triangle.Points[1].Y), new(triangle.Points[2].X, triangle.Points[2].Y)];
                 if (Math.Abs(SignedArea(points)) <= Epsilon)
                 {
                     continue;
@@ -868,7 +869,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         var cellSize = Math.Max(0.05, paint.CellSize);
         var candidates = paint.Samples
             .Where(sample => Math.Abs(sample.Height) > Epsilon)
-            .Select(sample => (Sample: sample, Position: new Vec3(
+            .Select(sample => (Sample: sample, Position: new Vector3(
                 MathUtil.JsRound(sample.GridX) * cellSize,
                 (input.BaseHeight ?? input.Center.Y) + sample.Height,
                 MathUtil.JsRound(sample.GridZ) * cellSize)))
@@ -898,11 +899,11 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         }
 
         var blockSize = Math.Max(2, (int)Math.Ceiling(Math.Sqrt(candidates.Count / (double)maxInfluences)));
-        List<(TerrainPaintHeightInput Sample, Vec3 Position)> selected;
+        List<(TerrainPaintHeightInput Sample, Vector3 Position)> selected;
         do
         {
             var order = new List<(double, double)>();
-            var blocks = new Dictionary<(double, double), (TerrainPaintHeightInput Sample, Vec3 Position)>();
+            var blocks = new Dictionary<(double, double), (TerrainPaintHeightInput Sample, Vector3 Position)>();
             foreach (var candidate in candidates)
             {
                 var key = (Math.Floor(candidate.Sample.GridX / blockSize), Math.Floor(candidate.Sample.GridZ / blockSize));
@@ -972,7 +973,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
             paintValues[(MathUtil.JsRound(sample.GridX), MathUtil.JsRound(sample.GridZ))] = sample.Height;
         }
 
-        double PaintedHeightAt(Vec2 point)
+        double PaintedHeightAt(Vector2 point)
         {
             if (paintValues.Count == 0)
             {
@@ -995,7 +996,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         var heightInfluenceAreas = input.InfluenceAreas ?? input.CutAreas;
         foreach (var segment in topology.RoadSegments)
         {
-            var midpoint = new Vec2((segment.A.X + segment.B.X) / 2, (segment.A.Y + segment.B.Y) / 2);
+            var midpoint = new Vector2((segment.A.X + segment.B.X) / 2, (segment.A.Y + segment.B.Y) / 2);
             var fallback = SampleCutBoundary(midpoint, heightInfluenceAreas);
             var sampleA = SampleCutBoundary(segment.A, heightInfluenceAreas) ?? fallback;
             var sampleB = SampleCutBoundary(segment.B, heightInfluenceAreas) ?? fallback;
@@ -1013,7 +1014,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         }
 
         var heightCache = new Dictionary<string, double>();
-        double HeightOf(Vec2 point)
+        double HeightOf(Vector2 point)
         {
             var key = PointKey(point);
             if (heightCache.TryGetValue(key, out var cached))
@@ -1100,16 +1101,16 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         var result = new List<OccupiedTriangle>(topology.Triangles.Count);
         foreach (var tri in topology.Triangles)
         {
-            var a = new Vec3(tri[0].X, HeightOf(tri[0]), tri[0].Y);
-            var b = new Vec3(tri[1].X, HeightOf(tri[1]), tri[1].Y);
-            var c = new Vec3(tri[2].X, HeightOf(tri[2]), tri[2].Y);
+            var a = new Vector3(tri[0].X, HeightOf(tri[0]), tri[0].Y);
+            var b = new Vector3(tri[1].X, HeightOf(tri[1]), tri[1].Y);
+            var c = new Vector3(tri[2].X, HeightOf(tri[2]), tri[2].Y);
             result.Add(SignedArea(tri) > 0 ? new OccupiedTriangle(a, c, b) : new OccupiedTriangle(a, b, c));
         }
 
         return result;
     }
 
-    private static (double Distance, double Height, double MaxSlope, bool UsesTerrainSlope)? GetNearestRoadConstraint(Vec2 point, List<HeightSegment> segments)
+    private static (double Distance, double Height, double MaxSlope, bool UsesTerrainSlope)? GetNearestRoadConstraint(Vector2 point, List<HeightSegment> segments)
     {
         (double Distance, double Height, double MaxSlope, bool UsesTerrainSlope)? best = null;
         foreach (var segment in segments)
@@ -1125,7 +1126,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return best;
     }
 
-    private static (double Height, double? SlopeDegrees)? SampleCutContainedBoundary(Vec2 point, IReadOnlyList<OccupiedTriangle> triangles)
+    private static (double Height, double? SlopeDegrees)? SampleCutContainedBoundary(Vector2 point, IReadOnlyList<OccupiedTriangle> triangles)
     {
         (double Height, double? SlopeDegrees)? best = null;
         foreach (var tri in triangles)
@@ -1145,7 +1146,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return best;
     }
 
-    private static (double Height, double? SlopeDegrees)? SampleCutBoundary(Vec2 point, IReadOnlyList<OccupiedTriangle> triangles)
+    private static (double Height, double? SlopeDegrees)? SampleCutBoundary(Vector2 point, IReadOnlyList<OccupiedTriangle> triangles)
     {
         if (SampleCutContainedBoundary(point, triangles) is { } contained)
         {
@@ -1157,7 +1158,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         double? bestSlope = null;
         foreach (var tri in triangles)
         {
-            Vec3[] vertices = [tri.A, tri.B, tri.C];
+            Vector3[] vertices = [tri.A, tri.B, tri.C];
             for (var i = 0; i < 3; i++)
             {
                 var a = vertices[i];
@@ -1181,7 +1182,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return bestHeight is null ? null : (bestHeight.Value, bestSlope);
     }
 
-    internal static (double U, double V, double W)? GetBarycentric(Vec2 point, OccupiedTriangle tri)
+    internal static (double U, double V, double W)? GetBarycentric(Vector2 point, OccupiedTriangle tri)
     {
         var denominator = ((tri.B.Z - tri.C.Z) * (tri.A.X - tri.C.X)) + ((tri.C.X - tri.B.X) * (tri.A.Z - tri.C.Z));
         if (Math.Abs(denominator) <= Epsilon)
@@ -1196,7 +1197,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return u >= -BaryEpsilon && v >= -BaryEpsilon && w >= -BaryEpsilon ? (u, v, w) : null;
     }
 
-    private static bool IsInsideCutArea(Vec2 point, IReadOnlyList<OccupiedTriangle> triangles) => triangles.Any(tri => GetBarycentric(point, tri) is not null);
+    private static bool IsInsideCutArea(Vector2 point, IReadOnlyList<OccupiedTriangle> triangles) => triangles.Any(tri => GetBarycentric(point, tri) is not null);
 
     private static double SmoothInfluence(double distance, double width)
     {
@@ -1243,7 +1244,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
             Js.Num(SnapValue(input.Paint?.CellSize ?? 1)), string.Join('|', paintKeys));
     }
 
-    private static void ForEachTriangularLatticePoint(double minX, double maxX, double minZ, double maxZ, double spacing, Func<Vec2, bool> visit)
+    private static void ForEachTriangularLatticePoint(double minX, double maxX, double minZ, double maxZ, double spacing, Func<Vector2, bool> visit)
     {
         var rowHeight = spacing * Math.Sqrt(3) / 2;
         var firstRow = (long)Math.Floor(minZ / rowHeight) - 1;
@@ -1268,7 +1269,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
                     continue;
                 }
 
-                if (!visit(SnapPoint(new Vec2(x, z))))
+                if (!visit(SnapPoint(new Vector2(x, z))))
                 {
                     return;
                 }
@@ -1287,7 +1288,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return detail * Math.Pow(2, tier);
     }
 
-    private static Vec2? GetCircumcenter(Vec2[] triangle)
+    private static Vector2? GetCircumcenter(Vector2[] triangle)
     {
         var (a, b, c) = (triangle[0], triangle[1], triangle[2]);
         var denominator = 2 * ((a.X * (b.Y - c.Y)) + (b.X * (c.Y - a.Y)) + (c.X * (a.Y - b.Y)));
@@ -1299,14 +1300,14 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         var aLength = (a.X * a.X) + (a.Y * a.Y);
         var bLength = (b.X * b.X) + (b.Y * b.Y);
         var cLength = (c.X * c.X) + (c.Y * c.Y);
-        return SnapPoint(new Vec2(
+        return SnapPoint(new Vector2(
             ((aLength * (b.Y - c.Y)) + (bLength * (c.Y - a.Y)) + (cLength * (a.Y - b.Y))) / denominator,
             ((aLength * (c.X - b.X)) + (bLength * (a.X - c.X)) + (cLength * (b.X - a.X))) / denominator));
     }
 
-    private static bool IsPointInTriangle(Vec2 point, Vec2[] triangle)
+    private static bool IsPointInTriangle(Vector2 point, Vector2[] triangle)
     {
-        double Side(Vec2 a, Vec2 b) => ((point.X - b.X) * (a.Y - b.Y)) - ((a.X - b.X) * (point.Y - b.Y));
+        double Side(Vector2 a, Vector2 b) => ((point.X - b.X) * (a.Y - b.Y)) - ((a.X - b.X) * (point.Y - b.Y));
         var d1 = Side(triangle[0], triangle[1]);
         var d2 = Side(triangle[1], triangle[2]);
         var d3 = Side(triangle[2], triangle[0]);
@@ -1329,17 +1330,17 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return result;
     }
 
-    private static PolygonRegion? FindContainingRegion(Vec2 point, List<PolygonRegion> regions) => regions.FirstOrDefault(region => IsInsideRegion(point, region));
+    private static PolygonRegion? FindContainingRegion(Vector2 point, List<PolygonRegion> regions) => regions.FirstOrDefault(region => IsInsideRegion(point, region));
 
-    private static bool IsInsideRegion(Vec2 point, PolygonRegion region) =>
+    private static bool IsInsideRegion(Vector2 point, PolygonRegion region) =>
         PointInRing(point, region.Contour) && !region.Holes.Any(hole => PointInRing(point, hole));
 
-    private static bool IsStrictlyInsideRegion(Vec2 point, PolygonRegion region) =>
+    private static bool IsStrictlyInsideRegion(Vector2 point, PolygonRegion region) =>
         IsInsideRegion(point, region) && GetDistanceToRegionBoundary(point, region) > Epsilon * 20;
 
-    private static bool IsStrictlyInsideRegions(Vec2 point, List<PolygonRegion> regions) => regions.Any(region => IsStrictlyInsideRegion(point, region));
+    private static bool IsStrictlyInsideRegions(Vector2 point, List<PolygonRegion> regions) => regions.Any(region => IsStrictlyInsideRegion(point, region));
 
-    internal static bool PointInRing(Vec2 point, IReadOnlyList<Vec2> ring)
+    internal static bool PointInRing(Vector2 point, IReadOnlyList<Vector2> ring)
     {
         var inside = false;
         for (int i = 0, j = ring.Count - 1; i < ring.Count; j = i++)
@@ -1358,7 +1359,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return inside;
     }
 
-    private static double GetDistanceToRegionBoundary(Vec2 point, PolygonRegion region)
+    private static double GetDistanceToRegionBoundary(Vector2 point, PolygonRegion region)
     {
         var best = double.PositiveInfinity;
         foreach (var ring in region.Holes.Prepend(region.Contour))
@@ -1372,7 +1373,7 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return best;
     }
 
-    private static double GetNearestInfluenceDistance(Vec2 point, List<Segment2> roads, IReadOnlyList<TerrainCutPointInput> cutPoints)
+    private static double GetNearestInfluenceDistance(Vector2 point, List<Segment2> roads, IReadOnlyList<TerrainCutPointInput> cutPoints)
     {
         var best = double.PositiveInfinity;
         foreach (var segment in roads)
@@ -1388,13 +1389,13 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return double.IsFinite(best) ? best : 0;
     }
 
-    internal static (Vec2 Point, double Distance, double T) ProjectToSegment(Vec2 point, Vec2 a, Vec2 b)
+    internal static (Vector2 Point, double Distance, double T) ProjectToSegment(Vector2 point, Vector2 a, Vector2 b)
     {
         var dx = b.X - a.X;
         var dy = b.Y - a.Y;
         var lengthSq = (dx * dx) + (dy * dy);
         var t = lengthSq <= 1e-12 ? 0 : MathUtil.Clamp((((point.X - a.X) * dx) + ((point.Y - a.Y) * dy)) / lengthSq, 0, 1);
-        var projected = new Vec2(a.X + (dx * t), a.Y + (dy * t));
+        var projected = new Vector2(a.X + (dx * t), a.Y + (dy * t));
         return (projected, point.DistanceTo(projected), t);
     }
 
@@ -1409,20 +1410,20 @@ public sealed partial class TerrainMesher(ILogger? logger = null)
         return Math.Min(Angle(a, b, c), Math.Min(Angle(b, c, a), Angle(c, a, b)));
     }
 
-    private static Vec2 SnapPoint(Vec2 point) => new(SnapValue(point.X), SnapValue(point.Y));
+    private static Vector2 SnapPoint(Vector2 point) => new(SnapValue(point.X), SnapValue(point.Y));
 
     private static double SnapValue(double value) => MathUtil.JsRound(value * Snap) / Snap;
 
-    internal static string PointKey(Vec2 point) => $"{Js.Num(SnapValue(point.X))},{Js.Num(SnapValue(point.Y))}";
+    internal static string PointKey(Vector2 point) => $"{Js.Num(SnapValue(point.X))},{Js.Num(SnapValue(point.Y))}";
 
-    private static string EdgeKey(Vec2 a, Vec2 b)
+    private static string EdgeKey(Vector2 a, Vector2 b)
     {
         var ka = PointKey(a);
         var kb = PointKey(b);
         return string.CompareOrdinal(ka, kb) < 0 ? $"{ka}|{kb}" : $"{kb}|{ka}";
     }
 
-    internal static double SignedArea(IReadOnlyList<Vec2> ring)
+    internal static double SignedArea(IReadOnlyList<Vector2> ring)
     {
         var area = 0.0;
         for (var i = 0; i < ring.Count; i++)

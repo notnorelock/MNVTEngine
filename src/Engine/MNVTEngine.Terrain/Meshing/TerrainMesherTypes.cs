@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Geometry;
 
 namespace MNVTEngine.Terrain.Meshing;
@@ -7,7 +8,7 @@ namespace MNVTEngine.Terrain.Meshing;
 /// along these and blends toward their heights. <see cref="BankSlopeDegrees"/> overrides the terrain's max slope near
 /// this triangle's boundary (a river demands a steeper bank than a road).
 /// </summary>
-public readonly record struct OccupiedTriangle(Vec3 A, Vec3 B, Vec3 C, double? BankSlopeDegrees = null);
+public readonly record struct OccupiedTriangle(Vector3 A, Vector3 B, Vector3 C, double? BankSlopeDegrees = null);
 
 /// <summary>An axis-aligned rectangle in plan view (x, z).</summary>
 public readonly record struct TerrainRect(double MinX, double MaxX, double MinZ, double MaxZ);
@@ -21,7 +22,7 @@ public sealed record TerrainMesherSettings(double MeshDetail, int TriangleLimit,
 /// <param name="MaxSlopeDegrees">A local slope override: rivers turn their Bank Slope into a real bank angle with it.</param>
 /// <param name="SlopeSmoothing">0 keeps a straight bank profile, 1 rounds its bottom and top.</param>
 /// <param name="ProfileOnly">Pins an extra profile vertex without creating another radial influence.</param>
-public sealed record TerrainCutPointInput(Vec3 Position, double Radius, double? MaxSlopeDegrees = null, double? SlopeSmoothing = null, bool ProfileOnly = false);
+public sealed record TerrainCutPointInput(Vector3 Position, double Radius, double? MaxSlopeDegrees = null, double? SlopeSmoothing = null, bool ProfileOnly = false);
 
 /// <summary>A painted height on the world-aligned paint lattice.</summary>
 public sealed record TerrainPaintHeightInput(double GridX, double GridZ, double Height);
@@ -30,7 +31,7 @@ public sealed record TerrainPaintInput(double CellSize, IReadOnlyList<TerrainPai
 
 public sealed record TerrainMesherInput
 {
-    public required Vec3 Center { get; init; }
+    public required Vector3 Center { get; init; }
 
     public double? BaseHeight { get; init; }
 

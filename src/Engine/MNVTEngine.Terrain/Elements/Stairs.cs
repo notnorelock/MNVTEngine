@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Geometry;
 using MNVTEngine.Terrain.Meshing;
 
@@ -12,9 +13,9 @@ public sealed class Stairs : WorldElement
     private static readonly double[] LodPostMultipliers = [1, 1.5, 2.5, 4];
     private readonly Dictionary<string, UVTransform> _uvTransforms = new(StringComparer.Ordinal) { ["steps"] = new(), ["railings"] = new() };
 
-    private sealed record StairFrame(Vec3 Bottom, Vec3 Top, Vec3 Forward, Vec3 Right, double Run, double Rise);
+    private sealed record StairFrame(Vector3 Bottom, Vector3 Top, Vector3 Forward, Vector3 Right, double Run, double Rise);
 
-    public Stairs(Vec3 bottom, Vec3 top)
+    public Stairs(Vector3 bottom, Vector3 top)
     {
         var safeTop = top.Y < bottom.Y + MinRise ? top.WithY(bottom.Y + 3) : top;
         SetNode(0, new WorldNode(bottom));
@@ -99,7 +100,7 @@ public sealed class Stairs : WorldElement
             var startRight = FramePoint(frame, d0, halfWidth, topY);
             var endLeft = FramePoint(frame, d1, -halfWidth, topY);
             var endRight = FramePoint(frame, d1, halfWidth, topY);
-            AddQuadFacing(stepTriangles, startLeft, startRight, endRight, endLeft, Vec3.UnitY, Width, stepDepth);
+            AddQuadFacing(stepTriangles, startLeft, startRight, endRight, endLeft, Vector3.UnitY, Width, stepDepth);
             AddQuadFacing(stepTriangles, FramePoint(frame, d0, -halfWidth, previousY), FramePoint(frame, d0, halfWidth, previousY), startRight, startLeft,
                 -frame.Forward, Width, Math.Max(0.001, topY - previousY));
             AddQuadFacing(stepTriangles, FramePoint(frame, d1, -halfWidth, baseY), FramePoint(frame, d0, -halfWidth, baseY), startLeft, endLeft,
@@ -115,7 +116,7 @@ public sealed class Stairs : WorldElement
         AddQuadFacing(stepTriangles,
             FramePoint(frame, 0, -halfWidth, baseY), FramePoint(frame, frame.Run, -halfWidth, baseY),
             FramePoint(frame, frame.Run, halfWidth, baseY), FramePoint(frame, 0, halfWidth, baseY),
-            -Vec3.UnitY, frame.Run, Width);
+            -Vector3.UnitY, frame.Run, Width);
         if (RailingSide is "left" or "both")
         {
             AddRailing(railTriangles, frame, -halfWidth + (RailingThickness * 0.5), steps, lod);
@@ -150,15 +151,15 @@ public sealed class Stairs : WorldElement
         AddBeam(output, railStart, railEnd, RailingThickness, frame.Right);
         if (MidRail && lod < 3)
         {
-            var offset = new Vec3(0, -RailingHeight * 0.48, 0);
+            var offset = new Vector3(0, -RailingHeight * 0.48, 0);
             AddBeam(output, railStart + offset, railEnd + offset, RailingThickness * 0.8, frame.Right);
         }
     }
 
-    private static void AddBeam(List<Triangle> output, Vec3 start, Vec3 end, double size, Vec3 lateralHint)
+    private static void AddBeam(List<Triangle> output, Vector3 start, Vector3 end, double size, Vector3 lateralHint)
     {
         var axis = end - start;
-        var length = axis.Length;
+        var length = axis.Magnitude;
         if (length < 1e-6)
         {
             return;
@@ -166,15 +167,15 @@ public sealed class Stairs : WorldElement
 
         axis /= length;
         var side = lateralHint + (axis * -lateralHint.Dot(axis));
-        if (side.LengthSquared < 1e-8)
+        if (side.SqrMagnitude < 1e-8)
         {
-            side = Vec3.UnitX + (axis * -axis.X);
+            side = Vector3.UnitX + (axis * -axis.X);
         }
 
-        side = side.Normalized();
-        var normal = axis.Cross(side).Normalized();
+        side = side.Normalized;
+        var normal = axis.Cross(side).Normalized;
         var half = size / 2;
-        Vec3 Corner(Vec3 center, double sideSign, double normalSign) => center + (side * (sideSign * half)) + (normal * (normalSign * half));
+        Vector3 Corner(Vector3 center, double sideSign, double normalSign) => center + (side * (sideSign * half)) + (normal * (normalSign * half));
         var (a0, a1, a2, a3) = (Corner(start, -1, -1), Corner(start, 1, -1), Corner(start, 1, 1), Corner(start, -1, 1));
         var (b0, b1, b2, b3) = (Corner(end, -1, -1), Corner(end, 1, -1), Corner(end, 1, 1), Corner(end, -1, 1));
         AddQuadFacing(output, a0, a3, a2, a1, -axis, size, size);
@@ -185,36 +186,36 @@ public sealed class Stairs : WorldElement
         AddQuadFacing(output, a3, a0, b0, b3, -side, length, size);
     }
 
-    private static void AddQuadFacing(List<Triangle> output, Vec3 a, Vec3 b, Vec3 c, Vec3 d, Vec3 outward, double width, double height)
+    private static void AddQuadFacing(List<Triangle> output, Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 outward, double width, double height)
     {
         var normal = (b - a).Cross(c - a);
-        Vec3[] points = normal.Dot(outward) < 0 ? [a, d, c, b] : [a, b, c, d];
-        output.Add(new Triangle(points[0], points[1], points[2], new Vec2(0, 0), new Vec2(width, 0), new Vec2(width, height)));
-        output.Add(new Triangle(points[0], points[2], points[3], new Vec2(0, 0), new Vec2(width, height), new Vec2(0, height)));
+        Vector3[] points = normal.Dot(outward) < 0 ? [a, d, c, b] : [a, b, c, d];
+        output.Add(new Triangle(points[0], points[1], points[2], new Vector2(0, 0), new Vector2(width, 0), new Vector2(width, height)));
+        output.Add(new Triangle(points[0], points[2], points[3], new Vector2(0, 0), new Vector2(width, height), new Vector2(0, height)));
     }
 
     private StairFrame? GetFrame()
     {
         var bottom = NodeA.Position;
         var top = NodeB.Position;
-        var horizontal = new Vec3(top.X - bottom.X, 0, top.Z - bottom.Z);
-        var run = horizontal.Length;
+        var horizontal = new Vector3(top.X - bottom.X, 0, top.Z - bottom.Z);
+        var run = horizontal.Magnitude;
         if (run < MinRun)
         {
             return null;
         }
 
         var forward = horizontal / run;
-        return new StairFrame(bottom, top, forward, forward.Cross(Vec3.UnitY).Normalized(), run, Math.Max(MinRise, top.Y - bottom.Y));
+        return new StairFrame(bottom, top, forward, forward.Cross(Vector3.UnitY).Normalized, run, Math.Max(MinRise, top.Y - bottom.Y));
     }
 
-    private static Vec3 FramePoint(StairFrame frame, double distance, double side, double y) =>
+    private static Vector3 FramePoint(StairFrame frame, double distance, double side, double y) =>
         (frame.Bottom + (frame.Forward * distance) + (frame.Right * side)).WithY(y);
 
     private void ApplyUV(string group, List<Triangle> triangles)
     {
         var t = _uvTransforms[group];
-        Vec2 Map(Vec2 uv) => new((uv.X * t.ScaleX) + t.OffsetX, (uv.Y * t.ScaleY) + t.OffsetY);
+        Vector2 Map(Vector2 uv) => new((uv.X * t.ScaleX) + t.OffsetX, (uv.Y * t.ScaleY) + t.OffsetY);
         foreach (var triangle in triangles)
         {
             triangle.UvA = Map(triangle.UvA);
@@ -224,7 +225,7 @@ public sealed class Stairs : WorldElement
     }
 
     public override NodeBasis GetNodeBasis(int index) =>
-        GetFrame() is { } frame ? new NodeBasis(frame.Forward, frame.Right, Vec3.UnitY) : new NodeBasis(Vec3.UnitX, Vec3.UnitZ, Vec3.UnitY);
+        GetFrame() is { } frame ? new NodeBasis(frame.Forward, frame.Right, Vector3.UnitY) : new NodeBasis(Vector3.UnitX, Vector3.UnitZ, Vector3.UnitY);
 
     public override double GetWidth() => Width;
 
@@ -336,9 +337,9 @@ public sealed class Stairs : WorldElement
 
     private void SetRunLength(double value)
     {
-        var direction = GetFrame()?.Forward ?? Vec3.UnitX;
+        var direction = GetFrame()?.Forward ?? Vector3.UnitX;
         var length = Math.Max(MinRun, value);
-        NodeB.Position = new Vec3(NodeA.Position.X + (direction.X * length), NodeB.Position.Y, NodeA.Position.Z + (direction.Z * length));
+        NodeB.Position = new Vector3(NodeA.Position.X + (direction.X * length), NodeB.Position.Y, NodeA.Position.Z + (direction.Z * length));
         Update();
     }
 
@@ -347,8 +348,8 @@ public sealed class Stairs : WorldElement
         var bottom = NodeA.Position;
         var top = NodeB.Position;
         var rise = top.Y - bottom.Y;
-        NodeA.Position = new Vec3(top.X, bottom.Y, top.Z);
-        NodeB.Position = new Vec3(bottom.X, bottom.Y + rise, bottom.Z);
+        NodeA.Position = new Vector3(top.X, bottom.Y, top.Z);
+        NodeB.Position = new Vector3(bottom.X, bottom.Y + rise, bottom.Z);
         Update();
     }
 
@@ -378,8 +379,8 @@ public sealed class Stairs : WorldElement
     public static Stairs Deserialize(ElementData data)
     {
         ArgumentNullException.ThrowIfNull(data);
-        var bottom = data.Nodes.Count > 0 ? data.Nodes[0].ToVec3() : Vec3.Zero;
-        var top = data.Nodes.Count > 1 ? data.Nodes[1].ToVec3() : new Vec3(4, 3, 0);
+        var bottom = data.Nodes.Count > 0 ? data.Nodes[0].ToVector3() : Vector3.Zero;
+        var top = data.Nodes.Count > 1 ? data.Nodes[1].ToVector3() : new Vector3(4, 3, 0);
         var stairs = new Stairs(bottom, top)
         {
             Width = Math.Max(0.2, data.StairsWidth ?? 3),

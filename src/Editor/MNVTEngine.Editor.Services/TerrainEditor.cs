@@ -7,7 +7,6 @@ using MNVTEngine.Terrain.Meshes;
 using MNVTEngine.Terrain.Meshing;
 using MNVTEngine.Terrain.Project;
 using TerrainTile = MNVTEngine.Terrain.Elements.Terrain;
-using Vec3 = MNVTEngine.Terrain.Geometry.Vec3;
 
 namespace MNVTEngine.Editor.Services;
 
@@ -69,12 +68,12 @@ public sealed partial class TerrainEditor(ILogger logger)
     private readonly Random _random = new();
     private Matrix4x4 _toLocal = Matrix4x4.Identity;
     private Matrix4x4 _toWorld = Matrix4x4.Identity;
-    private Vec3? _dragStart;
+    private Vector3? _dragStart;
     private WorldNode? _dragStartNode;
-    private Vec3? _lastDab;
-    private Vec3? _dragPrevious;
+    private Vector3? _lastDab;
+    private Vector3? _dragPrevious;
     private string? _actionLabel;
-    private readonly List<Vec3> _polygon = [];
+    private readonly List<Vector3> _polygon = [];
 
     public WorldTerrain? Target { get; private set; }
 
@@ -145,13 +144,13 @@ public sealed partial class TerrainEditor(ILogger logger)
     public bool PropRandomRotation { get; set; } = true;
 
     /// <summary>Points of the polygon being placed (local space); Enter finishes it.</summary>
-    public IReadOnlyList<Vec3> PolygonPoints => _polygon;
+    public IReadOnlyList<Vector3> PolygonPoints => _polygon;
 
     /// <summary>The spline being dragged out (local space), for the preview line.</summary>
-    public (Vec3 A, Vec3 B)? Placement { get; private set; }
+    public (Vector3 A, Vector3 B)? Placement { get; private set; }
 
     /// <summary>Where the brush is (local space), or null.</summary>
-    public Vec3? BrushPoint { get; private set; }
+    public Vector3? BrushPoint { get; private set; }
 
     /// <summary>The brush radius of the current tool, or 0 for tools without a brush.</summary>
     public double BrushRadius => Tool switch
@@ -408,7 +407,7 @@ public sealed partial class TerrainEditor(ILogger logger)
             var spacing = Tool == TerrainTool.Texture ? Math.Max(0.05, TextureRadius * TextureSpacing) : Math.Max(0.1, BrushRadius * 0.15);
             var delta = dab.Point - last;
             delta = delta.WithY(0);
-            var distance = delta.Length;
+            double distance = delta.Magnitude;
             if (Tool == TerrainTool.Props)
             {
                 spacing = Math.Max(0.1, PropSpacing);
@@ -416,7 +415,7 @@ public sealed partial class TerrainEditor(ILogger logger)
 
             if (distance >= spacing)
             {
-                var step = delta.Normalized() * spacing;
+                var step = delta.Normalized * spacing;
                 for (; distance >= spacing; distance -= spacing)
                 {
                     last += step;
@@ -491,14 +490,14 @@ public sealed partial class TerrainEditor(ILogger logger)
     }
 
     /// <summary>The surface under a world ray (element triangles, local space), or null.</summary>
-    public (WorldElement Element, Vec3 Point)? Raycast(Ray worldRay)
+    public (WorldElement Element, Vector3 Point)? Raycast(Ray worldRay)
     {
         UpdateTransform();
         var (origin, direction) = LocalRay(worldRay);
         return Raycast(origin, direction);
     }
 
-    public Vector3 ToWorld(Vec3 local) => Transform(_toWorld, WorldTerrain.ToEngine(local), 1f);
+    public Vector3 ToWorld(Vector3 local) => Transform(_toWorld, local, 1f);
 
     private void UpdateTransform()
     {
@@ -509,11 +508,11 @@ public sealed partial class TerrainEditor(ILogger logger)
         }
     }
 
-    private Vec3 ToLocal(Vector3 world) => ToVec(Transform(_toLocal, world, 1f));
+    private Vector3 ToLocal(Vector3 world) => Transform(_toLocal, world, 1f);
 
-    private Vec3 ToLocalDirection(Vector3 world) => ToVec(Transform(_toLocal, world, 0f));
+    private Vector3 ToLocalDirection(Vector3 world) => Transform(_toLocal, world, 0f);
 
-    private (Vec3 Origin, Vec3 Direction) LocalRay(Ray ray) => (ToLocal(ray.Origin), ToLocalDirection(ray.Direction).Normalized());
+    private (Vector3 Origin, Vector3 Direction) LocalRay(Ray ray) => (ToLocal(ray.Origin), ToLocalDirection(ray.Direction).Normalized);
 
     private static Vector3 Transform(Matrix4x4 m, Vector3 v, float w)
     {
@@ -521,7 +520,6 @@ public sealed partial class TerrainEditor(ILogger logger)
         return new Vector3(r.X, r.Y, r.Z);
     }
 
-    private static Vec3 ToVec(Vector3 v) => new(v.X, v.Y, v.Z);
 
     /// <summary>Every draggable node: element nodes, curve handles and cut points.</summary>
     public IEnumerable<WorldNode> Nodes() => Project is null ? []
@@ -542,9 +540,9 @@ public sealed partial class TerrainEditor(ILogger logger)
         return best;
     }
 
-    private (WorldElement Element, Vec3 Point)? Raycast(Vec3 origin, Vec3 direction)
+    private (WorldElement Element, Vector3 Point)? Raycast(Vector3 origin, Vector3 direction)
     {
-        (WorldElement, Vec3)? best = null;
+        (WorldElement, Vector3)? best = null;
         var bestT = double.MaxValue;
         foreach (var element in Project!.World.Elements)
         {
@@ -564,7 +562,7 @@ public sealed partial class TerrainEditor(ILogger logger)
     }
 
     /// <summary>Möller–Trumbore, both faces; the ray distance or null.</summary>
-    internal static double? IntersectTriangle(Vec3 origin, Vec3 direction, Vec3 a, Vec3 b, Vec3 c)
+    internal static double? IntersectTriangle(Vector3 origin, Vector3 direction, Vector3 a, Vector3 b, Vector3 c)
     {
         var (e1, e2) = (b - a, c - a);
         var p = direction.Cross(e2);
@@ -583,9 +581,9 @@ public sealed partial class TerrainEditor(ILogger logger)
     }
 
     /// <summary>Placement plane: local y = 0, as TerrainHeaven's tools place on the ground plane.</summary>
-    private static Vec3? GroundPoint(Vec3 origin, Vec3 direction) => PlanePoint(origin, direction, 0);
+    private static Vector3? GroundPoint(Vector3 origin, Vector3 direction) => PlanePoint(origin, direction, 0);
 
-    private static Vec3? PlanePoint(Vec3 origin, Vec3 direction, double y)
+    private static Vector3? PlanePoint(Vector3 origin, Vector3 direction, double y)
     {
         if (Math.Abs(direction.Y) < 1e-9)
         {
@@ -597,16 +595,16 @@ public sealed partial class TerrainEditor(ILogger logger)
     }
 
     /// <summary>The point on the vertical line through <paramref name="at"/> nearest the ray.</summary>
-    private static Vec3? VerticalPoint(Vec3 origin, Vec3 direction, Vec3 at)
+    private static Vector3? VerticalPoint(Vector3 origin, Vector3 direction, Vector3 at)
     {
-        var toCamera = new Vec3(origin.X - at.X, 0, origin.Z - at.Z);
-        if (toCamera.Length < 1e-9)
+        var toCamera = new Vector3(origin.X - at.X, 0, origin.Z - at.Z);
+        if (toCamera.Magnitude < 1e-9)
         {
             return null;
         }
 
         // Intersect with the vertical plane through the point, facing the camera.
-        var normal = toCamera.Normalized();
+        var normal = toCamera.Normalized;
         var denominator = direction.Dot(normal);
         if (Math.Abs(denominator) < 1e-9)
         {
@@ -617,7 +615,7 @@ public sealed partial class TerrainEditor(ILogger logger)
         return at.WithY(hit.Y);
     }
 
-    private static Vec3 SnapAngle(Vec3 start, Vec3 end)
+    private static Vector3 SnapAngle(Vector3 start, Vector3 end)
     {
         var (dx, dz) = (end.X - start.X, end.Z - start.Z);
         var length = Math.Sqrt((dx * dx) + (dz * dz));
@@ -627,10 +625,10 @@ public sealed partial class TerrainEditor(ILogger logger)
         }
 
         var angle = Math.Round(Math.Atan2(dz, dx) / (Math.PI / 4)) * (Math.PI / 4);
-        return new Vec3(start.X + (Math.Cos(angle) * length), end.Y, start.Z + (Math.Sin(angle) * length));
+        return new Vector3(start.X + (Math.Cos(angle) * length), end.Y, start.Z + (Math.Sin(angle) * length));
     }
 
-    private void MoveNode(WorldNode node, Vec3 to)
+    private void MoveNode(WorldNode node, Vector3 to)
     {
         if (Project!.World.CutPoints.IsCutPoint(node))
         {
@@ -645,7 +643,7 @@ public sealed partial class TerrainEditor(ILogger logger)
         }
     }
 
-    private void PlaceSpline(Vec3 a, Vec3 b, WorldNode? startNode, WorldNode? endNode, bool curved)
+    private void PlaceSpline(Vector3 a, Vector3 b, WorldNode? startNode, WorldNode? endNode, bool curved)
     {
         WorldElement element = Tool switch
         {
@@ -653,7 +651,7 @@ public sealed partial class TerrainEditor(ILogger logger)
             TerrainTool.River => new RiverSpline(a, b),
             TerrainTool.CutSpline => new TerrainCutSpline(a, b),
             TerrainTool.Fence => new Fence(a, b),
-            _ => new Stairs(a, b + new Vec3(0, 3, 0)),
+            _ => new Stairs(a, b + new Vector3(0, 3, 0)),
         };
         Presets.ApplyDefault(element);
         if (curved && element is SplineElement spline)
@@ -663,8 +661,8 @@ public sealed partial class TerrainEditor(ILogger logger)
                 spline.Divisions = DefaultCurveDivisions;
             }
 
-            spline.SetCurvePointA(a.Lerp(b, 1.0 / 3));
-            spline.SetCurvePointB(a.Lerp(b, 2.0 / 3));
+            spline.SetCurvePointA(a.LerpUnclamped(b, 1.0 / 3));
+            spline.SetCurvePointB(a.LerpUnclamped(b, 2.0 / 3));
         }
 
         Project!.World.Add(element);
@@ -705,7 +703,7 @@ public sealed partial class TerrainEditor(ILogger logger)
     private int HeightDirection(TerrainModifiers modifiers) =>
         (HeightMode == HeightBrushMode.Lower ? -1 : 1) * (modifiers.HasFlag(TerrainModifiers.Ctrl) ? -1 : 1);
 
-    private void Dab(Vec3 point, TerrainModifiers modifiers)
+    private void Dab(Vector3 point, TerrainModifiers modifiers)
     {
         var erase = modifiers.HasFlag(TerrainModifiers.Ctrl);
         var tiles = Project!.World.Terrains.ToList();
@@ -757,7 +755,7 @@ public sealed partial class TerrainEditor(ILogger logger)
     }
 
     /// <summary>TerrainHeaven's foliage brush: random points in the disc dropped onto the surface below, skipping steps and crowding.</summary>
-    private void ScatterFoliage(Vec3 center)
+    private void ScatterFoliage(Vector3 center)
     {
         var types = FoliageTypes.Where(t => t >= 0 && t < Project!.Foliage.Types.Count).ToList();
         if (types.Count == 0)
@@ -769,8 +767,8 @@ public sealed partial class TerrainEditor(ILogger logger)
         {
             var angle = _random.NextDouble() * Math.PI * 2;
             var radius = Math.Sqrt(_random.NextDouble()) * FoliageRadius;
-            var top = new Vec3(center.X + (Math.Cos(angle) * radius), center.Y + 50, center.Z + (Math.Sin(angle) * radius));
-            if (Raycast(top, new Vec3(0, -1, 0)) is not { } hit || Math.Abs(hit.Point.Y - center.Y) > FoliageMaxHeightDifference)
+            var top = new Vector3(center.X + (Math.Cos(angle) * radius), center.Y + 50, center.Z + (Math.Sin(angle) * radius));
+            if (Raycast(top, new Vector3(0, -1, 0)) is not { } hit || Math.Abs(hit.Point.Y - center.Y) > FoliageMaxHeightDifference)
             {
                 continue;
             }

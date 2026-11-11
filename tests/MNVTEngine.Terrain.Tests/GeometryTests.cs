@@ -1,16 +1,17 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Geometry;
 
 namespace MNVTEngine.Terrain.Tests;
 
 public sealed class GeometryTests
 {
-    private static double TriangleArea(Vec2 a, Vec2 b, Vec2 c) => Math.Abs((b - a).Cross(c - a)) / 2;
+    private static double TriangleArea(Vector2 a, Vector2 b, Vector2 c) => Math.Abs((b - a).Cross(c - a)) / 2;
 
     [Fact]
     public void Earcut_TriangulatesASquareWithAHole_CoveringExactlyItsArea()
     {
-        List<Vec2> contour = [new(0, 0), new(10, 0), new(10, 10), new(0, 10)];
-        List<List<Vec2>> holes = [[new(4, 4), new(4, 6), new(6, 6), new(6, 4)]];
+        List<Vector2> contour = [new(0, 0), new(10, 0), new(10, 10), new(0, 10)];
+        List<List<Vector2>> holes = [[new(4, 4), new(4, 6), new(6, 6), new(6, 4)]];
         var points = contour.Concat(holes[0]).ToList();
         var faces = ShapeUtils.TriangulateShape(contour, holes);
         Assert.Equal(8, faces.Count);

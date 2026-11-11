@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using Newtonsoft.Json;
 
 namespace MNVTEngine.Terrain.Elements;
@@ -11,9 +12,9 @@ public sealed class PointData
 
     public double Z { get; set; }
 
-    public static PointData From(Geometry.Vec3 v) => new() { X = v.X, Y = v.Y, Z = v.Z };
+    public static PointData From(Mathematics.Vector3 v) => new() { X = v.X, Y = v.Y, Z = v.Z };
 
-    public Geometry.Vec3 ToVec3() => new(X, Y, Z);
+    public Mathematics.Vector3 ToVector3() => new(X, Y, Z);
 }
 
 public sealed class UVTransform

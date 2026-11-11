@@ -1,3 +1,5 @@
+using MNVTEngine.Mathematics;
+
 namespace MNVTEngine.Terrain.Geometry;
 
 /// <summary>
@@ -709,7 +711,7 @@ public static class Earcut
 /// <summary>three.js ShapeUtils: shape area, winding and the triangulateShape wrapper over earcut.</summary>
 public static class ShapeUtils
 {
-    public static double Area(IReadOnlyList<Vec2> contour)
+    public static double Area(IReadOnlyList<Vector2> contour)
     {
         ArgumentNullException.ThrowIfNull(contour);
         var n = contour.Count;
@@ -722,13 +724,13 @@ public static class ShapeUtils
         return a * 0.5;
     }
 
-    public static bool IsClockWise(IReadOnlyList<Vec2> points) => Area(points) < 0;
+    public static bool IsClockWise(IReadOnlyList<Vector2> points) => Area(points) < 0;
 
     /// <summary>
     /// Faces (vertex index triples) over the contour followed by every hole. Like three.js, a duplicate closing point is
     /// removed from the given lists in place.
     /// </summary>
-    public static List<int[]> TriangulateShape(List<Vec2> contour, List<List<Vec2>> holes)
+    public static List<int[]> TriangulateShape(List<Vector2> contour, List<List<Vector2>> holes)
     {
         ArgumentNullException.ThrowIfNull(contour);
         ArgumentNullException.ThrowIfNull(holes);
@@ -755,7 +757,7 @@ public static class ShapeUtils
         return faces;
     }
 
-    private static void RemoveDupEndPoints(List<Vec2> points)
+    private static void RemoveDupEndPoints(List<Vector2> points)
     {
         var l = points.Count;
         if (l > 2 && points[l - 1] == points[0])
@@ -764,7 +766,7 @@ public static class ShapeUtils
         }
     }
 
-    private static void AddContour(List<double> vertices, List<Vec2> contour)
+    private static void AddContour(List<double> vertices, List<Vector2> contour)
     {
         foreach (var point in contour)
         {

@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Elements;
 using MNVTEngine.Terrain.Geometry;
 
@@ -24,7 +25,7 @@ public sealed class TerrainClipboard
     private Dictionary<string, double> _rotations = [];
     private Dictionary<string, UVTransform> _uvTransforms = [];
     private double? _length;
-    private Vec3? _direction;
+    private Vector3? _direction;
     private double? _rise;
     private int? _outletCount;
     private (double Width, double Length)? _terrainSize;
@@ -44,12 +45,12 @@ public sealed class TerrainClipboard
             case Stairs stairs:
                 var (a, b) = (stairs.NodeA.Position, stairs.NodeB.Position);
                 _length = MathUtil.Hypot(b.X - a.X, b.Z - a.Z);
-                _direction = new Vec3(b.X - a.X, 0, b.Z - a.Z).Normalized();
+                _direction = new Vector3(b.X - a.X, 0, b.Z - a.Z).Normalized;
                 _rise = b.Y - a.Y;
                 break;
             case SplineElement spline when spline is Road or Fence:
                 _length = spline.NodeA.Position.DistanceTo(spline.NodeB.Position);
-                _direction = (spline.NodeB.Position - spline.NodeA.Position).Normalized();
+                _direction = (spline.NodeB.Position - spline.NodeA.Position).Normalized;
                 break;
             case Intersection intersection:
                 _outletCount = intersection.OutletCount;
@@ -74,7 +75,7 @@ public sealed class TerrainClipboard
     /// Spawns a copy 8 m in front of the camera (on y = 0), adds it to the world and applies the snapshot. Returns null
     /// for element types that cannot be pasted (rivers, cut splines, polygons).
     /// </summary>
-    public WorldElement? PasteElement(Vec3 cameraPosition, Vec3 cameraForward, TerrainWorld world)
+    public WorldElement? PasteElement(Vector3 cameraPosition, Vector3 cameraForward, TerrainWorld world)
     {
         ArgumentNullException.ThrowIfNull(world);
         if (Mode is null || CopiedType is null)
@@ -82,21 +83,21 @@ public sealed class TerrainClipboard
             return null;
         }
 
-        var forward = new Vec3(cameraForward.X, 0, cameraForward.Z);
-        forward = forward.LengthSquared < 0.001 ? new Vec3(0, 0, -1) : forward.Normalized();
+        var forward = new Vector3(cameraForward.X, 0, cameraForward.Z);
+        forward = forward.SqrMagnitude < 0.001 ? new Vector3(0, 0, -1) : forward.Normalized;
         var center = (cameraPosition + (forward * 8)).WithY(0);
 
         WorldElement? element = null;
         if (CopiedType is nameof(Road) or nameof(Fence) or nameof(Stairs) && _direction is { } copied && _length is { } length)
         {
-            var direction = new Vec3(copied.X, 0, copied.Z);
-            direction = direction.LengthSquared < 0.001 ? Vec3.UnitX : direction.Normalized();
+            var direction = new Vector3(copied.X, 0, copied.Z);
+            direction = direction.SqrMagnitude < 0.001 ? Vector3.UnitX : direction.Normalized;
             var a = center - (direction * (length / 2));
             var b = center + (direction * (length / 2));
             element = CopiedType switch
             {
                 nameof(Fence) => new Fence(a, b),
-                nameof(Stairs) => new Stairs(a, b + new Vec3(0, _rise ?? 3, 0)),
+                nameof(Stairs) => new Stairs(a, b + new Vector3(0, _rise ?? 3, 0)),
                 _ => new Road(a, b),
             };
         }

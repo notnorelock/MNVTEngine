@@ -134,9 +134,9 @@ public sealed partial class WorldTerrain : Component, IMeshDataSource
 
                     foreach (var t in group.Triangles)
                     {
-                        positions.Add(ToEngine(t.A));
-                        positions.Add(ToEngine(t.B));
-                        positions.Add(ToEngine(t.C));
+                        positions.Add(t.A);
+                        positions.Add(t.B);
+                        positions.Add(t.C);
                     }
                 }
             }
@@ -147,8 +147,6 @@ public sealed partial class WorldTerrain : Component, IMeshDataSource
 
         return _collision;
     }
-
-    public static Mathematics.Vector3 ToEngine(Terrain.Geometry.Vec3 v) => new((float)v.X, (float)v.Y, (float)v.Z);
 
     private void EnsureLoaded()
     {

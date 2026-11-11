@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Terrain.Elements;
 using MNVTEngine.Terrain.Geometry;
@@ -14,7 +15,7 @@ public sealed class TerrainCutPoints(TerrainWorld world)
 
     public IReadOnlyList<WorldNode> Points => _points;
 
-    public WorldNode AddPoint(Vec3 position)
+    public WorldNode AddPoint(Vector3 position)
     {
         var node = new WorldNode(position, NodeKind.TerrainCut);
         _points.Add(node);
@@ -34,7 +35,7 @@ public sealed class TerrainCutPoints(TerrainWorld world)
         }
     }
 
-    public void Move(WorldNode node, Vec3 position)
+    public void Move(WorldNode node, Vector3 position)
     {
         node.Position = position;
         world.MarkTerrainDirty();
@@ -68,7 +69,7 @@ public sealed class TerrainCutPoints(TerrainWorld world)
         Clear();
         foreach (var point in points)
         {
-            var node = new WorldNode(new Vec3(point.X, point.Y, point.Z), NodeKind.TerrainCut);
+            var node = new WorldNode(new Vector3(point.X, point.Y, point.Z), NodeKind.TerrainCut);
             _points.Add(node);
             _radii[node] = point.Radius ?? DefaultRadius;
         }

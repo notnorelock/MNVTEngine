@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using System.Globalization;
 using MNVTEngine.Terrain.Geometry;
 
@@ -24,35 +25,35 @@ public sealed class ProjectSettingsData
 /// Colors are linear RGB. Directions point from the scene toward the light; celestial positions are relative to the camera.
 /// </summary>
 public sealed record SkyEnvironment(
-    Vec3 Background,
+    Vector3 Background,
     bool SkyDomeVisible,
-    Vec3 SkyZenith,
-    Vec3 SkyHorizon,
-    Vec3? FogColor,
+    Vector3 SkyZenith,
+    Vector3 SkyHorizon,
+    Vector3? FogColor,
     double FogNear,
     double FogFar,
-    Vec3 SunLightDirection,
+    Vector3 SunLightDirection,
     double SunLightIntensity,
-    Vec3 SunLightColor,
+    Vector3 SunLightColor,
     bool SunCastsShadows,
     double AmbientIntensity,
-    Vec3 AmbientColor,
+    Vector3 AmbientColor,
     bool HemisphereVisible,
     double HemisphereIntensity,
-    Vec3 HemisphereSkyColor,
-    Vec3 HemisphereGroundColor,
+    Vector3 HemisphereSkyColor,
+    Vector3 HemisphereGroundColor,
     bool SunVisible,
-    Vec3 SunPosition,
+    Vector3 SunPosition,
     bool MoonVisible,
-    Vec3 MoonPosition,
+    Vector3 MoonPosition,
     bool SunGlowVisible,
     double SunGlowOpacity,
-    Vec3 SunGlowColor,
+    Vector3 SunGlowColor,
     double SunGlowScale,
     double StarOpacity,
     bool CloudsVisible,
     double CloudOpacity,
-    Vec3 CloudColor);
+    Vector3 CloudColor);
 
 /// <summary>
 /// Sky color, time of day, day/night cycle and LOD switch distances. Three modes as TerrainHeaven renders them: a flat
@@ -75,15 +76,15 @@ public sealed class ProjectSettings
         (24, 0x101624, 0x222838, 0x121722),
     ];
 
-    private static readonly Vec3 WarmSun = Hex(0xffb878);
-    private static readonly Vec3 DaylightSun = Hex(0xfff4e8);
-    private static readonly Vec3 NightLight = Hex(0x91a6c8);
-    private static readonly Vec3 DaySkyFill = Hex(0xb9c9d3);
-    private static readonly Vec3 DayGroundFill = Hex(0x62675d);
-    private static readonly Vec3 NightSkyFill = Hex(0x48566e);
-    private static readonly Vec3 NightGroundFill = Hex(0x262c31);
-    private static readonly Vec3 CloudDay = Hex(0xd8d4c9);
-    private static readonly Vec3 CloudNight = Hex(0x697385);
+    private static readonly Vector3 WarmSun = Hex(0xffb878);
+    private static readonly Vector3 DaylightSun = Hex(0xfff4e8);
+    private static readonly Vector3 NightLight = Hex(0x91a6c8);
+    private static readonly Vector3 DaySkyFill = Hex(0xb9c9d3);
+    private static readonly Vector3 DayGroundFill = Hex(0x62675d);
+    private static readonly Vector3 NightSkyFill = Hex(0x48566e);
+    private static readonly Vector3 NightGroundFill = Hex(0x262c31);
+    private static readonly Vector3 CloudDay = Hex(0xd8d4c9);
+    private static readonly Vector3 CloudNight = Hex(0x697385);
 
     private double _environmentAccumulator;
     private readonly double[] _lodDistances = [30, 80, 160];
@@ -99,7 +100,7 @@ public sealed class ProjectSettings
     /// <summary>Seconds per in-game day.</summary>
     public double DayLength { get; set; } = 240;
 
-    /// <summary>Distances (meters, before export scale) where LOD0 switches to 1, 1 to 2 and 2 to 3.</summary>
+    /// <summary>Distances (meters) where LOD0 switches to 1, 1 to 2 and 2 to 3, kept with the world as TerrainHeaven does.</summary>
     public IReadOnlyList<double> LodDistances => _lodDistances;
 
     /// <summary>Raised when the day/night cycle advanced the hour.</summary>
@@ -151,11 +152,11 @@ public sealed class ProjectSettings
         var color = ParseCssHex(SkyColor);
         return new SkyEnvironment(
             color, false, color, color, null, 0, 0,
-            new Vec3(10, 20, 10).Normalized(), 1.5, Vec3.One, false,
-            1.1, Vec3.One,
-            false, 0, Vec3.Zero, Vec3.Zero,
-            false, Vec3.Zero, false, Vec3.Zero,
-            false, 0, Vec3.Zero, 0, 0, false, 0, Vec3.Zero);
+            new Vector3(10, 20, 10).Normalized, 1.5, Vector3.One, false,
+            1.1, Vector3.One,
+            false, 0, Vector3.Zero, Vector3.Zero,
+            false, Vector3.Zero, false, Vector3.Zero,
+            false, 0, Vector3.Zero, 0, 0, false, 0, Vector3.Zero);
     }
 
     private SkyEnvironment EvaluateBasicDayNight()
@@ -163,15 +164,15 @@ public sealed class ProjectSettings
         var angle = (Hour - 6) / 12 * Math.PI;
         var elevation = Math.Sin(angle);
         var (zenith, horizon, _) = GetSkyPalette(Hour);
-        var sun = new Vec3(Math.Cos(angle) * 200, Math.Sin(angle) * 200, 0);
+        var sun = new Vector3(Math.Cos(angle) * 200, Math.Sin(angle) * 200, 0);
         return new SkyEnvironment(
             zenith, false, zenith, horizon, null, 0, 0,
-            new Vec3(Math.Cos(angle) * 20, Math.Max(elevation * 20, 0.5), 10).Normalized(),
-            Math.Max(0, elevation) * 1.1, elevation < 0.3 ? Hex(0xffb47c) : Vec3.One, false,
+            new Vector3(Math.Cos(angle) * 20, Math.Max(elevation * 20, 0.5), 10).Normalized,
+            Math.Max(0, elevation) * 1.1, elevation < 0.3 ? Hex(0xffb47c) : Vector3.One, false,
             0.35 + (Math.Max(0, elevation) * 0.5), horizon,
-            false, 0, Vec3.Zero, Vec3.Zero,
+            false, 0, Vector3.Zero, Vector3.Zero,
             elevation > -0.1, sun, elevation < 0.1, -sun,
-            false, 0, Vec3.Zero, 0, 0, false, 0, Vec3.Zero);
+            false, 0, Vector3.Zero, 0, 0, false, 0, Vector3.Zero);
     }
 
     private SkyEnvironment EvaluateEnhanced()
@@ -182,14 +183,14 @@ public sealed class ProjectSettings
         var (zenith, horizon, fog) = GetSkyPalette(Hour);
 
         const double celestialDistance = 260;
-        var sun = new Vec3(Math.Cos(angle) * celestialDistance, elevation * celestialDistance, -70);
+        var sun = new Vector3(Math.Cos(angle) * celestialDistance, elevation * celestialDistance, -70);
         var sunVisible = elevation > -0.08;
 
         // Glow peaks near the horizon (low sun) and fades at high noon, matching a hazy golden-hour look.
         var horizonGlow = 1 - Smoothstep(0.15, 0.55, Math.Abs(elevation));
         var glowOpacity = MathUtil.Clamp(0.35 + (horizonGlow * 0.55), 0, 0.9) * Smoothstep(-0.1, 0.05, elevation);
 
-        var lightDirection = new Vec3(Math.Cos(angle), elevation, -0.28).Normalized();
+        var lightDirection = new Vector3(Math.Cos(angle), elevation, -0.28).Normalized;
         if (elevation < 0)
         {
             lightDirection = -lightDirection;
@@ -197,17 +198,17 @@ public sealed class ProjectSettings
 
         return new SkyEnvironment(
             zenith, true, zenith, horizon, fog, 130, 520,
-            lightDirection, MathUtil.Lerp(0.35, 1.1, daylight), (elevation < 0 ? NightLight : WarmSun).Lerp(DaylightSun, daylight), true,
+            lightDirection, MathUtil.Lerp(0.35, 1.1, daylight), (elevation < 0 ? NightLight : WarmSun).LerpUnclamped(DaylightSun, daylight), true,
             MathUtil.Lerp(0.4, 0.55, daylight), horizon,
-            true, MathUtil.Lerp(0.65, 0.85, daylight), NightSkyFill.Lerp(DaySkyFill, daylight), NightGroundFill.Lerp(DayGroundFill, daylight),
+            true, MathUtil.Lerp(0.65, 0.85, daylight), NightSkyFill.LerpUnclamped(DaySkyFill, daylight), NightGroundFill.LerpUnclamped(DayGroundFill, daylight),
             sunVisible, sun, elevation < 0.12, -sun,
-            sunVisible, glowOpacity, WarmSun.Lerp(DaylightSun, daylight * 0.5), 130 + (horizonGlow * 90),
+            sunVisible, glowOpacity, WarmSun.LerpUnclamped(DaylightSun, daylight * 0.5), 130 + (horizonGlow * 90),
             MathUtil.Clamp(0.75 - daylight, 0, 0.75),
-            true, MathUtil.Lerp(0.08, 0.22, daylight), CloudNight.Lerp(CloudDay, daylight));
+            true, MathUtil.Lerp(0.08, 0.22, daylight), CloudNight.LerpUnclamped(CloudDay, daylight));
     }
 
     /// <summary>Zenith, horizon and fog colors (linear) for an hour, smoothstepped between the keyframes.</summary>
-    public static (Vec3 Zenith, Vec3 Horizon, Vec3 Fog) GetSkyPalette(double hour)
+    public static (Vector3 Zenith, Vector3 Horizon, Vector3 Fog) GetSkyPalette(double hour)
     {
         var wrapped = ((hour % 24) + 24) % 24;
         var left = SkyKeyframes[0];
@@ -224,7 +225,7 @@ public sealed class ProjectSettings
 
         var rawT = (wrapped - left.Hour) / Math.Max(0.001, right.Hour - left.Hour);
         var t = rawT * rawT * (3 - (2 * rawT));
-        return (Hex(left.Zenith).Lerp(Hex(right.Zenith), t), Hex(left.Horizon).Lerp(Hex(right.Horizon), t), Hex(left.Fog).Lerp(Hex(right.Fog), t));
+        return (Hex(left.Zenith).LerpUnclamped(Hex(right.Zenith), t), Hex(left.Horizon).LerpUnclamped(Hex(right.Horizon), t), Hex(left.Fog).LerpUnclamped(Hex(right.Fog), t));
     }
 
     public ProjectSettingsData GetData() => new()
@@ -261,10 +262,10 @@ public sealed class ProjectSettings
     }
 
     /// <summary>An sRGB hex color in linear RGB (three.js converts hex colors the same way).</summary>
-    public static Vec3 Hex(int rgb) => new(SrgbToLinear((rgb >> 16) & 0xff), SrgbToLinear((rgb >> 8) & 0xff), SrgbToLinear(rgb & 0xff));
+    public static Vector3 Hex(int rgb) => new(SrgbToLinear((rgb >> 16) & 0xff), SrgbToLinear((rgb >> 8) & 0xff), SrgbToLinear(rgb & 0xff));
 
     /// <summary>A CSS "#rrggbb" or "#rgb" color in linear RGB; anything else is black (three.js warns and keeps black too).</summary>
-    public static Vec3 ParseCssHex(string? color)
+    public static Vector3 ParseCssHex(string? color)
     {
         var hex = color?.Trim().TrimStart('#') ?? "";
         if (hex.Length == 3)
@@ -272,7 +273,7 @@ public sealed class ProjectSettings
             hex = string.Concat(hex.Select(c => new string(c, 2)));
         }
 
-        return hex.Length == 6 && int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb) ? Hex(rgb) : Vec3.Zero;
+        return hex.Length == 6 && int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb) ? Hex(rgb) : Vector3.Zero;
     }
 
     private static double SrgbToLinear(int channel)

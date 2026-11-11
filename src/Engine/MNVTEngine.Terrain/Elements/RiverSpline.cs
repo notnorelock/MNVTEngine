@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Geometry;
 using MNVTEngine.Terrain.Meshing;
 
@@ -7,7 +8,7 @@ namespace MNVTEngine.Terrain.Elements;
 /// A river works like a road (nodes, curve points, Divisions, connectable ends, width), but its water is an overlay:
 /// instead of cutting a hole it forces the terrain to conform to a lowered bed with banks at the requested slope.
 /// </summary>
-public sealed class RiverSpline(Vec3 positionA, Vec3 positionB) : SplineElement(positionA, positionB, NodeKind.River)
+public sealed class RiverSpline(Vector3 positionA, Vector3 positionB) : SplineElement(positionA, positionB, NodeKind.River)
 {
     public const uint WaterColor = 0x2f6fa8;
     private const double WaterSurfaceOffset = 0.025;
@@ -40,7 +41,7 @@ public sealed class RiverSpline(Vec3 positionA, Vec3 positionB) : SplineElement(
 
     // Two components: a slow "wander" that meanders the bank gently even at low irregularity, and a "corner" component
     // folded through sign(x)*|x|^0.4 so its waveform snaps toward plateaus instead of rounding off.
-    private static double GetBankNoise(Vec3 position, double channel)
+    private static double GetBankNoise(Vector3 position, double channel)
     {
         var wander = Math.Sin((position.X * 0.37) + (position.Z * 0.48) + (channel * 2.17));
         var cornerRaw = Math.Sin((position.X * 1.9) - (position.Z * 2.6) + (channel * 5.3))
@@ -50,7 +51,7 @@ public sealed class RiverSpline(Vec3 positionA, Vec3 positionB) : SplineElement(
     }
 
     /// <summary>The water's half-width on each side, perturbed by bank noise; the bed and banks are built from these.</summary>
-    private (double Left, double Right) GetChannelHalfWidths(Vec3 position)
+    private (double Left, double Right) GetChannelHalfWidths(Vector3 position)
     {
         var nominal = Math.Max(0.05, Width / 2);
         var irregularity = MathUtil.Clamp(IrregularityLevel, 0, MaxIrregularity);
@@ -72,7 +73,7 @@ public sealed class RiverSpline(Vec3 positionA, Vec3 positionB) : SplineElement(
     /// The centerline, sampled finely enough (Detail Level plus Divisions) for the bank noise to show. Overrides only
     /// coarsen the rendered water for an LOD; terrain shaping and the footprint always use full fidelity.
     /// </summary>
-    private List<(Vec3 Point, Vec3 Right)> GetCenterlineSamples(double? detailOverride = null, int? divisionsOverride = null)
+    private List<(Vector3 Point, Vector3 Right)> GetCenterlineSamples(double? detailOverride = null, int? divisionsOverride = null)
     {
         var p0 = NodeA.Position;
         var p1 = CurvePointA?.Position ?? p0;
@@ -89,9 +90,9 @@ public sealed class RiverSpline(Vec3 positionA, Vec3 positionB) : SplineElement(
         {
             var previous = points[Math.Max(0, index - 1)];
             var next = points[Math.Min(points.Count - 1, index + 1)];
-            var forward = (next - previous).Normalized();
-            var right = forward.Cross(Vec3.UnitY).Normalized();
-            if (right.LengthSquared < 1e-8)
+            var forward = (next - previous).Normalized;
+            var right = forward.Cross(Vector3.UnitY).Normalized;
+            if (right.SqrMagnitude < 1e-8)
             {
                 right = GetRightAtIndex(points, index);
             }
@@ -162,7 +163,7 @@ public sealed class RiverSpline(Vec3 positionA, Vec3 positionB) : SplineElement(
         return samples;
     }
 
-    private Vec3 GetRightAtIndex(List<Vec3> points, int index)
+    private Vector3 GetRightAtIndex(List<Vector3> points, int index)
     {
         if (index == 0)
         {
@@ -174,8 +175,8 @@ public sealed class RiverSpline(Vec3 positionA, Vec3 positionB) : SplineElement(
             return GetResolvedNodeBasis(1).Right;
         }
 
-        var direction = (points[index + 1] - points[index - 1]).Normalized();
-        return direction.Cross(Vec3.UnitY).Normalized();
+        var direction = (points[index + 1] - points[index - 1]).Normalized;
+        return direction.Cross(Vector3.UnitY).Normalized;
     }
 
     /// <summary>The water surface: the same centerline and half-widths the terrain sampling uses, so they meet exactly.</summary>
@@ -188,7 +189,7 @@ public sealed class RiverSpline(Vec3 positionA, Vec3 positionB) : SplineElement(
         }
 
         var triangles = new List<Triangle>();
-        var lift = new Vec3(0, WaterSurfaceOffset, 0);
+        var lift = new Vector3(0, WaterSurfaceOffset, 0);
         for (var i = 0; i < samples.Count - 1; i++)
         {
             var (a, b) = (samples[i], samples[i + 1]);
@@ -200,8 +201,8 @@ public sealed class RiverSpline(Vec3 positionA, Vec3 positionB) : SplineElement(
             var bRight = b.Point + (b.Right * widthsB.Right) + lift;
             var uA = i / (double)(samples.Count - 1);
             var uB = (i + 1) / (double)(samples.Count - 1);
-            triangles.Add(new Triangle(aLeft, aRight, bRight, new Vec2(0, uA), new Vec2(1, uA), new Vec2(1, uB)));
-            triangles.Add(new Triangle(aLeft, bRight, bLeft, new Vec2(0, uA), new Vec2(1, uB), new Vec2(0, uB)));
+            triangles.Add(new Triangle(aLeft, aRight, bRight, new Vector2(0, uA), new Vector2(1, uA), new Vector2(1, uB)));
+            triangles.Add(new Triangle(aLeft, bRight, bLeft, new Vector2(0, uA), new Vector2(1, uB), new Vector2(0, uB)));
         }
 
         return triangles;
@@ -272,7 +273,7 @@ public sealed class RiverSpline(Vec3 positionA, Vec3 positionB) : SplineElement(
 
     public static RiverSpline Deserialize(ElementData data)
     {
-        var (a, b) = EndPositions(data, new Vec3(1, 0, 0));
+        var (a, b) = EndPositions(data, new Vector3(1, 0, 0));
         var river = new RiverSpline(a, b)
         {
             Width = Math.Max(0.1, data.Width ?? 4),

@@ -1,3 +1,4 @@
+using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Geometry;
 
 namespace MNVTEngine.Terrain.Elements;
@@ -5,7 +6,7 @@ namespace MNVTEngine.Terrain.Elements;
 /// <summary>An editable property of an element, as TerrainHeaven's properties panel shows it.</summary>
 public abstract record PropertyItem(string Label);
 
-public sealed record Vector3Property(string Label, Func<Vec3> Get, Action<Vec3> Set) : PropertyItem(Label);
+public sealed record Vector3Property(string Label, Func<Vector3> Get, Action<Vector3> Set) : PropertyItem(Label);
 
 public sealed record NumberProperty(string Label, Func<double> Get, Action<double> Set, double? Min = null, double? Max = null, double? Step = null) : PropertyItem(Label);
 

@@ -4,7 +4,6 @@ using MNVTEngine.Graphics.Meshes;
 using MNVTEngine.Graphics.Rendering3D;
 using MNVTEngine.Mathematics;
 using MNVTEngine.Terrain.Elements;
-using MNVTEngine.Terrain.Export;
 using MNVTEngine.Terrain.Foliage;
 using MNVTEngine.Terrain.Meshes;
 using MNVTEngine.Terrain.Project;
@@ -14,7 +13,7 @@ namespace MNVTEngine.Runtime;
 /// <summary>
 /// The terrain part of the 3D pass: every active <see cref="WorldTerrain"/> as meshes in its GameObject's space. Each
 /// element group is one mesh with the Standard shader (its texture, texture rotation, material hint and auto-smooth
-/// normals, as exported); terrain tiles draw with the four-layer splat shader. Foliage presets are crossed quads and
+/// normals); terrain tiles draw with the four-layer splat shader. Foliage presets are crossed quads and
 /// placed props are their model meshes, both instanced. Rebuilt when the component's version changes.
 /// </summary>
 public sealed partial class SceneRenderer
@@ -108,8 +107,7 @@ public sealed partial class SceneRenderer
             return;
         }
 
-        var objGroups = groups.Select(g => new ObjGroup(g.Name, g.Name, [.. g.Triangles.SelectMany(t => (double[])[t.A.X, t.A.Y, t.A.Z, t.B.X, t.B.Y, t.B.Z, t.C.X, t.C.Y, t.C.Z])], [])).ToList();
-        var normals = ObjWriter.ComputeAutoSmoothNormals(objGroups);
+        var normals = Terrain.Meshing.SmoothNormals.Compute(groups);
         var splatBounds = element is Terrain.Elements.Terrain tile ? (MinX: tile.Center.X - (tile.Width / 2), MinZ: tile.Center.Z - (tile.Length / 2), tile.Width, tile.Length) : default;
         for (var g = 0; g < groups.Count; g++)
         {
@@ -124,10 +122,10 @@ public sealed partial class SceneRenderer
             var i = 0;
             foreach (var t in group.Triangles)
             {
-                foreach (var (p, uv) in ((Terrain.Geometry.Vec3, Terrain.Geometry.Vec2)[])[(t.A, t.UvA), (t.B, t.UvB), (t.C, t.UvC)])
+                foreach (var (p, uv) in ((Vector3, Vector2)[])[(t.A, t.UvA), (t.B, t.UvB), (t.C, t.UvC)])
                 {
-                    positions[i] = WorldTerrain.ToEngine(p);
-                    vertexNormals[i] = new Vector3((float)normals[g][i * 3], (float)normals[g][(i * 3) + 1], (float)normals[g][(i * 3) + 2]);
+                    positions[i] = (p);
+                    vertexNormals[i] = normals[g][i];
 
                     // three.js texture.rotation about the texture center (0.5, 0.5); then V flipped, since three.js
                     // images start at the bottom row and engine textures at the top.
@@ -232,7 +230,7 @@ public sealed partial class SceneRenderer
             foreach (var instance in instances)
             {
                 var (width, height) = type.ResolveDimensions(instance.ScaleT);
-                var local = Matrix4x4.TRS(WorldTerrain.ToEngine(instance.Position.ToVec3()), Quaternion.AngleAxis((float)instance.RotationY, Vector3.Up), new Vector3((float)width, (float)height, (float)width));
+                var local = Matrix4x4.TRS((instance.Position.ToVector3()), Quaternion.AngleAxis((float)instance.RotationY, Vector3.Up), new Vector3((float)width, (float)height, (float)width));
                 draw.Instances.Add(new TerrainInstance(_foliageQuads, 0, material, CullMode.None, local, Foliage: true));
             }
         }
@@ -251,12 +249,12 @@ public sealed partial class SceneRenderer
             }
 
             var parts = PropParts(reference);
-            var calibration = Matrix4x4.Translate(WorldTerrain.ToEngine(asset.PositionOffset.ToVec3())) * Matrix4x4.Scale(Vector3.One * (float)(asset.BaseScale > 0 ? asset.BaseScale : 1));
+            var calibration = Matrix4x4.Translate((asset.PositionOffset.ToVector3())) * Matrix4x4.Scale(Vector3.One * (float)(asset.BaseScale > 0 ? asset.BaseScale : 1));
             foreach (var instance in instances)
             {
                 // three.js Euler XYZ: X applied last.
                 var rotation = Quaternion.AngleAxis((float)instance.RotationX, Vector3.Right) * Quaternion.AngleAxis((float)instance.RotationY, Vector3.Up) * Quaternion.AngleAxis((float)instance.RotationZ, new Vector3(0f, 0f, 1f));
-                var placement = Matrix4x4.TRS(WorldTerrain.ToEngine(instance.Position.ToVec3()), rotation, Vector3.One * (float)instance.Scale) * calibration;
+                var placement = Matrix4x4.TRS((instance.Position.ToVector3()), rotation, Vector3.One * (float)instance.Scale) * calibration;
                 foreach (var (mesh, local, materials) in parts)
                 {
                     for (var sub = 0; sub < mesh.SubMeshes.Count; sub++)
