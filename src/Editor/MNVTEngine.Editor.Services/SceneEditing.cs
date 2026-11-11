@@ -9,7 +9,8 @@ public static class SceneEditing
     /// Topmost object at <paramref name="world"/>: sprites by their rotated quad (highest sorting order wins, then the
     /// most recently created); objects without sprites within <paramref name="pickRadius"/> of their position.
     /// </summary>
-    public static GameObject? Pick(Scene scene, Vector2 world, float pickRadius)
+    /// <param name="isVisible">Scene visibility: objects it hides cannot be picked; null picks everything.</param>
+    public static GameObject? Pick(Scene scene, Vector2 world, float pickRadius, Func<GameObject, bool>? isVisible = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
         GameObject? best = null;
@@ -17,7 +18,7 @@ public static class SceneEditing
 
         foreach (var gameObject in scene.GameObjects)
         {
-            if (!gameObject.ActiveInHierarchy)
+            if (!gameObject.ActiveInHierarchy || (isVisible is not null && !isVisible(gameObject)))
             {
                 continue;
             }

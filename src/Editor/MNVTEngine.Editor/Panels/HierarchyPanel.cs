@@ -13,6 +13,8 @@ namespace MNVTEngine.Editor.Panels;
 /// </summary>
 internal sealed class HierarchyPanel(EditorContext context)
 {
+    private const float Gutter = 18f;
+
     private static readonly (string Name, Color Color)[] LabelColors =
     [
         ("Orange", new(0.91f, 0.5f, 0.16f)), ("Blue", new(0.25f, 0.55f, 0.95f)), ("Green", new(0.3f, 0.75f, 0.35f)),
@@ -59,17 +61,23 @@ internal sealed class HierarchyPanel(EditorContext context)
             _row = 0;
             if (_search.Trim() is { Length: > 0 } search)
             {
+                ImGui.Indent(Gutter); // the visibility eye sits left of the rows
                 foreach (var match in scene.RootObjects.SelectMany(Descendants).Where(g => g.Name.Contains(search, StringComparison.OrdinalIgnoreCase)).ToArray())
                 {
                     DrawNode(match, flat: true);
                 }
+
+                ImGui.Unindent(Gutter);
             }
             else
             {
+                ImGui.Indent(Gutter);
                 foreach (var root in scene.RootObjects.ToArray())
                 {
                     DrawNode(root, flat: false);
                 }
+
+                ImGui.Unindent(Gutter);
             }
 
             _drawList.ChannelsMerge();
@@ -177,7 +185,7 @@ internal sealed class HierarchyPanel(EditorContext context)
         var style = gameObject.GetComponent<HierarchyStyle>();
         var header = style?.Kind == HierarchyStyleKind.Header;
         var hasChildren = !flat && gameObject.Transform.ChildCount > 0;
-        var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.OpenOnDoubleClick | ImGuiTreeNodeFlags.SpanFullWidth | ImGuiTreeNodeFlags.DefaultOpen;
+        var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.OpenOnDoubleClick | ImGuiTreeNodeFlags.SpanFullWidth | ImGuiTreeNodeFlags.DefaultOpen | ImGuiTreeNodeFlags.AllowOverlap;
         if (!hasChildren)
         {
             flags |= ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen;
@@ -224,6 +232,8 @@ internal sealed class HierarchyPanel(EditorContext context)
             DrawBadges(gameObject, icon, rowMax.X - 2f, textY, font);
         }
 
+        DrawVisibility(gameObject, rowMin, min.Y, max.Y, hovered);
+
         if (open && hasChildren)
         {
             // Tree lines: from under this row's arrow down to each child, then across to it.
@@ -243,6 +253,36 @@ internal sealed class HierarchyPanel(EditorContext context)
         }
 
         return ((min.Y + max.Y) * 0.5f, left, hasChildren);
+    }
+
+    /// <summary>Unity's eye in the left gutter: hides the object (and its children) in the Scene view only.</summary>
+    private void DrawVisibility(GameObject gameObject, SysVector2 rowMin, float top, float bottom, bool rowHovered)
+    {
+        var visibility = context.Visibility;
+        var hiddenSelf = visibility.IsHiddenSelf(gameObject);
+        var hiddenByParent = !hiddenSelf && !visibility.ShowHidden && !visibility.IsVisible(gameObject);
+        var cursor = ImGui.GetCursorScreenPos();
+        ImGui.SetCursorScreenPos(new SysVector2(rowMin.X + 2f, top));
+        ImGui.InvisibleButton($"##eye{gameObject.Id}", new SysVector2(Gutter - 4f, bottom - top));
+        var hot = ImGui.IsItemHovered();
+        if (ImGui.IsItemClicked())
+        {
+            visibility.Toggle(gameObject);
+            hiddenSelf = !hiddenSelf;
+        }
+
+        if (hot)
+        {
+            Gui.Tooltip(hiddenSelf ? "Hidden in the Scene view (click to show)" : "Click to hide in the Scene view");
+        }
+
+        ImGui.SetCursorScreenPos(cursor);
+        if (hiddenSelf || hiddenByParent || rowHovered || hot)
+        {
+            var color = hiddenSelf ? new SysVector4(0.9f, 0.9f, 0.95f, 1f) : new SysVector4(0.6f, 0.62f, 0.68f, hiddenByParent ? 0.5f : 1f);
+            var textY = top + ((bottom - top - ImGui.GetFontSize()) * 0.5f);
+            _drawList.AddText(new SysVector2(rowMin.X + 4f, textY), ImGui.GetColorU32(color), hiddenSelf || hiddenByParent ? Icons.EyeOff : Icons.Eye);
+        }
     }
 
     /// <summary>Selection, drag and drop and the context menu of the row just drawn.</summary>

@@ -15,8 +15,10 @@ public static class ScenePicker3D
 
     /// <param name="meshOf">The CPU mesh a renderer draws (primitive or model mesh), or null.</param>
     /// <param name="unitsPerPixel">World units per pixel at a point (icon sizes are in pixels).</param>
-    public static GameObject? Pick(Scene scene, Ray ray, Func<MeshRenderer, Mesh?> meshOf, Func<Vector3, float> unitsPerPixel)
+    /// <param name="isVisible">Scene visibility: objects it hides cannot be picked; null picks everything.</param>
+    public static GameObject? Pick(Scene scene, Ray ray, Func<MeshRenderer, Mesh?> meshOf, Func<Vector3, float> unitsPerPixel, Func<GameObject, bool>? isVisible = null)
     {
+        bool Hidden(GameObject g) => isVisible is not null && !isVisible(g);
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(meshOf);
         ArgumentNullException.ThrowIfNull(unitsPerPixel);
@@ -24,7 +26,7 @@ public static class ScenePicker3D
         var bestDistance = float.MaxValue;
         foreach (var renderer in scene.FindObjectsOfType<MeshRenderer>())
         {
-            if (!renderer.GameObject.ActiveInHierarchy || meshOf(renderer) is not { } mesh)
+            if (!renderer.GameObject.ActiveInHierarchy || Hidden(renderer.GameObject) || meshOf(renderer) is not { } mesh)
             {
                 continue;
             }
@@ -38,7 +40,7 @@ public static class ScenePicker3D
         // Terrain worlds: their element surfaces (clicking anywhere on one selects the whole terrain object).
         foreach (var terrain in scene.FindObjectsOfType<WorldTerrain>())
         {
-            if (terrain.GameObject.ActiveInHierarchy && terrain.Raycast(ray) is { } distance && distance < bestDistance)
+            if (terrain.GameObject.ActiveInHierarchy && !Hidden(terrain.GameObject) && terrain.Raycast(ray) is { } distance && distance < bestDistance)
             {
                 (best, bestDistance) = (terrain.GameObject, distance);
             }
@@ -47,7 +49,7 @@ public static class ScenePicker3D
         // Objects drawn as icons: lights, cameras, and anything else without a mesh.
         foreach (var gameObject in scene.GameObjects)
         {
-            if (!gameObject.ActiveInHierarchy || gameObject.GetComponent<MeshRenderer>() is not null || gameObject.GetComponent<WorldTerrain>() is not null || !HasIcon(gameObject))
+            if (!gameObject.ActiveInHierarchy || Hidden(gameObject) || gameObject.GetComponent<MeshRenderer>() is not null || gameObject.GetComponent<WorldTerrain>() is not null || !HasIcon(gameObject))
             {
                 continue;
             }

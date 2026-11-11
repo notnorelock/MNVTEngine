@@ -114,6 +114,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
         Gui.ApplyDarkTheme();
         _iniPath = Path.Combine(project.RootDirectory, "Library", "Editor", "layout.ini");
+        LoadSceneVisibility(Path.Combine(project.RootDirectory, "Library", "Editor", "scene-visibility.json"));
         if (File.Exists(_iniPath))
         {
             ImGui.LoadIniSettingsFromMemory(EditorWindows.MigrateLayout(File.ReadAllText(_iniPath)));
@@ -913,6 +914,35 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         {
             LogOpenFailed(_logger, ex, path);
         }
+    }
+
+    /// <summary>Scene visibility is per user, like the layout: loaded once, saved on every change.</summary>
+    private void LoadSceneVisibility(string file)
+    {
+        try
+        {
+            if (File.Exists(file) && !_context.Visibility.Load(File.ReadAllText(file)))
+            {
+                EditorLog.Warning(_context.Logger, "Scene visibility file is not valid; everything is visible.");
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            EditorLog.ActionFailed(_context.Logger, ex, "Load scene visibility");
+        }
+
+        _context.Visibility.Changed += () =>
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+                File.WriteAllText(file, _context.Visibility.ToJson());
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                EditorLog.ActionFailed(_context.Logger, ex, "Save scene visibility");
+            }
+        };
     }
 
     private string LayoutsFolder => Path.Combine(Path.GetDirectoryName(_iniPath)!, "Layouts");

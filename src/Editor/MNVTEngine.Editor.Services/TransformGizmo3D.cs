@@ -39,6 +39,7 @@ public sealed class TransformGizmo3D
     public const float PlaneHandleTo = 0.45f;
     public const float UniformHandlePixels = 9f;
 
+    private Vector3 _startOrigin;
     private Vector3 _startPosition;
     private Quaternion _startRotation;
     private Vector3 _startScale;
@@ -47,6 +48,12 @@ public sealed class TransformGizmo3D
     private Vector2 _startMouse;
 
     public GizmoTool Tool { get; set; } = GizmoTool.Move;
+
+    /// <summary>
+    /// Where the handles sit (Unity's Center mode: the selection's bounds center); null puts them at the object's pivot
+    /// (its position). Rotate and scale then turn and scale the object about this point.
+    /// </summary>
+    public Vector3? HandleOrigin { get; set; }
 
     /// <summary>Move and rotate along the object's own axes instead of the world's (scale always uses its own).</summary>
     public bool LocalSpace { get; set; }
@@ -79,12 +86,15 @@ public sealed class TransformGizmo3D
     public static float HandleLength(Transform transform, EditorCamera3D camera) =>
         AxisLengthPixels * camera.UnitsPerPixel(transform.Position);
 
+    /// <summary>The handles' position: <see cref="HandleOrigin"/>, or the object's pivot.</summary>
+    public Vector3 Origin(Transform transform) => HandleOrigin ?? transform.Position;
+
     public Gizmo3DHandle HitTest(Transform transform, EditorCamera3D camera, Vector2 mouse)
     {
         ArgumentNullException.ThrowIfNull(transform);
         ArgumentNullException.ThrowIfNull(camera);
-        var origin = transform.Position;
-        var length = HandleLength(transform, camera);
+        var origin = Origin(transform);
+        var length = AxisLengthPixels * camera.UnitsPerPixel(origin);
         Vector2? Screen(Vector3 world) => camera.WorldToScreen(world) is { Z: > 0f } s ? new Vector2(s.X, s.Y) : null;
         if (Screen(origin) is not { } center)
         {
@@ -152,18 +162,18 @@ public sealed class TransformGizmo3D
         ArgumentNullException.ThrowIfNull(transform);
         ArgumentNullException.ThrowIfNull(camera);
         ActiveHandle = handle;
-        (_startPosition, _startRotation, _startScale, _startMouse) = (transform.Position, transform.Rotation, transform.LocalScale, mouse);
+        (_startPosition, _startRotation, _startScale, _startMouse, _startOrigin) = (transform.Position, transform.Rotation, transform.LocalScale, mouse, Origin(transform));
         var ray = camera.ScreenRay(mouse);
         switch (handle)
         {
             case Gizmo3DHandle.X or Gizmo3DHandle.Y or Gizmo3DHandle.Z when Tool != GizmoTool.Rotate:
-                _startParameter = ClosestOnAxis(_startPosition, Axis(transform, handle), ray) ?? 0f;
+                _startParameter = ClosestOnAxis(_startOrigin, Axis(transform, handle), ray) ?? 0f;
                 break;
             case Gizmo3DHandle.XY or Gizmo3DHandle.YZ or Gizmo3DHandle.XZ:
-                _startPoint = OnPlane(ray, _startPosition, Axis(transform, handle)) ?? _startPosition;
+                _startPoint = OnPlane(ray, _startOrigin, Axis(transform, handle)) ?? _startOrigin;
                 break;
             case Gizmo3DHandle.X or Gizmo3DHandle.Y or Gizmo3DHandle.Z:
-                _startPoint = OnPlane(ray, _startPosition, Axis(transform, handle)) ?? _startPosition;
+                _startPoint = OnPlane(ray, _startOrigin, Axis(transform, handle)) ?? _startOrigin;
                 break;
         }
     }
@@ -185,7 +195,7 @@ public sealed class TransformGizmo3D
         {
             case (GizmoTool.Move, Gizmo3DHandle.X or Gizmo3DHandle.Y or Gizmo3DHandle.Z):
             {
-                if (ClosestOnAxis(_startPosition, axis, ray) is not { } s)
+                if (ClosestOnAxis(_startOrigin, axis, ray) is not { } s)
                 {
                     return false;
                 }
@@ -196,7 +206,7 @@ public sealed class TransformGizmo3D
 
             case (GizmoTool.Move, _):
             {
-                if (OnPlane(ray, _startPosition, axis) is not { } point)
+                if (OnPlane(ray, _startOrigin, axis) is not { } point)
                 {
                     return false;
                 }
@@ -212,33 +222,36 @@ public sealed class TransformGizmo3D
 
             case (GizmoTool.Rotate, _):
             {
-                if (OnPlane(ray, _startPosition, axis) is not { } point)
+                if (OnPlane(ray, _startOrigin, axis) is not { } point)
                 {
                     return false;
                 }
 
-                var from = (_startPoint - _startPosition).Normalized;
-                var to = (point - _startPosition).Normalized;
+                var from = (_startPoint - _startOrigin).Normalized;
+                var to = (point - _startOrigin).Normalized;
                 var angle = MathF.Atan2(Vector3.Dot(Vector3.Cross(from, to), axis), Vector3.Dot(from, to)) * Mathf.Rad2Deg;
-                var rotation = Quaternion.AngleAxis(Snap(angle, snap ? RotateSnap : 0f), axis) * _startRotation;
+                var turn = Quaternion.AngleAxis(Snap(angle, snap ? RotateSnap : 0f), axis);
+                var rotation = turn * _startRotation;
                 if (Quaternion.Approximately(rotation, transform.Rotation))
                 {
                     return false;
                 }
 
                 transform.Rotation = rotation;
+                transform.Position = _startOrigin + (turn * (_startPosition - _startOrigin)); // about the handles (pivot: no move)
                 return true;
             }
 
             case (GizmoTool.Scale, Gizmo3DHandle.Uniform):
             {
-                var factor = MathF.Max(0.01f, 1f + ((mouse.X - _startMouse.X - (mouse.Y - _startMouse.Y)) / 100f));
-                return SetScale(transform, _startScale * Snap(factor, snap ? ScaleSnap : 0f));
+                var factor = Snap(MathF.Max(0.01f, 1f + ((mouse.X - _startMouse.X - (mouse.Y - _startMouse.Y)) / 100f)), snap ? ScaleSnap : 0f);
+                transform.Position = _startOrigin + ((_startPosition - _startOrigin) * factor);
+                return SetScale(transform, _startScale * factor);
             }
 
             default:
             {
-                if (ClosestOnAxis(_startPosition, axis, ray) is not { } s || MathF.Abs(_startParameter) < 1e-5f)
+                if (ClosestOnAxis(_startOrigin, axis, ray) is not { } s || MathF.Abs(_startParameter) < 1e-5f)
                 {
                     return false;
                 }
@@ -251,6 +264,8 @@ public sealed class TransformGizmo3D
                     Gizmo3DHandle.Y => scale with { Y = scale.Y * factor },
                     _ => scale with { Z = scale.Z * factor },
                 };
+                var offset = _startPosition - _startOrigin;
+                transform.Position = _startOrigin + offset + (axis * (Vector3.Dot(offset, axis) * (factor - 1f)));
                 return SetScale(transform, scale);
             }
         }
@@ -263,8 +278,8 @@ public sealed class TransformGizmo3D
     {
         ArgumentNullException.ThrowIfNull(transform);
         ArgumentNullException.ThrowIfNull(camera);
-        var origin = transform.Position;
-        var length = HandleLength(transform, camera);
+        var origin = Origin(transform);
+        var length = AxisLengthPixels * camera.UnitsPerPixel(origin);
         var lines = new List<(Gizmo3DHandle, Vector3, Vector3)>();
         Gizmo3DHandle[] axes = [Gizmo3DHandle.X, Gizmo3DHandle.Y, Gizmo3DHandle.Z];
         if (Tool == GizmoTool.Rotate)

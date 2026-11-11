@@ -27,7 +27,7 @@ public sealed partial class SceneRenderer
     {
         foreach (var terrain in scene.World.Pool<WorldTerrain>().Components)
         {
-            if (!terrain.IsActiveAndEnabled || terrain.Data is not { } data)
+            if (!terrain.IsActiveAndEnabled || Hidden(terrain.GameObject) || terrain.Data is not { } data)
             {
                 continue;
             }

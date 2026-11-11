@@ -441,6 +441,26 @@ public sealed partial class PrefabProvider : IPrefabProvider, ITextAssetReader
 }
 
 /// <summary>
+/// What a Scene view shows (the editor's Unity-style Scene toolbar): games render with <see cref="Default"/>.
+/// </summary>
+public sealed record SceneViewOptions
+{
+    public static SceneViewOptions Default { get; } = new();
+
+    /// <summary>Off: the scene's lights are replaced by a light from the camera (Unity's Lighting toggle).</summary>
+    public bool SceneLighting { get; init; } = true;
+
+    /// <summary>Off: no skybox is drawn (environment lighting stays).</summary>
+    public bool Skybox { get; init; } = true;
+
+    /// <summary>Off: materials that read <c>uTime</c> stay at time 0.</summary>
+    public bool AnimatedMaterials { get; init; } = true;
+
+    /// <summary>Whether a GameObject is drawn (scene visibility, the Hierarchy's eye); null draws everything.</summary>
+    public Func<GameObject, bool>? IsVisible { get; init; }
+}
+
+/// <summary>
 /// Draws a scene's sprites and tilemaps through its main camera, with their materials. Scenes with an enabled
 /// <see cref="Light2D"/> are lit: a light buffer is cleared to the ambient color (<see cref="GlobalLight2D"/>), each
 /// light adds a soft disc, and the buffer is multiplied over the rendered scene.
@@ -454,6 +474,9 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
     private Texture2D? _lightDisc;
     private Material? _additive;
     private Material? _multiply;
+    private SceneViewOptions _options = SceneViewOptions.Default;
+
+    private bool Hidden(GameObject gameObject) => _options.IsVisible is { } visible && !visible(gameObject);
 
     public int SpritesDrawn { get; private set; }
 
@@ -500,14 +523,16 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
     /// Renders the scene through an arbitrary 2D view (e.g. the editor's scene camera): with <paramref name="camera3D"/>,
     /// first its meshes (3D pass, with depth), then sprites, tilemaps and 2D lighting on top.
     /// </summary>
-    public void RenderView(Scene scene, Camera2D view, Color background, RenderTarget2D? target = null, Camera? camera3D = null)
+    /// <param name="options">Scene view toggles; null renders as games do.</param>
+    public void RenderView(Scene scene, Camera2D view, Color background, RenderTarget2D? target = null, Camera? camera3D = null, SceneViewOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(view);
+        _options = options ?? SceneViewOptions.Default;
         SpritesDrawn = SpritesCulled = 0;
         var visible = view.VisibleWorldBounds;
 
-        resources.SetTime((float)_clock.Elapsed.TotalSeconds);
+        resources.SetTime(_options.AnimatedMaterials ? (float)_clock.Elapsed.TotalSeconds : 0f);
         var drawCalls = renderer.Batch.DrawCallCount;
         var sprites = Core.Diagnostics.Profiler.Sample("Render.Sprites");
         var batch = renderer.Begin(view, SpriteSortMode.BackToFront, target: target);
@@ -518,7 +543,7 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
         }
         foreach (var sprite in scene.World.Pool<SpriteRenderer>().Components)
         {
-            if (sprite.Texture.IsNone || !sprite.IsActiveAndEnabled)
+            if (sprite.Texture.IsNone || !sprite.IsActiveAndEnabled || Hidden(sprite.GameObject))
             {
                 continue;
             }
@@ -555,7 +580,7 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
 
         foreach (var tilemap in scene.World.Pool<Tilemap>().Components)
         {
-            if (!tilemap.Texture.IsNone && tilemap.IsActiveAndEnabled && tilemap.Count > 0)
+            if (!tilemap.Texture.IsNone && tilemap.IsActiveAndEnabled && tilemap.Count > 0 && !Hidden(tilemap.GameObject))
             {
                 DrawTilemap(batch, tilemap, visible);
             }

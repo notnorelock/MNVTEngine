@@ -78,6 +78,10 @@ internal sealed class SceneViewPanel : IDisposable
         }
 
         ImGui.End();
+
+        // Scene audio follows the Scene view camera, even while the panel is behind another tab.
+        var listener = Is3D ? _view3D.Camera.Position : new Vector3(_camera.Position, 0f);
+        _context.AudioPreview.Update(_context.ActiveScene, _context.PlayMode.IsPlaying, listener, ImGui.GetIO().DeltaTime);
     }
 
     /// <summary>Renders the scene and overlays. Call during the render phase.</summary>
@@ -91,7 +95,7 @@ internal sealed class SceneViewPanel : IDisposable
             return;
         }
 
-        _context.SceneRenderer.RenderView(scene, _camera, Background, _view.Target);
+        _context.SceneRenderer.RenderView(scene, _camera, Background, _view.Target, options: new Runtime.SceneViewOptions { IsVisible = _context.Visibility.IsVisible });
 
         var batch = _context.Renderer.Begin(_camera, SpriteSortMode.BackToFront, target: _view.Target);
         var upp = _camera.UnitsPerPixel;
@@ -158,6 +162,23 @@ internal sealed class SceneViewPanel : IDisposable
     {
         ImGui.SetCursorPos(ImGui.GetCursorPos() + new System.Numerics.Vector2(6f, 4f));
         var is3D = Is3D;
+        if (is3D)
+        {
+            if (Gui.IconButton(_view3D.PivotCenter ? Icons.Crosshair : Icons.CircleDot, _view3D.PivotCenter ? "Center: handles at the selection's bounds center (click for Pivot)" : "Pivot: handles at the object's pivot (click for Center)"))
+            {
+                _view3D.PivotCenter = !_view3D.PivotCenter;
+            }
+
+            ImGui.SameLine(0f, 2f);
+            var gizmo = _view3D.Gizmo;
+            if (Gui.IconButton(gizmo.LocalSpace ? Icons.Cuboid : Icons.Globe, gizmo.LocalSpace ? "Local: handles follow the object's rotation (click for Global)" : "Global: handles along the world axes (click for Local)"))
+            {
+                gizmo.LocalSpace = !gizmo.LocalSpace;
+            }
+
+            ImGui.SameLine(0f, 12f);
+        }
+
         if (Gui.IconButton(Icons.RectangleHorizontal, "2D view", !is3D))
         {
             _mode3D = false;
@@ -184,12 +205,6 @@ internal sealed class SceneViewPanel : IDisposable
     {
         var gizmo = _view3D.Gizmo;
         ImGui.SameLine(0f, 12f);
-        if (Gui.IconButton(gizmo.LocalSpace ? Icons.Cuboid : Icons.Globe, gizmo.LocalSpace ? "Local: handles follow the object's rotation (click for Global)" : "Global: handles along the world axes (click for Local)"))
-        {
-            gizmo.LocalSpace = !gizmo.LocalSpace;
-        }
-
-        ImGui.SameLine(0f, 2f);
         if (Gui.IconButton(Icons.Magnet, _view3D.AlwaysSnap ? "Snapping on (Ctrl moves freely)" : "Snapping off (hold Ctrl to snap)", _view3D.AlwaysSnap))
         {
             _view3D.AlwaysSnap = !_view3D.AlwaysSnap;
@@ -229,6 +244,57 @@ internal sealed class SceneViewPanel : IDisposable
             }
 
             ImGui.EndPopup();
+        }
+
+        ImGui.SameLine(0f, 8f);
+        if (Gui.IconButton(Icons.Sun, _view3D.SceneLighting ? "Scene lighting (click for a light from the camera)" : "Camera light: the scene's lights are off in this view", _view3D.SceneLighting))
+        {
+            _view3D.SceneLighting = !_view3D.SceneLighting;
+        }
+
+        ImGui.SameLine(0f, 2f);
+        var audio = _context.AudioPreview;
+        ImGui.BeginDisabled(!audio.Available);
+        if (Gui.IconButton(Icons.Volume2, "Scene audio: play looping, play-on-start sources here, heard from this camera", audio.Enabled))
+        {
+            audio.Enabled = !audio.Enabled;
+        }
+
+        ImGui.EndDisabled();
+        ImGui.SameLine(0f, 2f);
+        if (Gui.IconButton(Icons.Sparkles, "Effects: skybox and animated materials", _view3D.Skybox && _view3D.AnimatedMaterials))
+        {
+            var on = !(_view3D.Skybox && _view3D.AnimatedMaterials);
+            (_view3D.Skybox, _view3D.AnimatedMaterials) = (on, on);
+        }
+
+        ImGui.SameLine(0f, 0f);
+        if (ImGui.ArrowButton("##effects_menu", ImGuiDir.Down))
+        {
+            ImGui.OpenPopup("##effects");
+        }
+
+        if (ImGui.BeginPopup("##effects"))
+        {
+            var (sky, animated) = (_view3D.Skybox, _view3D.AnimatedMaterials);
+            if (ImGui.Checkbox("Skybox", ref sky))
+            {
+                _view3D.Skybox = sky;
+            }
+
+            if (ImGui.Checkbox("Animated materials", ref animated))
+            {
+                _view3D.AnimatedMaterials = animated;
+            }
+
+            ImGui.EndPopup();
+        }
+
+        ImGui.SameLine(0f, 2f);
+        var visibility = _context.Visibility;
+        if (Gui.IconButton(Icons.EyeOff, visibility.HiddenCount == 0 ? "No hidden objects (hide them with the eye in the Hierarchy)" : visibility.ShowHidden ? $"Showing {visibility.HiddenCount} hidden objects (click to hide them again)" : $"{visibility.HiddenCount} hidden objects (click to show them)", visibility.ShowHidden))
+        {
+            visibility.ShowHidden = !visibility.ShowHidden;
         }
 
         ImGui.SameLine(0f, 8f);
@@ -364,7 +430,7 @@ internal sealed class SceneViewPanel : IDisposable
             }
             else
             {
-                _context.Session.Selection.Select(SceneEditing.Pick(scene, mouseWorld, 8f * upp));
+                _context.Session.Selection.Select(SceneEditing.Pick(scene, mouseWorld, 8f * upp, _context.Visibility.IsVisible));
             }
         }
 

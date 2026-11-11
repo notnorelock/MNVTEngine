@@ -113,6 +113,11 @@ public sealed partial class SceneRenderer
         _frame++;
         foreach (var meshRenderer in scene.World.Pool<MeshRenderer>().Components)
         {
+            if (Hidden(meshRenderer.GameObject))
+            {
+                continue;
+            }
+
             if (meshRenderer.IsActiveAndEnabled && !meshRenderer.Mesh.IsNone)
             {
                 AddModelItems(meshRenderer);
@@ -146,7 +151,7 @@ public sealed partial class SceneRenderer
         _renderer3D ??= new Renderer3D(device);
         _renderer3D.InstancedVariant = GpuInstancing ? InstancedVariant : null;
         var view = new View3D(camera.ViewMatrix, camera.ProjectionMatrix, camera.Transform.Position);
-        var lighting = CollectLighting(scene, camera, view.Position);
+        var lighting = _options.SceneLighting ? CollectLighting(scene, camera, view.Position) : CameraLighting(camera);
         var shadows = RenderShadows(lighting, view, camera, device, target);
         PruneSkins();
         (LightsUsed, ShadowsRendered) = (lighting.Lights.Count, shadows.Directional is not null);
@@ -576,8 +581,22 @@ public sealed partial class SceneRenderer
     }
 
     /// <summary>The skybox: a large cube around the camera with the sky shader, drawn first (background queue) without depth writes.</summary>
+    /// <summary>Scene lighting off: one light shining from the camera, over the scene's own ambient default.</summary>
+    private static SceneLighting CameraLighting(Camera camera) => new()
+    {
+        Ambient = new Color(0.35f, 0.36f, 0.4f),
+        Lights = [new LightData(LightKind.Directional, camera.Transform.Position, ((camera.Transform.Forward * 2f) + camera.Transform.Right - camera.Transform.Up).Normalized, Color.White, 1.1f)],
+        ToneMapping = camera.ToneMapping == ToneMappingMode.Aces ? Graphics.Rendering3D.ToneMapping.Aces : Graphics.Rendering3D.ToneMapping.None,
+        Exposure = camera.Exposure,
+    };
+
     private void AddSky(Scene scene, Camera camera, Vector3 position)
     {
+        if (!_options.Skybox)
+        {
+            return;
+        }
+
         if (FindEnvironment(scene) is not { DrawSkybox: true } environment || resources.GetEnvironmentTexture(environment.Sky) is null)
         {
             return;

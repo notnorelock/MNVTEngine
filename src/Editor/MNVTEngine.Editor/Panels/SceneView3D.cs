@@ -53,6 +53,18 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
     /// <summary>Snap without holding Ctrl (Ctrl then moves freely).</summary>
     public bool AlwaysSnap { get; set; }
 
+    /// <summary>Handles at the selection's bounds center (Unity's Center) instead of its pivot.</summary>
+    public bool PivotCenter { get; set; }
+
+    /// <summary>Off: a light from the camera instead of the scene's lights (Unity's Lighting toggle).</summary>
+    public bool SceneLighting { get; set; } = true;
+
+    /// <summary>Effects: the skybox.</summary>
+    public bool Skybox { get; set; } = true;
+
+    /// <summary>Effects: materials that animate with <c>uTime</c>.</summary>
+    public bool AnimatedMaterials { get; set; } = true;
+
     public TransformGizmo3D Gizmo => _gizmo;
 
     public GizmoTool Tool { get => _gizmo.Tool; set => _gizmo.Tool = value; }
@@ -142,6 +154,11 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
             return;
         }
 
+        if (!_gizmo.IsDragging)
+        {
+            _gizmo.HandleOrigin = PivotCenter && selected is not null ? BoundsOf(selected).Center : null;
+        }
+
         _hovered = selected is not null && hovered && !_gizmo.IsDragging ? _gizmo.HitTest(selected.Transform, _camera, mouse) : Gizmo3DHandle.None;
         if (hovered && !io.KeyAlt && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
         {
@@ -151,7 +168,7 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
             }
             else
             {
-                context.Session.Selection.Select(ScenePicker3D.Pick(context.ActiveScene, _camera.ScreenRay(mouse), MeshOf, _camera.UnitsPerPixel));
+                context.Session.Selection.Select(ScenePicker3D.Pick(context.ActiveScene, _camera.ScreenRay(mouse), MeshOf, _camera.UnitsPerPixel, context.Visibility.IsVisible));
             }
         }
 
@@ -215,7 +232,7 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
             else
             {
                 // Not a terrain click: select whatever is there, as outside terrain editing.
-                context.Session.Selection.Select(ScenePicker3D.Pick(context.ActiveScene, ray, MeshOf, _camera.UnitsPerPixel));
+                context.Session.Selection.Select(ScenePicker3D.Pick(context.ActiveScene, ray, MeshOf, _camera.UnitsPerPixel, context.Visibility.IsVisible));
             }
         }
 
@@ -306,7 +323,8 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
     public void Render(Scene scene, RenderTarget2D target, Color background)
     {
         var size = _camera.Camera.ViewportSize;
-        context.SceneRenderer.RenderView(scene, SceneRenderer.CreateView(_camera.Camera, (int)size.X, (int)size.Y), background, target, _camera.Camera);
+        var options = new SceneViewOptions { SceneLighting = SceneLighting, Skybox = Skybox, AnimatedMaterials = AnimatedMaterials, IsVisible = context.Visibility.IsVisible };
+        context.SceneRenderer.RenderView(scene, SceneRenderer.CreateView(_camera.Camera, (int)size.X, (int)size.Y), background, target, _camera.Camera, options);
         var device = context.Device;
         device.SetRenderTarget(target);
         if (!ShowGrid)
@@ -404,7 +422,7 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
             Line(from, to, active ? Highlight : AxisColors[axis], active ? 3.5f : 2.5f);
         }
 
-        if (Tool == GizmoTool.Scale && Screen(selected.Transform.Position) is { } center)
+        if (Tool == GizmoTool.Scale && Screen(_gizmo.Origin(selected.Transform)) is { } center)
         {
             var half = TransformGizmo3D.UniformHandlePixels;
             list.AddRectFilled(center - new SysVector2(half), center + new SysVector2(half), _hovered == Gizmo3DHandle.Uniform || _gizmo.ActiveHandle == Gizmo3DHandle.Uniform ? Highlight : 0xFFE0E0E0);

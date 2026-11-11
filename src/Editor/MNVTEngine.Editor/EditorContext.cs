@@ -54,6 +54,12 @@ internal sealed class EditorContext
     /// <summary>The terrain tools the Inspector shows under a WorldTerrain (set by <see cref="EditorApp"/>).</summary>
     public Panels.TerrainPanel? TerrainTools { get; set; }
 
+    /// <summary>Objects hidden in the Scene view only (the Hierarchy's eye).</summary>
+    public SceneVisibility Visibility { get; } = new();
+
+    /// <summary>Scene audio: the edit scene's ambient sources, heard from the Scene view camera.</summary>
+    public SceneAudioPreview AudioPreview => field ??= new SceneAudioPreview(PlayMode.Audio, clip => Session.Assets.ReadAllBytes(clip.Guid));
+
     /// <summary>Tile brush shared by the inspector palette and the Scene view.</summary>
     public TilePainter Tiles { get; } = new();
 
