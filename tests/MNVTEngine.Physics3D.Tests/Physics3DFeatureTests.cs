@@ -114,6 +114,37 @@ public class Physics3DFeatureTests
         Assert.Equal(0.5f, hull.Transform.Position.Y, 1);    // the hull of a unit cube
     }
 
+    /// <summary>A procedural floor (like terrain): its own triangles, raised by <see cref="Height"/>.</summary>
+    private sealed class ProceduralFloor : Component, IMeshDataSource
+    {
+        public float Height { get; set; }
+
+        public MeshData? GetMeshData() =>
+            new([new(-10f, Height, -10f), new(10f, Height, -10f), new(10f, Height, 10f), new(-10f, Height, 10f)], [0, 2, 1, 0, 3, 2]);
+    }
+
+    [Fact]
+    public void MeshCollider_UsesAMeshDataSource_AndRefreshShapeTakesItsNewTriangles()
+    {
+        var scene = NewScene();
+        var ground = scene.CreateGameObject("Terrain");
+        var floor = ground.AddComponent<ProceduralFloor>();
+        var collider = ground.AddComponent<MeshCollider>();
+        var ball = scene.CreateGameObject("Ball");
+        ball.Transform.Position = new Vector3(0f, 3f, 0f);
+        ball.AddComponent<SphereCollider>();
+        ball.AddComponent<Rigidbody>();
+        scene.Start();
+        Simulate(scene, 3f);
+        Assert.Equal(0.5f, ball.Transform.Position.Y, 1);
+
+        floor.Height = 1f;
+        Physics.RefreshShape(collider);
+        ball.Transform.Position = new Vector3(0f, 4f, 0f);
+        Simulate(scene, 3f);
+        Assert.Equal(1.5f, ball.Transform.Position.Y, 1);
+    }
+
     [Fact]
     public void BallAndDistanceJoints_HoldBodiesToTheWorld()
     {

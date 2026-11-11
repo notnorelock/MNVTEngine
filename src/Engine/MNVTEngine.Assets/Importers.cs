@@ -97,6 +97,7 @@ public static class AssetImporters
         new MaterialImporter(),
         new TextImporter("Shader", AssetTypes.Shader, ".glsl", ".vert", ".frag"),
         new ScriptImporter(),
+        new TerrainImporter(),
         new TextImporter("Text", AssetTypes.Text, ".txt", ".md"),
         new MagicImporter("Audio", AssetTypes.Audio, new Dictionary<string, Func<byte[], string?>>
         {
@@ -403,6 +404,49 @@ public sealed class UILayoutImporter() : SimpleImporter("UILayout", AssetTypes.U
         catch (Exception ex) when (ex is JsonException or DecoderFallbackException)
         {
             context.Errors.Add($"Invalid JSON: {ex.Message}");
+        }
+    }
+}
+
+/// <summary>
+/// Terrain worlds (<c>.mnvtterrain</c>, TerrainHeaven project JSON): validates the file and records the textures and prop
+/// meshes it references as dependencies (paths next to the file or from the Assets root, or <c>asset:</c> references), so
+/// builds include them. A reference that matches no asset is a warning: the terrain draws without it.
+/// </summary>
+public sealed class TerrainImporter() : SimpleImporter("Terrain", AssetTypes.Terrain, ".mnvtterrain")
+{
+    public override void Import(AssetImportContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        Terrain.Project.ProjectData data;
+        try
+        {
+            data = Terrain.Project.TerrainProject.Parse(new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(context.Data));
+        }
+        catch (Exception ex) when (ex is InvalidDataException or DecoderFallbackException)
+        {
+            context.Errors.Add(ex.Message);
+            return;
+        }
+
+        context.Properties["elements"] = (data.Elements?.Count ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        foreach (var reference in Terrain.Project.TerrainProject.CollectReferences(data))
+        {
+            if (Terrain.Project.TerrainProject.TryParseAssetReference(reference, out var guid, out _))
+            {
+                context.Dependencies.Add(guid);
+                continue;
+            }
+
+            var resolved = Terrain.Project.TerrainProject.ResolveCandidates(context.RelativePath, reference).Select(context.ResolveAsset).FirstOrDefault(g => g is not null);
+            if (resolved is { } found)
+            {
+                context.Dependencies.Add(found);
+            }
+            else
+            {
+                context.Warnings.Add($"'{reference}' matches no asset; the terrain draws without it.");
+            }
         }
     }
 }

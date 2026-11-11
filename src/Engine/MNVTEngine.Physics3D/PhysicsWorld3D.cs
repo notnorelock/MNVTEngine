@@ -809,7 +809,8 @@ public sealed partial class PhysicsWorld3D : GameSystem, IDisposable
     }
 
     private static MeshData? MeshData(GameObject owner) =>
-        owner.GetComponent<MeshRenderer>() is { } renderer ? owner.Scene.MeshData?.GetMeshData(renderer) : null;
+        owner.Components.OfType<IMeshDataSource>().FirstOrDefault() is { } source ? source.GetMeshData()
+        : owner.GetComponent<MeshRenderer>() is { } renderer ? owner.Scene.MeshData?.GetMeshData(renderer) : null;
 
     private void Warn(string message) => LogWarning(_scene.Logger, message);
 

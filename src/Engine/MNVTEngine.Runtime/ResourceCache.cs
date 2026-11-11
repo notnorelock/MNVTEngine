@@ -89,6 +89,29 @@ public sealed partial class ResourceCache : IDisposable
         _textures.Add(guid, _device.CreateTexture(image, _assets.GetTextureSettings(guid).ToSampler(), path));
     }
 
+    /// <summary>
+    /// An asset a terrain world references: an <c>asset:</c> reference as is, else a path next to the terrain file, else
+    /// from the Assets root (TerrainHeaven's project-relative paths). None when nothing matches.
+    /// </summary>
+    public AssetRef ResolveTerrainReference(AssetRef terrain, string reference)
+    {
+        if (AssetRef.TryParse(reference, out var direct))
+        {
+            return direct;
+        }
+
+        var terrainPath = terrain.IsNone ? "" : _assets.Get(terrain.Guid)?.Path ?? "";
+        foreach (var candidate in Terrain.Project.TerrainProject.ResolveCandidates(terrainPath, reference))
+        {
+            if (_assets.TryGetGuid(candidate, out var guid))
+            {
+                return new AssetRef(guid);
+            }
+        }
+
+        return AssetRef.None;
+    }
+
     /// <summary>Texture by path relative to Assets (editor thumbnails); the placeholder if the path is not an indexed asset.</summary>
     public Texture2D GetTexture(string relativePath) =>
         _assets.TryGetGuid(relativePath, out var guid) ? GetTexture(new AssetRef(guid)) : MissingTexture;
@@ -204,6 +227,7 @@ public sealed partial class ResourceCache : IDisposable
                 Graphics.Materials.MaterialShaders.StandardInstancedId => Graphics.Materials.MaterialShaders.StandardInstanced,
                 Graphics.Materials.MaterialShaders.UnlitInstancedId => Graphics.Materials.MaterialShaders.UnlitInstanced,
                 Graphics.Materials.MaterialShaders.SkyId => Graphics.Materials.MaterialShaders.Sky,
+                Graphics.Materials.MaterialShaders.TerrainSplatId => Graphics.Materials.MaterialShaders.TerrainSplat,
                 _ => throw new ArgumentException($"Unknown built-in shader '{id}'.", nameof(id)),
             });
             _builtinShaders.Add(id, shader);

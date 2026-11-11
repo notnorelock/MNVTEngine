@@ -311,4 +311,30 @@ public sealed class AssetDatabaseTests : IDisposable
         Assert.Equal(AssetImportStatus.Failed, broken.Status);
         Assert.Contains(broken.Messages, m => m.Contains("'Fly' is not a state", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void TerrainWorlds_AreValidated_AndDependOnTheTexturesTheyReference()
+    {
+        var db = OpenEditing();
+        Write("World/Textures/grass.png", "not decoded by this test");
+        Write("Shared/rock.png", "not decoded by this test");
+        Write("World/Island.mnvtterrain", """
+            { "version": 1, "settings": { "skyColor": "#1e1e1e", "dayNightCycle": false, "hour": 12 }, "connections": [],
+              "elements": [ { "type": "terrain", "id": 0, "nodes": [ { "x": 0, "y": 0, "z": 0 } ],
+                "textures": { "terrain": "Textures/grass.png" }, "textureRotations": {},
+                "terrainTextureLayers": [ { "texturePath": "Shared/rock.png", "tiling": 8 }, { "texturePath": "missing.png", "tiling": 8 } ] } ] }
+            """);
+        Write("World/Old.mnvtterrain", """{ "version": 2, "elements": [] }""");
+        db.Refresh();
+
+        var island = db.Assets.Single(a => a.Path == "World/Island.mnvtterrain");
+        Assert.Equal((AssetTypes.Terrain, AssetImportStatus.Imported, "1"), (island.Type, island.Status, island.Properties["elements"]));
+        Assert.Equal(
+            new HashSet<Guid> { db.Assets.Single(a => a.Path == "World/Textures/grass.png").Guid, db.Assets.Single(a => a.Path == "Shared/rock.png").Guid },
+            island.Dependencies.ToHashSet());
+        Assert.Contains(island.Messages, m => m.Contains("'missing.png' matches no asset", StringComparison.Ordinal));
+        var old = db.Assets.Single(a => a.Path == "World/Old.mnvtterrain");
+        Assert.Equal(AssetImportStatus.Failed, old.Status);
+        Assert.Contains(old.Messages, m => m.Contains("version 2", StringComparison.Ordinal));
+    }
 }

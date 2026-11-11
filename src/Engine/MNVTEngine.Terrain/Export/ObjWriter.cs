@@ -87,7 +87,8 @@ public static partial class ObjWriter
     private static (long, long, long) PositionKey(double x, double y, double z) =>
         ((long)MathUtil.JsRound(x / WeldEpsilon), (long)MathUtil.JsRound(y / WeldEpsilon), (long)MathUtil.JsRound(z / WeldEpsilon));
 
-    private static double[][] ComputeAutoSmoothNormals(IReadOnlyList<ObjGroup> groups, double thresholdDegrees)
+    /// <summary>Auto-smooth normals (xyz per vertex) of each group, smoothed across all of them; the renderer shades with the same normals.</summary>
+    public static double[][] ComputeAutoSmoothNormals(IReadOnlyList<ObjGroup> groups, double thresholdDegrees = 30)
     {
         var cosThreshold = Math.Cos(thresholdDegrees * Math.PI / 180);
         var keys = new List<(long, long, long)[]>();

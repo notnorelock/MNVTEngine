@@ -37,5 +37,8 @@ public static class AssetTypes
 
     /// <summary>A state machine of model clips (<c>.mnvtanimator</c>), played by <c>ModelAnimatorController</c>.</summary>
     public const string AnimatorController = "AnimatorController";
+
+    /// <summary>A terrain world (<c>.mnvtterrain</c>: TerrainHeaven project JSON), drawn by <c>WorldTerrain</c>.</summary>
+    public const string Terrain = "Terrain";
     public const string Unknown = "Unknown";
 }

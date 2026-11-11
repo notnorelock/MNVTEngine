@@ -13,7 +13,7 @@ Apache-2.0, pure C#, no native libraries). Gameplay code uses engine types only;
 | `SphereCollider` | `Radius` (scaled by the largest scale axis) |
 | `CapsuleCollider` | `Radius`, `Height` (along local Y, including both caps, like the Capsule primitive) |
 | `CylinderCollider` | `Radius`, `Height` (along local Y, like the Cylinder primitive) |
-| `MeshCollider` | `Convex`. Uses the triangles of the GameObject's `MeshRenderer` (primitive or model mesh) |
+| `MeshCollider` | `Convex`. Uses the triangles of a component implementing `IMeshDataSource` (such as `WorldTerrain`), else of the GameObject's `MeshRenderer` (primitive or model mesh). Call `Physics.RefreshShape(collider)` after procedural triangles change |
 | `FixedJoint`, `BallJoint`, `HingeJoint` (`Axis`), `DistanceJoint` (`MinDistance`, `MaxDistance`), `SpringJoint` (`Distance`, `Frequency`, `DampingRatio`) | `ConnectedBody`, `Anchor` (this body's local space) |
 | `CharacterController` | `Radius`, `Height`, `Center`, `SlopeLimit` (degrees), `StepOffset`, `SkinWidth`, `Layer` |
 

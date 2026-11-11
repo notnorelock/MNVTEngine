@@ -144,4 +144,32 @@ public sealed class TerrainProjectTests
         Assert.True(settings.Advance(0.1));
         Assert.Equal(0.15 * 24 / 240, settings.Hour, 9);
     }
+
+    [Fact]
+    public void ParseCollectsEveryTextureAndPropReference()
+    {
+        var data = TerrainProject.Parse(BuildSample().Save());
+        Assert.Equal(["textures/asphalt.png", "textures/grass.png", "textures/grass_blade.png", "rock.obj"], TerrainProject.CollectReferences(data));
+        Assert.Throws<InvalidDataException>(() => TerrainProject.Parse("{ \"version\": 3 }"));
+    }
+
+    [Theory]
+    [InlineData("World/Island.mnvtterrain", "Textures/grass.png", "World/Textures/grass.png|Textures/grass.png")]
+    [InlineData("Island.mnvtterrain", "./grass.png", "grass.png|grass.png")]
+    [InlineData("World/Island.mnvtterrain", "../Shared/rock.png", "Shared/rock.png")]
+    [InlineData("World/Island.mnvtterrain", "../../outside.png", "")]
+    [InlineData("World/Island.mnvtterrain", "asset:7e5a0000-0000-4000-8000-000000000001", "")]
+    public void ResolvesReferencesNextToTheFileThenFromTheAssetsRoot(string terrain, string reference, string expected) =>
+        Assert.Equal(expected, string.Join('|', TerrainProject.ResolveCandidates(terrain, reference)));
+
+    [Fact]
+    public void ParsesAssetReferences()
+    {
+        Assert.True(TerrainProject.TryParseAssetReference("asset:7e5a0000-0000-4000-8000-000000000001#mesh/Rock", out var guid, out var part));
+        Assert.Equal((Guid.Parse("7e5a0000-0000-4000-8000-000000000001"), "mesh/Rock"), (guid, part));
+        Assert.True(TerrainProject.TryParseAssetReference("asset:7e5a0000-0000-4000-8000-000000000001", out _, out part));
+        Assert.Null(part);
+        Assert.False(TerrainProject.TryParseAssetReference("textures/grass.png", out _, out _));
+        Assert.False(TerrainProject.TryParseAssetReference("asset:7e5a0000-0000-4000-8000-000000000001#", out _, out _));
+    }
 }

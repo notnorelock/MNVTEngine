@@ -31,6 +31,35 @@ Each element follows the same pattern:
 - `GetProperties()` describes its inspector fields.
 - `Serialize`/`Deserialize` read and write the project format.
 
+## In games: `WorldTerrain`
+
+A terrain world is an asset: a `.mnvtterrain` file holding TerrainHeaven's project JSON (asset type `Terrain`).
+
+- **Importer.** Validates the file. Every texture and prop it references becomes an import dependency, so builds include them.
+- **Reference lookup.** A reference is an `asset:` link, or a path next to the `.mnvtterrain` file, or a path from the Assets root, tried in that order.
+- **Missing references.** A reference that matches no asset is an import warning; the world draws without it.
+
+Put the `WorldTerrain` component (in `MNVTEngine.Terrain.Components`) on a GameObject and set its `Project`. The world is built in that GameObject's local space.
+
+| Setting | Meaning |
+|---|---|
+| `Project` | The `.mnvtterrain` asset. It is loaded on first use; if loading fails, `LoadError` says why. |
+| `LodLevel` | 0 (as authored) to 3 (coarsest). |
+| `DrawFoliage`, `DrawProps` | Show the foliage cards and placed props. |
+
+**Rendering** (in `Runtime`):
+
+- Each element group is a mesh drawn with the Standard shader. It uses the group's texture and texture rotation, the element's material hint (color, opacity, roughness, double-sided) and the same 30° auto-smooth normals as the OBJ export.
+- Terrain tiles draw with the built-in terrain splat shader (`builtin:terrain-splat`). The tile's control map (UV1) blends four layer textures, each repeated by its tiling.
+- Foliage presets are crossed-quad cards drawn with the Unlit shader: the preset texture with its alpha cutoff, or without a texture the preset's middle tint. The wind preview is not drawn.
+- Props are their model meshes (`asset:<guid>#mesh/<name>`, or a whole model at its node transforms) with the asset calibration and each placement's position, XYZ Euler rotation and scale.
+- Texture V is flipped on upload, because three.js images start at the bottom row and engine textures start at the top.
+- A component's meshes are rebuilt only when its `Version` changes. After editing `Data`, call `MarkChanged()`; `SetData(project)` swaps in a world being edited.
+
+**Collision.** A `MeshCollider` on the same GameObject collides with every opaque surface. Translucent groups (water) are left out.
+
+See `samples/TerrainDemo` for a world with a splat-painted tile, roads, an intersection, a river, a fence, stairs, a plateau and grass. Its spheres fall onto the terrain collider.
+
 ## Projects
 
 `TerrainProject` reads and writes TerrainHeaven's project JSON (version 1). It bundles:

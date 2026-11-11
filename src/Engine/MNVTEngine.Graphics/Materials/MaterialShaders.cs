@@ -458,6 +458,43 @@ public static class MaterialShaders
         }
         """);
 
+    /// <summary>Id of the terrain splat shader (<see cref="TerrainSplat"/>); renderers pick it for terrain tiles, materials never name it.</summary>
+    public const string TerrainSplatId = "builtin:terrain-splat";
+
+    /// <summary>
+    /// The Standard shader with its base color replaced by a four-layer terrain splat: <c>_ControlMap</c> (sampled with
+    /// UV1, one weight per channel, normalized) blends <c>_Layer0</c> to <c>_Layer3</c>, each sampled with UV0 times its
+    /// <c>_LayerTiling</c> component, then tinted by <c>_BaseColor</c> and the vertex color as usual.
+    /// </summary>
+    public static ShaderSource TerrainSplat { get; } = new(
+        "Builtin/TerrainSplat",
+        MeshVertex,
+        Standard.FragmentGlsl
+            .Replace(
+                "uniform sampler2D _EmissiveMap;",
+                """
+                uniform sampler2D _EmissiveMap;
+                uniform sampler2D _ControlMap;
+                uniform sampler2D _Layer0;
+                uniform sampler2D _Layer1;
+                uniform sampler2D _Layer2;
+                uniform sampler2D _Layer3;
+                uniform vec4 _LayerTiling;
+                """,
+                StringComparison.Ordinal)
+            .Replace(
+                "vec4 base = texture(_BaseColorMap, uvSet(_BaseColorUVSet)) * _BaseColor * vColor;",
+                """
+                vec4 weights = texture(_ControlMap, clamp(vTexCoord1, 0.0, 1.0));
+                weights /= max(dot(weights, vec4(1.0)), 0.0001);
+                vec3 splat = texture(_Layer0, vTexCoord * _LayerTiling.x).rgb * weights.r
+                    + texture(_Layer1, vTexCoord * _LayerTiling.y).rgb * weights.g
+                    + texture(_Layer2, vTexCoord * _LayerTiling.z).rgb * weights.b
+                    + texture(_Layer3, vTexCoord * _LayerTiling.w).rgb * weights.a;
+                vec4 base = vec4(splat, 1.0) * _BaseColor * vColor;
+                """,
+                StringComparison.Ordinal));
+
     /// <summary>The Standard shader for GPU-skinned meshes (<see cref="SkinnedMeshVertex"/>, <c>uJoints</c>).</summary>
     public static ShaderSource StandardSkinned { get; } = new("Builtin/StandardSkinned", SkinnedMeshVertex, Standard.FragmentGlsl);
 

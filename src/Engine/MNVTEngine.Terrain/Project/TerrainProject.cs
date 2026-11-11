@@ -125,7 +125,11 @@ public sealed partial class TerrainProject
     }
 
     /// <summary>Replaces the project with a saved one.</summary>
-    public void Load(string json)
+    public void Load(string json) => Load(Parse(json));
+
+    /// <summary>Reads a project file without building it (importers, validation).</summary>
+    /// <exception cref="InvalidDataException">Not a terrain project of a supported version.</exception>
+    public static ProjectData Parse(string json)
     {
         ArgumentNullException.ThrowIfNull(json);
         ProjectData? data;
@@ -138,7 +142,86 @@ public sealed partial class TerrainProject
             throw new InvalidDataException($"Not a valid terrain project: {exception.Message}", exception);
         }
 
-        Load(data ?? throw new InvalidDataException("Not a valid terrain project: the file is empty."));
+        if (data is null)
+        {
+            throw new InvalidDataException("Not a valid terrain project: the file is empty.");
+        }
+
+        return data.Version == FormatVersion ? data : throw new InvalidDataException($"Unsupported terrain project version {data.Version} (expected {FormatVersion}).");
+    }
+
+    /// <summary>Every texture and prop mesh a project file references, as written (paths or <c>asset:</c> references).</summary>
+    public static IReadOnlyList<string> CollectReferences(ProjectData data)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        var elements = (data.Elements ?? []).Where(e => e is not null).ToList();
+        return [.. elements.SelectMany(e => (e.Textures ?? []).Values)
+            .Concat(elements.SelectMany(e => (e.TerrainTextureLayers ?? []).Where(l => l is not null).Select(l => l.TexturePath)))
+            .Concat((data.Foliage?.Types ?? []).Where(t => t is not null).Select(t => t.TexturePath))
+            .Concat((data.Meshes?.Assets ?? []).Where(a => a is not null).Select(a => a.LibraryPath))
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Distinct(StringComparer.Ordinal)];
+    }
+
+    /// <summary>
+    /// The Assets-relative paths a project reference can mean, in lookup order: next to the terrain file, then from the
+    /// Assets root. <c>asset:</c> references and paths leaving the Assets folder give none.
+    /// </summary>
+    public static IEnumerable<string> ResolveCandidates(string terrainAssetPath, string reference)
+    {
+        ArgumentNullException.ThrowIfNull(terrainAssetPath);
+        if (string.IsNullOrEmpty(reference) || reference.StartsWith("asset:", StringComparison.Ordinal))
+        {
+            yield break;
+        }
+
+        var normalized = NormalizeTexturePath(reference);
+        var folder = terrainAssetPath.Replace('\\', '/');
+        folder = folder.Contains('/', StringComparison.Ordinal) ? folder[..folder.LastIndexOf('/')] : "";
+        foreach (var candidate in (string[])[folder.Length > 0 ? $"{folder}/{normalized}" : normalized, normalized])
+        {
+            if (Collapse(candidate) is { } path)
+            {
+                yield return path;
+            }
+        }
+    }
+
+    /// <summary>The GUID (and <c>#part</c>) of an <c>asset:&lt;guid&gt;[#part]</c> reference.</summary>
+    public static bool TryParseAssetReference(string reference, out Guid guid, out string? part)
+    {
+        (guid, part) = (Guid.Empty, null);
+        if (reference is null || !reference.StartsWith("asset:", StringComparison.Ordinal) || reference.Length < 42 || !Guid.TryParse(reference.AsSpan(6, 36), out guid))
+        {
+            return false;
+        }
+
+        part = reference.Length > 43 && reference[42] == '#' ? reference[43..] : null;
+        return reference.Length == 42 || part is not null;
+    }
+
+    /// <summary>Resolves "." and ".." segments; null when the path climbs out of its root.</summary>
+    private static string? Collapse(string path)
+    {
+        var parts = new List<string>();
+        foreach (var segment in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (segment == "..")
+            {
+                if (parts.Count == 0)
+                {
+                    return null;
+                }
+
+                parts.RemoveAt(parts.Count - 1);
+            }
+            else if (segment != ".")
+            {
+                parts.Add(segment);
+            }
+        }
+
+        return parts.Count == 0 ? null : string.Join('/', parts);
     }
 
     public void Load(ProjectData data)

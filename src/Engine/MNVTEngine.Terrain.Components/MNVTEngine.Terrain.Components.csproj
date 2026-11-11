@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The WorldTerrain component: a TerrainHeaven terrain world (MNVTEngine.Terrain) on a GameObject, with its collision
+    triangles. Rendering lives in Runtime; no graphics dependencies here.
+  -->
+  <PropertyGroup>
+    <RootNamespace>MNVTEngine</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Physics3D\MNVTEngine.Physics3D.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Terrain\MNVTEngine.Terrain.csproj" />
+  </ItemGroup>
+</Project>

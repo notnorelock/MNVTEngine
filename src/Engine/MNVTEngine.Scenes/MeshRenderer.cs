@@ -12,6 +12,16 @@ public interface IMeshDataProvider
     MeshData? GetMeshData(MeshRenderer renderer);
 }
 
+/// <summary>
+/// A component that supplies its GameObject's collision triangles itself (procedural geometry such as terrain), in the
+/// GameObject's local space. A <c>MeshCollider</c> uses it instead of the <see cref="MeshRenderer"/>; call
+/// <c>Physics.RefreshShape</c> after the triangles change.
+/// </summary>
+public interface IMeshDataSource
+{
+    MeshData? GetMeshData();
+}
+
 /// <summary>Built-in meshes (see <c>MeshPrimitives</c>; unit-sized and centered on the origin).</summary>
 public enum PrimitiveMesh
 {

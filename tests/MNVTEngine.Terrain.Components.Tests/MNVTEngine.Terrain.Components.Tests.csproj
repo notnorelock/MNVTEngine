@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>MNVTEngine.TerrainComponentsTests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Terrain.Components\MNVTEngine.Terrain.Components.csproj" />
+  </ItemGroup>
+</Project>

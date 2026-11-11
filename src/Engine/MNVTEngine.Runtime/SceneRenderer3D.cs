@@ -123,6 +123,8 @@ public sealed partial class SceneRenderer
             }
         }
 
+        AddTerrainItems(scene);
+
         if (_items.Count == 0)
         {
             return;
@@ -663,6 +665,7 @@ public sealed partial class SceneRenderer
 
     private void Dispose3D()
     {
+        DisposeTerrains();
         foreach (var state in _skins.Values)
         {
             state.Dispose();

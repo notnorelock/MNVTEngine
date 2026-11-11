@@ -218,7 +218,8 @@ public sealed class CylinderCollider : Collider
 }
 
 /// <summary>
-/// The triangles of the GameObject's <see cref="MeshRenderer"/> (primitive or model mesh) as a collider. Static and
+/// The triangles of the GameObject's <see cref="IMeshDataSource"/> component (such as terrain) or else its
+/// <see cref="MeshRenderer"/> (primitive or model mesh) as a collider. Static and
 /// kinematic bodies use the exact triangles (one-sided per triangle winding, as rendered); dynamic bodies need
 /// <see cref="Convex"/> and use the mesh's convex hull. Must be the only collider on its GameObject unless convex.
 /// </summary>
@@ -440,6 +441,13 @@ public static class Physics
     /// <summary>Closest non-trigger collider along the ray on the layers of <paramref name="layerMask"/>, or null. A collider containing the origin is ignored.</summary>
     public static RaycastHit? Raycast(Vector3 origin, Vector3 direction, float distance = 1000f, uint layerMask = uint.MaxValue) =>
         PhysicsWorld3D.For(SceneManager.ActiveScene).Raycast(origin, direction, distance, layerMask);
+
+    /// <summary>Rebuilds the collision shape of a collider's GameObject next step (its procedural mesh changed, see <see cref="IMeshDataSource"/>).</summary>
+    public static void RefreshShape(Collider collider)
+    {
+        ArgumentNullException.ThrowIfNull(collider);
+        PhysicsWorld3D.Refresh(collider);
+    }
 
     /// <summary>Makes two layers pass through each other (or collide again).</summary>
     public static void IgnoreLayerCollision(int a, int b, bool ignore = true) => PhysicsWorld3D.For(SceneManager.ActiveScene).IgnoreLayerCollision(a, b, ignore);
