@@ -124,6 +124,45 @@ The Animator window edits animator controllers (`.mnvtanimator`, see [animator c
 - The toolbar shows whether the controller is valid; hover the problem count for the runtime's messages. **Ctrl+S** saves, **Ctrl+Z/Y** undo and redo while the window has focus.
 - Node positions are saved under `"editor"` in the file; the runtime ignores them.
 
+## Terrain
+
+The Terrain window (docked next to the Inspector) edits the terrain world of a `WorldTerrain` component in the Scene view, with TerrainHeaven's tools. See [terrain](../engine/terrain.md) for the world itself.
+
+**Open a world:**
+
+- Select a GameObject with a `WorldTerrain` and press **Edit terrain in Scene view**.
+- Or double-click a `.mnvtterrain` asset in the Project panel: this selects the WorldTerrain of the open scene that uses it.
+- Or start the editor with `--edit <file.mnvtterrain>`.
+- A WorldTerrain without a world gets one from **Create world asset**: `Assets/Terrain/<name>.mnvtterrain`, holding a 60 × 60 tile.
+
+**Saving.** Every finished action is saved to the `.mnvtterrain` file at once and recorded in the world's own history. **Ctrl+Z/Y** undo and redo it while editing; scene undo resumes when editing stops (✕). Editing stops when Play starts or the scene changes.
+
+**Tools.** Left drag uses the chosen tool. Alt, middle and right drag still move the camera.
+
+| Tool | What it does |
+|---|---|
+| Select | Click a node or surface to select it. Drag a node to move it on its height; Shift + drag moves it vertically. Ctrl + drag moves a whole element. |
+| Road, River, Cut spline, Fence, Stairs | Drag from start to end on the ground plane. Ctrl curves the element, with handles at the thirds. Shift snaps the end to 45° steps. An end dropped on a free node of another element connects to it, as a road onto an intersection outlet. |
+| Intersection, Terrain tile, Cut point | Click to place. |
+| Polygon | Click the points, then press Enter to finish. Esc cancels. |
+| Height | Raise, lower or smooth painted heights. Ctrl inverts raise and lower. |
+| Texture | Paints the selected layer of every tile, with its shape, opacity, hardness, spacing and rotation. The layer textures and tilings are set here; drop textures from the Project panel. |
+| Foliage | Scatters the checked presets (density, minimum spacing, maximum height difference). Ctrl + drag erases. Presets are edited in the same list. |
+| Props | Places the chosen prop asset at its spacing, with optional random rotation. Ctrl + drag erases. Drop a model from the Project panel to add an asset; set its scale and pivot calibration, or use **Center on ground**. |
+
+**Selected element.**
+
+- The selected element shows its TerrainHeaven properties (sections, numbers, toggles, choices and buttons).
+- **Textures and UVs** sets each group's texture (drop one from the Project panel), rotation and UV offset/scale.
+- Delete removes the element. Copy / Copy properties / Paste properties, and Ctrl+C / Ctrl+V in the Scene view, paste it in front of the camera.
+- **Presets** saves the element's settings under a name, applies them, or makes them the default for new elements of that type.
+
+**Other sections.**
+
+- **World settings:** LOD preview, LOD switch distances, sky color, enhanced visuals, day/night cycle and hour.
+- **History:** click an entry to jump back to it.
+- **Export for Unity:** writes the [Unity export](../engine/terrain.md#export) to `Exports/<world>/` in the project folder.
+
 ## Material inspector
 
 Selecting a `.mnvtmat` in the Project panel shows it in the Inspector ([format](../graphics/materials-and-lighting.md)):

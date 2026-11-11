@@ -38,6 +38,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private NativeMenuBar? _nativeMenu;
     private InspectorPanel _inspector = null!;
     private SceneViewPanel _sceneView = null!;
+    private TerrainPanel _terrainPanel = null!;
     private GameViewPanel _gameView = null!;
     private ProjectPanel _projectPanel = null!;
     private ConsolePanel _console = null!;
@@ -118,6 +119,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _hierarchy = new HierarchyPanel(_context);
         _inspector = new InspectorPanel(_context);
         _sceneView = new SceneViewPanel(_context);
+        _terrainPanel = new TerrainPanel(_context);
         _gameView = new GameViewPanel(_context);
         _projectPanel = new ProjectPanel(_context);
         _console = new ConsolePanel(_context);
@@ -160,6 +162,11 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             else if (full.EndsWith(AnimatorControllerDefinition.Extension, StringComparison.OrdinalIgnoreCase))
             {
                 _context.OpenAnimatorRequest = full;
+            }
+            else if (full.EndsWith(".mnvtterrain", StringComparison.OrdinalIgnoreCase)
+                && _context.Session.Assets.TryGetGuid(Path.GetRelativePath(_context.Session.Assets.AssetsDirectory, full).Replace('\\', '/'), out var terrain))
+            {
+                _context.OpenTerrainRequest = terrain;
             }
             else
             {
@@ -230,6 +237,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _hierarchy.Draw();
         _inspector.Draw();
         _sceneView.Draw();
+        _terrainPanel.Draw();
         _gameView.Draw();
         _projectPanel.Draw();
         _console.Draw();
@@ -475,6 +483,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         DockBuilder.SplitNode(rest, DockBuilder.Direction.Down, 0.30f, out var bottom, out var center);
         DockBuilder.DockWindow(EditorWindows.Id("Hierarchy"), left);
         DockBuilder.DockWindow(EditorWindows.Id("Inspector"), right);
+        DockBuilder.DockWindow(EditorWindows.Id("Terrain"), right);
         DockBuilder.DockWindow(EditorWindows.Id("Project"), bottom);
         DockBuilder.DockWindow(EditorWindows.Id("Console"), bottom);
         DockBuilder.DockWindow(EditorWindows.Id("Profiler"), bottom);
@@ -773,6 +782,22 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             }
 
             return;
+        }
+
+        // While a terrain world is being edited, undo and redo go to its history.
+        if (io.KeyCtrl && !io.WantTextInput && _context.TerrainEditor.Target is not null)
+        {
+            if (ImGui.IsKeyPressed(ImGuiKey.Y, false) || (io.KeyShift && ImGui.IsKeyPressed(ImGuiKey.Z, false)))
+            {
+                _context.TerrainEditor.Redo();
+                return;
+            }
+
+            if (ImGui.IsKeyPressed(ImGuiKey.Z, false))
+            {
+                _context.TerrainEditor.Undo();
+                return;
+            }
         }
 
         if (!io.KeyCtrl || io.WantTextInput)

@@ -28,7 +28,9 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
 
     public void Draw()
     {
-        if (ImGui.Begin(EditorWindows.Title("Inspector")) && context.Session.Selection.Asset is { } asset)
+        var open = ImGui.Begin(EditorWindows.Title("Inspector"));
+        context.InspectorDockId = ImGui.GetWindowDockID();
+        if (open && context.Session.Selection.Asset is { } asset)
         {
             _assetInspector.Draw(asset);
         }

@@ -48,6 +48,9 @@ internal sealed class EditorContext
     /// <summary>Breakpoints and stops of <c>.mnvts</c> scripts in Play Mode.</summary>
     public ScriptDebugSession ScriptDebugger { get; } = new();
 
+    /// <summary>Terrain world editing shared by the Terrain window and the Scene view.</summary>
+    public TerrainEditor TerrainEditor => field ??= new TerrainEditor(Logger);
+
     /// <summary>Tile brush shared by the inspector palette and the Scene view.</summary>
     public TilePainter Tiles { get; } = new();
 
@@ -69,8 +72,14 @@ internal sealed class EditorContext
     /// <summary>Dock node of the Game view (the central area); windows new to a saved layout dock there.</summary>
     public uint CenterDockId { get; set; }
 
+    /// <summary>Dock node of the Inspector; the Terrain window docks there in layouts saved before it existed.</summary>
+    public uint InspectorDockId { get; set; }
+
     /// <summary>A UI layout (full path) to open in the UI Editor this frame.</summary>
     public string? OpenUILayoutRequest { get; set; }
+
+    /// <summary>A terrain world (<c>.mnvtterrain</c>) to edit next frame, through the WorldTerrain that uses it in the open scene.</summary>
+    public Guid? OpenTerrainRequest { get; set; }
 
     /// <summary>An animator controller (<c>.mnvtanimator</c>) to open in the Animator window next frame.</summary>
     public string? OpenAnimatorRequest { get; set; }

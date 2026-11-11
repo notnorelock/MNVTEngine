@@ -19,6 +19,8 @@ namespace MNVTEngine.Editor.Panels;
 /// <item>Left click: select (nearest mesh triangle, or an icon), or drag a gizmo handle (Ctrl snaps).</item>
 /// <item>Alt + left drag: orbit. Middle drag: pan. Right drag: look around, with WASD/QE to fly (Shift faster). Wheel: zoom.</item>
 /// <item>F: frame the selection.</item>
+/// <item>While a terrain world is edited (Terrain window), left click and drag use the terrain tool instead; Esc cancels
+/// a placement, Enter finishes a polygon, Delete removes the selected element, Ctrl+C/Ctrl+V copy and paste it.</item>
 /// </list>
 /// </summary>
 internal sealed class SceneView3D(EditorContext context) : IDisposable
@@ -33,6 +35,7 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
     private Material? _gridMaterial;
     private Mesh? _grid;
     private float _gridSpacing;
+    private bool _terrainDragging;
 
     public GizmoTool Tool { get => _gizmo.Tool; set => _gizmo.Tool = value; }
 
@@ -46,8 +49,9 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
         var mouse = io.MousePos.ToEngine() - origin;
         var selected = context.Selected;
         var looking = ImGui.IsItemActive() && ImGui.IsMouseDown(ImGuiMouseButton.Right);
+        var terrain = context.TerrainEditor.Target is not null && !context.PlayMode.IsPlaying ? context.TerrainEditor : null;
 
-        if (focused && !io.WantTextInput && !looking)
+        if (focused && !io.WantTextInput && !looking && terrain is null)
         {
             if (ImGui.IsKeyPressed(ImGuiKey.W, false))
             {
@@ -104,6 +108,12 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
             return;
         }
 
+        if (terrain is not null)
+        {
+            HandleTerrainInput(terrain, mouse, hovered, focused);
+            return;
+        }
+
         _hovered = selected is not null && hovered && !_gizmo.IsDragging ? _gizmo.HitTest(selected.Transform, _camera, mouse) : Gizmo3DHandle.None;
         if (hovered && !io.KeyAlt && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
         {
@@ -130,6 +140,123 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
             {
                 _gizmo.EndDrag();
             }
+        }
+    }
+
+    private void HandleTerrainInput(TerrainEditor terrain, Vector2 mouse, bool hovered, bool focused)
+    {
+        var io = ImGui.GetIO();
+        var modifiers = (io.KeyCtrl ? TerrainModifiers.Ctrl : TerrainModifiers.None) | (io.KeyShift ? TerrainModifiers.Shift : TerrainModifiers.None);
+        Vector2? ToScreen(Vector3 world) => _camera.WorldToScreen(world) is { Z: > 0f } s ? new Vector2(s.X, s.Y) : null;
+        var ray = _camera.ScreenRay(mouse);
+        if (focused && !io.WantTextInput)
+        {
+            if (ImGui.IsKeyPressed(ImGuiKey.Escape, false))
+            {
+                terrain.Cancel();
+            }
+            else if (ImGui.IsKeyPressed(ImGuiKey.Enter, false) || ImGui.IsKeyPressed(ImGuiKey.KeypadEnter, false))
+            {
+                terrain.Finish();
+            }
+            else if (ImGui.IsKeyPressed(ImGuiKey.Delete, false))
+            {
+                terrain.DeleteSelection();
+            }
+            else if (io.KeyCtrl && ImGui.IsKeyPressed(ImGuiKey.C, false))
+            {
+                terrain.Copy();
+            }
+            else if (io.KeyCtrl && ImGui.IsKeyPressed(ImGuiKey.V, false))
+            {
+                terrain.Paste(_camera.Position, (_camera.Pivot - _camera.Position).Normalized);
+            }
+        }
+
+        if (hovered || _terrainDragging)
+        {
+            terrain.PointerMove(ray, _terrainDragging && ImGui.IsMouseDown(ImGuiMouseButton.Left), modifiers);
+        }
+
+        if (hovered && !io.KeyAlt && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+        {
+            terrain.PointerDown(ray, mouse, ToScreen, modifiers);
+            _terrainDragging = true;
+        }
+
+        if (_terrainDragging && !ImGui.IsMouseDown(ImGuiMouseButton.Left))
+        {
+            terrain.PointerUp(mouse, ToScreen, modifiers);
+            _terrainDragging = false;
+        }
+    }
+
+    /// <summary>Nodes, curve guides, the placement preview and the brush of the terrain being edited.</summary>
+    private void DrawTerrainOverlay(TerrainEditor terrain, Vector2 origin)
+    {
+        var list = ImGui.GetWindowDrawList();
+        SysVector2? Screen(Terrain.Geometry.Vec3 local) => _camera.WorldToScreen(terrain.ToWorld(local)) is { Z: > 0f } s ? new SysVector2(origin.X + s.X, origin.Y + s.Y) : null;
+        void Polyline(IReadOnlyList<Terrain.Geometry.Vec3> points, uint color, float thickness, bool closed = false)
+        {
+            for (var i = 0; i + 1 < points.Count + (closed ? 1 : 0); i++)
+            {
+                if (Screen(points[i]) is { } a && Screen(points[(i + 1) % points.Count]) is { } b)
+                {
+                    list.AddLine(a, b, color, thickness);
+                }
+            }
+        }
+
+        foreach (var spline in terrain.Project!.World.Elements.OfType<Terrain.Elements.SplineElement>())
+        {
+            foreach (var guide in spline.GetGuideLines())
+            {
+                var rgb = guide.Color ?? 0x8899AAu;
+                Polyline(guide.Points, 0x80000000u | ((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb >> 16) & 0xFF), 1f);
+            }
+        }
+
+        foreach (var node in terrain.Nodes())
+        {
+            if (Screen(node.Position) is not { } at)
+            {
+                continue;
+            }
+
+            var selected = node == terrain.SelectedNode || (node.Parent is not null && node.Parent == terrain.SelectedElement);
+            var color = node.Kind switch
+            {
+                Terrain.Elements.NodeKind.CurveHandle => 0xFFE0A040u,
+                Terrain.Elements.NodeKind.TerrainCut => 0xFF4080FFu,
+                Terrain.Elements.NodeKind.River => 0xFFFFC040u,
+                _ => 0xFFF0F0F0u,
+            };
+            list.AddCircleFilled(at, node == terrain.SelectedNode ? 7f : 5f, selected ? Highlight : color);
+            list.AddCircle(at, node == terrain.SelectedNode ? 9f : 7f, 0xFF202020, 0, 1.5f);
+        }
+
+        if (terrain.Placement is { } placement)
+        {
+            Polyline([placement.A, placement.B], Highlight, 3f);
+        }
+
+        if (terrain.PolygonPoints.Count > 0)
+        {
+            Polyline(terrain.PolygonPoints, Highlight, 2f, closed: terrain.PolygonPoints.Count > 2);
+            foreach (var point in terrain.PolygonPoints)
+            {
+                if (Screen(point) is { } at)
+                {
+                    list.AddCircleFilled(at, 4f, Highlight);
+                }
+            }
+        }
+
+        if (terrain.BrushPoint is { } center && terrain.BrushRadius > 0)
+        {
+            const int Segments = 48;
+            var ring = Enumerable.Range(0, Segments).Select(i => center + new Terrain.Geometry.Vec3(Math.Cos(i * Math.PI * 2 / Segments) * terrain.BrushRadius, 0.05, Math.Sin(i * Math.PI * 2 / Segments) * terrain.BrushRadius)).ToList();
+            Polyline(ring, ImGui.GetIO().KeyCtrl ? 0xFF5555FFu : 0xFF77EE55u, 2f, closed: true);
         }
     }
 
@@ -200,6 +327,12 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
             {
                 Line(camera.Transform.Position, camera.Transform.Position + (camera.Transform.Forward * (40f * _camera.UnitsPerPixel(camera.Transform.Position))), color, 2f);
             }
+        }
+
+        if (context.TerrainEditor.Target is not null && !context.PlayMode.IsPlaying)
+        {
+            DrawTerrainOverlay(context.TerrainEditor, origin);
+            return;
         }
 
         if (context.Selected is not { } selected)

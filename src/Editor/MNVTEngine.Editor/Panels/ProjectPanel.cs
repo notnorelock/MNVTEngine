@@ -208,6 +208,10 @@ internal sealed class ProjectPanel(EditorContext context)
                     {
                         context.OpenUILayoutRequest = context.Session.Assets.FullPath(guid);
                     }
+                    else if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && record.Type == AssetTypes.Terrain)
+                    {
+                        context.OpenTerrainRequest = guid;
+                    }
                     else if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left) && record.Type == AssetTypes.AnimatorController)
                     {
                         context.OpenAnimatorRequest = context.Session.Assets.FullPath(guid);
