@@ -91,6 +91,21 @@ public static class GamePackager
         return Directory.Exists(shared) ? Directory.EnumerateDirectories(shared).SingleOrDefault() : null;
     }
 
+    /// <summary>
+    /// Removes the symbol files of an ahead-of-time build: the managed .pdb files of the compiled assemblies are never
+    /// used by a native executable; Debug keeps the executable's own native .pdb.
+    /// </summary>
+    public static void RemoveSymbols(string packageDirectory, string executableName, bool all)
+    {
+        foreach (var file in Directory.EnumerateFiles(packageDirectory, "*.pdb", SearchOption.AllDirectories).ToList())
+        {
+            if (all || !Path.GetFileNameWithoutExtension(file).Equals(executableName, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(file);
+            }
+        }
+    }
+
     public static void ArrangeLayout(string packageDirectory, string executableName)
     {
         var managed = Path.Combine(packageDirectory, GamePackage.ManagedFolder);

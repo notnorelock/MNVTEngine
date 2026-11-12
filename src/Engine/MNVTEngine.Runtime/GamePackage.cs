@@ -91,6 +91,9 @@ public sealed partial class GamePackage
     /// <summary>True when the in-game debug UI (and Dear ImGui) ships: Debug builds, or Release when the project opts in.</summary>
     public bool DevTools { get; set; }
 
+    /// <summary>"jit" (IL assemblies on the private .NET runtime) or "aot" (one native executable, no runtime).</summary>
+    public string ScriptingBackend { get; set; } = "jit";
+
     /// <summary>Engine modules built into the game, in startup order; null in builds made before modules were resolved per game.</summary>
     public List<string>? Modules { get; set; }
 

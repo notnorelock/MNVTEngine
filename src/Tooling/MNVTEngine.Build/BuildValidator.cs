@@ -68,7 +68,8 @@ public static class BuildValidator
             return diagnostics;
         }
 
-        var framework = ValidateRuntime(gameDirectory, package, diagnostics);
+        // An ahead-of-time game is one native executable: no runtime, no host assembly, no managed dependencies.
+        var framework = package.ScriptingBackend == "aot" ? ValidateNativeHost(gameDirectory, package, diagnostics) : ValidateRuntime(gameDirectory, package, diagnostics);
         ValidateDependencies(gameDirectory, package, framework, diagnostics);
         ValidateFiles(gameDirectory, package, diagnostics);
         ValidateContent(gameDirectory, data, package, key, diagnostics);
@@ -98,6 +99,21 @@ public static class BuildValidator
     }
 
     /// <returns>The private framework folder, or null if missing.</returns>
+    private static string? ValidateNativeHost(string gameDirectory, GamePackage package, List<BuildDiagnostic> diagnostics)
+    {
+        if (!File.Exists(Path.Combine(gameDirectory, package.ExecutableName + ".exe")))
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB503", $"Game host file missing: {package.ExecutableName}.exe", gameDirectory));
+        }
+
+        foreach (var file in new[] { package.ExecutableName + ".dll", GamePackage.RuntimeFolder, GamePackage.ManagedFolder }.Where(f => Path.Exists(Path.Combine(gameDirectory, f)) && !(Directory.Exists(Path.Combine(gameDirectory, f)) && !Directory.EnumerateFileSystemEntries(Path.Combine(gameDirectory, f)).Any())))
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB503", $"An ahead-of-time game ships no IL host or .NET runtime, but has {file}.", gameDirectory));
+        }
+
+        return null;
+    }
+
     private static string? ValidateRuntime(string gameDirectory, GamePackage package, List<BuildDiagnostic> diagnostics)
     {
         var name = package.ExecutableName;
@@ -298,6 +314,13 @@ public static class BuildValidator
     {
         var dataFolder = GamePackage.DataFolder(package.ExecutableName);
         var where = $"{dataFolder}/{string.Join(", ", package.ArchiveFiles)}";
+        if (key is null && package.ScriptingBackend == "aot")
+        {
+            // The key is compiled into the native executable, where it cannot be read back; mnvt build passes it.
+            diagnostics.Add(BuildDiagnostic.Warning("MNVB514", "Content not checked: an ahead-of-time game's key is compiled into its executable. Validate with the project's key, or run the game (--run).", where));
+            return;
+        }
+
         ContentArchiveSet archive;
         try
         {

@@ -130,6 +130,16 @@ How each part is found at run time:
 
 Size is about 89 MB, mostly the .NET runtime. Trimming is not enabled because component discovery and serialization use reflection.
 
+## Scripting backends
+
+`--scripting-backend jit|aot` (or `"scriptingBackend"` in a build profile) chooses how the game's C# runs:
+
+- **`jit`** (default): IL assemblies on a private .NET runtime, as described above.
+- **`aot`**: NativeAOT. One native executable holds the engine modules and the game's C#, with no .NET runtime and no IL; about 25-32 MB instead of about 82 MB for the samples. It needs the MSVC linker on the build machine. Game components are registered from generated code, and reflection-heavy assemblies are preserved whole. Hot reload does not apply.
+- `il2cpp` is refused (MNVB111): MNVTEngine has no IL-to-C++ backend, and Unity's IL2CPP cannot be reused.
+
+See [IL2CPP and ahead-of-time compilation](../architecture/il2cpp-aot-pipeline.md).
+
 ## Build report
 
 Every build writes `<output>.build-report.json` beside the game folder (it does not ship). `mnvt build analyze <project> [--profile p] [--configuration c] [--json file]` produces the same report without packaging: it compiles the C# scripts, analyses the content and resolves the modules exactly as a build does, and prints it as text.
@@ -234,7 +244,7 @@ Each archive has one AES-256-GCM encrypted, authenticated entry per file. The en
 
 | Range | Stage |
 |---|---|
-| MNVB1xx | Project, profile, output folder and key (`100` load, `101` unknown profile, `102` configuration, `103` target, `104` output folder, `105` name clash, `106` engine not found, `107` key created, `108` invalid key file, `109` a project from before [project profiles](../engine/project-profiles.md) mixes 2D and 3D content, `110` warning: building a project from before profiles with its inferred profile) |
+| MNVB1xx | Project, profile, output folder and key (`100` load, `101` unknown profile, `102` configuration, `103` target, `104` output folder, `105` name clash, `106` engine not found, `107` key created, `108` invalid key file, `109` a project from before [project profiles](../engine/project-profiles.md) mixes 2D and 3D content, `110` warning: building a project from before profiles with its inferred profile, `111` unknown or unavailable scripting backend) |
 | MNVB2xx | Content (`209` created a missing `.meta`, `201` asset index, `202` unreadable, `203` import settings, `204`/`205` import errors and warnings, `206` missing referenced asset, `207`/`208` scene and prefab loading, `220`/`221` model import errors and warnings, `222` model without an artifact, `223` warning: an unreferenced scene, prefab or audio clip is not shipped) |
 | MNVB3xx, CSxxxx | C# scripts (`301` scripts project missing; compiler errors keep their `CS` codes and source positions) |
 | MNV1xxx–3xxx | `.mnvts` errors from the compiler; see the [language reference](../scripting/language.md) |

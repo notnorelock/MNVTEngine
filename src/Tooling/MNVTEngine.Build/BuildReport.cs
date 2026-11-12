@@ -63,9 +63,9 @@ public static class BuildReport
             ["scriptingBackend"] = new JObject
             {
                 ["id"] = input.ScriptingBackend,
-                ["description"] = input.ScriptingBackend == "jit"
-                    ? "CoreCLR with the JIT: engine and game C# ship as IL assemblies and are compiled at run time."
-                    : input.ScriptingBackend,
+                ["description"] = input.ScriptingBackend == "aot"
+                    ? "NativeAOT: engine and game C# compiled ahead of time into one native executable (RyuJIT code generation, no IL, no JIT, no .NET runtime). Not IL2CPP: no C++ is generated."
+                    : "CoreCLR with the JIT: engine and game C# ship as IL assemblies and are compiled at run time.",
             },
             ["devTools"] = input.DevTools,
             ["modules"] = new JObject

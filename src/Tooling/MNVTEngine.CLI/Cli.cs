@@ -69,8 +69,8 @@ public static class Cli
                 "modules" => CommandLine.Parse(args, [], []),
                 "editor" => CommandLine.Parse(args, ["--frames"], []),
                 "run" => CommandLine.Parse(args, ["--frames", "--screenshot", "--profile"], ["--gpu-validation"]),
-                "build" when args.Length > 1 && args[1] == "analyze" => CommandLine.Parse(["analyze", .. args[2..]], ["--profile", "--configuration", "--target", "--json"], []),
-                "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output"], [], optionalValues: ["--run"]),
+                "build" when args.Length > 1 && args[1] == "analyze" => CommandLine.Parse(["analyze", .. args[2..]], ["--profile", "--configuration", "--target", "--scripting-backend", "--json"], []),
+                "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--scripting-backend"], [], optionalValues: ["--run"]),
                 "validate" => CommandLine.Parse(args, [], [], optionalValues: ["--run"]),
                 _ => throw new FormatException($"Unknown command '{args[0]}'."),
             };
@@ -244,6 +244,7 @@ public static class Cli
             Configuration = command.Value("--configuration"),
             Target = command.Value("--target"),
             OutputDirectory = command.Value("--output"),
+            ScriptingBackend = command.Value("--scripting-backend"),
             TestRunFrames = command.Has("--run") ? command.Int("--run", 120) : null,
         };
         var result = await new GameBuilder(loggerFactory.CreateLogger("Build")).BuildAsync(command.Single("project"), options, cancellationToken).ConfigureAwait(false);
@@ -257,7 +258,7 @@ public static class Cli
 
     private static async Task<int> AnalyzeAsync(CommandLine command, TextWriter output, ILoggerFactory loggerFactory, CancellationToken cancellationToken)
     {
-        var options = new BuildOptions { Profile = command.Value("--profile"), Configuration = command.Value("--configuration"), Target = command.Value("--target") };
+        var options = new BuildOptions { Profile = command.Value("--profile"), Configuration = command.Value("--configuration"), Target = command.Value("--target"), ScriptingBackend = command.Value("--scripting-backend") };
         var (report, diagnostics) = await new GameBuilder(loggerFactory.CreateLogger("Analyze")).AnalyzeAsync(command.Single("project"), options, cancellationToken).ConfigureAwait(false);
         Report(output, diagnostics);
         if (report is null)

@@ -77,6 +77,8 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 
 - [Getting started: create, edit, script and export a game](docs/getting-started.md)
 - [Architecture overview, dependency rules, decisions, risks](docs/architecture/overview.md)
+- [Engine composition audit (modules, usage-based builds)](docs/architecture/engine-composition-audit.md)
+- [IL2CPP and ahead-of-time compilation (NativeAOT backend)](docs/architecture/il2cpp-aot-pipeline.md)
 - [Mathematics conventions](docs/engine/mathematics.md)
 - [JSON serialization](docs/serialization/json.md)
 - [2D rendering, frame loop, resource ownership](docs/graphics/rendering.md)

@@ -42,6 +42,7 @@ public sealed class PackagedGameFixture : IAsyncLifetime
     }
 }
 
+[Collection(GameExports.Name)]
 public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<PackagedGameFixture>
 {
     private string Output => game.First.OutputDirectory!;

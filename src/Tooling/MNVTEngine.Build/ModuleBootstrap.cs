@@ -10,6 +10,12 @@ namespace MNVTEngine.Build;
 /// replaces the host's development list (<c>HostModules.cs</c>). <c>dotnet publish</c> of GameHost imports the props
 /// through <c>-p:MnvtBootstrap</c>; assemblies of modules the game does not use are then not built into it at all.
 /// </summary>
+/// <summary>What an ahead-of-time host needs besides its modules (see <see cref="AotBootstrap"/>).</summary>
+/// <param name="ComponentsSource">The generated GameComponents.g.cs.</param>
+/// <param name="ScriptsAssembly">The game's compiled C# (referenced and compiled into the executable); null without C# scripts.</param>
+/// <param name="Roots">Assemblies whose metadata is kept whole.</param>
+public sealed record AotInput(string ComponentsSource, string? ScriptsAssembly, IReadOnlyList<string> Roots);
+
 public static class ModuleBootstrap
 {
     public const string SourceFile = "ModuleBootstrap.g.cs";
@@ -65,7 +71,8 @@ public static class ModuleBootstrap
     }
 
     /// <param name="sourcePath">Where <see cref="Source"/> was written.</param>
-    public static string Props(ModuleResolution resolution, string sourcePath)
+    /// <param name="aotSourcePath">Where the AOT GameComponents.g.cs was written; null for the JIT host.</param>
+    public static string Props(ModuleResolution resolution, string sourcePath, AotInput? aot = null, string? aotSourcePath = null)
     {
         ArgumentNullException.ThrowIfNull(resolution);
         var text = new StringBuilder();
@@ -78,17 +85,50 @@ public static class ModuleBootstrap
                 .Append(".csproj\" GlobalPropertiesToRemove=\"$(MnvtGameProperties)\" />\n");
         }
 
-        return text.Append("  </ItemGroup>\n</Project>\n").ToString();
+        if (aot is not null)
+        {
+            text.Append("    <Compile Include=\"").Append(System.Security.SecurityElement.Escape(aotSourcePath)).Append("\" />\n");
+            if (aot.ScriptsAssembly is not null)
+            {
+                text.Append("    <Reference Include=\"").Append(System.Security.SecurityElement.Escape(aot.ScriptsAssembly)).Append("\" />\n");
+            }
+
+            foreach (var root in aot.Roots)
+            {
+                text.Append("    <TrimmerRootAssembly Include=\"").Append(root).Append("\" />\n");
+            }
+        }
+
+        text.Append("  </ItemGroup>\n");
+        if (aot is not null)
+        {
+            // NativeAOT: one native executable, no .NET runtime. The AOT analysis warnings (reflection over rooted
+            // assemblies) are reported by the build, not errors of this host.
+            text.Append("  <PropertyGroup>\n    <PublishAot>true</PublishAot>\n    <DefineConstants>$(DefineConstants);MNVT_AOT</DefineConstants>\n")
+                .Append("    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>\n  </PropertyGroup>\n");
+        }
+
+        return text.Append("</Project>\n").ToString();
     }
 
     /// <summary>Writes both files into <paramref name="directory"/> and returns the props path for <c>-p:MnvtBootstrap</c>.</summary>
-    public static string Write(ModuleResolution resolution, string directory)
+    public static string Write(ModuleResolution resolution, string directory, AotInput? aot = null)
     {
         Directory.CreateDirectory(directory);
         var source = Path.Combine(directory, SourceFile);
         var props = Path.Combine(directory, PropsFile);
+        var aotSource = Path.Combine(directory, AotBootstrap.SourceFile);
         File.WriteAllText(source, Source(resolution));
-        File.WriteAllText(props, Props(resolution, source));
+        if (aot is not null)
+        {
+            File.WriteAllText(aotSource, aot.ComponentsSource);
+        }
+        else
+        {
+            File.Delete(aotSource);
+        }
+
+        File.WriteAllText(props, Props(resolution, source, aot, aotSource));
         return props;
     }
 }

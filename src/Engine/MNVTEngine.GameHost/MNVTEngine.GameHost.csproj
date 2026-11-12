@@ -55,7 +55,7 @@
 
   <!-- Private runtime in the layout of a .NET install (host/fxr + shared/Microsoft.NETCore.App), as hostfxr requires.
        The SDK restores the runtime pack for every RuntimeIdentifiers entry. -->
-  <Target Name="MnvtPublishPrivateRuntime" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' != ''">
+  <Target Name="MnvtPublishPrivateRuntime" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' != '' and '$(PublishAot)' != 'true'">
     <PropertyGroup>
       <MnvtRuntimePack>$(NuGetPackageRoot)microsoft.netcore.app.runtime.$(RuntimeIdentifier.ToLowerInvariant())/$(BundledNETCoreAppPackageVersion)/runtimes/$(RuntimeIdentifier)/</MnvtRuntimePack>
       <MnvtRuntimeRoot>$(PublishDir)$(AppHostRelativeDotNet)/</MnvtRuntimeRoot>

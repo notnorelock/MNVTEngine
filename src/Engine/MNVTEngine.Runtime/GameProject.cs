@@ -122,6 +122,12 @@ public sealed class BuildProfile
     public static readonly IReadOnlyList<string> SupportedTargets = ["win-x64"];
     public static readonly IReadOnlyList<string> Configurations = ["Debug", "Release"];
 
+    /// <summary>
+    /// How the game's C# runs: "jit" (CoreCLR, IL assemblies, the default) or "aot" (NativeAOT: one native executable,
+    /// no .NET runtime). There is no IL-to-C++ ("il2cpp") backend; see docs/architecture/il2cpp-aot-pipeline.md.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ScriptingBackends = ["jit", "aot"];
+
     public string Name { get; set; } = "release";
 
     /// <summary>"Debug" or "Release".</summary>
@@ -144,6 +150,9 @@ public sealed class BuildProfile
     /// load framework assemblies by name at run time.
     /// </summary>
     public bool PruneFramework { get; set; } = true;
+
+    /// <summary>See <see cref="ScriptingBackends"/>.</summary>
+    public string ScriptingBackend { get; set; } = "jit";
 
     [JsonIgnore]
     public bool ShowsConsole => Console ?? Configuration == "Debug";

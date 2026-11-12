@@ -110,6 +110,13 @@ internal static class Game
 
     private static bool LoadScripts(GamePackage package, ContentArchiveSet archive, ComponentRegistry registry, ILogger logger)
     {
+#if MNVT_AOT
+        // Ahead-of-time build: the game's C# is compiled into this executable; its components are registered from the
+        // list the build generated (GameComponents.g.cs), with no assembly loading and no type scanning.
+        _ = (package, archive, logger);
+        GameComponents.Register(registry);
+        return true;
+#else
         if (package.ScriptsAssembly is not { } scripts)
         {
             return true;
@@ -124,6 +131,7 @@ internal static class Game
         }
 
         return load.Code is not null && diagnostics.All(d => d.Severity != ScriptDiagnosticSeverity.Error);
+#endif
     }
 }
 

@@ -22,6 +22,9 @@ public sealed record BuildOptions
     /// <summary>Absolute, or relative to the current directory.</summary>
     public string? OutputDirectory { get; init; }
 
+    /// <summary>"jit" or "aot" (see <see cref="BuildProfile.ScriptingBackends"/>); null for the profile's.</summary>
+    public string? ScriptingBackend { get; init; }
+
     /// <summary>Launch the exported game for this many frames after packaging; null to skip (needs a GPU).</summary>
     public int? TestRunFrames { get; init; }
 }
@@ -121,6 +124,8 @@ public sealed partial class GameBuilder(ILogger logger)
         Directory.CreateDirectory(contentDirectory);
         string? scriptsAssembly = null;
         List<string> modules;
+        var aot = profile.ScriptingBackend == "aot";
+        string? aotSource = null;
         ContentResult? compiled = null;
         FrameworkPruning? pruning = null;
         var archive = new ContentArchiveWriter(contentDirectory, key);
@@ -132,6 +137,12 @@ public sealed partial class GameBuilder(ILogger logger)
                 ApplyDevToolsDefault(project, profile);
                 content = ContentCompiler.Compile(project, registry, archive, scriptsAssemblyPath);
                 compiled = content;
+                if (aot && content.Modules is { } resolved)
+                {
+                    // Written while the game's code is loaded: its component types and their serialized members.
+                    var roots = AotBootstrap.Roots(resolved, scripts?.AssemblyName);
+                    aotSource = AotBootstrap.Source(code?.ComponentTypes ?? [], registry.Types.Values.Distinct().Where(t => roots.Contains(t.Assembly.GetName().Name!)));
+                }
             }
             finally
             {
@@ -152,7 +163,8 @@ public sealed partial class GameBuilder(ILogger logger)
             // 3. Host with its private runtime; dependencies into Dependencies/Managed and Dependencies/Native.
             LogPublishing(logger, executableName, profile.Target);
             // The host is built with the game's modules only (generated bootstrap: references and explicit creation).
-            var bootstrap = ModuleBootstrap.Write(content.Modules!, Path.Combine(work, "Bootstrap"));
+            var bootstrap = ModuleBootstrap.Write(content.Modules!, Path.Combine(work, "Bootstrap"),
+                aot ? new AotInput(aotSource!, scriptsAssemblyPath, AotBootstrap.Roots(content.Modules!, scripts?.AssemblyName)) : null);
             modules = [.. content.Modules!.Modules.Select(m => m.Id)];
             diagnostics.AddRange(await GamePackager.PublishHostAsync(engineRoot, profile, executableName, key, work, stage, modules.Contains("devtools"), bootstrap, cancellationToken).ConfigureAwait(false));
             if (diagnostics.HasErrors())
@@ -161,7 +173,11 @@ public sealed partial class GameBuilder(ILogger logger)
             }
 
             GamePackager.ArrangeLayout(stage, executableName);
-            if (scripts is not null)
+            if (aot)
+            {
+                GamePackager.RemoveSymbols(stage, executableName, profile.Configuration == "Release");
+            }
+            else if (scripts is not null)
             {
                 scriptsAssembly = GamePackager.AddGameCode(archive.Globals, scriptsOutput!, scripts.AssemblyName, stage, profile.Configuration == "Debug", diagnostics);
             }
@@ -196,6 +212,7 @@ public sealed partial class GameBuilder(ILogger logger)
             Configuration = profile.Configuration,
             DevTools = modules.Contains("devtools"),
             Modules = modules,
+            ScriptingBackend = profile.ScriptingBackend,
             Target = profile.Target,
             EngineVersion = GamePackager.EngineVersion,
             ScriptsAssembly = scriptsAssembly,
@@ -204,7 +221,7 @@ public sealed partial class GameBuilder(ILogger logger)
 
         // 4. Validate before touching the output folder.
         LogValidating(logger);
-        diagnostics.AddRange(BuildValidator.Validate(stage));
+        diagnostics.AddRange(BuildValidator.Validate(stage, key));
         if (diagnostics.HasErrors())
         {
             return Fail(profile);
@@ -224,7 +241,7 @@ public sealed partial class GameBuilder(ILogger logger)
         var formattedSize = GamePackager.FormatSize(size);
         LogPackaged(logger, formattedSize, output);
         var reportPath = BuildReport.PathFor(output);
-        BuildReport.Write(BuildReport.Create(new BuildReportInput(project, profile, compiled!, modules.Contains("devtools"), diagnostics) { PackageDirectory = output, Pruning = pruning }), reportPath);
+        BuildReport.Write(BuildReport.Create(new BuildReportInput(project, profile, compiled!, modules.Contains("devtools"), diagnostics) { PackageDirectory = output, Pruning = pruning, ScriptingBackend = profile.ScriptingBackend }), reportPath);
         LogReport(logger, reportPath);
 
         if (options.TestRunFrames is { } frames)
@@ -264,7 +281,7 @@ public sealed partial class GameBuilder(ILogger logger)
             ApplyDevToolsDefault(project, profile);
             var content = ContentCompiler.Compile(project, registry, output: null, code.Code?.MainAssembly.Location is { Length: > 0 } location ? location : null);
             diagnostics.AddRange(content.Diagnostics);
-            return content.Modules is null ? (null, diagnostics) : (BuildReport.Create(new BuildReportInput(project, profile, content, content.Modules.IsEnabled("devtools"), diagnostics)), diagnostics);
+            return content.Modules is null ? (null, diagnostics) : (BuildReport.Create(new BuildReportInput(project, profile, content, content.Modules.IsEnabled("devtools"), diagnostics) { ScriptingBackend = profile.ScriptingBackend }), diagnostics);
         }
         finally
         {
@@ -360,6 +377,19 @@ public sealed partial class GameBuilder(ILogger logger)
         if (configuration is not null)
         {
             profile.Configuration = configuration;
+        }
+
+        if (options.ScriptingBackend is { } backend)
+        {
+            profile.ScriptingBackend = backend.ToLowerInvariant();
+        }
+
+        if (!BuildProfile.ScriptingBackends.Contains(profile.ScriptingBackend))
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB111", profile.ScriptingBackend == "il2cpp"
+                ? "There is no il2cpp backend: MNVTEngine does not translate IL to C++ (Unity's IL2CPP is part of the Unity editor and cannot be reused). Use \"aot\" for a native executable; see docs/architecture/il2cpp-aot-pipeline.md."
+                : $"Unknown scripting backend '{profile.ScriptingBackend}'; use {string.Join(" or ", BuildProfile.ScriptingBackends)}."));
+            return null;
         }
 
         if (options.Target is { } target)
