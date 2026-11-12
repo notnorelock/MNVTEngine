@@ -63,7 +63,53 @@ public static partial class GameApplication
             return 2;
         }
 
-        var registry = EngineComponents.CreateRegistry();
+        // Only the project's modules register components and start; a scene that uses another module's components fails to load.
+        // Exports were checked when they were built; a project played from its sources is checked here, so content of a
+        // disabled module stops the game instead of loading as missing components.
+        var modules = ProjectModules.Resolve(project);
+        var problems = archive is null ? ProjectModules.Validate(project).Diagnostics : modules.Diagnostics;
+        foreach (var problem in problems.Where(d => d.Severity == Modules.ModuleSeverity.Error))
+        {
+            LogModuleProblem(logger, problem.Code, problem.Message);
+        }
+
+        if (problems.Any(d => d.Severity == Modules.ModuleSeverity.Error))
+        {
+            return 2;
+        }
+
+        var registry = ComponentRegistry.CreateDefault();
+        var host = new ModuleHost(EngineModules.For(modules));
+        try
+        {
+            host.Start(registry);
+        }
+        catch (ModuleStartupException ex)
+        {
+            LogLoadFailed(logger, ex);
+            return 2;
+        }
+
+        try
+        {
+            return RunGame(args, createDevice, loggerFactory, logger, project, registry, prepareComponents, archive, createAudio, tools);
+        }
+        finally
+        {
+            try
+            {
+                host.Shutdown();
+            }
+            catch (ModuleShutdownException ex)
+            {
+                LogModulesShutdownFailed(logger, ex);
+            }
+        }
+    }
+
+    private static int RunGame(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, ILogger logger, GameProject project, ComponentRegistry registry,
+        Func<GameProject, ComponentRegistry, bool>? prepareComponents, ContentArchiveSet? archive, AudioDeviceFactory? createAudio, DevelopmentTools? tools)
+    {
         if (prepareComponents is not null && !prepareComponents(project, registry))
         {
             return 3;
@@ -193,6 +239,12 @@ public static partial class GameApplication
 
     [LoggerMessage(EventId = 3202, Level = LogLevel.Critical, Message = "Graphics could not start: {Reason}")]
     private static partial void LogGraphicsFailed(ILogger logger, string reason);
+
+    [LoggerMessage(EventId = 3205, Level = LogLevel.Critical, Message = "Modules: {Code} {Message}")]
+    private static partial void LogModuleProblem(ILogger logger, string code, string message);
+
+    [LoggerMessage(EventId = 3206, Level = LogLevel.Error, Message = "Modules failed to shut down")]
+    private static partial void LogModulesShutdownFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(EventId = 3204, Level = LogLevel.Warning, Message = "The project has no profile; running as {Profile}. {Reason} Save it with `mnvt migrate` or the editor")]
     private static partial void LogProfileInferred(ILogger logger, string profile, string reason);

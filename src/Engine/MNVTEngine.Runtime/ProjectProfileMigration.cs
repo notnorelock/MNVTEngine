@@ -28,7 +28,11 @@ public static class ProjectProfileMigration
     private static readonly string[] ContentExtensions = [".mnvt", ".mnvtprefab"];
 
     /// <summary>Scans the scenes and prefabs under Assets. Files that are not valid JSON are listed in <paramref name="unreadable"/> and skipped.</summary>
-    public static ProfileInference Infer(GameProject project, ICollection<string>? unreadable = null)
+    public static ProfileInference Infer(GameProject project, ICollection<string>? unreadable = null) =>
+        ProfileInference.FromComponents(Components(project, unreadable));
+
+    /// <summary>Every component in the scenes and prefabs under Assets, with the file it is in.</summary>
+    public static IReadOnlyList<ProfileEvidence> Components(GameProject project, ICollection<string>? unreadable = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         var evidence = new List<ProfileEvidence>();
@@ -51,7 +55,7 @@ public static class ProjectProfileMigration
             }
         }
 
-        return ProfileInference.FromComponents(evidence);
+        return evidence;
     }
 
     /// <summary>The saved profile, or the inferred one for a version 1 project (not saved).</summary>

@@ -363,3 +363,11 @@ public sealed partial class AudioSystem : GameSystem
     [LoggerMessage(EventId = 2400, Level = LogLevel.Error, Message = "Audio clip {Clip} could not be loaded; it will not play")]
     private static partial void LogClipFailed(ILogger logger, Exception exception, string clip);
 }
+
+/// <summary>The "audio" engine module. Audio: registers audio sources, listeners and mixers; the host owns the output device.</summary>
+public sealed class AudioModule : Scenes.IEngineModule
+{
+    public string Id => "audio";
+
+    public void Register(Scenes.ComponentRegistry components) => AudioComponents.Register(components);
+}

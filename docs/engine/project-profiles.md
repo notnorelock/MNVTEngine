@@ -2,7 +2,7 @@
 
 Every project is either **2D** or **3D**. The profile is the project's primary rendering mode. It decides which engine modules the project gets, which editor tools open, and which runtime modules an export ships. The two profiles are mutually exclusive. There is no hybrid profile, and a project never becomes one through its content.
 
-> Status: the profile is stored, validated, migrated and chosen at creation (phase 1), and the editor's Scene view follows it. Module manifests, profile-specific runtime start-up and build-time stripping of the other profile's assemblies follow in the next phases; until then, exports still contain every engine module.
+> Status: the profile is stored, validated, migrated and chosen at creation (phase 1), and the editor's Scene view follows it. It selects the project's [engine modules](modules.md), which the game host starts and validation enforces (phase 2). Build-time stripping of the other profile's assemblies follows in phase 3; until then, exports still contain every engine module.
 
 ## In the project file
 
@@ -55,7 +55,7 @@ Where it happens:
 | `mnvt build`, `mnvt validate` | Builds as the inferred profile with warning `MNVB110`; the project file is not changed | Error `MNVB109` |
 | `mnvt run`, Player | Runs as the inferred profile and logs a warning | Does not start (exit code 2) |
 
-A chosen profile must agree with the content: `--profile 3d` for a project with only 2D content is refused. Only a project with no profile-specific content, or a conflict, accepts either profile. Components of the other profile left in a conflicting project's scenes are reported by later validation.
+A chosen profile must agree with the content: `--profile 3d` for a project with only 2D content is refused. Only a project with no profile-specific content, or a conflict, accepts either profile. Components of the other profile left in a conflicting project's scenes are reported by validation (`MNVB608`, see [modules](modules.md)).
 
 Exported games always carry their profile. The packaged project file is written at the current schema version with the resolved profile, inferred if necessary.
 

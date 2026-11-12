@@ -23,6 +23,10 @@ public static class Cli
 
           new <Name> --profile 2d|3d [--template <id>] [--path <parent folder>]
                                 Create a 2D or 3D project (Empty 2D / Empty 3D, or a template of that profile; see `mnvt new --list`)
+          modules list [project]  Engine modules: profiles, activation, dependencies (and their status in the project)
+          modules validate <project>
+                                Resolve the project's modules and check its scenes use only components of enabled modules
+          modules graph <project> The project's modules in startup order, their dependencies, and the modules it does not have
           migrate <project> [--profile 2d|3d]
                                 Save the profile of a project made before profiles (inferred from its scenes; required when they mix 2D and 3D)
           editor [project] [--frames N]
@@ -61,6 +65,7 @@ public static class Cli
             {
                 "new" => CommandLine.Parse(args, ["--profile", "--template", "--path"], ["--list"]),
                 "migrate" => CommandLine.Parse(args, ["--profile"], []),
+                "modules" => CommandLine.Parse(args, [], []),
                 "editor" => CommandLine.Parse(args, ["--frames"], []),
                 "run" => CommandLine.Parse(args, ["--frames", "--screenshot", "--profile"], ["--gpu-validation"]),
                 "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output"], [], optionalValues: ["--run"]),
@@ -80,6 +85,7 @@ public static class Cli
             {
                 "new" => New(command, output),
                 "migrate" => Migrate(command, output),
+                "modules" => ModulesCommand(command, output),
                 "editor" => await EditorAsync(command, output, cancellationToken).ConfigureAwait(false),
                 "run" => Run(command, loggerFactory),
                 "build" => await BuildAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
@@ -91,7 +97,7 @@ public static class Cli
             output.WriteLine($"error: {ex.Message}");
             return UsageError;
         }
-        catch (Exception ex) when (ex is DirectoryNotFoundException or IOException or ArgumentException or InvalidDataException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or ArgumentException or InvalidDataException or UnauthorizedAccessException or Serialization.SerializationException)
         {
             output.WriteLine($"error: {ex.Message}");
             return Failed;
@@ -127,6 +133,56 @@ public static class Cli
         var file = ProjectTemplates.Create(template, name, target, engineRoot);
         output.WriteLine($"Created {template.Profile.DisplayName()} project {file} from '{template.Id}'.\nNext: mnvt run \"{target}\"  or  mnvt editor \"{target}\"");
         return Ok;
+    }
+
+    private static int ModulesCommand(CommandLine command, TextWriter output)
+    {
+        var verb = command.Positional.Count > 0 ? command.Positional[0] : throw new FormatException("Use: mnvt modules list [project] | validate <project> | graph <project>.");
+        if (verb is not ("list" or "validate" or "graph"))
+        {
+            throw new FormatException($"Unknown modules command '{verb}'; use list, validate or graph.");
+        }
+
+        var path = command.Positional.Count switch
+        {
+            1 when verb == "list" => null,
+            2 => command.Positional[1],
+            _ => throw new FormatException(verb == "list" ? "Use: mnvt modules list [project]." : $"Use: mnvt modules {verb} <project>."),
+        };
+
+        var catalog = ModuleCatalog.Builtin;
+        if (path is null)
+        {
+            output.Write(ModuleReports.List(catalog));
+            return Ok;
+        }
+
+        GameProject project;
+        try
+        {
+            project = GameProject.Load(path);
+            if (verb == "list")
+            {
+                output.Write(ModuleReports.List(catalog, ProjectModules.Resolve(project), project.Name));
+                return Ok;
+            }
+
+            if (verb == "graph")
+            {
+                var resolution = ProjectModules.Resolve(project);
+                output.Write(ModuleReports.Graph(resolution, project.Name));
+                return resolution.Succeeded ? Ok : Failed;
+            }
+
+            var (resolved, diagnostics) = ProjectModules.Validate(project);
+            output.Write(ModuleReports.Validate(resolved, diagnostics, project.Name));
+            return diagnostics.Any(d => d.Severity == ModuleSeverity.Error) ? Failed : Ok;
+        }
+        catch (Exception ex) when (ex is Serialization.SerializationException or ProfileConflictException)
+        {
+            output.WriteLine($"error: {ex.Message}");
+            return Failed;
+        }
     }
 
     private static int Migrate(CommandLine command, TextWriter output)

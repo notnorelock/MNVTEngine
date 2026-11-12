@@ -117,15 +117,4 @@ public sealed class ProjectProfileMigrationTests : IDisposable
         Assert.Equal(ProjectProfile.ThreeD, ProjectProfileMigration.Infer(GameProject.Load(_root), unreadable).Profile);
         Assert.Equal(["Scenes/Broken.mnvt"], unreadable);
     }
-
-    [Fact]
-    public void EveryProfileSpecificComponentId_IsARegisteredEngineComponent()
-    {
-        // Guards the inference table against renamed or removed components.
-        var registry = EngineComponents.CreateRegistry();
-        var ids = typeof(ProfileInference).GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
-            .Select(f => f.GetValue(null)).OfType<HashSet<string>>().SelectMany(s => s).ToList();
-        Assert.True(ids.Count > 20);
-        Assert.All(ids, id => Assert.True(registry.TryGetType(id, out _), $"{id} is not registered."));
-    }
 }

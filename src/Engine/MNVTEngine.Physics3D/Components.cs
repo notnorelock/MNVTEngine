@@ -470,3 +470,11 @@ public static class Physics3DComponents
             .Register<DistanceJoint>().Register<SpringJoint>().Register<CharacterController>();
     }
 }
+
+/// <summary>The "physics.3d" engine module. 3D physics: registers the 3D rigidbody, collider, joint and character components; each scene starts its physics world on first use.</summary>
+public sealed class Physics3DModule : Scenes.IEngineModule
+{
+    public string Id => "physics.3d";
+
+    public void Register(Scenes.ComponentRegistry components) => Physics3DComponents.Register(components);
+}

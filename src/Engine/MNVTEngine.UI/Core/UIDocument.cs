@@ -95,3 +95,11 @@ public static class UIComponents
         return registry.Register<UIDocument>();
     }
 }
+
+/// <summary>The "ui" engine module. Screen-space UI: registers UI documents.</summary>
+public sealed class UIModule : Scenes.IEngineModule
+{
+    public string Id => "ui";
+
+    public void Register(Scenes.ComponentRegistry components) => UIComponents.Register(components);
+}

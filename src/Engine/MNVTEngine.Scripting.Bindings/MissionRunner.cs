@@ -214,3 +214,11 @@ public static class ScriptingComponents
         return registry.Register<MissionRunner>();
     }
 }
+
+/// <summary>The "scripting" engine module. Scripting: registers the mission runner.</summary>
+public sealed class ScriptingModule : Scenes.IEngineModule
+{
+    public string Id => "scripting";
+
+    public void Register(Scenes.ComponentRegistry components) => ScriptingComponents.Register(components);
+}

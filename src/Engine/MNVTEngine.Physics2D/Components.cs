@@ -396,3 +396,11 @@ public static class Physics2DComponents
         return registry.Register<Rigidbody2D>().Register<BoxCollider2D>().Register<CircleCollider2D>().Register<TilemapCollider2D>();
     }
 }
+
+/// <summary>The "physics.2d" engine module. 2D physics: registers the 2D rigidbody and collider components; each scene starts its physics world on first use.</summary>
+public sealed class Physics2DModule : Scenes.IEngineModule
+{
+    public string Id => "physics.2d";
+
+    public void Register(Scenes.ComponentRegistry components) => Physics2DComponents.Register(components);
+}

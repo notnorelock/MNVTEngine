@@ -325,7 +325,8 @@ public sealed partial class GameBuilder(ILogger logger)
 
     /// <summary>
     /// A project from before profiles builds with its inferred profile (MNVB110, without changing the project file);
-    /// mixed 2D and 3D content stops the build (MNVB109) until the profile is chosen.
+    /// mixed 2D and 3D content stops the build (MNVB109) until the profile is chosen. Then the project's modules are
+    /// resolved; any module error (MNVB6xx) stops the build.
     /// </summary>
     private static GameProject? WithProfile(GameProject project, List<BuildDiagnostic> diagnostics)
     {
@@ -338,7 +339,11 @@ public sealed partial class GameBuilder(ILogger logger)
                 project.Profile = resolution.Profile;
             }
 
-            return project;
+            // Module problems (MNVB6xx): unknown, incompatible or required-but-disabled modules, and content of modules the project does not have.
+            var errors = ProjectModules.Validate(project).Diagnostics.Where(d => d.Severity == ModuleSeverity.Error)
+                .Select(d => BuildDiagnostic.Error(d.Code, d.Message, project.ProjectFile)).ToList();
+            diagnostics.AddRange(errors);
+            return errors.Count == 0 ? project : null;
         }
         catch (ProfileConflictException ex)
         {

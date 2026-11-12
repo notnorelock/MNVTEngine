@@ -230,3 +230,11 @@ public static class TerrainComponents
         return registry.Register<WorldTerrain>();
     }
 }
+
+/// <summary>The "terrain" engine module. Terrain: registers terrain worlds.</summary>
+public sealed class TerrainModule : Scenes.IEngineModule
+{
+    public string Id => "terrain";
+
+    public void Register(Scenes.ComponentRegistry components) => TerrainComponents.Register(components);
+}

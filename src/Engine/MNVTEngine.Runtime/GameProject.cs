@@ -172,6 +172,12 @@ public sealed class GameProject
     /// </summary>
     public ProjectProfile? Profile { get; set; }
 
+    /// <summary>
+    /// Module switches (<c>"modules": { "terrain": false, "devtools": true }</c>) on top of the profile's defaults; see
+    /// <see cref="ProjectModules"/>. Unknown, incompatible or required modules are reported when the modules are resolved.
+    /// </summary>
+    public Dictionary<string, bool> Modules { get; set; } = new(StringComparer.Ordinal);
+
     /// <summary>A pre-profile (schema version 1) project: its profile must be inferred or chosen, then saved.</summary>
     [JsonIgnore]
     public bool NeedsProfileMigration => Profile is null;

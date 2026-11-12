@@ -12,23 +12,6 @@ public sealed record ProfileEvidence(string ComponentType, string Source);
 /// </summary>
 public sealed class ProfileInference
 {
-    // Serialized ids of the built-in components that belong to one profile. Shared components (Camera, Transform,
-    // audio, UI, scripting) and game components say nothing about the profile.
-    private static readonly HashSet<string> TwoDComponents = new(StringComparer.Ordinal)
-    {
-        "MNVTEngine.SpriteRenderer", "MNVTEngine.SpriteAnimator", "MNVTEngine.Tilemap", "MNVTEngine.Light2D", "MNVTEngine.GlobalLight2D",
-        "MNVTEngine.Rigidbody2D", "MNVTEngine.BoxCollider2D", "MNVTEngine.CircleCollider2D", "MNVTEngine.TilemapCollider2D",
-    };
-
-    private static readonly HashSet<string> ThreeDComponents = new(StringComparer.Ordinal)
-    {
-        "MNVTEngine.MeshRenderer", "MNVTEngine.Light", "MNVTEngine.AmbientLight", "MNVTEngine.SceneEnvironment",
-        "MNVTEngine.ModelAnimator", "MNVTEngine.ModelAnimatorController", "MNVTEngine.WorldTerrain",
-        "MNVTEngine.Rigidbody", "MNVTEngine.BoxCollider", "MNVTEngine.SphereCollider", "MNVTEngine.CapsuleCollider",
-        "MNVTEngine.CylinderCollider", "MNVTEngine.MeshCollider", "MNVTEngine.FixedJoint", "MNVTEngine.BallJoint",
-        "MNVTEngine.HingeJoint", "MNVTEngine.DistanceJoint", "MNVTEngine.SpringJoint", "MNVTEngine.CharacterController",
-    };
-
     private ProfileInference(ProjectProfile? profile, IReadOnlyList<ProfileEvidence> twoD, IReadOnlyList<ProfileEvidence> threeD)
     {
         Profile = profile;
@@ -48,9 +31,8 @@ public sealed class ProfileInference
 
     public IReadOnlyList<ProfileEvidence> ThreeDEvidence { get; }
 
-    /// <summary>The profile that owns a built-in component; null for shared and game components.</summary>
-    public static ProjectProfile? ProfileOf(string componentType) =>
-        TwoDComponents.Contains(componentType) ? ProjectProfile.TwoD : ThreeDComponents.Contains(componentType) ? ProjectProfile.ThreeD : null;
+    /// <summary>The profile of the module that provides a built-in component (<see cref="ModuleCatalog.Builtin"/>); null for shared and game components.</summary>
+    public static ProjectProfile? ProfileOf(string componentType) => ModuleCatalog.Builtin.ModuleOfComponent(componentType)?.ExclusiveProfile;
 
     public static ProfileInference FromComponents(IEnumerable<ProfileEvidence> components)
     {

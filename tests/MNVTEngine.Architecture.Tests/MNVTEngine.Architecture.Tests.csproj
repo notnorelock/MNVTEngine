@@ -1,3 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Reads the .csproj graph from disk; deliberately references no engine projects. -->
+  <!-- Reads the .csproj graph from disk. References only MNVTEngine.Modules (no dependencies) to check the module catalog against that graph. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Modules\MNVTEngine.Modules.csproj" />
+  </ItemGroup>
 </Project>

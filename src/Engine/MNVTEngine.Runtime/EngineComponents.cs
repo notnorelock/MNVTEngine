@@ -2,11 +2,20 @@ using MNVTEngine.Scenes;
 
 namespace MNVTEngine.Runtime;
 
-/// <summary>Every built-in component type (scene basics, scripting, physics, audio, UI, terrain). Hosts start from this registry and add game components.</summary>
+/// <summary>Built-in component registries. Hosts start from one and add game components.</summary>
 public static class EngineComponents
 {
-    public static ComponentRegistry CreateRegistry() =>
-        TerrainComponents.Register(UI.UIComponents.Register(AudioComponents.Register(Physics3DComponents.Register(Physics2DComponents.Register(ScriptingComponents.Register(ComponentRegistry.CreateDefault()))))));
+    /// <summary>Every built-in component of every module (tools that handle any project, and tests).</summary>
+    public static ComponentRegistry CreateRegistry()
+    {
+        var registry = ComponentRegistry.CreateDefault();
+        foreach (var module in Modules.ModuleCatalog.Builtin.Modules.Select(m => EngineModules.Create(m.Id)).OfType<IEngineModule>())
+        {
+            module.Register(registry);
+        }
+
+        return registry;
+    }
 }
 
 /// <summary>Creates the host's audio output (backend chosen by the host, e.g. OpenAL).</summary>

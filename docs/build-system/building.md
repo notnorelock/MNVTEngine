@@ -216,6 +216,7 @@ Each archive has one AES-256-GCM encrypted, authenticated entry per file. The en
 | MNV1xxx–3xxx | `.mnvts` errors from the compiler; see the [language reference](../scripting/language.md) |
 | MNVB4xx | Packaging (`401` host project missing, `402` dotnet not found, `403` publish failed, `404` native dependencies of game code not packaged, `409` previous build in use) |
 | MNVB5xx | Validation (table above) |
+| MNVB6xx | [Engine modules](../engine/modules.md#project-switches): `601`-`604`, `609` catalog errors, `605` module of the other profile, `606` unknown module, `607` required module disabled, `608` content of a module the project does not have, `610` info: enabled as a dependency |
 
 ## Reproducible builds
 
