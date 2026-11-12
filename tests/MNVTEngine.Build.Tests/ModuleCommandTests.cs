@@ -109,4 +109,20 @@ public sealed class ModuleCommandTests : IDisposable
     [InlineData("modules", "graph")]
     [InlineData("modules", "list", "a", "b")]
     public async Task BadModuleCommands_AreUsageErrors(params string[] args) => Assert.Equal(Cli.UsageError, (await Run(args)).Exit);
+
+    [Theory]
+    [InlineData("Particles2D", "particles.2d", "particles.3d")]
+    [InlineData("Particles3D", "particles.3d", "particles.2d")]
+    public async Task ParticleSamples_GetTheirProfilesRenderer_AndNotTheOther(string sample, string included, string excluded)
+    {
+        var (report, diagnostics) = await new GameBuilder(Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance)
+            .AnalyzeAsync(Path.Combine(EngineLocation.FindRoot(), "samples", sample), new BuildOptions(), TestContext.Current.CancellationToken);
+        Assert.NotNull(report);
+        Assert.False(diagnostics.HasErrors(), string.Join(Environment.NewLine, diagnostics));
+        var enabled = report["modules"]!["enabled"]!.ToDictionary(m => (string)m["id"]!, m => (string)m["reason"]!);
+        Assert.StartsWith("used: ParticleSystem in Scenes/Main.mnvt", enabled["particles"], StringComparison.Ordinal);
+        Assert.Equal("with particles", enabled[included]);
+        Assert.DoesNotContain(excluded, enabled.Keys);
+        Assert.Contains(report["assets"]!["included"]!, a => (string?)a["path"] == "Textures/soft.png" && ((string?)a["reason"])!.StartsWith("referenced by Scenes/Main.mnvt", StringComparison.Ordinal)); // particle textures are dependencies of the scene
+    }
 }

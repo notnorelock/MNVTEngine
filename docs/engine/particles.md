@@ -11,6 +11,7 @@ Particle systems are the `particles` [module](modules.md) (`MNVTEngine.Particles
 | Diagnostics: simulation and rendering metrics, budgets | Done |
 | Performance: parallel CPU update for large systems, allocation-free steps | Done |
 | GPU simulation (Vulkan compute) | Evaluated, not implemented (see below); the simulation is CPU-only and is reported as such |
+| Exports: JIT and NativeAOT exports of both samples run (2D: 80.7 MB JIT, 23 MB AOT; 3D: 24 MB AOT), each with only its profile's particle renderer | Done |
 
 ## Using a particle system
 
