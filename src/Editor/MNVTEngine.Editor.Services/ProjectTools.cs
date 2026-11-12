@@ -58,6 +58,16 @@ public sealed partial class BuildController(GameProject project, ILoggerFactory 
     /// <summary>Profile used by <see cref="StartBuild"/>; defaults to "release" (or the first profile).</summary>
     public string Profile { get; set; } = project.EffectiveBuildProfiles.FirstOrDefault(p => p.Name == "release")?.Name ?? project.EffectiveBuildProfiles[0].Name;
 
+    /// <summary>
+    /// Scripting backend for builds started here ("jit" or "aot"), overriding the profile's without changing the
+    /// project file; null uses the profile's.
+    /// </summary>
+    public string? ScriptingBackend { get; set; }
+
+    /// <summary>The backend the next build uses: <see cref="ScriptingBackend"/>, else the profile's.</summary>
+    public string EffectiveScriptingBackend =>
+        ScriptingBackend ?? project.EffectiveBuildProfiles.FirstOrDefault(p => p.Name == Profile)?.ScriptingBackend ?? "jit";
+
     public bool IsBusy => _build is not null || _validation is not null;
 
     /// <summary>"Building (12 s)", "Validating (2 s)", or null when idle.</summary>
@@ -77,8 +87,9 @@ public sealed partial class BuildController(GameProject project, ILoggerFactory 
         EnsureIdle();
         _runWhenDone = runWhenDone;
         var profile = Profile;
+        var backend = ScriptingBackend;
         _clock.Restart();
-        _build = Task.Run(() => new GameBuilder(_logger).BuildAsync(project.ProjectFile, new BuildOptions { Profile = profile }));
+        _build = Task.Run(() => new GameBuilder(_logger).BuildAsync(project.ProjectFile, new BuildOptions { Profile = profile, ScriptingBackend = backend }));
     }
 
     /// <exception cref="InvalidOperationException">A build or validation is already running.</exception>

@@ -569,8 +569,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             [
                 new("Build Settings...", Action: () => _showBuildSettings = true),
                 MenuEntry.Separator,
-                new($"Build ({_build.Profile})", "Ctrl+B", () => StartBuild(run: false), idle),
-                new($"Build and Run ({_build.Profile})", "Ctrl+Shift+B", () => StartBuild(run: true), idle),
+                new($"Build ({_build.Profile}, {_build.EffectiveScriptingBackend.ToUpperInvariant()})", "Ctrl+B", () => StartBuild(run: false), idle),
+                new($"Build and Run ({_build.Profile}, {_build.EffectiveScriptingBackend.ToUpperInvariant()})", "Ctrl+Shift+B", () => StartBuild(run: true), idle),
                 new("Run Last Build", Action: () =>
                 {
                     if (!_build.RunLastBuild())
@@ -1102,7 +1102,19 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             }
 
             var profile = profiles[index];
-            Gui.Muted($"{profile.Configuration}, {profile.Target}, console window: {(profile.ShowsConsole ? "yes" : "no")}");
+            string[] backends = [$"Profile default ({profile.ScriptingBackend.ToUpperInvariant()})", "JIT (CoreCLR, IL assemblies)", "AOT (NativeAOT, one native executable)"];
+            var backend = _build.ScriptingBackend switch { "jit" => 1, "aot" => 2, _ => 0 };
+            if (ImGui.Combo("Scripting backend", ref backend, backends, backends.Length))
+            {
+                _build.ScriptingBackend = backend switch { 1 => "jit", 2 => "aot", _ => null };
+            }
+
+            if (ImGui.IsItemHovered())
+            {
+                Gui.Tooltip("JIT: IL on a private .NET runtime (about 80 MB). AOT: NativeAOT, no runtime (about 25 MB), needs the MSVC linker and takes about a minute longer. For this editor session; the project file is not changed.");
+            }
+
+            Gui.Muted($"{profile.Configuration}, {profile.Target}, {_build.EffectiveScriptingBackend.ToUpperInvariant()}, console window: {(profile.ShowsConsole ? "yes" : "no")}");
             Gui.Muted($"Output: {_build.OutputDirectory}");
             Gui.Muted("Profiles are defined in the project file (\"buildProfiles\"); see docs/build-system/building.md.");
             ImGui.Spacing();
