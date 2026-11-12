@@ -258,6 +258,9 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
     /// <summary>Fonts, clipboard and assets for the game UI of play scenes (owned by the editor); null attaches no UI.</summary>
     public UI.UIServices? UIServices { get; set; }
 
+    /// <summary>The editor's engine modules: each play scene is handed to them (<see cref="Runtime.ModuleIntegration.SceneLoaded"/>) before it starts.</summary>
+    public IReadOnlyList<Scenes.IEngineModule> Modules { get; set; } = [];
+
     /// <summary>Size of the Game view in pixels: the game UI lays out to it.</summary>
     public Mathematics.Vector2 ViewportSize { get; set; }
 
@@ -279,6 +282,8 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         {
             UI.UISystem.Attach(scene, ui);
         }
+
+        Runtime.ModuleIntegration.SceneLoaded(Modules, scene);
 
         carryFrom?.MovePersistentObjectsTo(scene);
         carryFrom?.Unload();

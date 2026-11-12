@@ -92,6 +92,30 @@ public sealed class AssetWorkflowTests : IDisposable
     }
 
     [Fact]
+    public void PlayMode_HandsEveryPlaySceneToTheModules()
+    {
+        // The browser module attaches its service this way; without it surfaces found no browser in Play Mode.
+        var module = new RecordingModule();
+        var play = new PlayModeController(_session, NullLoggerFactory.Instance) { Modules = [module] };
+        play.Play();
+        Assert.Same(play.PlayScene, Assert.Single(module.Scenes));
+        play.Stop();
+    }
+
+    private sealed class RecordingModule : Scenes.IEngineModule, Scenes.ISceneIntegration
+    {
+        public List<Scene> Scenes { get; } = [];
+
+        public string Id => "test.recording";
+
+        public void Register(Scenes.ComponentRegistry components)
+        {
+        }
+
+        public void SceneLoaded(Scene scene) => Scenes.Add(scene);
+    }
+
+    [Fact]
     public void PlayMode_LoadSceneByAssetRef()
     {
         File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "Other.mnvt"), """{ "schemaVersion": 2, "name": "Other", "gameObjects": [] }""");

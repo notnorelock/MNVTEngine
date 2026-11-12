@@ -84,17 +84,20 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         var resources = new ResourceCache(device, session.Assets, loggerFactory.CreateLogger("Resources"));
         var font = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "segoeui.ttf");
 
+        // One set of module instances for the renderer's passes, diagnostics and Play Mode: modules keep per-host state
+        // (the browser module's service and textures, world.3d's model data) that all three must share.
+        var modules = EngineModuleSet.ForProfile(project.Profile!.Value);
         _context = new EditorContext
         {
             Window = window,
             Device = device,
             Renderer = renderer,
             Resources = resources,
-            SceneRenderer = new SceneRenderer(renderer, resources, _logger, ModuleIntegration.CreatePasses(EngineModuleSet.ForProfile(project.Profile!.Value), renderer, resources, loggerFactory)),
+            SceneRenderer = new SceneRenderer(renderer, resources, _logger, ModuleIntegration.CreatePasses(modules, renderer, resources, loggerFactory)),
             ImGui = new ImGuiRenderer(device, renderer.DefaultMaterial, font, 17f, iconFont: Icons.Font),
             GameUI = new UI.UIRenderer(device, renderer.DefaultMaterial),
             Session = session,
-            PlayMode = new PlayModeController(session, loggerFactory) { Audio = Audio.AudioDevices.CreateOrSilent(Audio.OpenAL.OpenALAudioDevice.Create, loggerFactory.CreateLogger("Audio")) },
+            PlayMode = new PlayModeController(session, loggerFactory) { Audio = Audio.AudioDevices.CreateOrSilent(Audio.OpenAL.OpenALAudioDevice.Create, loggerFactory.CreateLogger("Audio")), Modules = modules },
             Logs = logs,
             DiagnosticsSettings = project.Diagnostics.Clone(),
             LogHub = logHub,
@@ -106,7 +109,6 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         {
             var diagnostics = new RuntimeDiagnostics(_context.DiagnosticsSettings.Clone(), loggerFactory.CreateLogger("Diagnostics"),
                 Path.Combine(project.RootDirectory, "Library", "Diagnostics", "Profiles"), _profiler, ownsProfilerFrames: false);
-            var modules = EngineModuleSet.ForProfile(project.Profile!.Value);
             diagnostics.Attach(new DiagnosticsTarget(device, () => _context.PlayMode.PlayScene, resources, session.Assets, _context.SceneRenderer, modules));
             ModuleIntegration.AddDiagnostics(modules, diagnostics.Collector, diagnostics.Commands, () => _context.PlayMode.PlayScene);
             return diagnostics;
