@@ -5,6 +5,7 @@
     "filter": "linear",
     "wrap": "clamp",
     "generateMipmaps": false,
-    "pixelsPerUnit": 100.0
+    "pixelsPerUnit": 100.0,
+    "svgScale": 1.0
   }
 }

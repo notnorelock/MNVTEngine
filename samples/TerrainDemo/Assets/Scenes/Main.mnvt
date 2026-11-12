@@ -9,41 +9,42 @@
       "parent": null,
       "transform": {
         "localPosition": {
-          "x": 0,
-          "y": 28,
-          "z": 70
+          "x": 0.0,
+          "y": 28.0,
+          "z": 70.0
         },
         "localRotation": {
-          "x": -0.2164,
-          "y": 0,
-          "z": 0,
-          "w": 0.9763
+          "x": -0.21640101,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.97630453
         },
         "localScale": {
-          "x": 1,
-          "y": 1,
-          "z": 1
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.Camera",
+          "id": "7e510000-0000-0000-0000-000000000000",
+          "enabled": true,
           "data": {
-            "projection": "Perspective",
+            "projection": "perspective",
             "fieldOfView": 60.0,
             "nearClip": 0.1,
             "farClip": 500.0,
+            "orthographicSize": 5.0,
             "backgroundColor": {
               "r": 0.08,
               "g": 0.09,
               "b": 0.12,
               "a": 1.0
             },
-            "toneMapping": "Aces",
+            "toneMapping": "aces",
             "exposure": 1.2
-          },
-          "id": "7e510000-0000-0000-0000-000000000000",
-          "enabled": true
+          }
         }
       ]
     },
@@ -54,40 +55,43 @@
       "parent": null,
       "transform": {
         "localPosition": {
-          "x": 0,
-          "y": 6,
-          "z": 0
+          "x": 0.0,
+          "y": 6.0,
+          "z": 0.0
         },
         "localRotation": {
-          "x": -0.403058,
-          "y": 0.272532,
-          "z": 0.127084,
-          "w": 0.864361
+          "x": -0.40305805,
+          "y": 0.27253205,
+          "z": 0.12708403,
+          "w": 0.86436117
         },
         "localScale": {
-          "x": 1,
-          "y": 1,
-          "z": 1
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.Light",
+          "id": "7e510001-0000-0000-0000-000000000000",
+          "enabled": true,
           "data": {
-            "type": "Directional",
+            "type": "directional",
             "color": {
-              "r": 1,
+              "r": 1.0,
               "g": 0.96,
               "b": 0.88,
-              "a": 1
+              "a": 1.0
             },
             "intensity": 1.1,
+            "range": 10.0,
+            "spotAngle": 30.0,
+            "innerSpotAngle": 21.0,
             "shadows": true,
             "shadowStrength": 0.85,
-            "shadowDistance": 30
-          },
-          "id": "7e510001-0000-0000-0000-000000000000",
-          "enabled": true
+            "shadowDistance": 30.0
+          }
         }
       ]
     },
@@ -98,36 +102,36 @@
       "parent": null,
       "transform": {
         "localPosition": {
-          "x": 0,
-          "y": 0,
-          "z": 0
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
         },
         "localRotation": {
-          "x": 0,
-          "y": 0,
-          "z": 0,
-          "w": 1
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
         },
         "localScale": {
-          "x": 1,
-          "y": 1,
-          "z": 1
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.AmbientLight",
+          "id": "7e510002-0000-0000-0000-000000000000",
+          "enabled": true,
           "data": {
             "color": {
               "r": 0.3,
               "g": 0.33,
               "b": 0.4,
-              "a": 1
+              "a": 1.0
             },
-            "intensity": 1
-          },
-          "id": "7e510002-0000-0000-0000-000000000000",
-          "enabled": true
+            "intensity": 1.0
+          }
         }
       ]
     },
@@ -138,36 +142,50 @@
       "parent": null,
       "transform": {
         "localPosition": {
-          "x": 0,
-          "y": 0,
-          "z": 0
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
         },
         "localRotation": {
-          "x": 0,
-          "y": 0,
-          "z": 0,
-          "w": 1
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
         },
         "localScale": {
-          "x": 1,
-          "y": 1,
-          "z": 1
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.WorldTerrain",
-          "data": {
-            "project": "asset:7e5a0000-0000-4000-8000-000000000001"
-          },
           "id": "7e510003-0000-0000-0000-000000000000",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "project": "asset:7e5a0000-0000-4000-8000-000000000001",
+            "lodLevel": 0,
+            "drawFoliage": true,
+            "drawProps": true
+          }
         },
         {
           "type": "MNVTEngine.MeshCollider",
-          "data": {},
           "id": "7e510003-0000-0000-0000-000000000001",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "isTrigger": false,
+            "center": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "friction": 0.6,
+            "bounciness": 0.0,
+            "layer": 0,
+            "convex": false
+          }
         }
       ]
     },
@@ -178,50 +196,72 @@
       "parent": null,
       "transform": {
         "localPosition": {
-          "x": -35,
-          "y": 12,
-          "z": -35
+          "x": -35.0,
+          "y": 12.0,
+          "z": -35.0
         },
         "localRotation": {
-          "x": 0,
-          "y": 0,
-          "z": 0,
-          "w": 1
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
         },
         "localScale": {
-          "x": 1,
-          "y": 1,
-          "z": 1
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.MeshRenderer",
+          "id": "7e510004-0000-0000-0000-000000000000",
+          "enabled": true,
           "data": {
-            "primitive": "Sphere",
+            "primitive": "sphere",
+            "mesh": null,
             "color": {
               "r": 0.9,
               "g": 0.3,
               "b": 0.2,
-              "a": 1
-            }
-          },
-          "id": "7e510004-0000-0000-0000-000000000000",
-          "enabled": true
+              "a": 1.0
+            },
+            "texture": null,
+            "material": null,
+            "doubleSided": false,
+            "blendShapeWeights": []
+          }
         },
         {
           "type": "MNVTEngine.SphereCollider",
-          "data": {},
           "id": "7e510004-0000-0000-0000-000000000001",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "isTrigger": false,
+            "center": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "friction": 0.6,
+            "bounciness": 0.0,
+            "layer": 0,
+            "radius": 0.5
+          }
         },
         {
           "type": "MNVTEngine.Rigidbody",
-          "data": {
-            "mass": 1.0
-          },
           "id": "7e510004-0000-0000-0000-000000000002",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "bodyType": "dynamic",
+            "mass": 1.0,
+            "useGravity": true,
+            "linearDamping": 0.0,
+            "angularDamping": 0.05,
+            "freezeRotation": false,
+            "continuous": false
+          }
         }
       ]
     },
@@ -232,50 +272,72 @@
       "parent": null,
       "transform": {
         "localPosition": {
-          "x": 0,
-          "y": 14,
-          "z": 0
+          "x": 0.0,
+          "y": 14.0,
+          "z": 0.0
         },
         "localRotation": {
-          "x": 0,
-          "y": 0,
-          "z": 0,
-          "w": 1
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
         },
         "localScale": {
-          "x": 1,
-          "y": 1,
-          "z": 1
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.MeshRenderer",
+          "id": "7e510005-0000-0000-0000-000000000000",
+          "enabled": true,
           "data": {
-            "primitive": "Sphere",
+            "primitive": "sphere",
+            "mesh": null,
             "color": {
               "r": 0.9,
               "g": 0.3,
               "b": 0.2,
-              "a": 1
-            }
-          },
-          "id": "7e510005-0000-0000-0000-000000000000",
-          "enabled": true
+              "a": 1.0
+            },
+            "texture": null,
+            "material": null,
+            "doubleSided": false,
+            "blendShapeWeights": []
+          }
         },
         {
           "type": "MNVTEngine.SphereCollider",
-          "data": {},
           "id": "7e510005-0000-0000-0000-000000000001",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "isTrigger": false,
+            "center": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "friction": 0.6,
+            "bounciness": 0.0,
+            "layer": 0,
+            "radius": 0.5
+          }
         },
         {
           "type": "MNVTEngine.Rigidbody",
-          "data": {
-            "mass": 1.0
-          },
           "id": "7e510005-0000-0000-0000-000000000002",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "bodyType": "dynamic",
+            "mass": 1.0,
+            "useGravity": true,
+            "linearDamping": 0.0,
+            "angularDamping": 0.05,
+            "freezeRotation": false,
+            "continuous": false
+          }
         }
       ]
     },
@@ -286,50 +348,72 @@
       "parent": null,
       "transform": {
         "localPosition": {
-          "x": 20,
-          "y": 16,
-          "z": -2
+          "x": 20.0,
+          "y": 16.0,
+          "z": -2.0
         },
         "localRotation": {
-          "x": 0,
-          "y": 0,
-          "z": 0,
-          "w": 1
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
         },
         "localScale": {
-          "x": 1,
-          "y": 1,
-          "z": 1
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.MeshRenderer",
+          "id": "7e510006-0000-0000-0000-000000000000",
+          "enabled": true,
           "data": {
-            "primitive": "Sphere",
+            "primitive": "sphere",
+            "mesh": null,
             "color": {
               "r": 0.9,
               "g": 0.3,
               "b": 0.2,
-              "a": 1
-            }
-          },
-          "id": "7e510006-0000-0000-0000-000000000000",
-          "enabled": true
+              "a": 1.0
+            },
+            "texture": null,
+            "material": null,
+            "doubleSided": false,
+            "blendShapeWeights": []
+          }
         },
         {
           "type": "MNVTEngine.SphereCollider",
-          "data": {},
           "id": "7e510006-0000-0000-0000-000000000001",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "isTrigger": false,
+            "center": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "friction": 0.6,
+            "bounciness": 0.0,
+            "layer": 0,
+            "radius": 0.5
+          }
         },
         {
           "type": "MNVTEngine.Rigidbody",
-          "data": {
-            "mass": 1.0
-          },
           "id": "7e510006-0000-0000-0000-000000000002",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "bodyType": "dynamic",
+            "mass": 1.0,
+            "useGravity": true,
+            "linearDamping": 0.0,
+            "angularDamping": 0.05,
+            "freezeRotation": false,
+            "continuous": false
+          }
         }
       ]
     },
@@ -340,50 +424,72 @@
       "parent": null,
       "transform": {
         "localPosition": {
-          "x": -20,
-          "y": 18,
-          "z": -10
+          "x": -20.0,
+          "y": 18.0,
+          "z": -10.0
         },
         "localRotation": {
-          "x": 0,
-          "y": 0,
-          "z": 0,
-          "w": 1
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
         },
         "localScale": {
-          "x": 1,
-          "y": 1,
-          "z": 1
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.MeshRenderer",
+          "id": "7e510007-0000-0000-0000-000000000000",
+          "enabled": true,
           "data": {
-            "primitive": "Sphere",
+            "primitive": "sphere",
+            "mesh": null,
             "color": {
               "r": 0.9,
               "g": 0.3,
               "b": 0.2,
-              "a": 1
-            }
-          },
-          "id": "7e510007-0000-0000-0000-000000000000",
-          "enabled": true
+              "a": 1.0
+            },
+            "texture": null,
+            "material": null,
+            "doubleSided": false,
+            "blendShapeWeights": []
+          }
         },
         {
           "type": "MNVTEngine.SphereCollider",
-          "data": {},
           "id": "7e510007-0000-0000-0000-000000000001",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "isTrigger": false,
+            "center": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "friction": 0.6,
+            "bounciness": 0.0,
+            "layer": 0,
+            "radius": 0.5
+          }
         },
         {
           "type": "MNVTEngine.Rigidbody",
-          "data": {
-            "mass": 1.0
-          },
           "id": "7e510007-0000-0000-0000-000000000002",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "bodyType": "dynamic",
+            "mass": 1.0,
+            "useGravity": true,
+            "linearDamping": 0.0,
+            "angularDamping": 0.05,
+            "freezeRotation": false,
+            "continuous": false
+          }
         }
       ]
     }

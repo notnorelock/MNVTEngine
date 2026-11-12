@@ -5,6 +5,7 @@
     "filter": "point",
     "wrap": "repeat",
     "generateMipmaps": false,
-    "pixelsPerUnit": 64.0
+    "pixelsPerUnit": 64.0,
+    "svgScale": 1.0
   }
 }
