@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "name": "Level1",
   "gameObjects": [
     {
@@ -7,12 +7,43 @@
       "name": "HUD",
       "active": true,
       "parent": null,
-      "transform": { "localPosition": { "x": 0.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
       "components": [
-        { "type": "MNVTEngine.UIDocument", "id": "c1000000-0000-0000-00f1-000000000001", "enabled": true,
-          "data": { "layout": "asset:b5000000-0000-4000-8000-000000000001", "sortOrder": 0, "scale": 1.0 } },
-        { "type": "Platformer.Hud", "id": "c1000000-0000-0000-00f1-000000000002", "enabled": true,
-          "data": { "level": "asset:9a000000-0000-4000-8000-000000000028" } }
+        {
+          "type": "MNVTEngine.UIDocument",
+          "id": "c1000000-0000-0000-00f1-000000000001",
+          "enabled": true,
+          "data": {
+            "layout": "asset:b5000000-0000-4000-8000-000000000001",
+            "sortOrder": 0,
+            "scale": 1.0
+          }
+        },
+        {
+          "type": "Platformer.Hud",
+          "id": "c1000000-0000-0000-00f1-000000000002",
+          "enabled": true,
+          "data": {
+            "level": "asset:9a000000-0000-4000-8000-000000000028"
+          }
+        }
       ]
     },
     {
@@ -20,11 +51,41 @@
       "name": "Pause Menu",
       "active": true,
       "parent": null,
-      "transform": { "localPosition": { "x": 0.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
       "components": [
-        { "type": "MNVTEngine.UIDocument", "id": "c1000000-0000-0000-00f2-000000000001", "enabled": true,
-          "data": { "layout": "asset:b5000000-0000-4000-8000-000000000002", "sortOrder": 10, "scale": 1.0 } },
-        { "type": "Platformer.PauseMenu", "id": "c1000000-0000-0000-00f2-000000000002", "enabled": true, "data": {} }
+        {
+          "type": "MNVTEngine.UIDocument",
+          "id": "c1000000-0000-0000-00f2-000000000001",
+          "enabled": true,
+          "data": {
+            "layout": "asset:b5000000-0000-4000-8000-000000000002",
+            "sortOrder": 10,
+            "scale": 1.0
+          }
+        },
+        {
+          "type": "Platformer.PauseMenu",
+          "id": "c1000000-0000-0000-00f2-000000000002",
+          "enabled": true,
+          "data": {}
+        }
       ]
     },
     {
@@ -35,24 +96,31 @@
       "transform": {
         "localPosition": {
           "x": 0.0,
-          "y": 0.0
+          "y": 0.0,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.MissionRunner",
+          "id": "c1000000-0000-0000-000b-000000000000",
+          "enabled": true,
           "data": {
             "script": "asset:9a000000-0000-4000-8000-00000000001e",
             "startMission": "level1",
             "playerObject": "Player"
-          },
-          "id": "c1000000-0000-0000-000b-000000000000",
-          "enabled": true
+          }
         }
       ]
     },
@@ -64,40 +132,53 @@
       "transform": {
         "localPosition": {
           "x": 1.0,
-          "y": 2.0
+          "y": 2.0,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.Camera",
+          "id": "c1000000-0000-0000-0002-000000000000",
+          "enabled": true,
           "data": {
+            "projection": "orthographic",
+            "fieldOfView": 60.0,
+            "nearClip": 0.1,
+            "farClip": 1000.0,
             "orthographicSize": 6.0,
             "backgroundColor": {
               "r": 0.08,
               "g": 0.09,
               "b": 0.16,
               "a": 1.0
-            }
-          },
-          "id": "c1000000-0000-0000-0002-000000000000",
-          "enabled": true
+            },
+            "toneMapping": "none",
+            "exposure": 1.0
+          }
         },
         {
           "type": "Platformer.CameraFollow",
+          "id": "c1000000-0000-0000-0002-000000000001",
+          "enabled": true,
           "data": {
             "target": "b1000000-0000-0000-0000-000000000001",
             "sharpness": 5.0,
             "minX": 5.0,
             "maxX": 56.0,
             "minY": 2.0
-          },
-          "id": "c1000000-0000-0000-0002-000000000001",
-          "enabled": true
+          }
         }
       ]
     },
@@ -109,17 +190,26 @@
       "transform": {
         "localPosition": {
           "x": 0.0,
-          "y": 0.0
+          "y": 0.0,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.Tilemap",
+          "id": "c1000000-0000-0000-0003-000000000000",
+          "enabled": true,
           "data": {
             "texture": "asset:9a000000-0000-4000-8000-000000000003",
             "tileWidth": 16,
@@ -135,6 +225,7 @@
               "b": 1.0,
               "a": 1.0
             },
+            "material": null,
             "sortingOrder": -5,
             "cells": [
               {
@@ -1278,23 +1369,25 @@
                 "tile": 2
               }
             ]
-          },
-          "id": "c1000000-0000-0000-0003-000000000000",
-          "enabled": true
+          }
         },
         {
           "type": "MNVTEngine.TilemapCollider2D",
+          "id": "c1000000-0000-0000-0003-000000000001",
+          "enabled": true,
           "data": {
+            "isTrigger": false,
+            "offset": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "density": 1.0,
+            "friction": 0.0,
+            "bounciness": 0.0,
             "ignoredTiles": [
               5
-            ],
-            "friction": 0.0,
-            "density": 1.0,
-            "bounciness": 0.0,
-            "isTrigger": false
-          },
-          "id": "c1000000-0000-0000-0003-000000000001",
-          "enabled": true
+            ]
+          }
         }
       ]
     },
@@ -1306,17 +1399,26 @@
       "transform": {
         "localPosition": {
           "x": 1.0,
-          "y": 0.6
+          "y": 0.6,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.SpriteRenderer",
+          "id": "c1000000-0000-0000-0001-000000000000",
+          "enabled": true,
           "data": {
             "texture": "asset:9a000000-0000-4000-8000-000000000001",
             "color": {
@@ -1335,77 +1437,78 @@
             },
             "flipX": false,
             "flipY": false,
-            "sortingOrder": 10,
+            "material": null,
             "sourceRect": {
               "x": 0.0,
               "y": 0.0,
               "width": 16.0,
               "height": 16.0
-            }
-          },
-          "id": "c1000000-0000-0000-0001-000000000000",
-          "enabled": true
+            },
+            "sortingOrder": 10
+          }
         },
         {
           "type": "MNVTEngine.SpriteAnimator",
+          "id": "c1000000-0000-0000-0001-000000000001",
+          "enabled": true,
           "data": {
             "clip": "asset:9a000000-0000-4000-8000-000000000014",
             "speed": 1.0,
             "playOnStart": true
-          },
-          "id": "c1000000-0000-0000-0001-000000000001",
-          "enabled": true
+          }
         },
         {
           "type": "MNVTEngine.Rigidbody2D",
+          "id": "c1000000-0000-0000-0001-000000000002",
+          "enabled": true,
           "data": {
-            "bodyType": "Dynamic",
+            "bodyType": "dynamic",
             "gravityScale": 2.5,
             "linearDamping": 0.0,
             "angularDamping": 0.0,
             "fixedRotation": true,
             "continuous": false
-          },
-          "id": "c1000000-0000-0000-0001-000000000002",
-          "enabled": true
+          }
         },
         {
           "type": "MNVTEngine.BoxCollider2D",
+          "id": "c1000000-0000-0000-0001-000000000003",
+          "enabled": true,
           "data": {
-            "size": {
-              "x": 0.55,
-              "y": 0.9
-            },
+            "isTrigger": false,
             "offset": {
               "x": 0.0,
               "y": -0.05
             },
-            "friction": 0.0,
             "density": 1.0,
+            "friction": 0.0,
             "bounciness": 0.0,
-            "isTrigger": false
-          },
-          "id": "c1000000-0000-0000-0001-000000000003",
-          "enabled": true
+            "size": {
+              "x": 0.55,
+              "y": 0.9
+            }
+          }
         },
         {
           "type": "MNVTEngine.AudioSource",
+          "id": "c1000000-0000-0000-0001-000000000004",
+          "enabled": true,
           "data": {
             "clip": "asset:9a000000-0000-4000-8000-00000000000a",
             "volume": 0.5,
             "pitch": 1.0,
             "loop": false,
             "playOnStart": false,
+            "group": "Effects",
             "spatial": false,
             "referenceDistance": 2.0,
-            "maxDistance": 30.0,
-            "group": "Effects"
-          },
-          "id": "c1000000-0000-0000-0001-000000000004",
-          "enabled": true
+            "maxDistance": 30.0
+          }
         },
         {
           "type": "Platformer.Player",
+          "id": "c1000000-0000-0000-0001-000000000005",
+          "enabled": true,
           "data": {
             "speed": 6.0,
             "jumpSpeed": 13.0,
@@ -1413,9 +1516,48 @@
             "run": "asset:9a000000-0000-4000-8000-000000000015",
             "jump": "asset:9a000000-0000-4000-8000-000000000016",
             "fall": "asset:9a000000-0000-4000-8000-000000000017"
-          },
-          "id": "c1000000-0000-0000-0001-000000000005",
-          "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "b1000000-0000-0000-0000-00000000000d",
+      "name": "Player Light",
+      "active": true,
+      "parent": "b1000000-0000-0000-0000-000000000001",
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.Light2D",
+          "id": "c1000000-0000-0000-000d-000000000000",
+          "enabled": true,
+          "data": {
+            "color": {
+              "r": 1.0,
+              "g": 0.95,
+              "b": 0.85,
+              "a": 1.0
+            },
+            "intensity": 0.9,
+            "radius": 4.5
+          }
         }
       ]
     },
@@ -1427,17 +1569,26 @@
       "transform": {
         "localPosition": {
           "x": 7.5,
-          "y": 3.5
+          "y": 3.5,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.SpriteRenderer",
+          "id": "c1000000-0000-0000-0004-000000000000",
+          "enabled": true,
           "data": {
             "texture": "asset:9a000000-0000-4000-8000-000000000004",
             "color": {
@@ -1456,46 +1607,54 @@
             },
             "flipX": false,
             "flipY": false,
-            "sortingOrder": 5,
+            "material": null,
             "sourceRect": {
               "x": 0.0,
               "y": 0.0,
               "width": 16.0,
               "height": 16.0
-            }
-          },
-          "id": "c1000000-0000-0000-0004-000000000000",
-          "enabled": true
+            },
+            "sortingOrder": 5
+          }
         },
         {
           "type": "MNVTEngine.SpriteAnimator",
+          "id": "c1000000-0000-0000-0004-000000000001",
+          "enabled": true,
           "data": {
             "clip": "asset:9a000000-0000-4000-8000-000000000018",
             "speed": 1.0,
             "playOnStart": true
-          },
-          "id": "c1000000-0000-0000-0004-000000000001",
-          "enabled": true
+          }
         },
         {
           "type": "MNVTEngine.CircleCollider2D",
-          "data": {
-            "radius": 0.35,
-            "isTrigger": true
-          },
           "id": "c1000000-0000-0000-0004-000000000002",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "isTrigger": true,
+            "offset": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "density": 1.0,
+            "friction": 0.6,
+            "bounciness": 0.0,
+            "radius": 0.35
+          }
         },
         {
           "type": "Platformer.Coin",
+          "id": "c1000000-0000-0000-0004-000000000003",
+          "enabled": true,
           "data": {
             "sound": "asset:9a000000-0000-4000-8000-00000000000b"
-          },
-          "id": "c1000000-0000-0000-0004-000000000003",
-          "enabled": true
+          }
         },
         {
           "type": "MNVTEngine.Light2D",
+          "id": "c1000000-0000-0000-0004-000000000004",
+          "enabled": true,
           "data": {
             "color": {
               "r": 1.0,
@@ -1505,9 +1664,7 @@
             },
             "intensity": 0.6,
             "radius": 1.5
-          },
-          "id": "c1000000-0000-0000-0004-000000000004",
-          "enabled": true
+          }
         }
       ]
     },
@@ -1519,17 +1676,26 @@
       "transform": {
         "localPosition": {
           "x": 12.5,
-          "y": 5.5
+          "y": 5.5,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.SpriteRenderer",
+          "id": "c1000000-0000-0000-0005-000000000000",
+          "enabled": true,
           "data": {
             "texture": "asset:9a000000-0000-4000-8000-000000000004",
             "color": {
@@ -1548,46 +1714,54 @@
             },
             "flipX": false,
             "flipY": false,
-            "sortingOrder": 5,
+            "material": null,
             "sourceRect": {
               "x": 0.0,
               "y": 0.0,
               "width": 16.0,
               "height": 16.0
-            }
-          },
-          "id": "c1000000-0000-0000-0005-000000000000",
-          "enabled": true
+            },
+            "sortingOrder": 5
+          }
         },
         {
           "type": "MNVTEngine.SpriteAnimator",
+          "id": "c1000000-0000-0000-0005-000000000001",
+          "enabled": true,
           "data": {
             "clip": "asset:9a000000-0000-4000-8000-000000000018",
             "speed": 1.1,
             "playOnStart": true
-          },
-          "id": "c1000000-0000-0000-0005-000000000001",
-          "enabled": true
+          }
         },
         {
           "type": "MNVTEngine.CircleCollider2D",
-          "data": {
-            "radius": 0.35,
-            "isTrigger": true
-          },
           "id": "c1000000-0000-0000-0005-000000000002",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "isTrigger": true,
+            "offset": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "density": 1.0,
+            "friction": 0.6,
+            "bounciness": 0.0,
+            "radius": 0.35
+          }
         },
         {
           "type": "Platformer.Coin",
+          "id": "c1000000-0000-0000-0005-000000000003",
+          "enabled": true,
           "data": {
             "sound": "asset:9a000000-0000-4000-8000-00000000000b"
-          },
-          "id": "c1000000-0000-0000-0005-000000000003",
-          "enabled": true
+          }
         },
         {
           "type": "MNVTEngine.Light2D",
+          "id": "c1000000-0000-0000-0005-000000000004",
+          "enabled": true,
           "data": {
             "color": {
               "r": 1.0,
@@ -1597,9 +1771,7 @@
             },
             "intensity": 0.6,
             "radius": 1.5
-          },
-          "id": "c1000000-0000-0000-0005-000000000004",
-          "enabled": true
+          }
         }
       ]
     },
@@ -1611,17 +1783,26 @@
       "transform": {
         "localPosition": {
           "x": 21.5,
-          "y": 3.5
+          "y": 3.5,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.SpriteRenderer",
+          "id": "c1000000-0000-0000-0006-000000000000",
+          "enabled": true,
           "data": {
             "texture": "asset:9a000000-0000-4000-8000-000000000004",
             "color": {
@@ -1640,46 +1821,54 @@
             },
             "flipX": false,
             "flipY": false,
-            "sortingOrder": 5,
+            "material": null,
             "sourceRect": {
               "x": 0.0,
               "y": 0.0,
               "width": 16.0,
               "height": 16.0
-            }
-          },
-          "id": "c1000000-0000-0000-0006-000000000000",
-          "enabled": true
+            },
+            "sortingOrder": 5
+          }
         },
         {
           "type": "MNVTEngine.SpriteAnimator",
+          "id": "c1000000-0000-0000-0006-000000000001",
+          "enabled": true,
           "data": {
             "clip": "asset:9a000000-0000-4000-8000-000000000018",
             "speed": 1.2,
             "playOnStart": true
-          },
-          "id": "c1000000-0000-0000-0006-000000000001",
-          "enabled": true
+          }
         },
         {
           "type": "MNVTEngine.CircleCollider2D",
-          "data": {
-            "radius": 0.35,
-            "isTrigger": true
-          },
           "id": "c1000000-0000-0000-0006-000000000002",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "isTrigger": true,
+            "offset": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "density": 1.0,
+            "friction": 0.6,
+            "bounciness": 0.0,
+            "radius": 0.35
+          }
         },
         {
           "type": "Platformer.Coin",
+          "id": "c1000000-0000-0000-0006-000000000003",
+          "enabled": true,
           "data": {
             "sound": "asset:9a000000-0000-4000-8000-00000000000b"
-          },
-          "id": "c1000000-0000-0000-0006-000000000003",
-          "enabled": true
+          }
         },
         {
           "type": "MNVTEngine.Light2D",
+          "id": "c1000000-0000-0000-0006-000000000004",
+          "enabled": true,
           "data": {
             "color": {
               "r": 1.0,
@@ -1689,9 +1878,7 @@
             },
             "intensity": 0.6,
             "radius": 1.5
-          },
-          "id": "c1000000-0000-0000-0006-000000000004",
-          "enabled": true
+          }
         }
       ]
     },
@@ -1703,17 +1890,26 @@
       "transform": {
         "localPosition": {
           "x": 26.5,
-          "y": 6.5
+          "y": 6.5,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.SpriteRenderer",
+          "id": "c1000000-0000-0000-0007-000000000000",
+          "enabled": true,
           "data": {
             "texture": "asset:9a000000-0000-4000-8000-000000000004",
             "color": {
@@ -1732,46 +1928,54 @@
             },
             "flipX": false,
             "flipY": false,
-            "sortingOrder": 5,
+            "material": null,
             "sourceRect": {
               "x": 0.0,
               "y": 0.0,
               "width": 16.0,
               "height": 16.0
-            }
-          },
-          "id": "c1000000-0000-0000-0007-000000000000",
-          "enabled": true
+            },
+            "sortingOrder": 5
+          }
         },
         {
           "type": "MNVTEngine.SpriteAnimator",
+          "id": "c1000000-0000-0000-0007-000000000001",
+          "enabled": true,
           "data": {
             "clip": "asset:9a000000-0000-4000-8000-000000000018",
             "speed": 1.3,
             "playOnStart": true
-          },
-          "id": "c1000000-0000-0000-0007-000000000001",
-          "enabled": true
+          }
         },
         {
           "type": "MNVTEngine.CircleCollider2D",
-          "data": {
-            "radius": 0.35,
-            "isTrigger": true
-          },
           "id": "c1000000-0000-0000-0007-000000000002",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "isTrigger": true,
+            "offset": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "density": 1.0,
+            "friction": 0.6,
+            "bounciness": 0.0,
+            "radius": 0.35
+          }
         },
         {
           "type": "Platformer.Coin",
+          "id": "c1000000-0000-0000-0007-000000000003",
+          "enabled": true,
           "data": {
             "sound": "asset:9a000000-0000-4000-8000-00000000000b"
-          },
-          "id": "c1000000-0000-0000-0007-000000000003",
-          "enabled": true
+          }
         },
         {
           "type": "MNVTEngine.Light2D",
+          "id": "c1000000-0000-0000-0007-000000000004",
+          "enabled": true,
           "data": {
             "color": {
               "r": 1.0,
@@ -1781,9 +1985,7 @@
             },
             "intensity": 0.6,
             "radius": 1.5
-          },
-          "id": "c1000000-0000-0000-0007-000000000004",
-          "enabled": true
+          }
         }
       ]
     },
@@ -1795,17 +1997,26 @@
       "transform": {
         "localPosition": {
           "x": 42.5,
-          "y": 5.5
+          "y": 5.5,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.SpriteRenderer",
+          "id": "c1000000-0000-0000-0008-000000000000",
+          "enabled": true,
           "data": {
             "texture": "asset:9a000000-0000-4000-8000-000000000004",
             "color": {
@@ -1824,46 +2035,54 @@
             },
             "flipX": false,
             "flipY": false,
-            "sortingOrder": 5,
+            "material": null,
             "sourceRect": {
               "x": 0.0,
               "y": 0.0,
               "width": 16.0,
               "height": 16.0
-            }
-          },
-          "id": "c1000000-0000-0000-0008-000000000000",
-          "enabled": true
+            },
+            "sortingOrder": 5
+          }
         },
         {
           "type": "MNVTEngine.SpriteAnimator",
+          "id": "c1000000-0000-0000-0008-000000000001",
+          "enabled": true,
           "data": {
             "clip": "asset:9a000000-0000-4000-8000-000000000018",
             "speed": 1.4,
             "playOnStart": true
-          },
-          "id": "c1000000-0000-0000-0008-000000000001",
-          "enabled": true
+          }
         },
         {
           "type": "MNVTEngine.CircleCollider2D",
-          "data": {
-            "radius": 0.35,
-            "isTrigger": true
-          },
           "id": "c1000000-0000-0000-0008-000000000002",
-          "enabled": true
+          "enabled": true,
+          "data": {
+            "isTrigger": true,
+            "offset": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "density": 1.0,
+            "friction": 0.6,
+            "bounciness": 0.0,
+            "radius": 0.35
+          }
         },
         {
           "type": "Platformer.Coin",
+          "id": "c1000000-0000-0000-0008-000000000003",
+          "enabled": true,
           "data": {
             "sound": "asset:9a000000-0000-4000-8000-00000000000b"
-          },
-          "id": "c1000000-0000-0000-0008-000000000003",
-          "enabled": true
+          }
         },
         {
           "type": "MNVTEngine.Light2D",
+          "id": "c1000000-0000-0000-0008-000000000004",
+          "enabled": true,
           "data": {
             "color": {
               "r": 1.0,
@@ -1873,9 +2092,7 @@
             },
             "intensity": 0.6,
             "radius": 1.5
-          },
-          "id": "c1000000-0000-0000-0008-000000000004",
-          "enabled": true
+          }
         }
       ]
     },
@@ -1887,17 +2104,26 @@
       "transform": {
         "localPosition": {
           "x": 57.5,
-          "y": 0.5
+          "y": 0.5,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.SpriteRenderer",
+          "id": "c1000000-0000-0000-0009-000000000000",
+          "enabled": true,
           "data": {
             "texture": "asset:9a000000-0000-4000-8000-000000000002",
             "color": {
@@ -1916,31 +2142,45 @@
             },
             "flipX": false,
             "flipY": false,
+            "material": null,
+            "sourceRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 0.0,
+              "height": 0.0
+            },
             "sortingOrder": 4
-          },
-          "id": "c1000000-0000-0000-0009-000000000000",
-          "enabled": true
+          }
         },
         {
           "type": "MNVTEngine.BoxCollider2D",
+          "id": "c1000000-0000-0000-0009-000000000001",
+          "enabled": true,
           "data": {
+            "isTrigger": true,
+            "offset": {
+              "x": 0.0,
+              "y": 0.0
+            },
+            "density": 1.0,
+            "friction": 0.6,
+            "bounciness": 0.0,
             "size": {
               "x": 0.8,
               "y": 1.0
-            },
-            "isTrigger": true
-          },
-          "id": "c1000000-0000-0000-0009-000000000001",
-          "enabled": true
+            }
+          }
         },
         {
           "type": "Platformer.Goal",
-          "data": {},
           "id": "c1000000-0000-0000-0009-000000000002",
-          "enabled": true
+          "enabled": true,
+          "data": {}
         },
         {
           "type": "MNVTEngine.Light2D",
+          "id": "c1000000-0000-0000-0009-000000000003",
+          "enabled": true,
           "data": {
             "color": {
               "r": 0.3,
@@ -1950,9 +2190,7 @@
             },
             "intensity": 1.2,
             "radius": 3.5
-          },
-          "id": "c1000000-0000-0000-0009-000000000003",
-          "enabled": true
+          }
         }
       ]
     },
@@ -1964,30 +2202,37 @@
       "transform": {
         "localPosition": {
           "x": 0.0,
-          "y": 0.0
+          "y": 0.0,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.AudioSource",
+          "id": "c1000000-0000-0000-000a-000000000000",
+          "enabled": true,
           "data": {
             "clip": "asset:9a000000-0000-4000-8000-00000000000c",
             "volume": 0.6,
             "pitch": 1.0,
             "loop": false,
             "playOnStart": false,
+            "group": "Effects",
             "spatial": false,
             "referenceDistance": 2.0,
-            "maxDistance": 30.0,
-            "group": "Effects"
-          },
-          "id": "c1000000-0000-0000-000a-000000000000",
-          "enabled": true
+            "maxDistance": 30.0
+          }
         }
       ]
     },
@@ -1999,17 +2244,26 @@
       "transform": {
         "localPosition": {
           "x": 0.0,
-          "y": 0.0
+          "y": 0.0,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.GlobalLight2D",
+          "id": "c1000000-0000-0000-000c-000000000000",
+          "enabled": true,
           "data": {
             "color": {
               "r": 0.6,
@@ -2018,43 +2272,7 @@
               "a": 1.0
             },
             "intensity": 0.45
-          },
-          "id": "c1000000-0000-0000-000c-000000000000",
-          "enabled": true
-        }
-      ]
-    },
-    {
-      "id": "b1000000-0000-0000-0000-00000000000d",
-      "name": "Player Light",
-      "active": true,
-      "parent": "b1000000-0000-0000-0000-000000000001",
-      "transform": {
-        "localPosition": {
-          "x": 0.0,
-          "y": 0.0
-        },
-        "localRotation": 0.0,
-        "localScale": {
-          "x": 1.0,
-          "y": 1.0
-        }
-      },
-      "components": [
-        {
-          "type": "MNVTEngine.Light2D",
-          "data": {
-            "color": {
-              "r": 1.0,
-              "g": 0.95,
-              "b": 0.85,
-              "a": 1.0
-            },
-            "intensity": 0.9,
-            "radius": 4.5
-          },
-          "id": "c1000000-0000-0000-000d-000000000000",
-          "enabled": true
+          }
         }
       ]
     },
@@ -2066,17 +2284,26 @@
       "transform": {
         "localPosition": {
           "x": 4.5,
-          "y": 1.5
+          "y": 1.5,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.Light2D",
+          "id": "c1000000-0000-0000-000e-000000000000",
+          "enabled": true,
           "data": {
             "color": {
               "r": 1.0,
@@ -2086,9 +2313,7 @@
             },
             "intensity": 1.1,
             "radius": 4.0
-          },
-          "id": "c1000000-0000-0000-000e-000000000000",
-          "enabled": true
+          }
         }
       ]
     },
@@ -2100,17 +2325,26 @@
       "transform": {
         "localPosition": {
           "x": 18.5,
-          "y": 1.5
+          "y": 1.5,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.Light2D",
+          "id": "c1000000-0000-0000-000f-000000000000",
+          "enabled": true,
           "data": {
             "color": {
               "r": 1.0,
@@ -2120,9 +2354,7 @@
             },
             "intensity": 1.1,
             "radius": 4.0
-          },
-          "id": "c1000000-0000-0000-000f-000000000000",
-          "enabled": true
+          }
         }
       ]
     },
@@ -2134,17 +2366,26 @@
       "transform": {
         "localPosition": {
           "x": 33.5,
-          "y": 2.5
+          "y": 2.5,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.Light2D",
+          "id": "c1000000-0000-0000-0010-000000000000",
+          "enabled": true,
           "data": {
             "color": {
               "r": 1.0,
@@ -2154,9 +2395,7 @@
             },
             "intensity": 1.1,
             "radius": 4.0
-          },
-          "id": "c1000000-0000-0000-0010-000000000000",
-          "enabled": true
+          }
         }
       ]
     },
@@ -2168,17 +2407,26 @@
       "transform": {
         "localPosition": {
           "x": 45.5,
-          "y": 1.5
+          "y": 1.5,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
         {
           "type": "MNVTEngine.Light2D",
+          "id": "c1000000-0000-0000-0011-000000000000",
+          "enabled": true,
           "data": {
             "color": {
               "r": 1.0,
@@ -2188,9 +2436,7 @@
             },
             "intensity": 1.1,
             "radius": 4.0
-          },
-          "id": "c1000000-0000-0000-0011-000000000000",
-          "enabled": true
+          }
         }
       ]
     },
@@ -2202,12 +2448,19 @@
       "transform": {
         "localPosition": {
           "x": 0.0,
-          "y": 0.0
+          "y": 0.0,
+          "z": 0.0
         },
-        "localRotation": 0.0,
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
         "localScale": {
           "x": 1.0,
-          "y": 1.0
+          "y": 1.0,
+          "z": 1.0
         }
       },
       "components": [
