@@ -83,6 +83,10 @@ public sealed class BudgetSettings
 
     public double? MaxPhysicsBodies { get; set; } = 2_000;
 
+    public double? MaxParticles { get; set; } = 100_000;
+
+    public double? ParticleSimulationMs { get; set; } = 4;
+
     public double? MaxScriptCoroutines { get; set; } = 500;
 
     public double? ManagedMemoryMb { get; set; } = 1024;
@@ -241,6 +245,8 @@ public sealed class DiagnosticsSettings
         Add("entities", b.MaxEntities, Metrics.Entities, "Runtime", "Objects spawned without being destroyed; check pooling.");
         Add("components", b.MaxComponents, Metrics.Components, "Runtime", "Objects spawned without being destroyed.");
         Add("physicsBodies", b.MaxPhysicsBodies, Metrics.PhysicsBodies, "Physics", "Bodies of objects off-screen; disable or pool them.");
+        Add("particles", b.MaxParticles, Metrics.ParticlesAlive, "Particles", "Lower MaxParticles, emission rates or lifetimes; stop systems off-screen.");
+        Add("particleSimulation", b.ParticleSimulationMs, Metrics.ParticleSimulationTime, "Particles", "Fewer particles, or disable costly modules (noise, collision, sub-emitters).");
         Add("scriptCoroutines", b.MaxScriptCoroutines, Metrics.ScriptFibers, "Scripting", "Mission scripts spawning coroutines in a loop.");
         Add("managedMemory", b.ManagedMemoryMb, Metrics.ManagedHeap, "Memory", "Memory panel: look for growing caches or lists.", Mb);
         Add("processMemory", b.ProcessMemoryMb, Metrics.ProcessMemory, "Memory", "Native memory: textures, audio, drivers.", Mb);

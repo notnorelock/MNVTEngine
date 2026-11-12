@@ -424,10 +424,41 @@ public sealed partial class RuntimeDiagnostics
                 }
 
                 metrics.Set(DiagnosticMetrics.SpriteBatches, renderer.BatchesDrawn);
+                ParticleRenderMetrics(metrics, renderer);
             }
 
             metrics.Set(DiagnosticMetrics.DebugDrawCommands, owner.DrawBuffer.Requested);
             metrics.Set(DiagnosticMetrics.DebugDrawDropped, owner.DrawBuffer.Dropped);
+        }
+    }
+
+    /// <summary>Particle rendering from the passes' statistics; without a particle pass (no particles module) unsupported, not zero.</summary>
+    private static void ParticleRenderMetrics(MetricsSnapshot metrics, SceneRenderer renderer)
+    {
+        var statistics = renderer.Statistics;
+        if (!statistics.TryGetValue(RenderStatistics.ParticlesDrawn, out var drawn))
+        {
+            foreach (var metric in new[] { DiagnosticMetrics.ParticlesDrawn, DiagnosticMetrics.ParticleDrawCalls, DiagnosticMetrics.ParticleVertices, DiagnosticMetrics.ParticleTextureSwitches, DiagnosticMetrics.ParticleRenderTime })
+            {
+                metrics.SetUnsupported(metric);
+            }
+
+            return;
+        }
+
+        metrics.Set(DiagnosticMetrics.ParticlesDrawn, drawn);
+        metrics.Set(DiagnosticMetrics.ParticleVertices, drawn * 4);
+        metrics.Set(DiagnosticMetrics.ParticleRenderTime, statistics.GetValueOrDefault(RenderStatistics.ParticleRenderMicroseconds) / 1000.0);
+        foreach (var (metric, statistic) in new[] { (DiagnosticMetrics.ParticleDrawCalls, RenderStatistics.ParticleDrawCalls), (DiagnosticMetrics.ParticleTextureSwitches, RenderStatistics.ParticleTextureSwitches) })
+        {
+            if (statistics.TryGetValue(statistic, out var value))
+            {
+                metrics.Set(metric, value);
+            }
+            else
+            {
+                metrics.SetUnsupported(metric); // 2D: particles share the sprite batch, whose draw calls and switches are counted there
+            }
         }
     }
 

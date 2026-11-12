@@ -15,7 +15,7 @@ namespace MNVTEngine.Particles3D;
 /// </summary>
 public sealed class ParticleScenePass3D(RenderServices services) : IScenePass
 {
-    public const string ParticlesDrawn = "particles.drawn", ParticlesCulled = "particles.culled", ParticleSystems = "particles.systems", ParticleDrawCalls = "particles.drawCalls";
+    public const string ParticlesDrawn = RenderStatistics.ParticlesDrawn, ParticlesCulled = RenderStatistics.ParticlesCulled, ParticleSystems = RenderStatistics.ParticleSystems, ParticleDrawCalls = RenderStatistics.ParticleDrawCalls;
 
     private const int QuadsPerChunk = 8192; // 32768 vertices: 16-bit indices
 
@@ -42,6 +42,7 @@ public sealed class ParticleScenePass3D(RenderServices services) : IScenePass
         }
 
         using var sample = Core.Diagnostics.Profiler.Sample("Render.Particles3D");
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         var cameraPosition = camera.Transform.Position;
         _systems.Clear();
         foreach (var system in context.Scene.World.Pool<ParticleSystem>().Components)
@@ -65,7 +66,7 @@ public sealed class ParticleScenePass3D(RenderServices services) : IScenePass
         var frustum = Frustum.FromViewProjection(viewProjection);
         var state = context.Target is { HasDepth: false } ? new RenderState(Cull: CullMode.None) : new RenderState(DepthTest: true, DepthWrite: false, Cull: CullMode.None);
 
-        int drawn = 0, culled = 0, calls = 0, count = 0;
+        int drawn = 0, culled = 0, calls = 0, count = 0, switches = 0;
         Texture2D? runTexture = null;
         Material? runMaterial = null;
         var runStart = 0;
@@ -76,6 +77,7 @@ public sealed class ParticleScenePass3D(RenderServices services) : IScenePass
             var material = renderer.Blend == ParticleBlendMode.Additive ? _additive! : _alpha!;
             if (count > 0 && (!ReferenceEquals(texture, runTexture) || !ReferenceEquals(material, runMaterial)))
             {
+                switches++;
                 calls += Flush(device, runStart, count - runStart, runTexture!, runMaterial!, viewProjection, state);
                 runStart = count;
             }
@@ -98,6 +100,8 @@ public sealed class ParticleScenePass3D(RenderServices services) : IScenePass
         context.Count(ParticlesDrawn, drawn);
         context.Count(ParticlesCulled, culled);
         context.Count(ParticleDrawCalls, calls);
+        context.Count(RenderStatistics.ParticleTextureSwitches, switches);
+        context.Count(RenderStatistics.ParticleRenderMicroseconds, (int)System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMicroseconds);
     }
 
     /// <summary>Adds the system's visible particles as quads from quad <paramref name="first"/>; returns the new quad count.</summary>

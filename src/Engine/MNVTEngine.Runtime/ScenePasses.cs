@@ -125,6 +125,15 @@ public interface IScenePass : IDisposable
 /// <summary>Well-known statistics of the built-in passes (<see cref="SceneRenderer.Statistics"/>); absent means the pass is not there.</summary>
 public static class RenderStatistics
 {
+    /// <summary>Particle systems drawn, particles drawn and culled, by the 2D or 3D particle pass.</summary>
+    public const string ParticleSystems = "particles.systems", ParticlesDrawn = "particles.drawn", ParticlesCulled = "particles.culled";
+
+    /// <summary>3D particle pass only: draw calls, and runs that changed texture or blending (2D particles batch with sprites).</summary>
+    public const string ParticleDrawCalls = "particles.drawCalls", ParticleTextureSwitches = "particles.textureSwitches";
+
+    /// <summary>CPU time of the particle passes, in microseconds.</summary>
+    public const string ParticleRenderMicroseconds = "particles.renderMicroseconds";
+
     public const string SpritesDrawn = "sprites.drawn";
     public const string SpritesCulled = "sprites.culled";
     public const string Lights2D = "lights2d.drawn";

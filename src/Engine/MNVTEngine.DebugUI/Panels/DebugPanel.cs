@@ -146,6 +146,7 @@ internal static class HudPanel
         ["runtime"] = ("RUNTIME", [DiagnosticMetrics.Entities, DiagnosticMetrics.Components, DiagnosticMetrics.Systems, DiagnosticMetrics.PhysicsBodies, DiagnosticMetrics.AudioSources, DiagnosticMetrics.CSharpScripts, DiagnosticMetrics.ScriptVms, DiagnosticMetrics.Uptime, DiagnosticMetrics.FrameNumber]),
         ["scripting"] = ("SCRIPTING", [DiagnosticMetrics.CSharpScripts, DiagnosticMetrics.ScriptVms, DiagnosticMetrics.ScriptFibers]),
         ["physics"] = ("PHYSICS", [DiagnosticMetrics.PhysicsBodies, DiagnosticMetrics.PhysicsColliders]),
+        ["particles"] = ("PARTICLES", [DiagnosticMetrics.ParticleSystems, DiagnosticMetrics.ParticlesAlive, DiagnosticMetrics.ParticlesEmitted, DiagnosticMetrics.ParticleSimulationTime, DiagnosticMetrics.ParticlesDrawn, DiagnosticMetrics.ParticleDrawCalls, DiagnosticMetrics.ParticleRenderTime]),
         ["assets"] = ("ASSETS", [DiagnosticMetrics.AssetsLoaded, DiagnosticMetrics.AssetsFailed, DiagnosticMetrics.TextureMemory, DiagnosticMetrics.AudioMemory]),
     };
 

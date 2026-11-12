@@ -8,7 +8,9 @@ Particle systems are the `particles` [module](modules.md) (`MNVTEngine.Particles
 | 2D rendering (`particles.2d`), editor inspector and preview, presets, sample `samples/Particles2D` | Done |
 | 3D rendering (`particles.3d`): billboard modes, depth, sorting; editor preview in the 3D Scene view; sample `samples/Particles3D` | Done |
 | Noise, collision (world planes), sub-emitters | Done |
-| GPU simulation (Vulkan compute) | To be evaluated; the simulation is CPU-only and is reported as such |
+| Diagnostics: simulation and rendering metrics, budgets | Done |
+| Performance: parallel CPU update for large systems, allocation-free steps | Done |
+| GPU simulation (Vulkan compute) | Evaluated, not implemented (see below); the simulation is CPU-only and is reported as such |
 
 ## Using a particle system
 
@@ -136,6 +138,44 @@ The module comes with `particles` in 3D projects, as `particles.2d` does in 2D p
 ### Presets
 
 `ParticlePresets.Create(name, planar)` builds editable starting settings (2D or 3D shapes): Fire, Smoke, Sparks, Explosion, Dust, Rain, Snow, Magic sparkle, Energy beam, Footsteps dust, Water splash. They are ordinary settings with no special behavior. They set no texture; the inspector keeps the current one.
+
+## Diagnostics and performance
+
+**Metrics.** The `particles` module adds a metrics provider, and the particle passes add render statistics. Both appear in the overlay (`overlay.sections` with `particles`), the profiler and budgets:
+
+| Metric | Source |
+|---|---|
+| `particles.systems`, `particles.alive`, `particles.capacity` | Active systems (playing or with particles), particles alive, sum of their `maxParticles` |
+| `particles.emitted`, `particles.recycled` | Particles emitted and died (slots reused) last frame |
+| `particles.modules`, `particles.collisionChecks`, `particles.memory` | Enabled optional modules, particle-plane tests, bytes of the particle buffers |
+| `particles.simulationTime` | CPU milliseconds of the systems' steps (timed per step) |
+| `particles.gpuSimulationTime` | Always unsupported: there is no GPU simulation, and it is never reported as 0 |
+| `render.particles`, `render.particleVertices`, `render.particleTime` | Particles drawn after culling, their vertices, CPU time of the particle pass |
+| `render.particleDrawCalls`, `render.particleTextureSwitches` | 3D pass. In 2D, particles share the sprite batch, so these are unsupported there and counted in the renderer's totals |
+
+Budgets `maxParticles` (alive particles) and `particleSimulationMs` warn as other budgets do. Without the particle modules, all render metrics are unsupported, not 0. Collecting the metrics adds no GPU synchronization: rendering time is CPU time measured in the pass.
+
+**Allocation and threads.**
+- **Allocation:** a step allocates nothing once the buffer has grown. This is verified by a test for serial and parallel steps.
+- **Parallel update:** a system with 32,768 particles or more updates in parallel chunks of 4,096 on the thread pool, and the calling thread waits. Work items are reused. A sweep on the calling thread then removes the dead and records events.
+- **When it stays serial:** systems whose collision events are recorded update on one thread, because the event buffer is shared.
+- **Determinism:** a parallel step gives exactly the serial result (tested).
+
+**Measured** (Release, x64; median CPU time per step; the machine was busy, so take ±30%):
+
+| Modules | 10k | 100k serial | 100k parallel | 400k parallel |
+|---|---:|---:|---:|---:|
+| Gravity only | 0.4 ms | 2.3 ms | 1.2 to 3.3 ms | 4.2 ms |
+| Color, size, rotation, sprite sheet | 1.2 ms | 11.5 ms | 2.7 to 5.0 ms | 10 ms |
+| + noise | 3.7 ms | 34 ms | 5.9 to 8.9 ms | 21 ms |
+| + collision (one plane) | 3.8 ms | 13.9 ms | 2.7 to 3.5 ms | 9.7 ms |
+
+**GPU simulation (Phase 8 evaluation): not implemented.**
+- **Need:** typical games stay well under 50,000 particles, and the CPU path handles that in a few milliseconds. GPU simulation would pay off for hundreds of thousands of particles, which would also need GPU-driven drawing.
+- **Prerequisites missing:** compute pipelines, storage buffers, dispatch, Synchronization2 barriers between compute and graphics, and indirect draws in the backend-independent graphics API. Today it has only graphics draws.
+- **Port:** every module would need a GPU version: curves and gradients baked into buffers, noise, collision, sorting. The CPU-visible behavior would also need readback, which stalls: sub-emitters, collision events, particle counts and statistics.
+- **Next step, if a game needs it:** an opt-in GPU backend per system, for systems without sub-emitters or collision events, behind the same settings, with its own GPU timing metric.
+- **Until then:** the GPU metric reports unsupported, and nothing uploads CPU particles under a GPU label.
 
 ## `.mnvtparticle` assets
 

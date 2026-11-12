@@ -49,6 +49,7 @@ public sealed class ParticleSimulation
     private bool _hasLastPosition;
     private bool _emissionDone;
     private float _runTime;
+    private readonly ParticleWorkers _workers = new();
 
     public ParticleSimulation(ParticleSystemSettings settings) => Settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
@@ -58,6 +59,9 @@ public sealed class ParticleSimulation
 
     /// <summary>Births, deaths and collisions of the last step, for sub-emitters and collision events (only the kinds in use).</summary>
     public ParticleEventBuffer Events { get; } = new();
+
+    /// <summary>CPU time of the last step, in milliseconds.</summary>
+    public double LastStepMilliseconds { get; private set; }
 
     /// <summary>Particle-plane collision tests of the last step.</summary>
     public int CollisionChecksLastStep { get; private set; }
@@ -158,6 +162,19 @@ public sealed class ParticleSimulation
     /// <summary>Advances the system by <paramref name="deltaSeconds"/> (before <see cref="MainModule.SimulationSpeed"/>).</summary>
     public void Step(float deltaSeconds, in EmitterPose pose)
     {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            StepCore(deltaSeconds, pose);
+        }
+        finally
+        {
+            LastStepMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        }
+    }
+
+    private void StepCore(float deltaSeconds, in EmitterPose pose)
+    {
         EmittedLastStep = 0;
         DiedLastStep = 0;
         CollisionChecksLastStep = 0;
@@ -192,7 +209,7 @@ public sealed class ParticleSimulation
         }
 
         _runTime += dt;
-        (DiedLastStep, CollisionChecksLastStep) = ParticleUpdater.Update(Particles, Settings, dt, pose, Events, _runTime);
+        (DiedLastStep, CollisionChecksLastStep) = ParticleUpdater.Update(Particles, Settings, dt, pose, Events, _runTime, _workers);
         if (State == ParticlePlayState.Playing && _emissionDone && Particles.Count == 0)
         {
             State = ParticlePlayState.Stopped;

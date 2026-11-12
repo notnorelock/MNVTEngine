@@ -108,6 +108,21 @@ public static class Metrics
     public const string Systems = "scene.systems";
     public const string PhysicsBodies = "physics.bodies";
     public const string PhysicsColliders = "physics.colliders";
+    public const string ParticleSystems = "particles.systems";
+    public const string ParticlesAlive = "particles.alive";
+    public const string ParticleCapacity = "particles.capacity";
+    public const string ParticlesEmitted = "particles.emitted";
+    public const string ParticlesRecycled = "particles.recycled";
+    public const string ParticleModules = "particles.modules";
+    public const string ParticleCollisionChecks = "particles.collisionChecks";
+    public const string ParticleMemory = "particles.memory";
+    public const string ParticleSimulationTime = "particles.simulationTime";
+    public const string ParticleGpuSimulationTime = "particles.gpuSimulationTime";
+    public const string ParticlesDrawn = "render.particles";
+    public const string ParticleDrawCalls = "render.particleDrawCalls";
+    public const string ParticleVertices = "render.particleVertices";
+    public const string ParticleTextureSwitches = "render.particleTextureSwitches";
+    public const string ParticleRenderTime = "render.particleTime";
     public const string AudioSources = "audio.voices";
     public const string CSharpScripts = "scripts.csharp";
     public const string ScriptVms = "scripts.vms";
@@ -173,6 +188,21 @@ public static class Metrics
         new(Systems, "Systems", "Runtime", MetricUnit.Count, "Scene systems (physics, audio...)."),
         new(PhysicsBodies, "Physics bodies", "Physics", MetricUnit.Count, "Box2D bodies."),
         new(PhysicsColliders, "Colliders", "Physics", MetricUnit.Count, "Collider components."),
+        new(ParticleSystems, "Particle systems", "Particles", MetricUnit.Count, "Particle systems playing or with particles alive."),
+        new(ParticlesAlive, "Particles", "Particles", MetricUnit.Count, "Particles alive in every system."),
+        new(ParticleCapacity, "Particle capacity", "Particles", MetricUnit.Count, "Sum of the active systems' maximum particles."),
+        new(ParticlesEmitted, "Particles emitted", "Particles", MetricUnit.Count, "Particles emitted last frame."),
+        new(ParticlesRecycled, "Particles recycled", "Particles", MetricUnit.Count, "Particles that died last frame (their slots are reused)."),
+        new(ParticleModules, "Particle modules", "Particles", MetricUnit.Count, "Optional modules enabled across the active systems."),
+        new(ParticleCollisionChecks, "Particle collision checks", "Particles", MetricUnit.Count, "Particle-plane tests last frame."),
+        new(ParticleMemory, "Particle buffers", "Particles", MetricUnit.Bytes, "Memory of the particle buffers."),
+        new(ParticleSimulationTime, "Particle simulation", "Particles", MetricUnit.Milliseconds, "CPU time simulating particles last frame."),
+        new(ParticleGpuSimulationTime, "Particle GPU simulation", "Particles", MetricUnit.Milliseconds, "Unsupported: particles are simulated on the CPU."),
+        new(ParticlesDrawn, "Particles drawn", "Renderer", MetricUnit.Count, "Particles drawn last frame (after culling)."),
+        new(ParticleDrawCalls, "Particle draw calls", "Renderer", MetricUnit.Count, "3D particle draw calls (2D particles batch with sprites)."),
+        new(ParticleVertices, "Particle vertices", "Renderer", MetricUnit.Count, "Vertices of the particle quads drawn."),
+        new(ParticleTextureSwitches, "Particle texture switches", "Renderer", MetricUnit.Count, "3D particle runs that changed texture or blending."),
+        new(ParticleRenderTime, "Particle rendering", "Renderer", MetricUnit.Milliseconds, "CPU time building and submitting particle geometry."),
         new(AudioSources, "Audio voices", "Audio", MetricUnit.Count, "Voices playing or paused."),
         new(CSharpScripts, "C# scripts", "Scripting", MetricUnit.Count, "Components from game assemblies."),
         new(ScriptVms, "Script VMs", "Scripting", MetricUnit.Count, "Running .mnvts VMs (MissionRunners)."),

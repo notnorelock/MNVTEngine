@@ -36,10 +36,10 @@ public sealed class ParticleEventBuffer
         _items[Count++] = item;
     }
 
-    internal void Clear() => Count = 0;
+    public void Clear() => Count = 0;
 
-    /// <summary>Sets what to record from the settings: events nothing uses are not recorded.</summary>
-    internal void Configure(ParticleSystemSettings settings)
+    /// <summary>Sets what to record from the settings: events nothing uses are not recorded (the simulation does this each step).</summary>
+    public void Configure(ParticleSystemSettings settings)
     {
         var subEmitters = settings.SubEmitters.Enabled ? settings.SubEmitters.Emitters : null;
         RecordBirths = subEmitters?.Exists(s => s.Event == SubEmitterEvent.Birth) ?? false;

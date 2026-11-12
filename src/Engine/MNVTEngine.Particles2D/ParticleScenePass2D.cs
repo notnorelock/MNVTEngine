@@ -14,7 +14,7 @@ namespace MNVTEngine.Particles2D;
 public sealed class ParticleScenePass2D(RenderServices services) : IScenePass
 {
     /// <summary>Statistics this pass adds to <see cref="ScenePassContext.Count"/>.</summary>
-    public const string ParticlesDrawn = "particles.drawn", ParticlesCulled = "particles.culled", ParticleSystems = "particles.systems";
+    public const string ParticlesDrawn = RenderStatistics.ParticlesDrawn, ParticlesCulled = RenderStatistics.ParticlesCulled, ParticleSystems = RenderStatistics.ParticleSystems;
 
     private int[] _order = [];
     private float[] _keys = [];
@@ -27,6 +27,7 @@ public sealed class ParticleScenePass2D(RenderServices services) : IScenePass
     {
         ArgumentNullException.ThrowIfNull(context);
         using var sample = Core.Diagnostics.Profiler.Sample("Render.Particles2D");
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         int drawn = 0, culled = 0, systems = 0;
         foreach (var system in context.Scene.World.Pool<ParticleSystem>().Components)
         {
@@ -42,6 +43,7 @@ public sealed class ParticleScenePass2D(RenderServices services) : IScenePass
         context.Count(ParticleSystems, systems);
         context.Count(ParticlesDrawn, drawn);
         context.Count(ParticlesCulled, culled);
+        context.Count(RenderStatistics.ParticleRenderMicroseconds, (int)System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMicroseconds);
     }
 
     private void DrawSystem(ScenePassContext context, ParticleSystem system, ref int drawn, ref int culled)

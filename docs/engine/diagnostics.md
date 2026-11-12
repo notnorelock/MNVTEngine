@@ -44,6 +44,7 @@ The HUD is a box in one corner of the view. Its sections are configurable (`over
 | `renderer` | Draw calls, vertices, triangles, textures, shaders, batches, sprites |
 | `runtime` | Entities, components, systems, physics bodies, audio voices, C# scripts, script VMs, uptime, frame number |
 | `scripting`, `physics`, `assets` | Counts for those subsystems |
+| `particles` | Active particle systems, particles alive, emitted per frame, CPU simulation time, particles drawn, particle draw calls, particle rendering time ([particle metrics](particles.md#diagnostics-and-performance)) |
 | `warnings` | Budgets at Warning or above, e.g. `WARNING: TEXTURE MEMORY BUDGET AT 91.20%` |
 
 **Values that are not measured show as `n/a`, never as 0:**
@@ -167,6 +168,7 @@ Only registered delegates run: there is no shell or process access. A command th
 | Renderer | `maxDrawCalls`, `maxVertices`, `maxTriangles`, `maxTextureSwitches`, `maxShaderSwitches`, `maxRenderTargets`, `maxDebugDrawCommands` |
 | Memory | `managedMemoryMb`, `processMemoryMb`, `gpuMemoryMb` (off by default), `textureMemoryMb`, `assetMemoryMb`, `audioMemoryMb`, `allocationKbPerFrame`, `gcPerMinute` |
 | Runtime | `maxEntities`, `maxComponents`, `maxPhysicsBodies`, `maxScriptCoroutines` |
+| Particles | `maxParticles` (alive, default 100,000), `particleSimulationMs` (CPU simulation per frame, default 4) |
 
 **Thresholds** (`diagnostics.thresholds`) set the severities. Information starts at 70 % of the limit, Warning at 85 %, Error ("exceeded") at 100 % and Critical at 150 %.
 
