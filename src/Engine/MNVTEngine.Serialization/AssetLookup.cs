@@ -40,5 +40,8 @@ public static class AssetTypes
 
     /// <summary>A terrain world (<c>.mnvtterrain</c>: TerrainHeaven project JSON), drawn by <c>WorldTerrain</c>.</summary>
     public const string Terrain = "Terrain";
+
+    /// <summary>A particle system (<c>.mnvtparticle</c>).</summary>
+    public const string ParticleSystem = "ParticleSystem";
     public const string Unknown = "Unknown";
 }

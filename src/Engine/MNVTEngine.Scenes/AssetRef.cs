@@ -52,7 +52,8 @@ public sealed class AssetTypeAttribute(string type) : Attribute
     public string Type { get; } = type;
 }
 
-internal sealed class AssetRefConverter : JsonConverter<AssetRef>
+/// <summary>Reads and writes <see cref="AssetRef"/> as <c>"asset:internal sealed class AssetRefConverter : JsonConverter<AssetRef>lt;guidinternal sealed class AssetRefConverter : JsonConverter<AssetRef>gt;"</c> or null; for JSON formats that hold asset references.</summary>
+public sealed class AssetRefConverter : JsonConverter<AssetRef>
 {
     public override void WriteJson(JsonWriter writer, AssetRef value, JsonSerializer serializer)
     {

@@ -29,7 +29,7 @@ public sealed class ModuleCommandTests : IDisposable
     {
         var (exit, catalog) = await Run("modules", "list");
         Assert.Equal(Cli.Ok, exit);
-        Assert.Contains("Engine modules (14)", catalog, StringComparison.Ordinal);
+        Assert.Contains("Engine modules (15)", catalog, StringComparison.Ordinal);
         Assert.Matches(@"physics\.2d\s+2D\s+auto\s+world\.2d", catalog);
 
         var (_, flat) = await Run("modules", "list", await NewProject("Flat", "2d"));
@@ -55,7 +55,7 @@ public sealed class ModuleCommandTests : IDisposable
     {
         var (exit, graph) = await Run("modules", "graph", await NewProject("Deep", "3d"));
         Assert.Equal(Cli.Ok, exit);
-        Assert.Contains("Deep (3D): 11 modules, in startup order", graph, StringComparison.Ordinal);
+        Assert.Contains("Deep (3D): 12 modules, in startup order", graph, StringComparison.Ordinal);
         Assert.True(graph.IndexOf("world.3d", StringComparison.Ordinal) < graph.IndexOf("  terrain", StringComparison.Ordinal));
         Assert.Matches(@"physics\.2d\s+not available in 3D", graph);
         Assert.Contains("Dependency tree", graph, StringComparison.Ordinal);

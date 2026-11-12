@@ -74,7 +74,7 @@ public static class AotBootstrap
 
         void Visit(Type type, int depth)
         {
-            if (depth > 4 || !visited.Add(type) || type.IsPrimitive || type == typeof(string) || type.IsEnum)
+            if (depth > 8 || !visited.Add(type) || type.IsPrimitive || type == typeof(string) || type.IsEnum)
             {
                 return;
             }

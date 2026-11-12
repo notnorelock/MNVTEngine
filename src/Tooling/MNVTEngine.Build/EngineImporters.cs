@@ -10,7 +10,7 @@ namespace MNVTEngine.Build;
 /// </summary>
 public static class EngineImporters
 {
-    public static IReadOnlyList<IAssetImporter> All() => [.. Assets.Models.ModelImporters.WithDefaults(), new ScriptImporter(), new TerrainImporter()];
+    public static IReadOnlyList<IAssetImporter> All() => [.. Assets.Models.ModelImporters.WithDefaults(), new ScriptImporter(), new TerrainImporter(), new ParticleSystemImporter()];
 }
 
 /// <summary>
@@ -58,6 +58,34 @@ public sealed class ScriptImporter() : SimpleImporter("Script", AssetTypes.Scrip
 /// meshes it references as dependencies (paths next to the file or from the Assets root, or <c>asset:</c> references), so
 /// builds include them. A reference that matches no asset is a warning: the terrain draws without it.
 /// </summary>
+/// <summary>Particle systems: validated with the runtime's parser; the texture and material they use are dependencies.</summary>
+public sealed class ParticleSystemImporter() : SimpleImporter("ParticleSystem", AssetTypes.ParticleSystem, Particles.ParticleSystemAsset.Extension)
+{
+    public override void Import(AssetImportContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        try
+        {
+            var settings = Particles.ParticleSystemAsset.Parse(new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(context.Data), context.RelativePath);
+            foreach (var reference in Particles.ParticleSystemAsset.References(settings))
+            {
+                context.Dependencies.Add(reference.Guid);
+            }
+
+            context.Properties["maxParticles"] = settings.Main.MaxParticles.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            context.Properties["modules"] = string.Join(", ", settings.EnabledModules().DefaultIfEmpty("none"));
+        }
+        catch (SerializationException ex)
+        {
+            context.Errors.AddRange(ex.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => $"{d.Path}: {d.Message}").DefaultIfEmpty(ex.Message));
+        }
+        catch (DecoderFallbackException ex)
+        {
+            context.Errors.Add($"Not valid UTF-8 text: {ex.Message}");
+        }
+    }
+}
+
 public sealed class TerrainImporter() : SimpleImporter("Terrain", AssetTypes.Terrain, ".mnvtterrain")
 {
     public override void Import(AssetImportContext context)

@@ -137,6 +137,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.World3D.Renderin
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Graphics.Vulkan.ShaderCompiler", "src\Engine\MNVTEngine.Graphics.Vulkan.ShaderCompiler\MNVTEngine.Graphics.Vulkan.ShaderCompiler.csproj", "{B44892E9-C615-4838-BF80-75E95FA6811F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Particles", "src\Engine\MNVTEngine.Particles\MNVTEngine.Particles.csproj", "{850011AD-2C8B-4C41-BD0F-32430617AA5B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Particles.Tests", "tests\MNVTEngine.Particles.Tests\MNVTEngine.Particles.Tests.csproj", "{BCD90625-E52E-46EE-84C6-8D9654654E13}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -951,6 +955,30 @@ Global
 		{B44892E9-C615-4838-BF80-75E95FA6811F}.Release|x64.Build.0 = Release|Any CPU
 		{B44892E9-C615-4838-BF80-75E95FA6811F}.Release|x86.ActiveCfg = Release|Any CPU
 		{B44892E9-C615-4838-BF80-75E95FA6811F}.Release|x86.Build.0 = Release|Any CPU
+		{850011AD-2C8B-4C41-BD0F-32430617AA5B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{850011AD-2C8B-4C41-BD0F-32430617AA5B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{850011AD-2C8B-4C41-BD0F-32430617AA5B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{850011AD-2C8B-4C41-BD0F-32430617AA5B}.Debug|x64.Build.0 = Debug|Any CPU
+		{850011AD-2C8B-4C41-BD0F-32430617AA5B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{850011AD-2C8B-4C41-BD0F-32430617AA5B}.Debug|x86.Build.0 = Debug|Any CPU
+		{850011AD-2C8B-4C41-BD0F-32430617AA5B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{850011AD-2C8B-4C41-BD0F-32430617AA5B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{850011AD-2C8B-4C41-BD0F-32430617AA5B}.Release|x64.ActiveCfg = Release|Any CPU
+		{850011AD-2C8B-4C41-BD0F-32430617AA5B}.Release|x64.Build.0 = Release|Any CPU
+		{850011AD-2C8B-4C41-BD0F-32430617AA5B}.Release|x86.ActiveCfg = Release|Any CPU
+		{850011AD-2C8B-4C41-BD0F-32430617AA5B}.Release|x86.Build.0 = Release|Any CPU
+		{BCD90625-E52E-46EE-84C6-8D9654654E13}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BCD90625-E52E-46EE-84C6-8D9654654E13}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BCD90625-E52E-46EE-84C6-8D9654654E13}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BCD90625-E52E-46EE-84C6-8D9654654E13}.Debug|x64.Build.0 = Debug|Any CPU
+		{BCD90625-E52E-46EE-84C6-8D9654654E13}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{BCD90625-E52E-46EE-84C6-8D9654654E13}.Debug|x86.Build.0 = Debug|Any CPU
+		{BCD90625-E52E-46EE-84C6-8D9654654E13}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BCD90625-E52E-46EE-84C6-8D9654654E13}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BCD90625-E52E-46EE-84C6-8D9654654E13}.Release|x64.ActiveCfg = Release|Any CPU
+		{BCD90625-E52E-46EE-84C6-8D9654654E13}.Release|x64.Build.0 = Release|Any CPU
+		{BCD90625-E52E-46EE-84C6-8D9654654E13}.Release|x86.ActiveCfg = Release|Any CPU
+		{BCD90625-E52E-46EE-84C6-8D9654654E13}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

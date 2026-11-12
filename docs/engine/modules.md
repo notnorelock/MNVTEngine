@@ -44,6 +44,7 @@ The engine is a set of **modules**. A project has a module or does not. Which on
 | `physics.2d` | 2D | auto | world.2d | | Physics2D, Box2D.NET |
 | `physics.3d` | 3D | auto | world.3d | | Physics3D, BepuPhysics, BepuUtilities |
 | `terrain` | 3D | auto | world.3d, physics.3d | | Terrain, Terrain.Components, Clipper2; the terrain shader |
+| `particles` | 2D, 3D | auto | core | | Particles: particle systems (simulation, emission, shapes, lifetime modules, curves, gradients, `.mnvtparticle`); see [Particle systems](particles.md) |
 
 Hosts are not modules. The game executable (GameHost) and the shared editor (Editor, Editor.Services) host every module. Profile-specific editor assemblies will belong to their module.
 

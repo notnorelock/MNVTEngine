@@ -152,6 +152,14 @@ public static class BuiltinModules
         Components = ["MNVTEngine.WorldTerrain"],
     };
 
+    public static ModuleDefinition Particles { get; } = new("particles", "Particles", "Particle systems: emission, shapes, lifetime modules, curves and gradients, simulated on the CPU.")
+    {
+        Requires = ["core"],
+        RuntimeAssemblies = ["MNVTEngine.Particles"],
+        AssetTypes = ["ParticleSystem"],
+        Components = ["MNVTEngine.ParticleSystem"],
+    };
+
     public static IReadOnlyList<ModuleDefinition> All { get; } =
-        [Core, Platform, Graphics, Assets, Runtime, Audio, Scripting, UI, DevTools, World2D, World3D, Physics2D, Physics3D, Terrain];
+        [Core, Platform, Graphics, Assets, Runtime, Audio, Scripting, UI, DevTools, World2D, World3D, Physics2D, Physics3D, Terrain, Particles];
 }

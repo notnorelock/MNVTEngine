@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Particle systems (module particles), shared by 2D and 3D: simulation, emission, shapes, lifetime modules, curves,
+       gradients, the ParticleSystem component and the .mnvtparticle format. No rendering: particles.2d and particles.3d draw. -->
+  <PropertyGroup>
+    <RootNamespace>MNVTEngine</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+  </ItemGroup>
+</Project>

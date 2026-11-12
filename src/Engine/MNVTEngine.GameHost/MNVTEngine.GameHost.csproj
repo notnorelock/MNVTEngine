@@ -44,6 +44,7 @@
   <ItemGroup Condition="'$(MnvtBootstrap)' == ''">
     <ProjectReference Include="..\MNVTEngine.Audio.OpenAL\MNVTEngine.Audio.OpenAL.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Audio\MNVTEngine.Audio.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.Particles\MNVTEngine.Particles.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Physics2D\MNVTEngine.Physics2D.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Physics3D\MNVTEngine.Physics3D.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Scripting.Bindings\MNVTEngine.Scripting.Bindings.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
