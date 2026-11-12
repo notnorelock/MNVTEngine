@@ -16,6 +16,7 @@
     <None Include="Resources\Fonts\lucide-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Engine\MNVTEngine.CrashHandler\MNVTEngine.CrashHandler.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Graphics.Vulkan.ShaderCompiler\MNVTEngine.Graphics.Vulkan.ShaderCompiler.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Audio.OpenAL\MNVTEngine.Audio.OpenAL.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.CrashReporting\MNVTEngine.CrashReporting.csproj" />

@@ -39,6 +39,8 @@ public sealed class AotBuildTests : IDisposable
 
         // No IL host, no .NET runtime, no managed assemblies: the engine and the game's C# are in the executable.
         Assert.True(File.Exists(Path.Combine(output, "AotTest.exe")));
+        Assert.True(File.Exists(Path.Combine(output, "MNVTCrashHandler.exe"))); // compiled ahead of time too: no runtime to run on
+        Assert.False(File.Exists(Path.Combine(output, "MNVTCrashHandler.dll")));
         Assert.False(File.Exists(Path.Combine(output, "AotTest.dll")));
         Assert.False(Directory.Exists(Path.Combine(output, "Dependencies", "Runtime")));
         Assert.Empty(Directory.Exists(Path.Combine(output, "Dependencies", "Managed")) ? Directory.GetFiles(Path.Combine(output, "Dependencies", "Managed")) : []);

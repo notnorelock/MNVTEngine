@@ -2,7 +2,11 @@ using System.Diagnostics;
 
 namespace MNVTEngine.CrashReporting.Tests;
 
-/// <summary>Runs the test app under the crash reporter and checks the reports its crashes leave.</summary>
+/// <summary>
+/// Runs the test app under the crash reporter (its first process starts MNVTCrashHandler.exe, which runs the app again
+/// as the game) and checks the reports crashes leave. The tests read stdout and stderr, so the first process waits for
+/// the handler and forwards the game's exit code, as for any tool.
+/// </summary>
 public sealed class CrashReporterTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("mnvt-crash-").FullName;
@@ -46,6 +50,8 @@ public sealed class CrashReporterTests : IDisposable
         var (exitCode, _) = Run("ok");
         Assert.Equal(7, exitCode);
         Assert.Contains("running ok", File.ReadAllText(Log), StringComparison.Ordinal);
+        Assert.Contains("inherited by children: nothing", File.ReadAllText(Log), StringComparison.Ordinal); // a process the game starts gets a handler of its own
+        Assert.DoesNotContain($"game {Environment.ProcessId}", File.ReadAllText(Log), StringComparison.Ordinal); // the game ran in a process of its own
         Assert.Empty(Directory.Exists(Reports) ? Directory.GetFileSystemEntries(Reports) : []);
     }
 
@@ -69,7 +75,7 @@ public sealed class CrashReporterTests : IDisposable
     }
 
     [Fact]
-    public void NativeCrash_IsDumpedByTheRuntime_AndReported()
+    public void NativeCrash_IsDumpedByCreatedump_AndReported()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "The native crash is an access violation in kernel32.");
         var (exitCode, _) = Run("native");

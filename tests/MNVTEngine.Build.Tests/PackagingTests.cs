@@ -52,7 +52,7 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
     {
         Assert.Equal(Path.Combine(game.ProjectDirectory, "Builds", "release"), Output);
         Assert.Equal(
-            ["Dependencies", "PackTest.dll", "PackTest.exe", "PackTest.runtimeconfig.json", "PackTest_Data"],
+            ["Dependencies", "MNVTCrashHandler.dll", "MNVTCrashHandler.exe", "MNVTCrashHandler.runtimeconfig.json", "PackTest.dll", "PackTest.exe", "PackTest.runtimeconfig.json", "PackTest_Data"],
             Directory.EnumerateFileSystemEntries(Output).Select(Path.GetFileName).Order(StringComparer.Ordinal));
         Assert.Equal(["Managed", "Native", "Runtime"], Directory.EnumerateDirectories(Path.Combine(Output, "Dependencies")).Select(Path.GetFileName).Order(StringComparer.Ordinal));
         Assert.True(File.Exists(Path.Combine(Output, "Dependencies", "Managed", "MNVTEngine.Runtime.dll")));

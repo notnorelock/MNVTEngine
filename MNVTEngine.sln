@@ -145,6 +145,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Particles2D", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Particles3D", "src\Engine\MNVTEngine.Particles3D\MNVTEngine.Particles3D.csproj", "{BDE90074-8973-4AAC-AEE2-5B40E0D00D02}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.CrashHandler", "src\Engine\MNVTEngine.CrashHandler\MNVTEngine.CrashHandler.csproj", "{19E793B3-34DE-4A83-BC75-8586EF5D9505}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1007,6 +1009,18 @@ Global
 		{BDE90074-8973-4AAC-AEE2-5B40E0D00D02}.Release|x64.Build.0 = Release|Any CPU
 		{BDE90074-8973-4AAC-AEE2-5B40E0D00D02}.Release|x86.ActiveCfg = Release|Any CPU
 		{BDE90074-8973-4AAC-AEE2-5B40E0D00D02}.Release|x86.Build.0 = Release|Any CPU
+		{19E793B3-34DE-4A83-BC75-8586EF5D9505}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{19E793B3-34DE-4A83-BC75-8586EF5D9505}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{19E793B3-34DE-4A83-BC75-8586EF5D9505}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{19E793B3-34DE-4A83-BC75-8586EF5D9505}.Debug|x64.Build.0 = Debug|Any CPU
+		{19E793B3-34DE-4A83-BC75-8586EF5D9505}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{19E793B3-34DE-4A83-BC75-8586EF5D9505}.Debug|x86.Build.0 = Debug|Any CPU
+		{19E793B3-34DE-4A83-BC75-8586EF5D9505}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{19E793B3-34DE-4A83-BC75-8586EF5D9505}.Release|Any CPU.Build.0 = Release|Any CPU
+		{19E793B3-34DE-4A83-BC75-8586EF5D9505}.Release|x64.ActiveCfg = Release|Any CPU
+		{19E793B3-34DE-4A83-BC75-8586EF5D9505}.Release|x64.Build.0 = Release|Any CPU
+		{19E793B3-34DE-4A83-BC75-8586EF5D9505}.Release|x86.ActiveCfg = Release|Any CPU
+		{19E793B3-34DE-4A83-BC75-8586EF5D9505}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

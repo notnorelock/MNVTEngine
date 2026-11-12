@@ -56,14 +56,15 @@ internal static unsafe class CrashWindow
     /// A window only for people: not on CI, not with <c>MNVT_CRASH_UI=0</c>, not when both stdout and stderr go to pipes or
     /// files (a test runner or a script). <c>MNVT_CRASH_UI=1</c> forces it.
     /// </summary>
-    public static bool ShouldShow()
+    /// <param name="quiet">The game was run by a tool (redirected output): no window unless MNVT_CRASH_UI=1 asks for one.</param>
+    public static bool ShouldShow(bool quiet = false)
     {
         if (!OperatingSystem.IsWindows())
         {
             return false;
         }
 
-        switch (Environment.GetEnvironmentVariable(CrashReporter.WindowVariable))
+        switch (Environment.GetEnvironmentVariable(CrashProtocol.WindowVariable))
         {
             case "0":
                 return false;
@@ -71,7 +72,7 @@ internal static unsafe class CrashWindow
                 return true;
         }
 
-        if (!Environment.UserInteractive || Environment.GetEnvironmentVariable("CI") is not null || Environment.GetEnvironmentVariable("TF_BUILD") is not null)
+        if (quiet || !Environment.UserInteractive || Environment.GetEnvironmentVariable("CI") is not null || Environment.GetEnvironmentVariable("TF_BUILD") is not null)
         {
             return false;
         }
@@ -90,7 +91,7 @@ internal static unsafe class CrashWindow
         {
             Title = $"{options.ProductName} - MNVTEngine {options.EngineVersion}",
             Product = options.ProductName,
-            Screenshot = Environment.GetEnvironmentVariable(CrashReporter.ScreenshotVariable),
+            Screenshot = Environment.GetEnvironmentVariable(CrashProtocol.ScreenshotVariable),
         };
         _state = state;
         Create(state);

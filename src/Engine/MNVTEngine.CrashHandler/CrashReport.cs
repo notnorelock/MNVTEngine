@@ -19,7 +19,7 @@ internal sealed class CrashReport(CrashReporterOptions options, string staging, 
     public CrashReportResult Collect(IProgress<double>? progress)
     {
         var folder = NewFolder();
-        var dumpSource = Path.Combine(staging, CrashHandler.DumpFile(processId));
+        var dumpSource = Path.Combine(staging, CrashProtocol.DumpFile(processId));
         var hasDump = File.Exists(dumpSource) && new FileInfo(dumpSource).Length > 0;
         if (hasDump)
         {
@@ -27,7 +27,7 @@ internal sealed class CrashReport(CrashReporterOptions options, string staging, 
         }
 
         progress?.Report(0.85);
-        var exceptionSource = Path.Combine(staging, CrashHandler.ExceptionFile(processId));
+        var exceptionSource = Path.Combine(staging, CrashProtocol.ExceptionFile(processId));
         var exception = File.Exists(exceptionSource) ? File.ReadAllText(exceptionSource) : null;
         if (exception is not null)
         {

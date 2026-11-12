@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.CrashReporting\MNVTEngine.CrashReporting.csproj" />
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.CrashHandler\MNVTEngine.CrashHandler.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics\MNVTEngine.Graphics.csproj" />
     <!-- The app that crashes on request; its output (dll, runtimeconfig) is copied next to the tests and run with dotnet. -->
     <ProjectReference Include="..\MNVTEngine.CrashReporting.TestApp\MNVTEngine.CrashReporting.TestApp.csproj" />

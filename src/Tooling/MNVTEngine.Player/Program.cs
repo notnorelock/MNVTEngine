@@ -10,7 +10,7 @@ if (MNVTEngine.CrashReporting.CrashReporter.Run(args, new(
     "MNVTEngine Player",
     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MNVTEngine", "Crashes", "Player"))) is { } crashHandlerExit)
 {
-    return crashHandlerExit;
+    return crashHandlerExit; // MNVTCrashHandler.exe runs the Player from here on
 }
 
 var debugLogs = new MNVTEngine.Core.Logging.InMemoryLoggerProvider(capacity: 5000);

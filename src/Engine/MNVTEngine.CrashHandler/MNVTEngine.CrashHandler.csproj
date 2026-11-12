@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    MNVTCrashHandler.exe: the crash handler process a game, the Player or the editor starts to watch itself (see
+    CrashReporter.Start). Dumps, the crash report and the Win32 crash window. No engine dependencies besides the
+    protocol in MNVTEngine.CrashReporting. In exported games it uses the game's private runtime (JIT builds) or is
+    compiled ahead of time (AOT builds); see GamePackager.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>MNVTCrashHandler</AssemblyName>
+    <RootNamespace>MNVTEngine.CrashReporting</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Next to a game, the private runtime is in Dependencies/Runtime; next to the editor or Player, an installed .NET. -->
+    <AppHostDotNetSearch>AppRelative;EnvironmentVariable;Global</AppHostDotNetSearch>
+    <AppHostRelativeDotNet>Dependencies/Runtime</AppHostRelativeDotNet>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="StbImageSharp" />
+    <PackageReference Include="StbImageWriteSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.CrashReporting\MNVTEngine.CrashReporting.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The engine wordmark (docs/images/mnvtengine-logo.svg) rendered dark for the white window; see CrashLogoTests. -->
+    <EmbeddedResource Include="Resources\logo-dark.png" LogicalName="MNVTEngine.CrashReporting.logo-dark.png" />
+  </ItemGroup>
+</Project>

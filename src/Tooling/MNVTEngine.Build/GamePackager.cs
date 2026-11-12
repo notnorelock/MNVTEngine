@@ -84,6 +84,73 @@ public static class GamePackager
     /// their symbols) go to <c>Dependencies/Managed</c>, native libraries to <c>Dependencies/Native</c>. The deps.json is
     /// removed: the host resolves these folders itself (see MNVTEngine.GameHost's HostLayout).
     /// </summary>
+    /// <summary>
+    /// Publishes MNVTCrashHandler.exe into the staged game's root (after <see cref="ArrangeLayout"/>). JIT games: a
+    /// framework-dependent handler on the game's private runtime, its dependencies in Dependencies/Managed. AOT games:
+    /// a native, ahead-of-time compiled handler (the game has no .NET runtime).
+    /// </summary>
+    public static async Task<IReadOnlyList<BuildDiagnostic>> PublishCrashHandlerAsync(
+        string engineRoot, BuildProfile profile, string workDirectory, string packageDirectory, bool aot, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        var output = Path.Combine(workDirectory, "CrashHandler");
+        if (Directory.Exists(output))
+        {
+            Directory.Delete(output, recursive: true);
+        }
+
+        List<string> arguments =
+        [
+            "publish", EngineLocation.CrashHandlerProject(engineRoot),
+            "-c", profile.Configuration,
+            "-r", profile.Target,
+            "--self-contained", "false",
+            "-o", output,
+            "--artifacts-path", Path.Combine(workDirectory, "artifacts-crash-handler"),
+            "-nologo", "-v:q", "-clp:NoSummary;ForceNoAlign",
+            "-p:Deterministic=true",
+            "-p:ContinuousIntegrationBuild=true",
+            "-p:DebugType=none",
+        ];
+        if (aot)
+        {
+            arguments.AddRange(["-p:PublishAot=true", "-p:TreatWarningsAsErrors=false"]);
+        }
+
+        var result = await DotnetCli.RunAsync(arguments, engineRoot, PublishTimeout, cancellationToken).ConfigureAwait(false);
+        if (result.StartError is { } error)
+        {
+            return [BuildDiagnostic.Error("MNVB402", error)];
+        }
+
+        if (result.ExitCode != 0)
+        {
+            return [BuildDiagnostic.Error("MNVB405", $"The crash handler could not be published (exit code {result.ExitCode}).\n{result.Output.Trim()}")];
+        }
+
+        var managed = Path.Combine(packageDirectory, GamePackage.ManagedFolder);
+        foreach (var file in Directory.EnumerateFiles(output))
+        {
+            var name = Path.GetFileName(file);
+            if (name.EndsWith(".deps.json", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var handlerFile = name.StartsWith("MNVTCrashHandler.", StringComparison.OrdinalIgnoreCase);
+            var target = handlerFile ? Path.Combine(packageDirectory, name) : Path.Combine(managed, name);
+            if (!handlerFile && File.Exists(target))
+            {
+                continue; // a dependency the game ships already (MNVTEngine.CrashReporting)
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target, overwrite: true);
+        }
+
+        return [];
+    }
+
     /// <summary>The private runtime's shared/Microsoft.NETCore.App/&lt;version&gt; folder of a staged game; null when there is none.</summary>
     public static string? FrameworkDirectory(string packageDirectory)
     {

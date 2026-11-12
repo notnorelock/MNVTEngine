@@ -5,5 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.CrashReporting\MNVTEngine.CrashReporting.csproj" />
+    <!-- MNVTCrashHandler.exe next to the app, as it is next to games and the editor. -->
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.CrashHandler\MNVTEngine.CrashHandler.csproj" />
   </ItemGroup>
 </Project>

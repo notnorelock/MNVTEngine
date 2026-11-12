@@ -1,32 +1,50 @@
 # Crash Reporting
 
-`MNVTEngine.CrashReporting` turns a crash of an exported game, the Player or the editor into a report folder with a
-memory dump. While the report is written, a small window shows, like Unity's crash handler: the title
-"&lt;Game&gt; - MNVTEngine &lt;version&gt;", the engine wordmark with a red "!" badge, and a progress bar. It then says where the
-report is, with **Open Folder** and **Close**.
+Crash reporting turns a crash of an exported game, the Player or the editor into a report folder with a memory dump.
+It is two parts: `MNVTEngine.CrashReporting`, a small library in the executable, and `MNVTCrashHandler.exe`
+(`MNVTEngine.CrashHandler`), a separate executable next to it, like Unity's `UnityCrashHandler64.exe`. While the
+report is written, the handler shows a small window: the title "&lt;Game&gt; - MNVTEngine &lt;version&gt;", the engine wordmark
+with a red "!" badge, and a progress bar. It then says where the report is, with **Open Folder** and **Close**.
 
 ## How it works
 
-The .NET runtime cannot run handlers after a native crash (an access violation in a GPU driver ends the process at
-once). So the executable splits in two, as Unity's player does with its crash handler process:
+The .NET runtime cannot run handlers after a native crash: an access violation in a GPU driver ends the process at
+once, and the runtime's own dumper, createdump, can only be switched on before the process starts. So the handler
+starts the game:
 
-1. `CrashReporter.Run(args, options)`, first in `Main`, makes the process a small **handler**. It starts the same
-   executable again as its **child**, with the same arguments, and waits. Only the child loads the engine.
-2. The handler sets the runtime's crash dump variables for the child (`DOTNET_DbgEnableMiniDump` and friends). A native
-   crash is then dumped by the runtime's own createdump before the child ends.
-3. An unhandled managed exception is written to a file by the child. The child then asks the handler for a dump,
-   through a named event, and waits while the handler writes it with `MiniDumpWriteDump`.
-4. When the child ends with a crash (a dump, an exception, or an NTSTATUS crash exit code), the handler collects the
-   report and shows the window. It always returns the child's exit code.
+1. `CrashReporter.Run(args, options)`, first in `Main` of the process the user started, starts `MNVTCrashHandler.exe`
+   with the executable's path and arguments, and exits.
+2. The handler starts the executable again as the **game**, with the runtime's crash dump variables set
+   (`DOTNET_DbgEnableMiniDump` and friends), and watches it. A native crash, a fail fast or a stack overflow is then
+   dumped by createdump before the game ends.
+3. An unhandled managed exception is written to a file by the game. The game then asks the handler for a dump, through
+   a named event, and waits while the handler writes it with `MiniDumpWriteDump`.
+4. When the game ends with a crash (a dump, an exception, or an NTSTATUS crash exit code), the handler collects the
+   report and shows the window.
 
-`Run` returns null in the child (and when reporting is off), and the program continues as usual:
+The process the user started exits as soon as the handler runs the game, so launchers see the game's process ID
+change once. When it is run by a tool with redirected output (tests, `mnvt build --run`, `mnvt validate --run`), it
+waits instead and returns the game's exit code, and the handler reports on stderr without a window.
+
+`Run` returns null in the game (and when reporting is off), and the program continues as usual:
 
 ```csharp
 if (CrashReporter.Run(args, new CrashReporterOptions("My Tool", reportsFolder, logFile)) is { } exitCode)
 {
-    return exitCode; // this process was the handler; the program has ended
+    return exitCode; // the crash handler runs the program from here on
 }
 ```
+
+The game clears the handler's variables once it has read them, so the processes it starts (the editor's Project Hub,
+a built game run from the editor) get a handler of their own.
+
+**Where the handler comes from.** The editor, the Player and the test app reference `MNVTEngine.CrashHandler`, so the
+handler is built next to them. `mnvt build` publishes it next to the game:
+- **JIT builds:** a framework-dependent handler on the game's private runtime (`Dependencies/Runtime`), with its
+  libraries in `Dependencies/Managed`.
+- **AOT builds:** a native handler compiled ahead of time (about 2.7 MB).
+
+Without the handler executable, crash reporting is off, and stderr says so.
 
 ## Reports
 
@@ -45,15 +63,16 @@ Each crash gets a folder named by time (`2026-11-05_13-12-48`) in the reports fo
 | Editor | `%LOCALAPPDATA%/MNVTEngine/Crashes/Editor` | `%LOCALAPPDATA%/MNVTEngine/Logs/editor.log` |
 | Player | `%LOCALAPPDATA%/MNVTEngine/Crashes/Player` | none (console only) |
 
-A fail fast (`Environment.FailFast`) or a stack overflow ends the process without a dump: the report then has the exit
-code, the log and the system facts.
+NativeAOT games have no createdump (there is no .NET runtime): their native crashes, fail fasts and stack overflows are
+reported with the exit code, the log and the system facts, without a dump. Unhandled managed exceptions are dumped in
+both kinds of build.
 
 ## Testing it
 
 - In a running game or the Player, the developer console's `crash managed` and `crash native` crash on purpose.
 - From code: `CrashReporter.ForceCrash(CrashKind.Native)`, like Unity's `Utils.ForceCrash`.
-- `tests/MNVTEngine.CrashReporting.Tests` runs a small app under the handler and checks both crash kinds, the
-  exit codes, pruning and the window. `MNVT_CRASH_UI_SCREENSHOT=<file.png>` makes the window save itself twice: during
+- `tests/MNVTEngine.CrashReporting.Tests` runs a small app under the handler and checks both crash kinds with their
+  dumps, the forwarded exit codes, that the app ran as a process of its own, pruning and the window. `MNVT_CRASH_UI_SCREENSHOT=<file.png>` makes the window save itself twice: during
   progress (`<file>-progress.png`) and with the result. It then closes itself.
 
 ## Switches

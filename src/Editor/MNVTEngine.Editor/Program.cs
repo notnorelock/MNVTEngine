@@ -15,7 +15,7 @@ var engineData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolde
 var editorLog = Path.Combine(engineData, "Logs", "editor.log");
 if (MNVTEngine.CrashReporting.CrashReporter.Run(args, new("MNVTEngine Editor", Path.Combine(engineData, "Crashes", "Editor"), editorLog)) is { } crashHandlerExit)
 {
-    return crashHandlerExit;
+    return crashHandlerExit; // MNVTCrashHandler.exe runs the editor from here on
 }
 
 var logs = new InMemoryLoggerProvider(capacity: 5000);

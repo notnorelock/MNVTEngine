@@ -32,6 +32,8 @@ public static class EngineLocation
 
     public static string GameHostProject(string root) => Path.Combine(root, "src", "Engine", "MNVTEngine.GameHost", "MNVTEngine.GameHost.csproj");
 
+    public static string CrashHandlerProject(string root) => Path.Combine(root, "src", "Engine", "MNVTEngine.CrashHandler", "MNVTEngine.CrashHandler.csproj");
+
     public static string EditorProject(string root) => Path.Combine(root, "src", "Editor", "MNVTEngine.Editor", "MNVTEngine.Editor.csproj");
 
     public static string TemplatesDirectory(string root) => Path.Combine(root, "templates");

@@ -25,8 +25,9 @@ internal static class Program
 internal static class Crashes
 {
     /// <summary>
-    /// The game runs as a child of a small crash handler process (this executable again): crashes leave a report in
-    /// Logs/Crashes next to the executable, with the dump and game.log, and a crash window. See docs/engine/crash-reporting.md.
+    /// The first process starts MNVTCrashHandler.exe (next to the executable), which runs the game as its child and
+    /// watches it: crashes leave a report in Logs/Crashes next to the executable, with the dump and game.log, and a
+    /// crash window. See docs/engine/crash-reporting.md.
     /// </summary>
     [MethodImpl(MethodImplOptions.NoInlining)] // loads the crash reporting assembly only after HostLayout is installed
     public static int? Handle(string[] args) =>

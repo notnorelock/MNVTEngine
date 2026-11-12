@@ -7,7 +7,7 @@ if (CrashReporter.Run(args, new CrashReporterOptions("Crash Test", reports, log)
     return code;
 }
 
-File.AppendAllText(log, $"child {Environment.ProcessId} running {mode}{Environment.NewLine}");
+File.AppendAllText(log, $"game {Environment.ProcessId} running {mode}, inherited by children: {Environment.GetEnvironmentVariable("MNVT_CRASH_GAME") ?? "nothing"}{Environment.NewLine}");
 switch (mode)
 {
     case "managed":

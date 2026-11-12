@@ -182,6 +182,12 @@ public sealed partial class GameBuilder(ILogger logger)
                 scriptsAssembly = GamePackager.AddGameCode(archive.Globals, scriptsOutput!, scripts.AssemblyName, stage, profile.Configuration == "Debug", diagnostics);
             }
 
+            diagnostics.AddRange(await GamePackager.PublishCrashHandlerAsync(engineRoot, profile, work, stage, aot, cancellationToken).ConfigureAwait(false));
+            if (diagnostics.HasErrors())
+            {
+                return Fail(profile);
+            }
+
             if (profile.PruneFramework && GamePackager.FrameworkDirectory(stage) is { } framework)
             {
                 // Roots: the host, its dependencies and the game's C# code (which the host loads from the archive).
