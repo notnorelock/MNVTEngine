@@ -1,0 +1,904 @@
+{
+  "schemaVersion": 3,
+  "name": "Main",
+  "gameObjects": [
+    {
+      "id": "a3000000-0000-0000-0000-000000000001",
+      "name": "Main Camera",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 2.5,
+          "z": 9.0
+        },
+        "localRotation": {
+          "x": -0.0871557,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 0.9961947
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.Camera",
+          "id": "b3000000-0000-0000-0000-000000000001",
+          "enabled": true,
+          "data": {
+            "projection": "Perspective",
+            "fieldOfView": 60.0,
+            "nearClip": 0.1,
+            "farClip": 500.0,
+            "backgroundColor": {
+              "r": 0.32,
+              "g": 0.42,
+              "b": 0.56,
+              "a": 1.0
+            },
+            "toneMapping": "Aces",
+            "exposure": 1.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "a3000000-0000-0000-0000-000000000002",
+      "name": "Directional Light",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 3.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": -0.403058,
+          "y": 0.272532,
+          "z": 0.127084,
+          "w": 0.864361
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.Light",
+          "id": "b3000000-0000-0000-0000-000000000002",
+          "enabled": true,
+          "data": {
+            "type": "Directional",
+            "color": {
+              "r": 1.0,
+              "g": 0.96,
+              "b": 0.88,
+              "a": 1.0
+            },
+            "intensity": 1.0,
+            "shadows": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "a3000000-0000-0000-0000-000000000003",
+      "name": "Ambient Light",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "localRotation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0,
+          "w": 1.0
+        },
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0,
+          "z": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.AmbientLight",
+          "id": "b3000000-0000-0000-0000-000000000003",
+          "enabled": true,
+          "data": {
+            "color": {
+              "r": 0.3,
+              "g": 0.33,
+              "b": 0.4,
+              "a": 1.0
+            },
+            "intensity": 1.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "a3000000-0000-0000-0000-000000000101",
+      "name": "Ground",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 12,
+          "y": 1,
+          "z": 12
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "id": "b3000000-0000-0000-0000-000000000101",
+          "enabled": true,
+          "data": {
+            "primitive": "Plane"
+          }
+        }
+      ]
+    },
+    {
+      "id": "a3000000-0000-0000-0000-000000000102",
+      "name": "Occluder",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": -1.2,
+          "y": 0.5,
+          "z": 2.2
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 0.8,
+          "y": 1,
+          "z": 0.8
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.MeshRenderer",
+          "id": "b3000000-0000-0000-0000-000000000102",
+          "enabled": true,
+          "data": {
+            "primitive": "Cube"
+          }
+        }
+      ]
+    },
+    {
+      "id": "a3000000-0000-0000-0000-000000000103",
+      "name": "Fire",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": -2,
+          "y": 0,
+          "z": 0
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.ParticleSystem",
+          "id": "b3000000-0000-0000-0000-000000000103",
+          "enabled": true,
+          "data": {
+            "settings": {
+              "main": {
+                "autoRandomSeed": false,
+                "duration": 1.0,
+                "startLifetime": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.6,
+                  "max": 1.1
+                },
+                "startSpeed": {
+                  "mode": "randomBetweenConstants",
+                  "min": 1.2,
+                  "max": 2.2
+                },
+                "startSize": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.5,
+                  "max": 0.9
+                },
+                "startRotation": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0,
+                  "max": 360
+                },
+                "maxParticles": 300,
+                "randomSeed": 11
+              },
+              "emission": {
+                "rateOverTime": {
+                  "max": 60
+                }
+              },
+              "shape": {
+                "kind": "cone",
+                "radius": 0.3,
+                "angle": 10
+              },
+              "renderer": {
+                "texture": "asset:9a000000-0000-4000-8000-000000000001",
+                "sortMode": "byDistance"
+              },
+              "colorOverLifetime": {
+                "enabled": true,
+                "color": {
+                  "mode": "gradient",
+                  "gradientMax": {
+                    "colorKeys": [
+                      {
+                        "time": 0,
+                        "color": {
+                          "r": 1,
+                          "g": 0.9,
+                          "b": 0.4,
+                          "a": 1.0
+                        }
+                      },
+                      {
+                        "time": 0.15,
+                        "color": {
+                          "r": 1,
+                          "g": 0.6,
+                          "b": 0.1,
+                          "a": 1.0
+                        }
+                      },
+                      {
+                        "time": 0.6,
+                        "color": {
+                          "r": 0.9,
+                          "g": 0.2,
+                          "b": 0.05,
+                          "a": 1.0
+                        }
+                      },
+                      {
+                        "time": 1,
+                        "color": {
+                          "r": 0.3,
+                          "g": 0.05,
+                          "b": 0.02,
+                          "a": 1.0
+                        }
+                      }
+                    ],
+                    "alphaKeys": [
+                      {
+                        "time": 0,
+                        "alpha": 0
+                      },
+                      {
+                        "time": 0.15,
+                        "alpha": 0.8
+                      },
+                      {
+                        "time": 0.6,
+                        "alpha": 0.5
+                      },
+                      {
+                        "time": 1,
+                        "alpha": 0
+                      }
+                    ]
+                  }
+                }
+              },
+              "sizeOverLifetime": {
+                "enabled": true,
+                "size": {
+                  "mode": "curve",
+                  "curveMax": {
+                    "keys": [
+                      {
+                        "time": 0,
+                        "value": 0.6,
+                        "outTangent": 2
+                      },
+                      {
+                        "time": 0.3,
+                        "value": 1
+                      },
+                      {
+                        "time": 1,
+                        "value": 0.2,
+                        "inTangent": -1
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a3000000-0000-0000-0000-000000000104",
+      "name": "Smoke",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": -2,
+          "y": 1.2,
+          "z": 0
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.ParticleSystem",
+          "id": "b3000000-0000-0000-0000-000000000104",
+          "enabled": true,
+          "data": {
+            "settings": {
+              "main": {
+                "autoRandomSeed": false,
+                "duration": 2.0,
+                "startLifetime": {
+                  "mode": "randomBetweenConstants",
+                  "min": 2.5,
+                  "max": 3.5
+                },
+                "startSpeed": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.6,
+                  "max": 1.0
+                },
+                "startSize": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.6,
+                  "max": 1.0
+                },
+                "startRotation": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0,
+                  "max": 360
+                },
+                "startColor": {
+                  "r": 0.35,
+                  "g": 0.35,
+                  "b": 0.38,
+                  "a": 1.0
+                },
+                "maxParticles": 200,
+                "simulationSpace": "world",
+                "randomSeed": 12
+              },
+              "emission": {
+                "rateOverTime": {
+                  "max": 12
+                }
+              },
+              "shape": {
+                "kind": "cone",
+                "radius": 0.3,
+                "angle": 12
+              },
+              "renderer": {
+                "texture": "asset:9a000000-0000-4000-8000-000000000001",
+                "sortMode": "byDistance"
+              },
+              "colorOverLifetime": {
+                "enabled": true,
+                "color": {
+                  "mode": "gradient",
+                  "gradientMax": {
+                    "colorKeys": [
+                      {
+                        "time": 0,
+                        "color": {
+                          "r": 1,
+                          "g": 1,
+                          "b": 1,
+                          "a": 1.0
+                        }
+                      },
+                      {
+                        "time": 0.2,
+                        "color": {
+                          "r": 1,
+                          "g": 1,
+                          "b": 1,
+                          "a": 1.0
+                        }
+                      },
+                      {
+                        "time": 1,
+                        "color": {
+                          "r": 1,
+                          "g": 1,
+                          "b": 1,
+                          "a": 1.0
+                        }
+                      }
+                    ],
+                    "alphaKeys": [
+                      {
+                        "time": 0,
+                        "alpha": 0
+                      },
+                      {
+                        "time": 0.2,
+                        "alpha": 0.6
+                      },
+                      {
+                        "time": 1,
+                        "alpha": 0
+                      }
+                    ]
+                  }
+                }
+              },
+              "sizeOverLifetime": {
+                "enabled": true,
+                "size": {
+                  "mode": "curve",
+                  "curveMax": {
+                    "keys": [
+                      {
+                        "time": 0,
+                        "value": 0.6,
+                        "inTangent": 1.4,
+                        "outTangent": 1.4
+                      },
+                      {
+                        "time": 1,
+                        "value": 2.0,
+                        "inTangent": 1.4,
+                        "outTangent": 1.4
+                      }
+                    ]
+                  }
+                }
+              },
+              "rotationOverLifetime": {
+                "enabled": true,
+                "angularVelocity": {
+                  "mode": "randomBetweenConstants",
+                  "min": -30,
+                  "max": 30
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a3000000-0000-0000-0000-000000000105",
+      "name": "Sparks",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 2,
+          "y": 1,
+          "z": 0
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.ParticleSystem",
+          "id": "b3000000-0000-0000-0000-000000000105",
+          "enabled": true,
+          "data": {
+            "settings": {
+              "main": {
+                "autoRandomSeed": false,
+                "duration": 1.5,
+                "startLifetime": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.6,
+                  "max": 1.3
+                },
+                "startSpeed": {
+                  "mode": "randomBetweenConstants",
+                  "min": 3,
+                  "max": 6
+                },
+                "startSize": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.04,
+                  "max": 0.08
+                },
+                "startColor": {
+                  "mode": "randomBetweenColors",
+                  "colorMin": {
+                    "r": 1,
+                    "g": 0.7,
+                    "b": 0.2,
+                    "a": 1.0
+                  },
+                  "colorMax": {
+                    "r": 1,
+                    "g": 1,
+                    "b": 0.7,
+                    "a": 1.0
+                  }
+                },
+                "gravityModifier": {
+                  "max": 1
+                },
+                "maxParticles": 400,
+                "simulationSpace": "world",
+                "randomSeed": 22
+              },
+              "emission": {
+                "rateOverTime": {
+                  "max": 0
+                },
+                "bursts": [
+                  {
+                    "time": 0,
+                    "count": {
+                      "mode": "randomBetweenConstants",
+                      "min": 50,
+                      "max": 70
+                    },
+                    "cycles": 1
+                  },
+                  {
+                    "time": 0.75,
+                    "count": {
+                      "max": 40
+                    },
+                    "cycles": 1
+                  }
+                ]
+              },
+              "shape": {
+                "kind": "sphere",
+                "radius": 0.15
+              },
+              "renderer": {
+                "blend": "additive",
+                "renderMode": "stretched",
+                "speedScale": 0.05,
+                "lengthScale": 2
+              },
+              "colorOverLifetime": {
+                "enabled": true,
+                "color": {
+                  "mode": "gradient",
+                  "gradientMax": {
+                    "colorKeys": [
+                      {
+                        "time": 0,
+                        "color": {
+                          "r": 1,
+                          "g": 1,
+                          "b": 1,
+                          "a": 1.0
+                        }
+                      },
+                      {
+                        "time": 1,
+                        "color": {
+                          "r": 1,
+                          "g": 0.4,
+                          "b": 0.1,
+                          "a": 1.0
+                        }
+                      }
+                    ],
+                    "alphaKeys": [
+                      {
+                        "time": 0,
+                        "alpha": 1
+                      },
+                      {
+                        "time": 1,
+                        "alpha": 0
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a3000000-0000-0000-0000-000000000106",
+      "name": "Magic",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0,
+          "y": 2,
+          "z": -2
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.ParticleSystem",
+          "id": "b3000000-0000-0000-0000-000000000106",
+          "enabled": true,
+          "data": {
+            "settings": {
+              "main": {
+                "autoRandomSeed": false,
+                "duration": 2.0,
+                "startLifetime": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.8,
+                  "max": 1.6
+                },
+                "startSpeed": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.1,
+                  "max": 0.4
+                },
+                "startSize": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.25,
+                  "max": 0.5
+                },
+                "startColor": {
+                  "mode": "randomBetweenColors",
+                  "colorMin": {
+                    "r": 0.4,
+                    "g": 0.6,
+                    "b": 1,
+                    "a": 1.0
+                  },
+                  "colorMax": {
+                    "r": 1,
+                    "g": 0.5,
+                    "b": 1,
+                    "a": 1.0
+                  }
+                },
+                "maxParticles": 200,
+                "randomSeed": 44
+              },
+              "emission": {
+                "rateOverTime": {
+                  "max": 50
+                }
+              },
+              "shape": {
+                "kind": "sphereSurface",
+                "radius": 1.0
+              },
+              "renderer": {
+                "texture": "asset:9a000000-0000-4000-8000-000000000002",
+                "blend": "additive"
+              },
+              "rotationOverLifetime": {
+                "enabled": true,
+                "angularVelocity": {
+                  "mode": "randomBetweenConstants",
+                  "min": -180,
+                  "max": 180
+                }
+              },
+              "textureSheetAnimation": {
+                "enabled": true,
+                "columns": 2,
+                "rows": 2,
+                "cycles": 2
+              },
+              "colorOverLifetime": {
+                "enabled": true,
+                "color": {
+                  "mode": "gradient",
+                  "gradientMax": {
+                    "colorKeys": [
+                      {
+                        "time": 0,
+                        "color": {
+                          "r": 1,
+                          "g": 1,
+                          "b": 1,
+                          "a": 1.0
+                        }
+                      },
+                      {
+                        "time": 0.2,
+                        "color": {
+                          "r": 1,
+                          "g": 1,
+                          "b": 1,
+                          "a": 1.0
+                        }
+                      },
+                      {
+                        "time": 1,
+                        "color": {
+                          "r": 1,
+                          "g": 1,
+                          "b": 1,
+                          "a": 1.0
+                        }
+                      }
+                    ],
+                    "alphaKeys": [
+                      {
+                        "time": 0,
+                        "alpha": 0
+                      },
+                      {
+                        "time": 0.2,
+                        "alpha": 1
+                      },
+                      {
+                        "time": 1,
+                        "alpha": 0
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a3000000-0000-0000-0000-000000000107",
+      "name": "Snow",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0,
+          "y": 6,
+          "z": 0
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.ParticleSystem",
+          "id": "b3000000-0000-0000-0000-000000000107",
+          "enabled": true,
+          "data": {
+            "settings": {
+              "main": {
+                "autoRandomSeed": false,
+                "duration": 5.0,
+                "startLifetime": {
+                  "max": 6
+                },
+                "startSpeed": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.8,
+                  "max": 1.2
+                },
+                "startSize": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.05,
+                  "max": 0.12
+                },
+                "startColor": {
+                  "r": 0.95,
+                  "g": 0.97,
+                  "b": 1,
+                  "a": 0.9
+                },
+                "maxParticles": 1500,
+                "simulationSpace": "world",
+                "randomSeed": 33
+              },
+              "emission": {
+                "rateOverTime": {
+                  "max": 150
+                }
+              },
+              "shape": {
+                "kind": "box",
+                "size": {
+                  "x": 14,
+                  "y": 0.1,
+                  "z": 10
+                },
+                "rotation": {
+                  "x": 180,
+                  "y": 0,
+                  "z": 0
+                }
+              },
+              "renderer": {
+                "texture": "asset:9a000000-0000-4000-8000-000000000001"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

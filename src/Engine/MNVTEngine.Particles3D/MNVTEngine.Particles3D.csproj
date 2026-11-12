@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 3D particle rendering (module particles.3d): camera-facing and oriented quads, depth-tested and sorted, after the opaque 3D pass. 3D projects only. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Particles\MNVTEngine.Particles.csproj" />
+    <ProjectReference Include="..\MNVTEngine.World3D.Rendering\MNVTEngine.World3D.Rendering.csproj" />
+  </ItemGroup>
+</Project>

@@ -28,7 +28,7 @@ public sealed class ModuleResolverTests
     {
         var resolution = Resolve(ProjectProfile.ThreeD);
         Assert.True(resolution.Succeeded);
-        Assert.Equal(["core", "audio", "graphics", "assets", "particles", "platform", "runtime", "scripting", "ui", "world.3d", "physics.3d", "terrain"], Ids(resolution));
+        Assert.Equal(["core", "audio", "graphics", "assets", "particles", "platform", "runtime", "scripting", "ui", "world.3d", "particles.3d", "physics.3d", "terrain"], Ids(resolution));
         Assert.DoesNotContain(resolution.Modules, m => m.ExclusiveProfile == ProjectProfile.TwoD);
     }
 

@@ -168,6 +168,15 @@ public static class BuiltinModules
         RuntimeAssemblies = ["MNVTEngine.Particles2D"],
     };
 
+    public static ModuleDefinition Particles3D { get; } = new("particles.3d", "3D particles", "Draws particle systems in 3D projects: billboards and oriented quads, depth-tested and sorted.")
+    {
+        Profiles = ThreeD,
+        Requires = ["particles", "world.3d"],
+        Accompanies = "particles",
+        RuntimeAssemblies = ["MNVTEngine.Particles3D"],
+        BuildAssets = ["shader:particle-3d"],
+    };
+
     public static IReadOnlyList<ModuleDefinition> All { get; } =
-        [Core, Platform, Graphics, Assets, Runtime, Audio, Scripting, UI, DevTools, World2D, World3D, Physics2D, Physics3D, Terrain, Particles, Particles2D];
+        [Core, Platform, Graphics, Assets, Runtime, Audio, Scripting, UI, DevTools, World2D, World3D, Physics2D, Physics3D, Terrain, Particles, Particles2D, Particles3D];
 }

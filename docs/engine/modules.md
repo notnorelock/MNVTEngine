@@ -46,6 +46,7 @@ The engine is a set of **modules**. A project has a module or does not. Which on
 | `terrain` | 3D | auto | world.3d, physics.3d | | Terrain, Terrain.Components, Clipper2; the terrain shader |
 | `particles` | 2D, 3D | auto | core | | Particles: particle systems (simulation, emission, shapes, lifetime modules, curves, gradients, `.mnvtparticle`); see [Particle systems](particles.md) |
 | `particles.2d` | 2D | with `particles` | particles, world.2d | | Particles2D: draws particle systems in the sprite batch |
+| `particles.3d` | 3D | with `particles` | particles, world.3d | | Particles3D: billboards and oriented quads, depth-tested and sorted; the particle shader |
 
 Hosts are not modules. The game executable (GameHost) and the shared editor (Editor, Editor.Services) host every module. Profile-specific editor assemblies will belong to their module.
 

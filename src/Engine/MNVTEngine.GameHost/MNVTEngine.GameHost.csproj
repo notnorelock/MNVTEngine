@@ -46,6 +46,7 @@
     <ProjectReference Include="..\MNVTEngine.Audio\MNVTEngine.Audio.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Particles\MNVTEngine.Particles.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Particles2D\MNVTEngine.Particles2D.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.Particles3D\MNVTEngine.Particles3D.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Physics2D\MNVTEngine.Physics2D.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Physics3D\MNVTEngine.Physics3D.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Scripting.Bindings\MNVTEngine.Scripting.Bindings.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />

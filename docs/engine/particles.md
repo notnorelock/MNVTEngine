@@ -6,7 +6,7 @@ Particle systems are the `particles` [module](modules.md) (`MNVTEngine.Particles
 |---|---|
 | Core: data model, lifecycle, storage, emission, bursts, shapes, curves, gradients, lifetime modules, `.mnvtparticle` | Done |
 | 2D rendering (`particles.2d`), editor inspector and preview, presets, sample `samples/Particles2D` | Done |
-| 3D rendering (billboards, sorting) and editor | Planned |
+| 3D rendering (`particles.3d`): billboard modes, depth, sorting; editor preview in the 3D Scene view; sample `samples/Particles3D` | Done |
 | Noise, collision, sub-emitters | Planned |
 | GPU simulation (Vulkan compute) | To be evaluated; the simulation is CPU-only and is reported as such |
 
@@ -70,6 +70,35 @@ bool playing = fire.IsPlaying, paused = fire.IsPaused, emitting = fire.IsEmittin
 - **Spaces:** local-space particles are placed with the emitter's transform, and their size follows its scale.
 
 The module comes with `particles` in 2D projects (`Accompanies` in the catalog), so a 2D game that uses particles ships both, and a 3D project never gets it.
+
+## 3D rendering (`particles.3d`)
+
+`MNVTEngine.Particles3D` draws every particle system of a 3D scene through the scene's camera, in a pass with order 150: after the opaque meshes have written depth, before sprites.
+
+- **Orientation:** a particle is a quad oriented by `renderer.renderMode` (`ParticleQuads`):
+
+  | Mode | Orientation |
+  |---|---|
+  | `billboard` | Faces the camera's position, upright with the camera |
+  | `viewAligned` | Parallel to the view plane |
+  | `horizontalBillboard` | Flat on XZ |
+  | `verticalBillboard` | Upright, turning around Y toward the camera |
+  | `stretched` | Along the velocity; length = size x `lengthScale` + speed x `speedScale` |
+  | `worldOriented` | Rotated by the particle's own 3D rotation |
+
+  The Z rotation turns the quad around its facing axis.
+- **Depth and blending:** depth-tested but not written (`RenderState(DepthTest, no DepthWrite)`), so opaque geometry in front hides particles and particles do not hide each other. Blending is alpha or additive.
+- **Sorting:** systems are drawn farthest first. Within a system, `byDistance` sorts particles back to front by their distance to the camera, `oldestInFront`/`youngestInFront` by age, and `none` keeps buffer order. The key arrays are reused.
+- **Batching and uploads:** quads are built on the CPU, in world space, into one dynamic vertex buffer of `ParticleVertex` (position, UV, packed color). They are uploaded in chunks of 8192 quads (16-bit indices). Each run of systems with the same texture and blend is one draw call.
+- **Culling and statistics:** particles outside the view frustum are culled. The pass counts `particles.systems`, `particles.drawn`, `particles.culled` and `particles.drawCalls`.
+- **Shader:** `Builtin/Particle3D` is the sprite shader with a 3D position. The module lists it as a built-in shader, so builds precompile it.
+- **Cameras:** every view draws with its own camera (the editor's Scene and Game views, multiple cameras).
+- **Not supported:**
+  - soft particles (no depth-texture sampling);
+  - mesh particles;
+  - custom materials in 3D: `renderer.material` is ignored, because the quads need the particle vertex format.
+
+The module comes with `particles` in 3D projects, as `particles.2d` does in 2D projects.
 
 ## Editor
 
