@@ -1,0 +1,593 @@
+{
+  "schemaVersion": 2,
+  "name": "Main",
+  "gameObjects": [
+    {
+      "id": "a0000000-0000-0000-0000-000000000001",
+      "name": "Main Camera",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.Camera",
+          "id": "b0000000-0000-0000-0000-000000000001",
+          "enabled": true,
+          "data": {
+            "orthographicSize": 5.0,
+            "backgroundColor": {
+              "r": 0.1,
+              "g": 0.12,
+              "b": 0.16,
+              "a": 1.0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000101",
+      "name": "Fire",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": -5,
+          "y": -3
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.ParticleSystem",
+          "id": "b0000000-0000-0000-0000-000000000101",
+          "enabled": true,
+          "data": {
+            "settings": {
+              "main": {
+                "duration": 1.0,
+                "startLifetime": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.6,
+                  "max": 1.1
+                },
+                "startSpeed": {
+                  "mode": "randomBetweenConstants",
+                  "min": 1.5,
+                  "max": 2.5
+                },
+                "startSize": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.5,
+                  "max": 0.9
+                },
+                "startRotation": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0,
+                  "max": 360
+                },
+                "maxParticles": 300,
+                "autoRandomSeed": false,
+                "randomSeed": 11
+              },
+              "emission": {
+                "rateOverTime": {
+                  "max": 90
+                }
+              },
+              "shape": {
+                "kind": "line",
+                "length": 0.6
+              },
+              "renderer": {
+                "texture": "asset:9a000000-0000-4000-8000-000000000001"
+              },
+              "colorOverLifetime": {
+                "enabled": true,
+                "color": {
+                  "mode": "gradient",
+                  "gradientMax": {
+                    "colorKeys": [
+                      {
+                        "time": 0,
+                        "color": {
+                          "r": 1,
+                          "g": 0.9,
+                          "b": 0.4,
+                          "a": 1.0
+                        }
+                      },
+                      {
+                        "time": 0.15,
+                        "color": {
+                          "r": 1,
+                          "g": 0.6,
+                          "b": 0.1,
+                          "a": 1.0
+                        }
+                      },
+                      {
+                        "time": 0.6,
+                        "color": {
+                          "r": 0.9,
+                          "g": 0.2,
+                          "b": 0.05,
+                          "a": 1.0
+                        }
+                      },
+                      {
+                        "time": 1,
+                        "color": {
+                          "r": 0.3,
+                          "g": 0.05,
+                          "b": 0.02,
+                          "a": 1.0
+                        }
+                      }
+                    ],
+                    "alphaKeys": [
+                      {
+                        "time": 0,
+                        "alpha": 0
+                      },
+                      {
+                        "time": 0.15,
+                        "alpha": 0.8
+                      },
+                      {
+                        "time": 0.6,
+                        "alpha": 0.5
+                      },
+                      {
+                        "time": 1,
+                        "alpha": 0
+                      }
+                    ]
+                  }
+                }
+              },
+              "sizeOverLifetime": {
+                "enabled": true,
+                "size": {
+                  "mode": "curve",
+                  "curveMax": {
+                    "keys": [
+                      {
+                        "time": 0,
+                        "value": 0.6,
+                        "inTangent": 0,
+                        "outTangent": 2
+                      },
+                      {
+                        "time": 0.3,
+                        "value": 1,
+                        "inTangent": 0,
+                        "outTangent": 0
+                      },
+                      {
+                        "time": 1,
+                        "value": 0.2,
+                        "inTangent": -1,
+                        "outTangent": 0
+                      }
+                    ]
+                  }
+                }
+              },
+              "velocityOverLifetime": {
+                "enabled": true,
+                "x": {
+                  "mode": "randomBetweenConstants",
+                  "min": -0.3,
+                  "max": 0.3
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000102",
+      "name": "Sparks",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0,
+          "y": -2
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.ParticleSystem",
+          "id": "b0000000-0000-0000-0000-000000000102",
+          "enabled": true,
+          "data": {
+            "settings": {
+              "main": {
+                "duration": 1.5,
+                "startLifetime": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.5,
+                  "max": 1.2
+                },
+                "startSpeed": {
+                  "mode": "randomBetweenConstants",
+                  "min": 4,
+                  "max": 8
+                },
+                "startSize": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.06,
+                  "max": 0.12
+                },
+                "startColor": {
+                  "mode": "randomBetweenColors",
+                  "colorMin": {
+                    "r": 1,
+                    "g": 0.8,
+                    "b": 0.3,
+                    "a": 1.0
+                  },
+                  "colorMax": {
+                    "r": 1,
+                    "g": 1,
+                    "b": 0.8,
+                    "a": 1.0
+                  }
+                },
+                "gravityModifier": {
+                  "max": 1
+                },
+                "maxParticles": 400,
+                "simulationSpace": "world",
+                "autoRandomSeed": false,
+                "randomSeed": 22
+              },
+              "emission": {
+                "rateOverTime": {
+                  "max": 0
+                },
+                "bursts": [
+                  {
+                    "time": 0,
+                    "count": {
+                      "mode": "randomBetweenConstants",
+                      "min": 60,
+                      "max": 80
+                    },
+                    "cycles": 1
+                  },
+                  {
+                    "time": 0.75,
+                    "count": {
+                      "max": 40
+                    },
+                    "cycles": 1
+                  }
+                ]
+              },
+              "shape": {
+                "kind": "circle",
+                "radius": 0.2
+              },
+              "renderer": {
+                "blend": "additive",
+                "renderMode": "stretched",
+                "speedScale": 0.06,
+                "lengthScale": 2
+              },
+              "colorOverLifetime": {
+                "enabled": true,
+                "color": {
+                  "mode": "gradient",
+                  "gradientMax": {
+                    "colorKeys": [
+                      {
+                        "time": 0,
+                        "color": {
+                          "r": 1,
+                          "g": 1,
+                          "b": 1,
+                          "a": 1.0
+                        }
+                      },
+                      {
+                        "time": 1,
+                        "color": {
+                          "r": 1,
+                          "g": 0.4,
+                          "b": 0.1,
+                          "a": 1.0
+                        }
+                      }
+                    ],
+                    "alphaKeys": [
+                      {
+                        "time": 0,
+                        "alpha": 1
+                      },
+                      {
+                        "time": 1,
+                        "alpha": 0
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000103",
+      "name": "Snow",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0,
+          "y": 5.5
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.ParticleSystem",
+          "id": "b0000000-0000-0000-0000-000000000103",
+          "enabled": true,
+          "data": {
+            "settings": {
+              "main": {
+                "duration": 5.0,
+                "startLifetime": {
+                  "max": 8
+                },
+                "startSpeed": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.5,
+                  "max": 1.0
+                },
+                "startSize": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.08,
+                  "max": 0.2
+                },
+                "startColor": {
+                  "r": 0.9,
+                  "g": 0.95,
+                  "b": 1,
+                  "a": 0.9
+                },
+                "maxParticles": 600,
+                "simulationSpace": "world",
+                "autoRandomSeed": false,
+                "randomSeed": 33
+              },
+              "emission": {
+                "rateOverTime": {
+                  "max": 40
+                }
+              },
+              "shape": {
+                "kind": "rectangle",
+                "size": {
+                  "x": 16,
+                  "y": 0.2,
+                  "z": 0
+                },
+                "rotation": {
+                  "x": 0,
+                  "y": 0,
+                  "z": 180
+                }
+              },
+              "renderer": {
+                "texture": "asset:9a000000-0000-4000-8000-000000000001",
+                "sortingOrder": -1
+              },
+              "velocityOverLifetime": {
+                "enabled": true,
+                "x": {
+                  "mode": "randomBetweenCurves",
+                  "curveMin": {
+                    "keys": [
+                      {
+                        "time": 0,
+                        "value": -0.4
+                      },
+                      {
+                        "time": 1,
+                        "value": 0.4
+                      }
+                    ]
+                  },
+                  "curveMax": {
+                    "keys": [
+                      {
+                        "time": 0,
+                        "value": 0.4
+                      },
+                      {
+                        "time": 1,
+                        "value": -0.4
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000104",
+      "name": "Magic",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 5,
+          "y": 0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.ParticleSystem",
+          "id": "b0000000-0000-0000-0000-000000000104",
+          "enabled": true,
+          "data": {
+            "settings": {
+              "main": {
+                "duration": 2.0,
+                "startLifetime": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.8,
+                  "max": 1.6
+                },
+                "startSpeed": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.2,
+                  "max": 0.8
+                },
+                "startSize": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.4,
+                  "max": 0.8
+                },
+                "startColor": {
+                  "mode": "randomBetweenColors",
+                  "colorMin": {
+                    "r": 0.4,
+                    "g": 0.6,
+                    "b": 1,
+                    "a": 1.0
+                  },
+                  "colorMax": {
+                    "r": 1,
+                    "g": 0.5,
+                    "b": 1,
+                    "a": 1.0
+                  }
+                },
+                "maxParticles": 200,
+                "autoRandomSeed": false,
+                "randomSeed": 44
+              },
+              "emission": {
+                "rateOverTime": {
+                  "max": 40
+                }
+              },
+              "shape": {
+                "kind": "circleEdge",
+                "radius": 1.2
+              },
+              "renderer": {
+                "texture": "asset:9a000000-0000-4000-8000-000000000002",
+                "blend": "additive",
+                "sortMode": "oldestInFront"
+              },
+              "rotationOverLifetime": {
+                "enabled": true,
+                "angularVelocity": {
+                  "mode": "randomBetweenConstants",
+                  "min": -180,
+                  "max": 180
+                }
+              },
+              "textureSheetAnimation": {
+                "enabled": true,
+                "columns": 2,
+                "rows": 2,
+                "cycles": 2
+              },
+              "colorOverLifetime": {
+                "enabled": true,
+                "color": {
+                  "mode": "gradient",
+                  "gradientMax": {
+                    "colorKeys": [
+                      {
+                        "time": 0,
+                        "color": {
+                          "r": 1,
+                          "g": 1,
+                          "b": 1,
+                          "a": 1.0
+                        }
+                      },
+                      {
+                        "time": 0.2,
+                        "color": {
+                          "r": 1,
+                          "g": 1,
+                          "b": 1,
+                          "a": 1.0
+                        }
+                      },
+                      {
+                        "time": 1,
+                        "color": {
+                          "r": 1,
+                          "g": 1,
+                          "b": 1,
+                          "a": 1.0
+                        }
+                      }
+                    ],
+                    "alphaKeys": [
+                      {
+                        "time": 0,
+                        "alpha": 0
+                      },
+                      {
+                        "time": 0.2,
+                        "alpha": 1
+                      },
+                      {
+                        "time": 1,
+                        "alpha": 0
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

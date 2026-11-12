@@ -22,6 +22,7 @@ public static class EngineModuleSet
         ["physics.3d"] = (_, _) => new Physics3DModule(),
         ["terrain"] = (_, _) => new TerrainModule(),
         ["particles"] = (_, _) => new Particles.ParticlesModule(),
+        ["particles.2d"] = (_, _) => new Particles2D.Particles2DModule(),
     };
 
     /// <summary>A new instance of a module by catalog id (a host owns and starts its own); null for modules without a runtime implementation.</summary>

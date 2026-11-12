@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 2D particle rendering (module particles.2d): draws particle systems with the sprite batch, sorted with the sprites. 2D projects only. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Particles\MNVTEngine.Particles.csproj" />
+    <ProjectReference Include="..\MNVTEngine.World2D.Rendering\MNVTEngine.World2D.Rendering.csproj" />
+  </ItemGroup>
+</Project>

@@ -230,6 +230,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         }
 
         ImGuiInput.NewFrame(_context.Window, time.UnscaledDeltaTime);
+        _context.ParticlePreview.Update(_context.Selected, _context.PlayMode.IsPlaying, time.UnscaledDeltaTime);
         ImGui.NewFrame();
 
         _gameView.FeedInput();

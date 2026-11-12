@@ -123,8 +123,8 @@ public static class ModuleResolver
             {
                 ModuleActivation.Always => "always",
                 _ when switched is true => "enabled in the project",
-                ModuleActivation.Auto when switched is not false && usage is null => $"available in {profileName}",
-                ModuleActivation.Auto when switched is not false && used is not null => "used: " + used,
+                ModuleActivation.Auto when switched is not false && usage is null && module.Accompanies is null => $"available in {profileName}",
+                ModuleActivation.Auto when switched is not false && used is not null && module.Accompanies is null => "used: " + used,
                 _ => null,
             };
             if (reason is not null)
@@ -133,7 +133,7 @@ public static class ModuleResolver
             }
         }
 
-        // Required dependencies, transitively. The queue is ordered so reasons and messages are deterministic.
+        // Required dependencies and accompanying modules, transitively. The queue is ordered so reasons and messages are deterministic.
         var pending = new SortedSet<string>(reasons.Keys, StringComparer.Ordinal);
         while (pending.Count > 0)
         {
@@ -160,6 +160,17 @@ public static class ModuleResolver
                     reasons[required] = $"required by {id}";
                     diagnostics.Add(ModuleDiagnostic.Info(ModuleDiagnostic.EnabledAsDependency, $"Module '{required}' is enabled because '{id}' requires it.", required));
                     pending.Add(required);
+                }
+            }
+
+            // Modules that come with this one in the profile (a shared module's renderer for 2D or 3D).
+            foreach (var companion in catalog.Modules.Where(m => m.Accompanies == id && m.Supports(profile) && !reasons.ContainsKey(m.Id)))
+            {
+                // Automatic, so never an error: not when the project turns it, or something it needs, off.
+                if ((!switches.TryGetValue(companion.Id, out var on) || on) && !companion.Requires.Any(r => switches.TryGetValue(r, out var needed) && !needed))
+                {
+                    reasons[companion.Id] = $"with {id}";
+                    pending.Add(companion.Id);
                 }
             }
         }

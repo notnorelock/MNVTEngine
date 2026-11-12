@@ -45,6 +45,7 @@ The engine is a set of **modules**. A project has a module or does not. Which on
 | `physics.3d` | 3D | auto | world.3d | | Physics3D, BepuPhysics, BepuUtilities |
 | `terrain` | 3D | auto | world.3d, physics.3d | | Terrain, Terrain.Components, Clipper2; the terrain shader |
 | `particles` | 2D, 3D | auto | core | | Particles: particle systems (simulation, emission, shapes, lifetime modules, curves, gradients, `.mnvtparticle`); see [Particle systems](particles.md) |
+| `particles.2d` | 2D | with `particles` | particles, world.2d | | Particles2D: draws particle systems in the sprite batch |
 
 Hosts are not modules. The game executable (GameHost) and the shared editor (Editor, Editor.Services) host every module. Profile-specific editor assemblies will belong to their module.
 
@@ -99,7 +100,7 @@ From there it follows every reference the importers recorded: scene to prefab (n
 | `audio.*` calls in a shipped mission script | enables `audio` |
 | A type the C# scripts reference from a module's assembly | `C# scripts use AudioSource (MNVTEngine.Audio)` |
 
-Required modules follow as usual (`physics.2d` brings `world.2d`). Evidence for a module of the other profile, or for a module the project disables, is an error (`MNVB608`) naming the evidence.
+Required modules follow as usual (`physics.2d` brings `world.2d`). A module that `Accompanies` another (`particles.2d` accompanies `particles`) is included whenever that module is, in the profiles it supports, unless the project switches it, or something it requires, off. It is never included on its own. Evidence for a module of the other profile, or for a module the project disables, is an error (`MNVB608`) naming the evidence.
 
 The packaged project file lists every optional module of the profile as `true` or `false`, exactly as the build resolved them, so the game starts the modules it was built with and no others.
 

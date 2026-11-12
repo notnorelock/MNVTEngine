@@ -29,7 +29,7 @@ public sealed class ModuleCommandTests : IDisposable
     {
         var (exit, catalog) = await Run("modules", "list");
         Assert.Equal(Cli.Ok, exit);
-        Assert.Contains("Engine modules (15)", catalog, StringComparison.Ordinal);
+        Assert.Contains("Engine modules (16)", catalog, StringComparison.Ordinal);
         Assert.Matches(@"physics\.2d\s+2D\s+auto\s+world\.2d", catalog);
 
         var (_, flat) = await Run("modules", "list", await NewProject("Flat", "2d"));

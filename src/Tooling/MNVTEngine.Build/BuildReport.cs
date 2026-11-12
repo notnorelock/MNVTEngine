@@ -212,6 +212,7 @@ public static class BuildReport
         : reason == "enabled in the project" ? "explicit"
         : reason.StartsWith("used: ", StringComparison.Ordinal) ? "automatic"
         : reason.StartsWith("required by ", StringComparison.Ordinal) ? "dependency"
+        : reason.StartsWith("with ", StringComparison.Ordinal) ? "automatic"
         : "available";
 
     private static string Owner(ModuleCatalog catalog, string assembly, GameProject project) =>

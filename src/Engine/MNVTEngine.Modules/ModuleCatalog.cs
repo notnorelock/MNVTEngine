@@ -106,6 +106,11 @@ public sealed partial class ModuleCatalog
             Invalid("a module every project has must support every profile.");
         }
 
+        if (module.Accompanies is { } companion && (companion == module.Id || !byId.ContainsKey(companion)))
+        {
+            problems.Add(ModuleDiagnostic.Error(ModuleDiagnostic.MissingDependency, $"Module '{module.Id}' accompanies '{companion}', which is not another module of the catalog.", module.Id));
+        }
+
         var references = module.Requires.Concat(module.Optional).ToList();
         if (references.Contains(module.Id, StringComparer.Ordinal))
         {

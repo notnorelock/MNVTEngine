@@ -67,6 +67,11 @@ internal sealed class ProjectPanel(EditorContext context)
                             CreateMaterial();
                         }
 
+                        if (ImGui.MenuItem("Particle System"))
+                        {
+                            CreateParticleSystem();
+                        }
+
                         ImGui.EndMenu();
                     }
 
@@ -378,6 +383,19 @@ internal sealed class ProjectPanel(EditorContext context)
 
             ImGui.EndPopup();
         }
+    }
+
+    /// <summary>A new particle system asset (default settings) in the current folder, selected.</summary>
+    private void CreateParticleSystem()
+    {
+        var path = Combine("New Particle System" + Particles.ParticleSystemAsset.Extension);
+        for (var i = 1; File.Exists(Path.Combine(Assets.AssetsDirectory, path)); i++)
+        {
+            path = Combine($"New Particle System {i}{Particles.ParticleSystemAsset.Extension}");
+        }
+
+        Try($"Create particle system {path}", () => context.Session.Selection.SelectAsset(Assets.WriteText(path, Particles.ParticleSystemAsset.Serialize(new Particles.ParticleSystemSettings()))));
+        Rescan(force: true);
     }
 
     /// <summary>A new Standard material in the current folder, selected so the inspector shows it.</summary>

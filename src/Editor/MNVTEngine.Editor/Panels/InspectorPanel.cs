@@ -17,6 +17,8 @@ namespace MNVTEngine.Editor.Panels;
 /// </summary>
 internal sealed partial class InspectorPanel(EditorContext context) : IDisposable
 {
+    private readonly ParticleSystemInspector _particles = new(context);
+
     private readonly Dictionary<Type, IReadOnlyList<InspectableMember>> _members = [];
     private readonly AssetInspector _assetInspector = new(context);
     private readonly Dictionary<Guid, (string SourceHash, IReadOnlyList<string> Names)> _modelMeshes = [];
@@ -164,7 +166,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
     /// Starts a property row: the label in the left column (clipped to it), the cursor in the right column with the next
     /// item filling it.
     /// </summary>
-    private static void Row(string label, string? tooltip = null)
+    internal static void Row(string label, string? tooltip = null)
     {
         var width = MathF.Max(100f, ImGui.GetContentRegionAvail().X * 0.38f);
         var start = ImGui.GetCursorScreenPos();
@@ -184,7 +186,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
     private static readonly SysVector4[] AxisColors = [new(0.95f, 0.45f, 0.42f, 1f), new(0.55f, 0.85f, 0.4f, 1f), new(0.45f, 0.65f, 1f, 1f), new(0.75f, 0.75f, 0.78f, 1f)];
 
     /// <summary>X/Y/Z(/W) number fields side by side, each with its axis letter; drag a field or type into it.</summary>
-    private static bool VectorFields(Span<float> values, float speed)
+    internal static bool VectorFields(Span<float> values, float speed)
     {
         var changed = false;
         var letter = ImGui.CalcTextSize("X").X + 4f;
@@ -207,7 +209,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
     }
 
     /// <summary>A color as a swatch filling the field; click for a picker.</summary>
-    private static bool ColorField(ref SysVector4 color)
+    internal static bool ColorField(ref SysVector4 color)
     {
         var changed = false;
         if (ImGui.ColorButton("##swatch", color, ImGuiColorEditFlags.AlphaPreviewHalf, new SysVector2(ImGui.GetContentRegionAvail().X, ImGui.GetFrameHeight())))
@@ -313,9 +315,14 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
 
         if (ComponentHeader(component, InspectableMember.Nicify(component.GetType().Name), canDisable: true))
         {
-            foreach (var member in MembersOf(component.GetType()))
+            foreach (var member in MembersOf(component.GetType()).Where(m => m.Type != typeof(Particles.ParticleSystemSettings)))
             {
                 DrawMember(component, member);
+            }
+
+            if (component is ParticleSystem particleSystem)
+            {
+                _particles.Draw(particleSystem);
             }
 
             if (component is Tilemap tilemap)

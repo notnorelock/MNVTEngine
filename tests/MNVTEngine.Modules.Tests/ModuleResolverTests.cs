@@ -4,8 +4,8 @@ public sealed class ModuleResolverTests
 {
     private static readonly ModuleCatalog Builtin = ModuleCatalog.Builtin;
 
-    private static ModuleDefinition M(string id, string[]? requires = null, string[]? optional = null, ModuleActivation activation = ModuleActivation.Auto, ProjectProfile[]? profiles = null) =>
-        new(id, id, "test") { Requires = requires ?? [], Optional = optional ?? [], Activation = activation, Profiles = profiles ?? ProjectProfiles.All };
+    private static ModuleDefinition M(string id, string[]? requires = null, string[]? optional = null, ModuleActivation activation = ModuleActivation.Auto, ProjectProfile[]? profiles = null, string? accompanies = null) =>
+        new(id, id, "test") { Requires = requires ?? [], Optional = optional ?? [], Activation = activation, Profiles = profiles ?? ProjectProfiles.All, Accompanies = accompanies };
 
     private static string[] Ids(ModuleResolution resolution) => [.. resolution.Modules.Select(m => m.Id)];
 
@@ -17,7 +17,7 @@ public sealed class ModuleResolverTests
     {
         var resolution = Resolve(ProjectProfile.TwoD);
         Assert.True(resolution.Succeeded);
-        Assert.Equal(["core", "audio", "graphics", "assets", "particles", "platform", "runtime", "scripting", "ui", "world.2d", "physics.2d"], Ids(resolution));
+        Assert.Equal(["core", "audio", "graphics", "assets", "particles", "platform", "runtime", "scripting", "ui", "world.2d", "particles.2d", "physics.2d"], Ids(resolution));
         Assert.DoesNotContain(resolution.Modules, m => m.ExclusiveProfile == ProjectProfile.ThreeD);
         Assert.Equal("not available in 2D", resolution.Excluded.Single(e => e.Module.Id == "world.3d").Reason);
         Assert.Equal("opt-in, not enabled", resolution.Excluded.Single(e => e.Module.Id == "devtools").Reason);
@@ -83,7 +83,7 @@ public sealed class ModuleResolverTests
     [Fact]
     public void UnknownModules_AreReported()
     {
-        var error = Assert.Single(Resolve(ProjectProfile.TwoD, ("particles.2d", true)).Diagnostics);
+        var error = Assert.Single(Resolve(ProjectProfile.TwoD, ("fluids.2d", true)).Diagnostics);
         Assert.Equal(ModuleDiagnostic.UnknownModule, error.Code);
         Assert.Contains("Known modules:", error.Message, StringComparison.Ordinal);
     }
@@ -168,5 +168,19 @@ public sealed class ModuleResolverTests
         var other = ModuleResolver.Resolve(Builtin, ProjectProfile.TwoD, usage: new Dictionary<string, IReadOnlyList<string>> { ["world.3d"] = ["Model asset Box.glb"] });
         Assert.False(other.Succeeded);
         Assert.False(other.IsEnabled("world.3d"));
+    }
+
+    [Fact]
+    public void AccompanyingModules_ComeWithTheirModule_InTheirProfileOnly()
+    {
+        var used = new Dictionary<string, IReadOnlyList<string>> { ["particles"] = ["ParticleSystem in Scenes/Main.mnvt"] };
+        var twoD = ModuleResolver.Resolve(Builtin, ProjectProfile.TwoD, usage: used);
+        Assert.Equal("with particles", twoD.Reasons["particles.2d"]);
+        Assert.Equal("required by particles.2d", twoD.Reasons["world.2d"]);
+
+        Assert.False(ModuleResolver.Resolve(Builtin, ProjectProfile.TwoD, usage: new Dictionary<string, IReadOnlyList<string>>()).IsEnabled("particles.2d"));
+        Assert.False(ModuleResolver.Resolve(Builtin, ProjectProfile.ThreeD, usage: used).IsEnabled("particles.2d"));
+        Assert.False(ModuleResolver.Resolve(Builtin, ProjectProfile.TwoD, new Dictionary<string, bool> { ["particles.2d"] = false }, used).IsEnabled("particles.2d")); // the project can still turn it off
+        Assert.Contains(ModuleCatalog.Validate([M("a", accompanies: "nope")]), d => d.Code == ModuleDiagnostic.MissingDependency);
     }
 }

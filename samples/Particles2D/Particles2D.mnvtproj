@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "name": "Particles2D",
+  "profile": "2d",
+  "startupScene": "Scenes/Main.mnvt",
+  "window": { "title": "Particles2D", "width": 1280, "height": 720, "vSync": true, "resizable": true },
+  "fixedTimestep": 0.016666668,
+  "buildProfiles": [
+    { "name": "debug", "configuration": "Debug", "target": "win-x64" },
+    { "name": "release", "configuration": "Release", "target": "win-x64" }
+  ]
+}

@@ -1,3 +1,5 @@
+using Newtonsoft.Json;
+
 namespace MNVTEngine.Particles;
 
 /// <summary>A number of particles emitted at once, once or repeatedly.</summary>
@@ -29,6 +31,7 @@ public sealed class EmissionModule
     /// <summary>Particles per unit the emitter moves.</summary>
     public MinMaxCurve RateOverDistance { get; set; } = 0f;
 
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)] // a loaded list replaces the default one instead of adding to it
     public List<ParticleBurst> Bursts { get; set; } = [];
 
     public EmissionModule AddBurst(ParticleBurst burst)

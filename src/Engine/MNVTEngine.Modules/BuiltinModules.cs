@@ -160,6 +160,14 @@ public static class BuiltinModules
         Components = ["MNVTEngine.ParticleSystem"],
     };
 
+    public static ModuleDefinition Particles2D { get; } = new("particles.2d", "2D particles", "Draws particle systems in 2D projects, batched with the sprites.")
+    {
+        Profiles = TwoD,
+        Requires = ["particles", "world.2d"],
+        Accompanies = "particles",
+        RuntimeAssemblies = ["MNVTEngine.Particles2D"],
+    };
+
     public static IReadOnlyList<ModuleDefinition> All { get; } =
-        [Core, Platform, Graphics, Assets, Runtime, Audio, Scripting, UI, DevTools, World2D, World3D, Physics2D, Physics3D, Terrain, Particles];
+        [Core, Platform, Graphics, Assets, Runtime, Audio, Scripting, UI, DevTools, World2D, World3D, Physics2D, Physics3D, Terrain, Particles, Particles2D];
 }

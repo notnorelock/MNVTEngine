@@ -1,3 +1,5 @@
+using Newtonsoft.Json;
+
 namespace MNVTEngine.Particles;
 
 /// <summary>A curve key: value at a time, with the slopes the curve has arriving at and leaving it.</summary>
@@ -21,6 +23,7 @@ public sealed class ParticleCurve
     public ParticleCurve(params CurveKey[] keys) => Keys = [.. keys];
 
     /// <summary>Keys ordered by time (setting sorts them).</summary>
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)] // a loaded list replaces the default one instead of adding to it
     public List<CurveKey> Keys
     {
         get => _keys;

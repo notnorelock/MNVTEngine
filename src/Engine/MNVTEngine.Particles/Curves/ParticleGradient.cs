@@ -1,4 +1,5 @@
 using MNVTEngine.Mathematics;
+using Newtonsoft.Json;
 
 namespace MNVTEngine.Particles;
 
@@ -39,12 +40,14 @@ public sealed class ParticleGradient
     public static ParticleGradient Between(Color from, Color to) =>
         new([new(0f, from), new(1f, to)], [new(0f, from.A), new(1f, to.A)]);
 
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)] // a loaded list replaces the default one instead of adding to it
     public List<GradientColorKey> ColorKeys
     {
         get => _colorKeys;
         set => _colorKeys = [.. (value ?? []).OrderBy(k => k.Time)];
     }
 
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)] // a loaded list replaces the default one instead of adding to it
     public List<GradientAlphaKey> AlphaKeys
     {
         get => _alphaKeys;

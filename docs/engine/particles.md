@@ -5,7 +5,7 @@ Particle systems are the `particles` [module](modules.md) (`MNVTEngine.Particles
 | Phase | Status |
 |---|---|
 | Core: data model, lifecycle, storage, emission, bursts, shapes, curves, gradients, lifetime modules, `.mnvtparticle` | Done |
-| 2D rendering and editor | Next |
+| 2D rendering (`particles.2d`), editor inspector and preview, presets, sample `samples/Particles2D` | Done |
 | 3D rendering (billboards, sorting) and editor | Planned |
 | Noise, collision, sub-emitters | Planned |
 | GPU simulation (Vulkan compute) | To be evaluated; the simulation is CPU-only and is reported as such |
@@ -58,6 +58,37 @@ bool playing = fire.IsPlaying, paused = fire.IsPaused, emitting = fire.IsEmittin
 ### Curves and gradients
 
 `MinMaxCurve` is a constant, a random value between two constants, a curve, or a random value between two curves, with a multiplier. `ParticleCurve` is a keyframed cubic Hermite curve with in and out tangents; an infinite tangent makes a step. It is clamped outside its keys and evaluated with a binary search, without allocating. `ParticleGradient` has color keys and alpha keys, blended or fixed. `MinMaxGradient` is a color, a random color between two, a gradient, a random value between two gradients, or a random point of a gradient. None of these types depend on particles.
+
+## 2D rendering (`particles.2d`)
+
+`MNVTEngine.Particles2D` draws every particle system of a 2D scene in the view's sprite batch, from a scene pass with order 210, after the sprites.
+- **Drawing:** per particle it uses the texture (a white square without one), the current color, size and rotation, and the sprite-sheet frame (a grid of `columns` x `rows`, row by row from the top-left).
+- **Stretched mode:** a particle points along its velocity and grows by `speedScale` per unit of speed.
+- **Blending:** `additive` uses an additive material on the sprite shader. A `.mnvtmat` material in `renderer.material` replaces both.
+- **Sorting:** particles share the batch with sprites, so they sort with them by `sortingOrder`, then by submission order. `oldestInFront` and `youngestInFront` order a system's particles by age, through reused key arrays without allocating. They batch by texture and material: one draw call per run, never one per particle.
+- **Culling and statistics:** particles outside the view are skipped. The pass counts `particles.systems`, `particles.drawn` and `particles.culled`.
+- **Spaces:** local-space particles are placed with the emitter's transform, and their size follows its scale.
+
+The module comes with `particles` in 2D projects (`Accompanies` in the catalog), so a 2D game that uses particles ships both, and a 3D project never gets it.
+
+## Editor
+
+- **Inspector:** a `ParticleSystem` shows, from top to bottom:
+  - preview controls (play/pause, restart, stop, speed);
+  - live statistics (particles and maximum, emitted, cycle time, seed, buffer memory, oldest particle, average lifetime, enabled modules);
+  - presets, and asset tools: *Save as Asset* writes `Particles/<name>.mnvtparticle` and assigns it; *Apply to Asset* and *Revert to Asset* follow once one is assigned;
+  - one section per module, with optional modules enabled by a checkbox in their header.
+- **Fields:**
+  - curves are drawn as a graph with draggable keys, plus a key table (time, value, in and out tangents);
+  - gradients are a preview bar plus color and alpha key tables;
+  - bursts are a table;
+  - the shape list offers the profile's shapes only.
+- **Preview:** in edit mode, the selected object's systems and those of its children play in the Scene view (`ParticlePreview`). They are drawn by the project's own particle renderer, not a separate preview renderer. Selecting something else stops and clears them. In Play Mode the running scene simulates them.
+- **Creating:** *Project > Create > Particle System* creates an asset with default settings.
+
+### Presets
+
+`ParticlePresets.Create(name, planar)` builds editable starting settings (2D or 3D shapes): Fire, Smoke, Sparks, Explosion, Dust, Rain, Snow, Magic sparkle, Energy beam, Footsteps dust, Water splash. They are ordinary settings with no special behavior. They set no texture; the inspector keeps the current one.
 
 ## `.mnvtparticle` assets
 

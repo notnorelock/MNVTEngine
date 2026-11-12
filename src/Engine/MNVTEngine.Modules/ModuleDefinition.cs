@@ -53,6 +53,12 @@ public sealed record ModuleDefinition(string Id, string DisplayName, string Desc
     /// <summary>Serialized ids of the components the module provides (scene content of a disabled module is an error).</summary>
     public IReadOnlyList<string> Components { get; init; } = [];
 
+    /// <summary>
+    /// A module this one comes with: whenever that module is enabled in a profile this one supports, this one is too
+    /// (particles.2d accompanies particles in 2D projects). The project can still disable it.
+    /// </summary>
+    public string? Accompanies { get; init; }
+
     /// <summary>Asset types whose content needs this module at run time (a packaged audio clip needs audio).</summary>
     public IReadOnlyList<string> AssetTypes { get; init; } = [];
 

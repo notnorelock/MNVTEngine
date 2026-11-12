@@ -60,6 +60,9 @@ internal sealed class EditorContext
     /// <summary>Scene audio: the edit scene's ambient sources, heard from the Scene view camera.</summary>
     public SceneAudioPreview AudioPreview => field ??= new SceneAudioPreview(PlayMode.Audio, clip => Session.Assets.ReadAllBytes(clip.Guid));
 
+    /// <summary>Edit-mode preview of the selected object's particle systems.</summary>
+    public ParticlePreview ParticlePreview { get; } = new();
+
     /// <summary>Tile brush shared by the inspector palette and the Scene view.</summary>
     public TilePainter Tiles { get; } = new();
 

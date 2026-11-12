@@ -96,6 +96,13 @@ public sealed class ShapeAndAssetTests
         var json = new SceneSerializer(registry).Serialize(scene);
         var copy = new SceneSerializer(registry).Deserialize(json, "copy").Scene.FindObjectsOfType<ParticleSystem>().Single();
         Assert.Equal((20f, 1), (copy.Emission.RateOverTime.Max, copy.Emission.Bursts.Count));
+
+        // Lists in scene data replace the defaults (Newtonsoft would otherwise add to them): the default color over
+        // lifetime gradient has white keys, which must not survive next to the scene's.
+        system.Settings.ColorOverLifetime.Color = new MinMaxGradient(ParticleGradient.Between(Color.Red, Color.Blue));
+        var reloaded = new SceneSerializer(registry).Deserialize(new SceneSerializer(registry).Serialize(scene), "reload").Scene.FindObjectsOfType<ParticleSystem>().First();
+        Assert.Equal(2, reloaded.Settings.ColorOverLifetime.Color.GradientMax!.ColorKeys.Count);
+        Assert.Equal(Color.Red, reloaded.Settings.ColorOverLifetime.Color.Evaluate(0f));
         Assert.Equal(0, copy.ParticleCount); // particles are runtime state
 
         var once = scene.CreateGameObject("Once").AddComponent<ParticleSystem>();
