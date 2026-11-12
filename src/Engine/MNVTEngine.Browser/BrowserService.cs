@@ -141,8 +141,8 @@ public sealed partial class BrowserService : IDisposable
     }
 
     /// <summary>
-    /// The host executable: <c>MNVT_BROWSER_HOST</c>, then <c>Browser/MNVTBrowserHost.exe</c> next to the game (exports),
-    /// then next to the executable, then the engine's build output (development: the editor, the Player, tests).
+    /// The host executable: <c>MNVT_BROWSER_HOST</c>, then next to the game's executable (exports), then the engine's
+    /// build output (development: the editor, the Player, tests).
     /// </summary>
     public static string? FindHost()
     {
@@ -151,12 +151,9 @@ public sealed partial class BrowserService : IDisposable
             return File.Exists(configured) ? configured : null;
         }
 
-        foreach (var candidate in new[] { Path.Combine(AppContext.BaseDirectory, "Browser", BrowserProtocol.HostFileName), Path.Combine(AppContext.BaseDirectory, BrowserProtocol.HostFileName) })
+        if (Path.Combine(AppContext.BaseDirectory, BrowserProtocol.HostFileName) is var exported && File.Exists(exported))
         {
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
+            return exported;
         }
 
         var roots = new List<string>();
@@ -266,7 +263,7 @@ public sealed partial class BrowserService : IDisposable
         var hostPath = _options.HostPath ?? FindHost();
         if (hostPath is null || !File.Exists(hostPath))
         {
-            Fail($"{BrowserProtocol.HostFileName} was not found (looked next to the game, in its Browser folder and in the engine's build output). Build src/Engine/MNVTEngine.Browser.Host, or set MNVT_BROWSER_HOST.");
+            Fail($"{BrowserProtocol.HostFileName} was not found (looked next to the game and in the engine's build output). Build src/Engine/MNVTEngine.Browser.Host, or set MNVT_BROWSER_HOST.");
             return;
         }
 

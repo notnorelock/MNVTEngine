@@ -16,6 +16,13 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        HostLayout.Install();
+        return Run(args);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)] // CefSharp loads only after HostLayout.Install
+    private static int Run(string[] args)
+    {
         // CEF starts its renderer, GPU and utility processes from this executable: they never return from here.
         var subprocess = CefSharp.BrowserSubprocess.SelfHost.Main(args);
         if (subprocess >= 0)
@@ -57,7 +64,7 @@ internal static class Program
         }
 
         var cacheRoot = hello.Value<string>("cachePath") is { Length: > 0 } persistent ? persistent : Path.Combine(Path.GetTempPath(), "MNVTBrowser", Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        if (!Cef.Initialize(CreateSettings(hello, cacheRoot, host), performDependencyCheck: true, browserProcessHandler: null))
+        if (!Cef.Initialize(CreateSettings(hello, cacheRoot, host), performDependencyCheck: HostLayout.ChromiumDirectory is null, browserProcessHandler: null))
         {
             Console.Error.WriteLine("MNVTBrowserHost: CEF failed to initialize (see cef.log in the browser cache folder).");
             return 5;
@@ -100,6 +107,12 @@ internal static class Program
             Locale = hello.Value<string>("locale") is { Length: > 0 } locale ? locale : "en-US",
             PersistSessionCookies = false,
         };
+        if (HostLayout.ChromiumDirectory is { } chromium)
+        {
+            settings.ResourcesDirPath = chromium;
+            settings.LocalesDirPath = Path.Combine(chromium, "locales");
+        }
+
         if (hello.Value<string>("userAgent") is { Length: > 0 } userAgent)
         {
             settings.UserAgent = userAgent;

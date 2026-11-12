@@ -198,9 +198,10 @@ public sealed partial class GameBuilder(ILogger logger)
 
             if (profile.PruneFramework && GamePackager.FrameworkDirectory(stage) is { } framework)
             {
-                // Roots: the host, its dependencies and the game's C# code (which the host loads from the archive).
+                // Roots: the host, its dependencies, the browser's C++/CLI assemblies and the game's C# code (which the host loads from the archive).
                 var roots = Directory.EnumerateFiles(stage, "*.dll")
                     .Concat(Directory.EnumerateFiles(Path.Combine(stage, GamePackage.ManagedFolder), "*.dll"))
+                    .Concat(Directory.Exists(Path.Combine(stage, GamePackager.ChromiumFolder)) ? Directory.EnumerateFiles(Path.Combine(stage, GamePackager.ChromiumFolder), "*.dll").Where(GamePackager.IsManaged) : [])
                     .Concat(scriptsOutput is not null && Directory.Exists(scriptsOutput) ? Directory.EnumerateFiles(scriptsOutput, "*.dll") : []);
                 var pruned = pruning = FrameworkPruner.Prune(framework, roots);
                 var prunedSize = GamePackager.FormatSize(pruned.RemovedBytes);

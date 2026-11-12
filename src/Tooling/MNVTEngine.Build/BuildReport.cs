@@ -18,7 +18,7 @@ public sealed record BuildReportInput(GameProject Project, BuildProfile Profile,
     /// <summary>How the game's C# runs; see docs/architecture/il2cpp-aot-pipeline.md.</summary>
     public string ScriptingBackend { get; init; } = "jit";
 
-    /// <summary>Size of the Browser folder (MNVTBrowserHost.exe and CEF); null without the browser module or before packaging.</summary>
+    /// <summary>Bytes the browser host and CEF added to the package; null without the browser module or before packaging.</summary>
     public long? BrowserHostBytes { get; init; }
 }
 
@@ -74,8 +74,9 @@ public static class BuildReport
             ["browser"] = resolution.Modules.Any(m => m.Id == "browser")
                 ? new JObject
                 {
-                    ["host"] = $"{GamePackager.BrowserFolder}/MNVTBrowserHost.exe",
-                    ["engine"] = "Chromium via CEF and CefSharp.OffScreen (out of process; the host is self-contained CoreCLR in JIT and AOT games)",
+                    ["host"] = "MNVTBrowserHost.exe",
+                    ["chromium"] = GamePackager.ChromiumFolder,
+                    ["engine"] = "Chromium via CEF and CefSharp.OffScreen (out of process; the host runs on CoreCLR from Dependencies/Runtime, also in AOT games)",
                     ["rendering"] = "CPU off-screen rendering: dirty rectangles through shared memory into textures; no GPU zero-copy",
                     ["platforms"] = new JArray("win-x64"),
                     ["locales"] = new JArray("en-US"),

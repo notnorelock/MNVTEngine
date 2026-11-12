@@ -106,12 +106,26 @@ public static class BuildValidator
             diagnostics.Add(BuildDiagnostic.Error("MNVB503", $"Game host file missing: {package.ExecutableName}.exe", gameDirectory));
         }
 
-        foreach (var file in new[] { package.ExecutableName + ".dll", GamePackage.RuntimeFolder, GamePackage.ManagedFolder }.Where(f => Path.Exists(Path.Combine(gameDirectory, f)) && !(Directory.Exists(Path.Combine(gameDirectory, f)) && !Directory.EnumerateFileSystemEntries(Path.Combine(gameDirectory, f)).Any())))
+        // The browser host (CefSharp is C++/CLI) runs on CoreCLR: AOT games with the browser module ship a runtime for it.
+        var browser = package.Modules?.Contains("browser") == true;
+        string[] forbidden = browser ? [package.ExecutableName + ".dll"] : [package.ExecutableName + ".dll", GamePackage.RuntimeFolder, GamePackage.ManagedFolder];
+        foreach (var file in forbidden.Where(f => Path.Exists(Path.Combine(gameDirectory, f)) && !(Directory.Exists(Path.Combine(gameDirectory, f)) && !Directory.EnumerateFileSystemEntries(Path.Combine(gameDirectory, f)).Any())))
         {
             diagnostics.Add(BuildDiagnostic.Error("MNVB503", $"An ahead-of-time game ships no IL host or .NET runtime, but has {file}.", gameDirectory));
         }
 
-        return null;
+        if (!browser)
+        {
+            return null;
+        }
+
+        var framework = GamePackager.FrameworkDirectory(gameDirectory);
+        if (framework is null || !File.Exists(Path.Combine(gameDirectory, "MNVTBrowserHost.exe")))
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB406", "The browser module needs MNVTBrowserHost.exe and a .NET runtime in Dependencies/Runtime; the package has not both.", gameDirectory));
+        }
+
+        return framework;
     }
 
     private static string? ValidateRuntime(string gameDirectory, GamePackage package, List<BuildDiagnostic> diagnostics)
@@ -167,12 +181,21 @@ public static class BuildValidator
         return Directory.Exists(framework) ? framework : null;
     }
 
+    /// <summary>
+    /// References that are never resolved at run time, so the game need not ship them. Only with a reason: CefSharp's
+    /// off-screen browser returns screenshots as System.Drawing Bitmaps, an API MNVTBrowserHost does not call (it
+    /// takes the pixels from paint events); the assembly loads only when such a method runs.
+    /// </summary>
+    private static readonly HashSet<(string Assembly, string Reference)> NeverLoaded = [("CefSharp.OffScreen", "System.Drawing.Common")];
+
     private static void ValidateDependencies(string gameDirectory, GamePackage package, string? framework, List<BuildDiagnostic> diagnostics)
     {
         var managed = Path.Combine(gameDirectory, GamePackage.ManagedFolder);
         var host = Path.Combine(gameDirectory, package.ExecutableName + ".dll");
         var available = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var folder in new[] { managed, framework }.OfType<string>().Where(Directory.Exists))
+        // The browser's C++/CLI assemblies ship with CEF (GamePackager.ChromiumFolder), where MNVTBrowserHost resolves them.
+        var chromium = Path.Combine(gameDirectory, GamePackager.ChromiumFolder);
+        foreach (var folder in new[] { managed, framework, chromium }.OfType<string>().Where(Directory.Exists))
         {
             available.UnionWith(Directory.EnumerateFiles(folder, "*.dll").Select(Path.GetFileNameWithoutExtension).OfType<string>());
         }
@@ -192,7 +215,8 @@ public static class BuildValidator
                 continue;
             }
 
-            foreach (var reference in references.Where(r => !available.Contains(r)))
+            var name = Path.GetFileNameWithoutExtension(assembly);
+            foreach (var reference in references.Where(r => !available.Contains(r) && !NeverLoaded.Contains((name, r))))
             {
                 diagnostics.Add(BuildDiagnostic.Error("MNVB505", $"References assembly '{reference}', which the game does not ship.", Path.GetRelativePath(gameDirectory, assembly).Replace('\\', '/')));
             }

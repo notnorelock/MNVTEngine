@@ -11,7 +11,12 @@
     <AssemblyName>MNVTBrowserHost</AssemblyName>
     <RootNamespace>MNVTEngine.BrowserHosting.Host</RootNamespace>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <SelfContained>false</SelfContained>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- In an exported game the host runs on the game's private runtime (Dependencies/Runtime); in development on an installed .NET. -->
+    <AppHostDotNetSearch>AppRelative;EnvironmentVariable;Global</AppHostDotNetSearch>
+    <AppHostRelativeDotNet>Dependencies/Runtime</AppHostRelativeDotNet>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <!-- CefSharp's own BrowserSubprocess.exe is not needed: this executable hosts the subprocesses itself. -->
     <CefSharpExcludeSubProcessExe>true</CefSharpExcludeSubProcessExe>
@@ -31,4 +36,21 @@
     <None Include="$(NuGetPackageRoot)chromiumembeddedframework.runtime.win-x64/156.0.15/LICENSE.txt" Link="licenses/CEF-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="$(NuGetPackageRoot)cefsharp.common.netcore/156.0.150/LICENSE" Link="licenses/CefSharp-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <!--
+    The private runtime layout (host/fxr + shared/Microsoft.NETCore.App) for AOT games, which have none of their own:
+    published with -p:MnvtPrivateRuntime=true (see GamePackager.PublishBrowserHostAsync). As in MNVTEngine.GameHost.
+  -->
+  <Target Name="MnvtPublishPrivateRuntime" AfterTargets="Publish" Condition="'$(MnvtPrivateRuntime)' == 'true'">
+    <PropertyGroup>
+      <MnvtRuntimePack>$(NuGetPackageRoot)microsoft.netcore.app.runtime.$(RuntimeIdentifier.ToLowerInvariant())/$(BundledNETCoreAppPackageVersion)/runtimes/$(RuntimeIdentifier)/</MnvtRuntimePack>
+      <MnvtRuntimeRoot>$(PublishDir)$(AppHostRelativeDotNet)/</MnvtRuntimeRoot>
+      <MnvtFrameworkFolder>net$(TargetFrameworkVersion.TrimStart('v'))</MnvtFrameworkFolder>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(MnvtRuntimePack)')" Text="Runtime pack not found: $(MnvtRuntimePack)" />
+    <ItemGroup>
+      <MnvtFrameworkFile Include="$(MnvtRuntimePack)lib/$(MnvtFrameworkFolder)/*;$(MnvtRuntimePack)native/*" Exclude="$(MnvtRuntimePack)native/hostfxr.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(MnvtFrameworkFile)" DestinationFolder="$(MnvtRuntimeRoot)shared/Microsoft.NETCore.App/$(BundledNETCoreAppPackageVersion)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(MnvtRuntimePack)native/hostfxr.dll" DestinationFolder="$(MnvtRuntimeRoot)host/fxr/$(BundledNETCoreAppPackageVersion)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

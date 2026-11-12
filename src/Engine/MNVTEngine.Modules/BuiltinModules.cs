@@ -177,7 +177,7 @@ public static class BuiltinModules
         BuildAssets = ["shader:particle-3d"],
     };
 
-    public static ModuleDefinition Browser { get; } = new("browser", "Embedded browser", "Chromium web pages rendered into textures, with a C# API and a JavaScript bridge. Ships MNVTBrowserHost.exe and CEF (about 400 MB).")
+    public static ModuleDefinition Browser { get; } = new("browser", "Embedded browser", "Chromium web pages rendered into textures, with a C# API and a JavaScript bridge. Ships MNVTBrowserHost.exe, CefSharp and CEF (about 360 MB).")
     {
         Requires = ["core", "runtime"],
         RuntimeAssemblies = ["MNVTEngine.Browser", "MNVTEngine.Browser.Protocol"],

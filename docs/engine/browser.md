@@ -8,7 +8,7 @@ explicit, capability-checked bridge. Windows x64 only. How it works and why: [Em
 
 | Module | Profiles | Brings | Included when |
 |---|---|---|---|
-| `browser` | 2D, 3D | `MNVTEngine.Browser` (C# API), `MNVTBrowserHost.exe` and CEF in a `Browser` folder (about 445 MB) | a surface below is used, or C# uses `MNVTEngine.Browser` types |
+| `browser` | 2D, 3D | `MNVTEngine.Browser` (C# API), `MNVTBrowserHost.exe`, CefSharp and CEF (about 360 MB) | a surface below is used, or C# uses `MNVTEngine.Browser` types |
 | `browser.2d` | 2D | `BrowserSurface2D` | a scene or prefab has the component |
 | `browser.3d` | 3D | `BrowserSurface3D` | a scene or prefab has the component |
 
@@ -146,17 +146,30 @@ Console commands: `browsers` (host state, every browser's page, texture, paints 
 
 ## Exports
 
-The build publishes `Browser/MNVTBrowserHost.exe` self-contained (its own .NET runtime: CefSharp's C++/CLI needs
-CoreCLR, which AOT games do not have), with CEF, the `en-US` locale only (the other 51 MB of translations are left out)
-and `THIRD-PARTY-NOTICES.md` with the CEF and CefSharp licenses in `licenses/`. Measured for `samples/Browser2D`
-(release, win-x64): `Browser` folder 445 MB (`libcef.dll` alone 281 MB); whole game 523 MB with the JIT backend.
-`MNVB406` when the host cannot be published. The game finds the host in `Browser/` next to the executable; development
-runs (editor, Player, tests) use the engine's build output of `src/Engine/MNVTEngine.Browser.Host`, or
-`MNVT_BROWSER_HOST`.
+The browser follows the game's layout:
+
+```text
+Game.exe, MNVTBrowserHost.exe (+ .dll, .runtimeconfig.json)   next to each other
+Dependencies/Managed          CefSharp.dll, CefSharp.Core.dll, CefSharp.OffScreen.dll (with the game's assemblies)
+Dependencies/Native/Chromium  libcef.dll, chrome_elf.dll, paks, icudtl.dat, v8_context_snapshot.bin, locales/en-US.pak,
+                              CefSharp's C++/CLI assemblies with Ijwhost.dll, THIRD-PARTY-NOTICES.md, licenses/
+Dependencies/Runtime          the game's private .NET runtime, which the host runs on
+```
+
+CEF has a folder of its own because the game loads every library directly in `Dependencies/Native` at startup, and
+CefSharp's C++/CLI assemblies need `Ijwhost.dll` next to them. The host is framework-dependent: a JIT game's runtime
+serves both; an AOT game, which has no runtime, gets one in `Dependencies/Runtime` for the host only (CefSharp's C++/CLI
+needs CoreCLR). Framework pruning keeps what the host and CefSharp reference. Left out: CEF's translations other than
+`en-US` (51 MB), and its `vulkan-1.dll` and SwiftShader (software WebGL), so CEF's Vulkan loader never stands in for the
+system's. Measured for `samples/Browser2D` (release, win-x64): whole game 445 MB with the JIT backend, 460 MB with AOT;
+`Dependencies/Native/Chromium` 350 MB (`libcef.dll` alone 281 MB). `MNVB406` when the host cannot be published or the
+package lacks it. Development runs (editor, Player, tests) use the engine's build output of
+`src/Engine/MNVTEngine.Browser.Host`, or `MNVT_BROWSER_HOST`.
 
 ## Limits
 
 - Windows x64 only (CEF and CefSharp have no other packages the engine uses).
+- No software WebGL fallback (SwiftShader is not shipped): WebGL needs Chromium's GPU process.
 - `<select>` dropdowns and other popup widgets are not drawn (CEF paints them separately).
 - No IME composition; a held key does not repeat.
 - Pages with video use open codecs only (VP8/VP9/AV1, Opus/Vorbis).

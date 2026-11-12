@@ -16,8 +16,8 @@ feasibility research (Phase 0) and the architecture chosen; the user-facing guid
 | Threading | `Cef.Initialize` and `Cef.Shutdown` must run on the same thread (verified: a shutdown from another thread throws). CEF runs its own UI thread (`MultiThreadedMessageLoop`); paint callbacks arrive on it |
 | Off-screen rendering | `ChromiumWebBrowser.Paint` delivers a BGRA buffer (premultiplied alpha) and the dirty rectangle. CEF's documentation: the traditional OSR path does not support accelerated compositing. A shared-texture OSR path (`OnAcceleratedPaint`, D3D11 handles) exists for Chromium's GPU process, which would need D3D11/Vulkan interop (`VK_KHR_external_memory_win32`) to reach the engine |
 | Measured | 800x600 page: CEF initialized and page loaded in 0.7 s; a page updating every 50 ms gave 41 paints in 2 s (about 6 MB of dirty pixels) |
-| Size | `libcef.dll` alone is 294 MB (281 MB published); with `chrome_elf`, `icudtl.dat`, `v8_context_snapshot.bin`, paks, SwiftShader and 51 MB of locales a CEF deployment is about 410 MB. The exported `Browser` folder (en-US only, self-contained runtime) measured 445 MB ([Browser](../engine/browser.md#exports)) |
-| Licensing | CEF and CefSharp: BSD 3-clause; CEF's README requires its LICENSE.txt with binary redistributions. Chromium's third-party licenses are built in (`about:credits`). CEF builds do not include proprietary codecs (H.264, AAC). Exports ship [THIRD-PARTY-NOTICES.md](../../src/Engine/MNVTEngine.Browser.Host/THIRD-PARTY-NOTICES.md) and both licenses in `Browser/licenses` |
+| Size | `libcef.dll` alone is 294 MB (281 MB published); with `chrome_elf`, `icudtl.dat`, `v8_context_snapshot.bin`, paks, SwiftShader and 51 MB of locales a CEF deployment is about 410 MB. In an export (en-US only, no SwiftShader, sharing the game's runtime) CEF and CefSharp measured 350 MB ([Browser](../engine/browser.md#exports)) |
+| Licensing | CEF and CefSharp: BSD 3-clause; CEF's README requires its LICENSE.txt with binary redistributions. Chromium's third-party licenses are built in (`about:credits`). CEF builds do not include proprietary codecs (H.264, AAC). Exports ship [THIRD-PARTY-NOTICES.md](../../src/Engine/MNVTEngine.Browser.Host/THIRD-PARTY-NOTICES.md) and both licenses in `Dependencies/Native/Chromium/licenses` |
 | Pitfalls found | `EvaluateScriptAsync` on the browser refuses to run before the main frame has a script context (use the frame's); a DevTools `Page.addScriptToEvaluateOnNewDocument` script only runs after `Page.enable`; `window.CefSharp` appears after document-start scripts; `JavascriptMessageReceived` can arrive after the sending frame was disposed; a named pipe without buffers makes every write wait for the reader |
 
 ## Architecture: a browser host process
@@ -38,7 +38,8 @@ game process                                         MNVTBrowserHost.exe (CoreCL
 Why out of process rather than CefSharp in the game:
 
 - **AOT games keep the browser.** C++/CLI cannot be AOT-compiled, but the game only needs the pipe and shared memory,
-  which NativeAOT supports. The host stays a CoreCLR process in every build.
+  which NativeAOT supports. The host stays a CoreCLR process in every build (on the game's private runtime; AOT games
+  get one for it).
 - **Isolation.** A Chromium crash ends the host, not the game (`OnBrowserCrashed`); CEF's one-initialization-per-process
   and same-thread shutdown rules live in a process built for them.
 - **No C++/CLI in the engine.** Engine assemblies stay pure managed; only the host references CefSharp.

@@ -151,38 +151,49 @@ public static class GamePackager
         return [];
     }
 
-    /// <summary>The folder of the browser host and CEF in a game with the browser module.</summary>
-    public const string BrowserFolder = "Browser";
+    /// <summary>CEF in a game with the browser module: libcef.dll, its data files and locales (a folder of its own: the game loads every library directly in Dependencies/Native at startup).</summary>
+    public const string ChromiumFolder = GamePackage.NativeFolder + "/Chromium";
 
-    private static readonly string[] BrowserHostFiles = ["MNVTBrowserHost.exe", "libcef.dll", "CefSharp.Core.Runtime.dll", "icudtl.dat", "resources.pak"];
+    /// <summary>CEF's Vulkan loader and SwiftShader (software WebGL) are left out: a vulkan-1.dll next to the game could stand in for the system's Vulkan loader.</summary>
+    private static readonly string[] BrowserHostExcluded = ["vulkan-1.dll", "vk_swiftshader.dll", "vk_swiftshader_icd.json", "CefSharp.BrowserSubprocess.exe", "CefSharp.BrowserSubprocess.dll", "CefSharp.BrowserSubprocess.runtimeconfig.json"];
+
+    private static readonly string[] BrowserHostFiles = ["MNVTBrowserHost.exe", "MNVTBrowserHost.dll", ManagedPath + "CefSharp.Core.dll", ChromiumPath + "CefSharp.Core.Runtime.dll", ChromiumPath + "libcef.dll", ChromiumPath + "icudtl.dat", ChromiumPath + "resources.pak", ChromiumPath + "Ijwhost.dll"];
+
+    private const string ManagedPath = GamePackage.ManagedFolder + "/";
+
+    private const string ChromiumPath = ChromiumFolder + "/";
 
     /// <summary>
-    /// Publishes MNVTBrowserHost.exe with CEF into the staged game's <see cref="BrowserFolder"/>: self-contained (its
-    /// own .NET runtime, because CefSharp's C++/CLI needs CoreCLR and AOT games have none), with only the locale
-    /// <paramref name="locale"/> of CEF's translations. Returns the folder's size in bytes with the diagnostics.
+    /// Publishes MNVTBrowserHost.exe with CEF and sorts it into the staged game's layout (after <see cref="ArrangeLayout"/>):
+    /// the executable next to the game's, CefSharp in Dependencies/Managed, CEF in <see cref="ChromiumFolder"/>, only
+    /// the locale <paramref name="locale"/> of CEF's translations. The host runs on the game's private runtime; AOT
+    /// games, which have none, get one in Dependencies/Runtime (CefSharp is C++/CLI: it needs CoreCLR). Returns the
+    /// bytes the browser added with the diagnostics.
     /// </summary>
     public static async Task<(IReadOnlyList<BuildDiagnostic> Diagnostics, long Bytes)> PublishBrowserHostAsync(
         string engineRoot, BuildProfile profile, string workDirectory, string packageDirectory, string locale = "en-US", CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        var output = Path.Combine(packageDirectory, BrowserFolder);
+        var output = Path.Combine(workDirectory, "BrowserHost");
         if (Directory.Exists(output))
         {
             Directory.Delete(output, recursive: true);
         }
 
+        var needsRuntime = FrameworkDirectory(packageDirectory) is null;
         List<string> arguments =
         [
             "publish", EngineLocation.BrowserHostProject(engineRoot),
             "-c", profile.Configuration,
             "-r", profile.Target,
-            "--self-contained", "true",
+            "--self-contained", "false",
             "-o", output,
             "--artifacts-path", Path.Combine(workDirectory, "artifacts-browser-host"),
             "-nologo", "-v:q", "-clp:NoSummary;ForceNoAlign",
             "-p:Deterministic=true",
             "-p:ContinuousIntegrationBuild=true",
             "-p:DebugType=none",
+            $"-p:MnvtPrivateRuntime={(needsRuntime ? "true" : "false")}",
         ];
         var result = await DotnetCli.RunAsync(arguments, engineRoot, PublishTimeout, cancellationToken).ConfigureAwait(false);
         if (result.StartError is { } error)
@@ -195,28 +206,56 @@ public static class GamePackager
             return ([BuildDiagnostic.Error("MNVB406", $"The browser host (MNVTBrowserHost.exe, CEF) could not be published (exit code {result.ExitCode}).\n{result.Output.Trim()}")], 0);
         }
 
-        // CEF's translations are 51 MB: keep the locale the game runs CEF with.
-        var locales = Path.Combine(output, "locales");
-        if (Directory.Exists(locales))
+        long bytes = 0;
+        void Place(string source, string relative, bool keepExisting)
         {
-            foreach (var file in Directory.EnumerateFiles(locales).Where(f => !Path.GetFileNameWithoutExtension(f).Equals(locale, StringComparison.OrdinalIgnoreCase)).ToList())
+            var target = Path.Combine(packageDirectory, relative);
+            if (keepExisting && File.Exists(target))
             {
-                File.Delete(file);
+                return; // the game ships it already (Newtonsoft.Json, the protocol, the runtime of a JIT game)
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(source, target, overwrite: true);
+            bytes += new FileInfo(source).Length;
+        }
+
+        foreach (var file in Directory.EnumerateFiles(output, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(output, file).Replace('\\', '/');
+            var name = Path.GetFileName(file);
+            if (relative.StartsWith(GamePackage.RuntimeFolder + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                Place(file, relative, keepExisting: true);
+            }
+            else if (BrowserHostExcluded.Contains(name, StringComparer.OrdinalIgnoreCase) || name.EndsWith(".deps.json", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
+                || (relative.StartsWith("locales/", StringComparison.OrdinalIgnoreCase) && !Path.GetFileNameWithoutExtension(name).Equals(locale, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue; // CEF's translations are 51 MB: only the locale the game runs CEF with
+            }
+            else if (name.StartsWith("MNVTBrowserHost.", StringComparison.OrdinalIgnoreCase))
+            {
+                Place(file, name, keepExisting: false);
+            }
+            else if (relative.Contains('/', StringComparison.Ordinal) || !name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) || !IsManaged(file) || IsMixedMode(file))
+            {
+                // libcef.dll, paks, data, locales/, licenses, notices; and CefSharp's C++/CLI assemblies, which need Ijwhost.dll next to them.
+                Place(file, ChromiumPath + relative, keepExisting: false);
+            }
+            else
+            {
+                Place(file, ManagedPath + name, keepExisting: true);
             }
         }
 
-        foreach (var file in Directory.EnumerateFiles(output, "*.pdb", SearchOption.AllDirectories).Concat(Directory.EnumerateFiles(output, "*.xml")).ToList())
-        {
-            File.Delete(file);
-        }
-
-        var missing = BrowserHostFiles.Where(f => !File.Exists(Path.Combine(output, f))).ToList();
+        var missing = BrowserHostFiles.Where(f => !File.Exists(Path.Combine(packageDirectory, f))).ToList();
         if (missing.Count > 0)
         {
-            return ([BuildDiagnostic.Error("MNVB406", $"The published browser host is missing {string.Join(", ", missing)}.")], 0);
+            return ([BuildDiagnostic.Error("MNVB406", $"The published browser host is missing {string.Join(", ", missing)}.")], bytes);
         }
 
-        return ([], Directory.EnumerateFiles(output, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length));
+        return ([], bytes);
     }
 
     /// <summary>The private runtime's shared/Microsoft.NETCore.App/&lt;version&gt; folder of a staged game; null when there is none.</summary>
@@ -264,6 +303,14 @@ public static class GamePackager
                 File.Move(symbols, Path.Combine(target, Path.GetFileName(symbols)));
             }
         }
+    }
+
+    /// <summary>A C++/CLI assembly: managed metadata and native code (not IL only).</summary>
+    public static bool IsMixedMode(string file)
+    {
+        using var stream = File.OpenRead(file);
+        using var pe = new System.Reflection.PortableExecutable.PEReader(stream);
+        return pe.PEHeaders.CorHeader is { } cor && (cor.Flags & System.Reflection.PortableExecutable.CorFlags.ILOnly) == 0;
     }
 
     public static bool IsManaged(string file)
