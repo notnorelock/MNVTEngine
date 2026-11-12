@@ -7,6 +7,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Graphics.Vulkan.ShaderCompiler\MNVTEngine.Graphics.Vulkan.ShaderCompiler.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Audio.OpenAL\MNVTEngine.Audio.OpenAL.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.CrashReporting\MNVTEngine.CrashReporting.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.DebugUI\MNVTEngine.DebugUI.csproj" />

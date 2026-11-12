@@ -101,7 +101,7 @@ public class DependencyRuleTests
     public void OnlyPlatformBackends_ReferenceSilkNetDirectly()
     {
         // Assets.Models wraps Assimp (Silk.NET.Assimp) for edit-time model import; it never ships (see ExportedGameHost_ShipsNoDevelopmentTooling).
-        string[] allowed = ["MNVTEngine.Graphics.Vulkan", "MNVTEngine.Platform", "MNVTEngine.Windowing", "MNVTEngine.Audio.OpenAL", "MNVTEngine.Assets.Models"];
+        string[] allowed = ["MNVTEngine.Graphics.Vulkan", "MNVTEngine.Graphics.Vulkan.ShaderCompiler", "MNVTEngine.Platform", "MNVTEngine.Windowing", "MNVTEngine.Audio.OpenAL", "MNVTEngine.Assets.Models"];
         var violations = Graph.Projects
             .Where(p => p.Area == "Engine" && !allowed.Contains(p.Name))
             .Where(p => p.Packages.Any(pkg => GraphicsBackendPackages.Any(b => pkg.StartsWith(b, StringComparison.OrdinalIgnoreCase))))
@@ -190,6 +190,10 @@ public class DependencyRuleTests
     {
         // Model import (Assimp, SharpGLTF) is edit-time only: exported games read model artifacts.
         Assert.DoesNotContain("MNVTEngine.Assets.Models", Graph.TransitiveReferences("MNVTEngine.GameHost"));
+
+        // Games run on SPIR-V precompiled at build time: the shader compiler (shaderc) is a tool.
+        Assert.DoesNotContain("MNVTEngine.Graphics.Vulkan.ShaderCompiler", Graph.TransitiveReferences("MNVTEngine.GameHost"));
+        Assert.DoesNotContain(Graph.TransitivePackages("MNVTEngine.GameHost"), p => p.StartsWith("Silk.NET.Shaderc", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(Graph.TransitivePackages("MNVTEngine.GameHost"), p => p.StartsWith("Silk.NET.Assimp", StringComparison.OrdinalIgnoreCase) || p.StartsWith("SharpGLTF", StringComparison.OrdinalIgnoreCase));
         Assert.True(Graph.Contains("MNVTEngine.GameHost"));
         Assert.DoesNotContain(Graph.TransitiveReferences("MNVTEngine.GameHost"), r => Graph.Contains(r) && Graph[r].Area is "Editor" or "Tooling");

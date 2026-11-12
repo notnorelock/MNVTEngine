@@ -12,6 +12,7 @@ using MNVTEngine.Serialization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Mnvts = MNVTEngine.Scripting;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.Build;
 
@@ -176,7 +177,7 @@ public static class ContentCompiler
             }
         }
 
-        var shaders = PrecompileShaders(assets, diagnostics, output?.DefaultResources);
+        var shaders = PrecompileShaders(project, assets, diagnostics, output?.DefaultResources);
         if (output is not null)
         {
             output.Globals.Add(AssetDatabase.IndexEntry, Encoding.UTF8.GetBytes(assets.ExportIndex(layout.ArchiveOf).ToString(Formatting.None)));
@@ -187,18 +188,16 @@ public static class ContentCompiler
     }
 
     /// <summary>
-    /// Compiles the built-in sprite shader and every material's shader (its fragment stage with the built-in vertex stage,
-    /// exactly as the runtime builds it) to SPIR-V, checking them as the device would. Returns the number of stages.
+    /// Compiles the built-in sprite shader, the built-in shaders of the project's modules (<see cref="IResourceIntegration.BuiltinShaders"/>)
+    /// and every material's shader (its fragment stage with the built-in vertex stage, exactly as the runtime builds it)
+    /// to SPIR-V, checking them as the device would. Games have no shader compiler: what is not here cannot be drawn.
+    /// Returns the number of stages.
     /// </summary>
-    private static int PrecompileShaders(AssetDatabase assets, List<BuildDiagnostic> diagnostics, ContentArchive.Writer? defaultResources)
+    private static int PrecompileShaders(GameProject project, AssetDatabase assets, List<BuildDiagnostic> diagnostics, ContentArchive.Writer? defaultResources)
     {
-        using var precompiler = new VulkanShaderPrecompiler();
-        ShaderSource[] builtins =
-        [
-            BuiltinShaders.Sprite, Graphics.Materials.MaterialShaders.Standard, Graphics.Materials.MaterialShaders.Unlit, Graphics.Materials.MaterialShaders.ShadowCaster,
-            Graphics.Materials.MaterialShaders.StandardSkinned, Graphics.Materials.MaterialShaders.UnlitSkinned, Graphics.Materials.MaterialShaders.ShadowCasterSkinned,
-            Graphics.Materials.MaterialShaders.StandardInstanced, Graphics.Materials.MaterialShaders.UnlitInstanced, Graphics.Materials.MaterialShaders.Sky,
-        ];
+        using var precompiler = new VulkanShaderPrecompiler(new ShadercCompiler());
+        var modules = ProjectModules.Implementations(ProjectModules.Resolve(project), EngineModuleSet.All()).Modules;
+        ShaderSource[] builtins = [BuiltinShaders.Sprite, .. modules.OfType<IResourceIntegration>().SelectMany(m => m.BuiltinShaders)];
         foreach (var builtin in builtins)
         {
             try

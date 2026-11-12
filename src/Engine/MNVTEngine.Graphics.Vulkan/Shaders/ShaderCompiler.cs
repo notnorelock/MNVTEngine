@@ -2,42 +2,59 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
-using Silk.NET.Shaderc;
-using ShadercApi = Silk.NET.Shaderc.Shaderc;
-using ShadercUniformKind = Silk.NET.Shaderc.UniformKind;
 
 namespace MNVTEngine.Graphics.Vulkan.Shaders;
 
-internal enum ShaderStage
+public enum ShaderStage
 {
     Vertex,
     Fragment,
 }
 
 /// <summary>
-/// GLSL to SPIR-V with shaderc (glslang) for Vulkan 1.4, under Vulkan <em>relaxed rules</em>: loose <c>uniform</c>s are
-/// gathered into <c>gl_DefaultUniformBlock</c>, and unassigned locations and bindings are filled in. Engine GLSL
-/// (<c>#version 450 core</c>, GL style) therefore compiles unchanged. Binding layout of set 0: 0 = <c>uTexture</c>,
-/// 1 = vertex uniforms, 2 = fragment uniforms.
-/// <para>
-/// Lookup order: memory, precompiled SPIR-V (an exported game's default resources, keyed by <see cref="EntryFor"/>),
-/// the disk cache, then shaderc. shaderc is loaded on first use only, so a game whose shaders were all precompiled at
-/// build time never loads it. Keys are a SHA-256 of the source, stage and <see cref="OptionsVersion"/>.
-/// </para>
+/// GLSL to SPIR-V for one stage, under the engine's binding layout (<see cref="ShaderBindings"/>). Development hosts and
+/// the build use shaderc (MNVTEngine.Graphics.Vulkan.ShaderCompiler); exported games have none and run on precompiled
+/// SPIR-V only.
 /// </summary>
-internal sealed unsafe partial class ShaderCompiler : IDisposable
+public interface IGlslCompiler : IDisposable
 {
-    public const uint TextureBinding = 0;
-    public const uint VertexUniformBinding = 1;
-    public const uint FragmentUniformBinding = 2;
+    /// <exception cref="ShaderCompilationException">GLSL errors, with the compiler log.</exception>
+    uint[] Compile(string shaderName, ShaderStage stage, string glsl);
+}
+
+/// <summary>Descriptor set 0 of every engine shader: what a <see cref="IGlslCompiler"/> must produce.</summary>
+public static class ShaderBindings
+{
+    public const uint Texture = 0;
+    public const uint VertexUniforms = 1;
+    public const uint FragmentUniforms = 2;
+
+    /// <summary>Fragment sampler bindings are shifted by this, so they never collide with the uniform blocks.</summary>
+    public const uint FragmentSamplerBase = 3;
+
+    /// <summary>Vertex sampler bindings are shifted by this.</summary>
+    public const uint VertexSamplerBase = 24;
+}
+
+/// <summary>
+/// SPIR-V for the device: from memory, precompiled SPIR-V (an exported game's default resources, keyed by
+/// <see cref="EntryFor"/>), the disk cache, or else the host's <see cref="IGlslCompiler"/>. Exported games have none: a
+/// shader that was not precompiled is an error there. Keys are a SHA-256 of the source, stage and <see cref="OptionsVersion"/>.
+/// Binding layout of set 0: 0 = <c>uTexture</c>, 1 = vertex uniforms, 2 = fragment uniforms (<see cref="ShaderBindings"/>).
+/// </summary>
+internal sealed partial class ShaderCompiler : IDisposable
+{
+    public const uint TextureBinding = ShaderBindings.Texture;
+    public const uint VertexUniformBinding = ShaderBindings.VertexUniforms;
+    public const uint FragmentUniformBinding = ShaderBindings.FragmentUniforms;
 
     /// <summary>
     /// Sampler bindings are shifted by this (fragment stage) or <see cref="VertexSamplerBase"/> (vertex): shaderc's binding
     /// base shifts explicit bindings too, so samplers never collide with the uniform blocks. Textures bind by name.
     /// </summary>
-    public const uint FragmentSamplerBase = 3;
+    public const uint FragmentSamplerBase = ShaderBindings.FragmentSamplerBase;
 
-    public const uint VertexSamplerBase = 24;
+    public const uint VertexSamplerBase = ShaderBindings.VertexSamplerBase;
 
     /// <summary>Bindings at or above are rejected (push descriptors are limited per set).</summary>
     public const uint MaxBindings = 32;
@@ -50,27 +67,23 @@ internal sealed unsafe partial class ShaderCompiler : IDisposable
     // caches written before compiles were serialized can hold SPIR-V that was not compiled with these options.
     private const string OptionsVersion = "vk1.3env-spv1.6-relaxed-b012-o0-2";
 
-    // shaderc is used from several threads in one process (the editor's device on the main thread, builds on a worker).
-    // glslang keeps process-wide state, so compiles run one at a time; they are rare (a few per shader, then cached).
-    private static readonly Lock CompileLock = new();
-
     private readonly string? _cacheDirectory;
     private readonly Func<string, byte[]?>? _precompiled;
     private readonly ILogger _logger;
     private readonly Dictionary<string, uint[]> _memory = new(StringComparer.Ordinal);
-    private ShadercApi? _api;
-    private Compiler* _compiler;
-    private CompileOptions* _options;
+    private readonly IGlslCompiler? _glsl;
 
     /// <param name="precompiled">Reads precompiled SPIR-V by entry name (<see cref="EntryFor"/>); null when there is none.</param>
-    public ShaderCompiler(string? cacheDirectory, ILogger logger, Func<string, byte[]?>? precompiled = null)
+    /// <param name="glsl">Compiles what is not precompiled or cached; null in exported games. Owned by this instance.</param>
+    public ShaderCompiler(string? cacheDirectory, ILogger logger, Func<string, byte[]?>? precompiled = null, IGlslCompiler? glsl = null)
     {
         _logger = logger;
         _cacheDirectory = cacheDirectory;
         _precompiled = precompiled;
+        _glsl = glsl;
     }
 
-    /// <summary>Stages compiled by shaderc in this process (not found precompiled, cached or in memory).</summary>
+    /// <summary>Stages compiled from GLSL in this process (not found precompiled, cached or in memory).</summary>
     public int Compiled { get; private set; }
 
     /// <summary>Stages served from precompiled SPIR-V.</summary>
@@ -115,90 +128,16 @@ internal sealed unsafe partial class ShaderCompiler : IDisposable
         return (uint[])compiled.Clone();
     }
 
-    public void Dispose()
-    {
-        if (_api is not null)
-        {
-            _api.CompileOptionsRelease(_options);
-            _api.CompilerRelease(_compiler);
-            _api.Dispose();
-            _api = null;
-        }
-    }
+    public void Dispose() => _glsl?.Dispose();
 
     private static uint[]? ToWords(byte[] bytes) =>
         bytes.Length >= 20 && bytes.Length % 4 == 0 && BitConverter.ToUInt32(bytes, 0) == 0x07230203 ? MemoryMarshal.Cast<byte, uint>(bytes).ToArray() : null;
 
-    private ShadercApi Api()
-    {
-        if (_api is not null)
-        {
-            return _api;
-        }
+    private uint[] CompileCore(string shaderName, ShaderStage stage, string glsl) =>
+        _glsl?.Compile(shaderName, stage, glsl)
+        ?? throw new ShaderCompilationException(shaderName, stage == ShaderStage.Vertex ? "vertex" : "fragment",
+            "The shader was not precompiled, and this executable has no shader compiler (MNVTEngine.Graphics.Vulkan.ShaderCompiler). Rebuild the game.");
 
-        ShadercApi api;
-        try
-        {
-            api = ShadercApi.GetApi();
-        }
-        catch (Exception ex) when (ex is DllNotFoundException or FileNotFoundException or EntryPointNotFoundException)
-        {
-            throw new GraphicsInitializationException("The shader compiler (shaderc_shared) could not be loaded.", ex);
-        }
-
-        _compiler = api.CompilerInitialize();
-        _options = api.CompileOptionsInitialize();
-        // The bundled shaderc knows no Vulkan 1.4 environment (it silently falls back to 1.0). SPIR-V 1.6 is the newest
-        // version Vulkan 1.4 consumes and is what the 1.3 environment produces, so nothing is lost.
-        api.CompileOptionsSetTargetEnv(_options, TargetEnv.Vulkan, (uint)EnvVersion.Vulkan13);
-        api.CompileOptionsSetTargetSpirv(_options, SpirvVersion.Shaderc16);
-        api.CompileOptionsSetVulkanRulesRelaxed(_options, true);
-        api.CompileOptionsSetAutoMapLocations(_options, true);
-        api.CompileOptionsSetAutoBindUniforms(_options, true);
-        api.CompileOptionsSetBindingBaseForStage(_options, ShaderKind.VertexShader, ShadercUniformKind.Buffer, VertexUniformBinding);
-        api.CompileOptionsSetBindingBaseForStage(_options, ShaderKind.FragmentShader, ShadercUniformKind.Buffer, FragmentUniformBinding);
-        api.CompileOptionsSetBindingBaseForStage(_options, ShaderKind.FragmentShader, ShadercUniformKind.Texture, FragmentSamplerBase);
-        api.CompileOptionsSetBindingBaseForStage(_options, ShaderKind.VertexShader, ShadercUniformKind.Texture, VertexSamplerBase);
-        api.CompileOptionsSetOptimizationLevel(_options, OptimizationLevel.Zero); // the optimizer strips the names reflection and linking need; drivers optimize anyway
-        return _api = api;
-    }
-
-    private uint[] CompileCore(string shaderName, ShaderStage stage, string glsl)
-    {
-        lock (CompileLock)
-        {
-            return CompileLocked(shaderName, stage, glsl);
-        }
-    }
-
-    private uint[] CompileLocked(string shaderName, ShaderStage stage, string glsl)
-    {
-        var api = Api();
-        var source = Encoding.UTF8.GetBytes(glsl);
-        var kind = stage == ShaderStage.Vertex ? ShaderKind.VertexShader : ShaderKind.FragmentShader;
-        var stageName = stage == ShaderStage.Vertex ? "vertex" : "fragment";
-        CompilationResult* result;
-        fixed (byte* p = source)
-        {
-            result = api.CompileIntoSpv(_compiler, p, (nuint)source.Length, kind, shaderName, "main", _options);
-        }
-
-        try
-        {
-            if (api.ResultGetCompilationStatus(result) != CompilationStatus.Success)
-            {
-                var log = Marshal.PtrToStringUTF8((nint)api.ResultGetErrorMessage(result)) ?? "Unknown shaderc error.";
-                throw new ShaderCompilationException(shaderName, stageName, log.Trim());
-            }
-
-            var length = (int)api.ResultGetLength(result);
-            return new ReadOnlySpan<uint>(api.ResultGetBytes(result), length / sizeof(uint)).ToArray();
-        }
-        finally
-        {
-            api.ResultRelease(result);
-        }
-    }
     private static string CacheKey(ShaderStage stage, string glsl) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{OptionsVersion}\n{stage}\n{glsl}")));
 

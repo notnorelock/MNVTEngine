@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- GLSL to SPIR-V (shaderc) for the editor, Player, build and tests. Exported games run on precompiled SPIR-V and never ship this. -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Silk.NET.Shaderc" />
+    <PackageReference Include="Silk.NET.Shaderc.Native" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" />
+  </ItemGroup>
+</Project>

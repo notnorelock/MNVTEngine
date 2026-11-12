@@ -7,6 +7,7 @@
     <PackageReference Include="StbImageWriteSharp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics.Vulkan.ShaderCompiler\MNVTEngine.Graphics.Vulkan.ShaderCompiler.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Platform\MNVTEngine.Platform.csproj" />
   </ItemGroup>

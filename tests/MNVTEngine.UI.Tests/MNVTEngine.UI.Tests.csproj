@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <!-- CPU tests run anywhere; rendering tests need a Vulkan 1.4 GPU and are skipped without one. -->
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics.Vulkan.ShaderCompiler\MNVTEngine.Graphics.Vulkan.ShaderCompiler.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.UI\MNVTEngine.UI.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" />
   </ItemGroup>

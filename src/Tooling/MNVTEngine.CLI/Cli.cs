@@ -5,6 +5,7 @@ using MNVTEngine.Build;
 using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Modules;
 using MNVTEngine.Runtime;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.CLI;
 
@@ -229,7 +230,7 @@ public static class Cli
         return DevelopmentRun.Run(
             [project, .. command.Passthrough("--frames", "--screenshot", "--profile", "--gpu-validation")],
             loggerFactory,
-            (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication("Player", window.Options.VSync, window.Options.GraphicsValidation)),
+            (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication("Player", window.Options.VSync, window.Options.GraphicsValidation).WithShaderc()),
             Audio.OpenAL.OpenALAudioDevice.Create) == 0 ? Ok : Failed;
     }
 

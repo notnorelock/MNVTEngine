@@ -135,6 +135,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.World3D", "src\E
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.World3D.Rendering", "src\Engine\MNVTEngine.World3D.Rendering\MNVTEngine.World3D.Rendering.csproj", "{F10CCF2D-16B9-43DC-8C16-B1FB1DF65051}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Graphics.Vulkan.ShaderCompiler", "src\Engine\MNVTEngine.Graphics.Vulkan.ShaderCompiler\MNVTEngine.Graphics.Vulkan.ShaderCompiler.csproj", "{B44892E9-C615-4838-BF80-75E95FA6811F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -937,6 +939,18 @@ Global
 		{F10CCF2D-16B9-43DC-8C16-B1FB1DF65051}.Release|x64.Build.0 = Release|Any CPU
 		{F10CCF2D-16B9-43DC-8C16-B1FB1DF65051}.Release|x86.ActiveCfg = Release|Any CPU
 		{F10CCF2D-16B9-43DC-8C16-B1FB1DF65051}.Release|x86.Build.0 = Release|Any CPU
+		{B44892E9-C615-4838-BF80-75E95FA6811F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B44892E9-C615-4838-BF80-75E95FA6811F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B44892E9-C615-4838-BF80-75E95FA6811F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B44892E9-C615-4838-BF80-75E95FA6811F}.Debug|x64.Build.0 = Debug|Any CPU
+		{B44892E9-C615-4838-BF80-75E95FA6811F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B44892E9-C615-4838-BF80-75E95FA6811F}.Debug|x86.Build.0 = Debug|Any CPU
+		{B44892E9-C615-4838-BF80-75E95FA6811F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B44892E9-C615-4838-BF80-75E95FA6811F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B44892E9-C615-4838-BF80-75E95FA6811F}.Release|x64.ActiveCfg = Release|Any CPU
+		{B44892E9-C615-4838-BF80-75E95FA6811F}.Release|x64.Build.0 = Release|Any CPU
+		{B44892E9-C615-4838-BF80-75E95FA6811F}.Release|x86.ActiveCfg = Release|Any CPU
+		{B44892E9-C615-4838-BF80-75E95FA6811F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

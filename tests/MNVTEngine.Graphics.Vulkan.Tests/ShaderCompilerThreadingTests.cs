@@ -1,5 +1,6 @@
 using MNVTEngine.Graphics.Materials;
 using MNVTEngine.Graphics.Vulkan.Shaders;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.Graphics.Vulkan.Tests;
 
@@ -14,7 +15,7 @@ public class ShaderCompilerThreadingTests
         {
             for (var i = 0; i < 5; i++)
             {
-                using var precompiler = new VulkanShaderPrecompiler();
+                using var precompiler = new VulkanShaderPrecompiler(new ShadercCompiler());
                 foreach (var source in new[] { MaterialShaders.Standard, MaterialShaders.Unlit, MaterialShaders.StandardSkinned, MaterialShaders.StandardInstanced, MaterialShaders.ShadowCaster })
                 {
                     try
@@ -42,7 +43,7 @@ public class ShaderBindingTests
     [Fact]
     public void Bindings_AreAssignedAtLink_EvenWhenTheCompilerNumberedThemFromZero()
     {
-        using var compiler = new ShaderCompiler(null, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        using var compiler = new ShaderCompiler(null, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, glsl: new ShadercCompiler());
         var vertex = SpirvModule.Parse(compiler.Compile("Standard", ShaderStage.Vertex, MaterialShaders.Standard.VertexGlsl));
         var fragment = SpirvModule.Parse(compiler.Compile("Standard", ShaderStage.Fragment, MaterialShaders.Standard.FragmentGlsl));
 

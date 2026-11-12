@@ -12,8 +12,9 @@ public class ModuleBoundaryTests
     private static readonly ProjectGraph Graph = ProjectGraph.Load();
     private static readonly ModuleCatalog Catalog = ModuleCatalog.Builtin;
 
-    // Engine projects that are not part of a module: the game executable, which hosts the modules, and model import (build tooling).
-    private static readonly string[] NotInAModule = ["MNVTEngine.GameHost", "MNVTEngine.Assets.Models"];
+    // Engine projects that are not part of a module: the game executable, which hosts the modules, and the tools model
+    // import and shader compilation (exported games read imported models and precompiled SPIR-V).
+    private static readonly string[] NotInAModule = ["MNVTEngine.GameHost", "MNVTEngine.Assets.Models", "MNVTEngine.Graphics.Vulkan.ShaderCompiler"];
 
     /// <summary>
     /// References that cross module boundaries today. Each must be removed, not added to: the test fails for a new

@@ -4,6 +4,7 @@ using MNVTEngine.Core.Timing;
 using MNVTEngine.Mathematics;
 using MNVTEngine.Platform;
 using static MNVTEngine.Graphics.Vulkan.Tests.VulkanHarness;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.Graphics.Vulkan.Tests;
 
@@ -119,7 +120,7 @@ public class VulkanSwapchainTests
                 VulkanGraphicsDevice device;
                 try
                 {
-                    device = VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, logger, new VulkanDeviceOptions { Validation = true, VSync = false });
+                    device = VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, logger, new VulkanDeviceOptions { Validation = true, VSync = false }.WithShaderc());
                 }
                 catch (GraphicsInitializationException ex)
                 {

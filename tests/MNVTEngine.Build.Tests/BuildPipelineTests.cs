@@ -244,10 +244,10 @@ public sealed class BuildPipelineTests : IDisposable
         Assert.Equal("resources.mnvtpak", content.ArchiveOf(Assets.AssetDatabase.CompiledEntry(Guid.Parse("a1000000-0000-4000-8000-000000000005")))); // bytecode follows its script
         Assert.Equal("globals.mnvtpak", content.ArchiveOf("Game.mnvtproj"));
 
-        // Sprite vertex + fragment, the shared mesh vertex stage with the Standard, Unlit and Sky fragments, the shadow
-        // caster's two stages, the custom fragment.
-        Assert.Equal(12, result.Shaders); // unique stages: the skinned and instanced variants add three vertex stages and reuse their fragment stages
-        Assert.Equal(12, content.Archives[1].Entries.Count(e => e.StartsWith("Shaders/", StringComparison.Ordinal)));
+        // A 2D project: sprite vertex + fragment and the custom fragment. world.3d's mesh, shadow and sky shaders are not
+        // part of its modules, so they are neither compiled nor shipped.
+        Assert.Equal(3, result.Shaders);
+        Assert.Equal(3, content.Archives[1].Entries.Count(e => e.StartsWith("Shaders/", StringComparison.Ordinal)));
         Assert.Equal(archives.Sum(a => a.Entries), content.Entries.Count());
 
         var index = Newtonsoft.Json.Linq.JObject.Parse(System.Text.Encoding.UTF8.GetString(content.Read(Assets.AssetDatabase.IndexEntry)));
@@ -286,6 +286,15 @@ public sealed class BuildPipelineTests : IDisposable
         var model = Assets.AssetDatabase.OpenPackaged(archive).ReadArtifact(guid, Assets.Models.ModelArtifact.Name);
         Assert.NotNull(model);
         Assert.NotEmpty(Assets.Models.ModelArtifact.Read(model).Meshes);
+    }
+
+    [Fact]
+    public void Shaders_ArePrecompiledForTheProjectsModulesOnly()
+    {
+        // 3D: sprite (2 stages), the shared mesh vertex stage with the Standard, Unlit and Sky fragments, the shadow
+        // caster (2), the skinned and instanced vertex stages (3); terrain adds its splat fragment.
+        Assert.Equal(12, ContentCompiler.Compile(NewProject("empty-3d", "Deep"), Registry, output: null).Shaders);
+        Assert.Equal(2, ContentCompiler.Compile(NewProject("empty-2d", "Flat"), Registry, output: null).Shaders); // the sprite shader only
     }
 
     [Fact]

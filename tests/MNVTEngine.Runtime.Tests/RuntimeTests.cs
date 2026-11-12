@@ -6,6 +6,7 @@ using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Platform;
 using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.Runtime.Tests;
 
@@ -92,7 +93,7 @@ public sealed class RuntimeTests : IDisposable
         var runtime = new GameRuntime(
             project,
             registry,
-            (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }),
+            (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }.WithShaderc()),
             factory,
             new GameRuntimeOptions { ExitAfterFrames = 10, Modules = Build.EngineModuleSet.All() });
         using (window)
@@ -367,7 +368,7 @@ public sealed class RuntimeTests : IDisposable
         }
 
         var runtime = new GameRuntime(project, registry,
-            (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }),
+            (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }.WithShaderc()),
             factory, new GameRuntimeOptions { ExitAfterFrames = frames, ScreenshotPath = screenshot, Profiler = profiler, GpuInstancing = instancing, Modules = Build.EngineModuleSet.All() });
         using (window)
         {

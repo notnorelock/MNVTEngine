@@ -3,6 +3,7 @@ using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Mathematics;
 using MNVTEngine.UI.Widgets;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.UI.Tests;
 
@@ -17,7 +18,7 @@ public sealed class UIRenderingTests
         VulkanGraphicsDevice device;
         try
         {
-            device = VulkanGraphicsDevice.CreateHeadless(W, H, NullLogger.Instance, new VulkanDeviceOptions { Validation = true });
+            device = VulkanGraphicsDevice.CreateHeadless(W, H, NullLogger.Instance, new VulkanDeviceOptions { Validation = true }.WithShaderc());
         }
         catch (GraphicsInitializationException ex)
         {

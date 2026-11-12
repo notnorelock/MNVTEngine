@@ -3,8 +3,6 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Silk.NET.Shaderc" />
-    <PackageReference Include="Silk.NET.Shaderc.Native" />
     <PackageReference Include="Silk.NET.Vulkan" />
     <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" />
     <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" />

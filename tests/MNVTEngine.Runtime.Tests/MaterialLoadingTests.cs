@@ -4,6 +4,7 @@ using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Mathematics;
 using MNVTEngine.Scenes;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.Runtime.Tests;
 
@@ -46,7 +47,7 @@ public sealed class MaterialLoadingTests : IDisposable
         VulkanGraphicsDevice device;
         try
         {
-            device = VulkanGraphicsDevice.CreateHeadless(16, 16, NullLogger.Instance);
+            device = VulkanGraphicsDevice.CreateHeadless(16, 16, NullLogger.Instance, new VulkanDeviceOptions().WithShaderc());
         }
         catch (GraphicsInitializationException ex)
         {

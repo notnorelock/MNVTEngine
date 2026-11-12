@@ -5,6 +5,7 @@ using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Runtime.Loading;
 using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.Runtime.Tests;
 
@@ -29,7 +30,7 @@ public sealed class SceneLoadingTests : IDisposable
         VulkanGraphicsDevice device;
         try
         {
-            device = VulkanGraphicsDevice.CreateHeadless(16, 16, NullLogger.Instance);
+            device = VulkanGraphicsDevice.CreateHeadless(16, 16, NullLogger.Instance, new VulkanDeviceOptions().WithShaderc());
         }
         catch (GraphicsInitializationException ex)
         {
@@ -104,7 +105,7 @@ public sealed class SceneLoadingTests : IDisposable
         VulkanGraphicsDevice device;
         try
         {
-            device = VulkanGraphicsDevice.CreateHeadless(640, 360, NullLogger.Instance, new VulkanDeviceOptions { Validation = true });
+            device = VulkanGraphicsDevice.CreateHeadless(640, 360, NullLogger.Instance, new VulkanDeviceOptions { Validation = true }.WithShaderc());
         }
         catch (GraphicsInitializationException ex)
         {

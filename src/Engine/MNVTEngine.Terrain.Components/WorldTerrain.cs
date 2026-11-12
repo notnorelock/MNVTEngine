@@ -236,6 +236,8 @@ public sealed class TerrainModule : Scenes.IEngineModule, Runtime.IResourceInteg
 {
     public string Id => "terrain";
 
+    public IReadOnlyList<Graphics.ShaderSource> BuiltinShaders { get; } = [Graphics.Materials.MaterialShaders.TerrainSplat];
+
     public void Register(Scenes.ComponentRegistry components) => TerrainComponents.Register(components);
 
     public void RegisterResources(Runtime.ResourceCache resources)

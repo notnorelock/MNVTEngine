@@ -6,6 +6,7 @@ using MNVTEngine.Graphics.Meshes;
 using MNVTEngine.Graphics.Rendering3D;
 using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Mathematics;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.Runtime.Tests;
 
@@ -27,7 +28,7 @@ public sealed class EmptySceneDepthTests : IDisposable
         VulkanGraphicsDevice device;
         try
         {
-            device = VulkanGraphicsDevice.CreateHeadless(Size, Size, NullLogger.Instance, new VulkanDeviceOptions { Validation = true });
+            device = VulkanGraphicsDevice.CreateHeadless(Size, Size, NullLogger.Instance, new VulkanDeviceOptions { Validation = true }.WithShaderc());
         }
         catch (GraphicsInitializationException ex)
         {

@@ -5,6 +5,7 @@ using MNVTEngine.Core.Logging;
 using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Platform;
 using MNVTEngine.Scenes;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.Runtime.Tests;
 
@@ -273,7 +274,7 @@ public sealed class ModelRuntimeTests : IDisposable
         VulkanGraphicsDevice device;
         try
         {
-            device = VulkanGraphicsDevice.CreateHeadless(16, 16, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+            device = VulkanGraphicsDevice.CreateHeadless(16, 16, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, new VulkanDeviceOptions().WithShaderc());
         }
         catch (Graphics.GraphicsInitializationException ex)
         {
@@ -306,7 +307,7 @@ public sealed class ModelRuntimeTests : IDisposable
         }
 
         var runtime = new GameRuntime(project, Build.EngineModuleSet.CreateRegistry(),
-            (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }),
+            (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }.WithShaderc()),
             factory, new GameRuntimeOptions { ExitAfterFrames = 3, ScreenshotPath = screenshot, GpuSkinning = gpuSkinning, Modules = Build.EngineModuleSet.All() });
         using (window)
         {

@@ -128,7 +128,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
 
             Context = new VulkanContext(_instance, _surface, _khrSurface, options.ResolvePreferredDevice(), logger);
             _allocator = new GpuAllocator(Context);
-            _compiler = new ShaderCompiler(options.ShaderCacheDirectory, logger, options.PrecompiledShaders);
+            _compiler = new ShaderCompiler(options.ShaderCacheDirectory, logger, options.PrecompiledShaders, options.ShaderCompiler?.Invoke());
             _pipelines = new PipelineFactory(Context, options.PipelineCachePath, logger);
             _slots = new FrameSlot[FramesInFlight];
             for (var i = 0; i < FramesInFlight; i++)

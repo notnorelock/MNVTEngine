@@ -15,6 +15,7 @@ using MNVTEngine.Runtime;
 using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
 using SysVector2 = System.Numerics.Vector2;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.Editor;
 
@@ -77,7 +78,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
     public void Load(GameWindow window)
     {
-        var device = VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"), VulkanDeviceOptions.ForApplication("Editor", window.Options.VSync, window.Options.GraphicsValidation));
+        var device = VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"), VulkanDeviceOptions.ForApplication("Editor", window.Options.VSync, window.Options.GraphicsValidation).WithShaderc());
         var renderer = new Renderer2D(device);
         var session = new EditorSession(project, registry, loggerFactory.CreateLogger("Assets"));
         var resources = new ResourceCache(device, session.Assets, loggerFactory.CreateLogger("Resources"));

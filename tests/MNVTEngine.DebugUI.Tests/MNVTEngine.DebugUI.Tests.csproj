@@ -4,6 +4,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics.Vulkan.ShaderCompiler\MNVTEngine.Graphics.Vulkan.ShaderCompiler.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.DebugUI\MNVTEngine.DebugUI.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" />
   </ItemGroup>

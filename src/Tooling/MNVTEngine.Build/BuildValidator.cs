@@ -20,12 +20,13 @@ public static class BuildValidator
     /// <summary>Native libraries the engine loads by name at run time, per target. Vulkan itself (vulkan-1.dll) comes from the GPU driver.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> RequiredNativeLibraries = new Dictionary<string, string[]>
     {
-        ["win-x64"] = ["glfw3.dll", "soft_oal.dll", "shaderc_shared.dll", "vma.dll"],
+        ["win-x64"] = ["glfw3.dll", "soft_oal.dll", "vma.dll"],
     };
 
     /// <summary>Assembly name prefixes that must never ship: the editor, build tooling, compilers.</summary>
     public static readonly IReadOnlyList<string> DevelopmentOnlyPrefixes =
-        ["MNVTEngine.Editor", "MNVTEngine.Build", "MNVTEngine.Player", "MNVTEngine.CLI", "mnvt.", "Microsoft.Build", "Microsoft.CodeAnalysis"];
+        ["MNVTEngine.Editor", "MNVTEngine.Build", "MNVTEngine.Player", "MNVTEngine.CLI", "mnvt.", "Microsoft.Build", "Microsoft.CodeAnalysis",
+         "MNVTEngine.Graphics.Vulkan.ShaderCompiler", "Silk.NET.Shaderc", "shaderc_shared"]; // games run on precompiled SPIR-V
 
     /// <summary>The in-game debug UI: allowed only in games whose manifest says <see cref="GamePackage.DevTools"/>.</summary>
     public static readonly IReadOnlyList<string> DevToolsPrefixes = ["MNVTEngine.DebugUI", "ImGui", "cimgui"];

@@ -37,9 +37,9 @@ public static class BuiltinModules
         RuntimeAssemblies =
         [
             "MNVTEngine.Graphics", "MNVTEngine.Graphics.Vulkan", "Silk.NET.Vulkan", "Silk.NET.Vulkan.Extensions.EXT", "Silk.NET.Vulkan.Extensions.KHR",
-            "Silk.NET.Shaderc", "Vortice.Vulkan", "Vortice.VulkanMemoryAllocator", "StbImageSharp", "StbTrueTypeSharp",
+            "Vortice.Vulkan", "Vortice.VulkanMemoryAllocator", "StbImageSharp", "StbTrueTypeSharp",
         ],
-        NativeLibraries = ["shaderc_shared.dll", "vma.dll"],
+        NativeLibraries = ["vma.dll"],
         BuildAssets = ["shader:sprite"],
     };
 

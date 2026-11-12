@@ -1,5 +1,6 @@
 using MNVTEngine.Mathematics;
 using static MNVTEngine.Graphics.Vulkan.Tests.VulkanHarness;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.Graphics.Vulkan.Tests;
 
@@ -157,7 +158,7 @@ public class VulkanDeviceTests
         var directory = Directory.CreateTempSubdirectory("mnvt-vk-cache-").FullName;
         try
         {
-            var options = new VulkanDeviceOptions { Validation = true, PipelineCachePath = Path.Combine(directory, "pipelines.bin"), ShaderCacheDirectory = Path.Combine(directory, "Shaders") };
+            var options = new VulkanDeviceOptions { Validation = true, PipelineCachePath = Path.Combine(directory, "pipelines.bin"), ShaderCacheDirectory = Path.Combine(directory, "Shaders") }.WithShaderc();
             Run(device =>
             {
                 using var renderer = new Renderer2D(device);
@@ -167,8 +168,8 @@ public class VulkanDeviceTests
                 Assert.Equal(1, device.PipelinesCreated); // never rebuilt
             }, options);
 
-            Assert.True(new FileInfo(options.PipelineCachePath).Length > 0);
-            Assert.Equal(2, Directory.GetFiles(options.ShaderCacheDirectory, "*.spv").Length);
+            Assert.True(new FileInfo(options.PipelineCachePath!).Length > 0);
+            Assert.Equal(2, Directory.GetFiles(options.ShaderCacheDirectory!, "*.spv").Length);
             Run(device =>
             {
                 using var renderer = new Renderer2D(device);

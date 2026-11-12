@@ -29,6 +29,13 @@ public sealed record VulkanDeviceOptions
     public Func<string, byte[]?>? PrecompiledShaders { get; init; }
 
     /// <summary>
+    /// Creates the GLSL compiler for shaders that are neither precompiled nor cached; the device owns it. Null (exported
+    /// games): such a shader fails with <see cref="ShaderCompilationException"/>. Development hosts pass shaderc
+    /// (<c>WithShaderc()</c> from MNVTEngine.Graphics.Vulkan.ShaderCompiler).
+    /// </summary>
+    public Func<Shaders.IGlslCompiler>? ShaderCompiler { get; init; }
+
+    /// <summary>
     /// Options for an application window: pipeline and SPIR-V caches in <c>%LOCALAPPDATA%\MNVTEngine\GpuCache\&lt;name&gt;</c>
     /// (per user, per application; safe to delete).
     /// </summary>

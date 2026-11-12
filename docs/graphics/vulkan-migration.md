@@ -100,7 +100,7 @@ It records the decisions and is kept up to date as the phases land.
 | VMA through a second binding (Vortice) | Confined to `GpuAllocator`; handles are plain `ulong`/`nint` in both bindings. If it becomes a problem, VMA can be replaced behind the same class |
 | Relaxed GLSL rules differ subtly from GL (e.g. uniform arrays, `sampler2D` other than binding 0) | Reflection rejects unsupported uniform types with a `ShaderCompilationException` instead of drawing wrongly |
 | Swapchain behaviour on hidden windows (tests) | GPU tests use the headless device; window tests only check presentation |
-| Native size of exported games grows (`shaderc_shared.dll` 7 MB, `vma.dll`) | Accepted. Shaders could later be precompiled at export time to drop shaderc from Release builds |
+| Native size of exported games grows (`shaderc_shared.dll` 7 MB, `vma.dll`) | Resolved: shaders are precompiled at export time and games no longer ship shaderc ([rendering](rendering.md)) |
 | Driver differences in present modes and formats | Chosen from what the surface reports; FIFO (always available) when VSync is on |
 
 ## Diagnostics (Phase 5)

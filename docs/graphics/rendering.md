@@ -53,6 +53,7 @@ Design decisions, the synchronization model and the migration from OpenGL are in
 
 - `Material` = `Shader` + `BlendMode` (Opaque, Alpha, Premultiplied, Additive, Multiply) + named uniforms.
 - Shaders are GLSL `#version 450 core` written GL-style: loose `uniform`s, and `in`/`out` without locations. shaderc compiles them to SPIR-V under Vulkan relaxed rules.
+- **Shader compilation is a tool.** shaderc lives in `MNVTEngine.Graphics.Vulkan.ShaderCompiler` (`ShadercCompiler`, `options.WithShaderc()`), which the editor, Player, CLI, build and tests pass to the device. Exported games have no compiler: the build precompiles the sprite shader, the built-in shaders of the project's modules (`IResourceIntegration.BuiltinShaders`) and every material's shader into the default resources, and a shader missing from them fails with `ShaderCompilationException` ("not precompiled"). The validator rejects shaderc in a package (MNVB507).
   - Fragment inputs are linked to vertex outputs by name.
   - Material uniforms are matched by name through SPIR-V reflection.
   - Two names are reserved: `uViewProjection` and `uTexture` (binding 0, the only texture). Supported uniform types are `float`, `int`, `vec2`, `vec4` and `mat4`. Other types compile but cannot be set (they read as 0).

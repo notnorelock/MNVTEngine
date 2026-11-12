@@ -102,7 +102,7 @@ Builds/release/
 ├── MyGame.runtimeconfig.json
 ├── Dependencies/
 │   ├── Managed/                 MNVTEngine.*.dll, Newtonsoft.Json, Silk.NET.*, StbImage*, Microsoft.Extensions.*
-│   ├── Native/                  glfw3.dll, soft_oal.dll (OpenAL Soft, LGPL), shaderc_shared.dll, vma.dll
+│   ├── Native/                  glfw3.dll, soft_oal.dll (OpenAL Soft, LGPL), vma.dll
 │   └── Runtime/                 private .NET runtime
 │       ├── host/fxr/<version>/hostfxr.dll
 │       └── shared/Microsoft.NETCore.App/<version>/   coreclr.dll, System.*.dll, ...
@@ -180,7 +180,7 @@ Each archive has one AES-256-GCM encrypted, authenticated entry per file. The en
 
 - Windows 10/11 x64.
 - A GPU and driver with **Vulkan 1.4**. `vulkan-1.dll` (the loader) and the GPU driver come from the vendor; they are not packaged and cannot be. Without them the game logs the reason and exits with code 4.
-- Nothing else needs to be installed: the .NET runtime, `glfw3.dll`, `soft_oal.dll`, `shaderc_shared.dll` and `vma.dll` ship in `Dependencies/`. Without an audio device the game runs silently.
+- Nothing else needs to be installed: the .NET runtime, `glfw3.dll`, `soft_oal.dll` and `vma.dll` ship in `Dependencies/`. The shader compiler (shaderc) does not: games run on SPIR-V precompiled at build time, and the validator rejects shaderc in a package (MNVB507). Without an audio device the game runs silently.
 - Shaders compile on first run and are cached with the driver's pipeline cache in `%LOCALAPPDATA%\MNVTEngine\GpuCache\<game>`.
 
 ## Validation
@@ -193,7 +193,7 @@ Each archive has one AES-256-GCM encrypted, authenticated entry per file. The en
 | MNVB503 | `<exe>.exe`, `.dll` and `.runtimeconfig.json` are in the root |
 | MNVB504 | The private runtime is complete: `hostfxr`, `hostpolicy`, `coreclr`, `System.Private.CoreLib` and the framework `deps.json` for the version in the runtime config |
 | MNVB505 | Every assembly reference of the host and of `Dependencies/Managed` resolves to the private runtime or `Dependencies/Managed`; every shipped assembly is valid |
-| MNVB506 | Required native libraries for the target are in `Dependencies/Native` (`glfw3.dll`, `soft_oal.dll`, `shaderc_shared.dll`, `vma.dll` on win-x64) |
+| MNVB506 | Required native libraries for the target are in `Dependencies/Native` (`glfw3.dll`, `soft_oal.dll`, `vma.dll` on win-x64) |
 | MNVB507 | No development-only assemblies (editor, build tooling, ImGui, MSBuild, Roslyn) |
 | MNVB508 | Every file matches its manifest size and SHA-256 |
 | MNVB509 | Warning for files that are not part of the build (`Logs/` is ignored) |

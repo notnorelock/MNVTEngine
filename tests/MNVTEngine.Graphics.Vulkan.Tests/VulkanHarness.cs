@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Core.Logging;
 using MNVTEngine.Mathematics;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.Graphics.Vulkan.Tests;
 
@@ -15,7 +16,7 @@ internal static class VulkanHarness
         VulkanGraphicsDevice device;
         try
         {
-            device = VulkanGraphicsDevice.CreateHeadless(width, height, logs.CreateLogger("Vulkan"), options ?? new VulkanDeviceOptions { Validation = true });
+            device = VulkanGraphicsDevice.CreateHeadless(width, height, logs.CreateLogger("Vulkan"), (options ?? new VulkanDeviceOptions { Validation = true }).WithShaderc());
         }
         catch (GraphicsInitializationException ex)
         {

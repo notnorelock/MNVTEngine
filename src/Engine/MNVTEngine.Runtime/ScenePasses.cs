@@ -15,6 +15,12 @@ public sealed record RenderServices(Renderer2D Renderer, ResourceCache Resources
 /// <summary>A module with resources of its own: built-in shaders, caches (<see cref="IResourceExtension"/>).</summary>
 public interface IResourceIntegration
 {
+    /// <summary>
+    /// Every built-in shader the module may create at run time. The build precompiles them for the project's modules:
+    /// exported games have no shader compiler, so a shader missing here fails when it is first used.
+    /// </summary>
+    IReadOnlyList<ShaderSource> BuiltinShaders { get; }
+
     /// <summary>Adds the module's resources to a cache. May be called again for the same cache: then it does nothing.</summary>
     void RegisterResources(ResourceCache resources);
 }

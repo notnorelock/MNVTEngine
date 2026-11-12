@@ -9,6 +9,7 @@ using MNVTEngine.Platform;
 using MNVTEngine.Runtime;
 using MNVTEngine.Scenes;
 using Debug = MNVTEngine.Diagnostics.Debug;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.DebugUI.Tests;
 
@@ -26,7 +27,7 @@ public sealed class DebugOverlayTests
         VulkanGraphicsDevice device;
         try
         {
-            device = VulkanGraphicsDevice.CreateHeadless(Width, Height, NullLogger.Instance, new VulkanDeviceOptions { Validation = true });
+            device = VulkanGraphicsDevice.CreateHeadless(Width, Height, NullLogger.Instance, new VulkanDeviceOptions { Validation = true }.WithShaderc());
         }
         catch (GraphicsInitializationException ex)
         {

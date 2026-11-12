@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Abstractions;
 using MNVTEngine.Graphics.Vulkan.Pipelines;
 
 namespace MNVTEngine.Graphics.Vulkan.Shaders;
@@ -9,9 +9,9 @@ namespace MNVTEngine.Graphics.Vulkan.Shaders;
 /// entries (<c>Shaders/&lt;hash&gt;.spv</c>). A game passes those entries to <see cref="VulkanDeviceOptions.PrecompiledShaders"/>
 /// and then compiles nothing at run time. Needs no GPU.
 /// </summary>
-public sealed class VulkanShaderPrecompiler : IDisposable
+public sealed class VulkanShaderPrecompiler(IGlslCompiler glsl) : IDisposable
 {
-    private readonly ShaderCompiler _compiler = new(null, NullLogger.Instance);
+    private readonly ShaderCompiler _compiler = new(null, NullLogger.Instance, glsl: glsl ?? throw new ArgumentNullException(nameof(glsl)));
     private readonly SortedDictionary<string, byte[]> _entries = new(StringComparer.Ordinal);
 
     /// <summary>Archive entries collected so far, sorted by name (identical sources share an entry).</summary>

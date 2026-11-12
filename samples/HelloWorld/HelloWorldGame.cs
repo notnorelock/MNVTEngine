@@ -4,6 +4,7 @@ using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Mathematics;
 using MNVTEngine.Platform;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.Samples.HelloWorld;
 
@@ -34,7 +35,7 @@ internal sealed class HelloWorldGame(ILogger logger, int? exitAfterFrames, strin
     public void Load(GameWindow window)
     {
         _window = window;
-        _device = VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, logger, VulkanDeviceOptions.ForApplication("HelloWorld", window.Options.VSync, window.Options.GraphicsValidation));
+        _device = VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, logger, VulkanDeviceOptions.ForApplication("HelloWorld", window.Options.VSync, window.Options.GraphicsValidation).WithShaderc());
         _renderer = new Renderer2D(_device);
         _additive = _renderer.CreateSpriteMaterial(BlendMode.Additive, "Sprite/Additive");
 

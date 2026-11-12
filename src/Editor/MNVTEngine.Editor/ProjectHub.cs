@@ -14,6 +14,7 @@ using MNVTEngine.Runtime;
 using MNVTEngine.Serialization;
 using SysVector2 = System.Numerics.Vector2;
 using SysVector4 = System.Numerics.Vector4;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.Editor;
 
@@ -65,7 +66,7 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
     public void Load(GameWindow window)
     {
         _window = window;
-        _device = VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"), VulkanDeviceOptions.ForApplication("Editor", window.Options.VSync, window.Options.GraphicsValidation));
+        _device = VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, loggerFactory.CreateLogger("Graphics"), VulkanDeviceOptions.ForApplication("Editor", window.Options.VSync, window.Options.GraphicsValidation).WithShaderc());
         _renderer = new Renderer2D(_device);
         _imgui = new ImGuiRenderer(_device, _renderer.DefaultMaterial, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "segoeui.ttf"), 17f, iconFont: Icons.Font);
         _logo = _device.CreateTexture(Graphics.Svg.EngineLogo.Render(520), SamplerState.LinearClamp, "MNVTEngine logo");

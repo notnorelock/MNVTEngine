@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using MNVTEngine.Assets;
+using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Materials;
 using MNVTEngine.Runtime;
 using MNVTEngine.Scenes;
@@ -17,6 +18,12 @@ public sealed class World3DModule : IEngineModule, IResourceIntegration, IRender
     private AssetDatabase? _assets;
 
     public string Id => "world.3d";
+
+    public IReadOnlyList<ShaderSource> BuiltinShaders { get; } =
+    [
+        MaterialShaders.Standard, MaterialShaders.Unlit, MaterialShaders.ShadowCaster, MaterialShaders.StandardSkinned, MaterialShaders.UnlitSkinned,
+        MaterialShaders.ShadowCasterSkinned, MaterialShaders.StandardInstanced, MaterialShaders.UnlitInstanced, MaterialShaders.Sky,
+    ];
 
     public void Register(ComponentRegistry components) => World3DComponents.Register(components);
 

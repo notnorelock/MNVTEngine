@@ -4,6 +4,7 @@ using MNVTEngine.Graphics.Vulkan.Shaders;
 using MNVTEngine.Graphics.Vulkan.Swapchain;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
+using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 
 namespace MNVTEngine.Graphics.Vulkan.Tests;
 
@@ -67,7 +68,7 @@ public class SelectionAndReflectionTests
     [Fact]
     public void Reflection_FindsDefaultUniformBlocks_PerStage_WithOffsetsAndKinds()
     {
-        using var compiler = new ShaderCompiler(null, NullLogger.Instance);
+        using var compiler = new ShaderCompiler(null, NullLogger.Instance, glsl: new ShadercCompiler());
         var vertex = SpirvModule.Parse(compiler.Compile("Sprite", ShaderStage.Vertex, BuiltinShaders.Sprite.VertexGlsl));
         var fragment = SpirvModule.Parse(compiler.Compile("Pulse", ShaderStage.Fragment, """
             #version 450 core
@@ -98,7 +99,7 @@ public class SelectionAndReflectionTests
     [Fact]
     public void Linking_MatchesFragmentInputsToVertexOutputsByName()
     {
-        using var compiler = new ShaderCompiler(null, NullLogger.Instance);
+        using var compiler = new ShaderCompiler(null, NullLogger.Instance, glsl: new ShadercCompiler());
         var vertex = SpirvModule.Parse(compiler.Compile("V", ShaderStage.Vertex, BuiltinShaders.Sprite.VertexGlsl));
         var reversed = SpirvModule.Parse(compiler.Compile("F", ShaderStage.Fragment, """
             #version 450 core
@@ -127,19 +128,19 @@ public class SelectionAndReflectionTests
         try
         {
             uint[] first;
-            using (var compiler = new ShaderCompiler(directory, NullLogger.Instance))
+            using (var compiler = new ShaderCompiler(directory, NullLogger.Instance, glsl: new ShadercCompiler()))
             {
                 first = compiler.Compile("Sprite", ShaderStage.Fragment, BuiltinShaders.Sprite.FragmentGlsl);
             }
 
             var file = Assert.Single(Directory.GetFiles(directory, "*.spv"));
-            using (var compiler = new ShaderCompiler(directory, NullLogger.Instance))
+            using (var compiler = new ShaderCompiler(directory, NullLogger.Instance, glsl: new ShadercCompiler()))
             {
                 Assert.Equal(first, compiler.Compile("Sprite", ShaderStage.Fragment, BuiltinShaders.Sprite.FragmentGlsl));
             }
 
             File.WriteAllBytes(file, [1, 2, 3, 4]);
-            using (var compiler = new ShaderCompiler(directory, NullLogger.Instance))
+            using (var compiler = new ShaderCompiler(directory, NullLogger.Instance, glsl: new ShadercCompiler()))
             {
                 Assert.Equal(first, compiler.Compile("Sprite", ShaderStage.Fragment, BuiltinShaders.Sprite.FragmentGlsl)); // recompiled
             }
