@@ -48,12 +48,19 @@ public sealed class ParticleSimulation
     private Vector3 _lastEmitterPosition;
     private bool _hasLastPosition;
     private bool _emissionDone;
+    private float _runTime;
 
     public ParticleSimulation(ParticleSystemSettings settings) => Settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
     public ParticleSystemSettings Settings { get; set; }
 
     public ParticleBuffer Particles { get; } = new();
+
+    /// <summary>Births, deaths and collisions of the last step, for sub-emitters and collision events (only the kinds in use).</summary>
+    public ParticleEventBuffer Events { get; } = new();
+
+    /// <summary>Particle-plane collision tests of the last step.</summary>
+    public int CollisionChecksLastStep { get; private set; }
 
     public ParticlePlayState State { get; private set; }
 
@@ -98,6 +105,7 @@ public sealed class ParticleSimulation
         _rateAccumulator = _distanceAccumulator = 0f;
         _hasLastPosition = false;
         _emissionDone = false;
+        _runTime = 0f;
         Array.Clear(_burstsFired);
         State = ParticlePlayState.Playing;
     }
@@ -131,7 +139,18 @@ public sealed class ParticleSimulation
     /// <summary>Emits <paramref name="count"/> particles now, whatever the play state (up to the maximum).</summary>
     public int Emit(int count, in EmitterPose pose)
     {
-        var emitted = Spawn(count, pose);
+        var emitted = Spawn(count, pose, Vector3.Zero, Vector3.Zero, null);
+        EmittedLastStep += emitted;
+        return emitted;
+    }
+
+    /// <summary>
+    /// Emits <paramref name="count"/> particles with the shape centered on <paramref name="worldPosition"/> instead of the
+    /// emitter (sub-emitters), adding <paramref name="velocity"/> (world) and multiplying the start color by <paramref name="tint"/>.
+    /// </summary>
+    public int EmitAt(int count, Vector3 worldPosition, in EmitterPose pose, Vector3 velocity = default, Color? tint = null)
+    {
+        var emitted = Spawn(count, pose, worldPosition, velocity, tint, at: true);
         EmittedLastStep += emitted;
         return emitted;
     }
@@ -141,6 +160,9 @@ public sealed class ParticleSimulation
     {
         EmittedLastStep = 0;
         DiedLastStep = 0;
+        CollisionChecksLastStep = 0;
+        Events.Clear();
+        Events.Configure(Settings);
         var main = Settings.Main;
         var dt = Math.Max(0f, deltaSeconds * Math.Max(0f, main.SimulationSpeed));
         if (State == ParticlePlayState.Paused || dt <= 0f)
@@ -169,7 +191,8 @@ public sealed class ParticleSimulation
             }
         }
 
-        DiedLastStep = ParticleUpdater.Update(Particles, Settings, dt, pose);
+        _runTime += dt;
+        (DiedLastStep, CollisionChecksLastStep) = ParticleUpdater.Update(Particles, Settings, dt, pose, Events, _runTime);
         if (State == ParticlePlayState.Playing && _emissionDone && Particles.Count == 0)
         {
             State = ParticlePlayState.Stopped;
@@ -231,7 +254,7 @@ public sealed class ParticleSimulation
         var continuous = (int)_rateAccumulator + (int)_distanceAccumulator;
         _rateAccumulator -= (int)_rateAccumulator;
         _distanceAccumulator -= (int)_distanceAccumulator;
-        return Spawn(count + continuous, pose);
+        return Spawn(count + continuous, pose, Vector3.Zero, Vector3.Zero, null);
     }
 
     /// <summary>Burst particles due up to <paramref name="until"/> seconds into the cycle.</summary>
@@ -257,12 +280,16 @@ public sealed class ParticleSimulation
     }
 
     /// <summary>Creates up to <paramref name="count"/> particles; returns how many fit under the maximum.</summary>
-    private int Spawn(int count, in EmitterPose pose)
+    /// <param name="at">Center the shape on <paramref name="worldPosition"/> rather than on the emitter.</param>
+    private int Spawn(int count, in EmitterPose pose, Vector3 worldPosition, Vector3 addedVelocity, Color? tint, bool at = false)
     {
         var main = Settings.Main;
         var particles = Particles;
         var normalized = _cycleTime / Math.Max(1e-3f, main.Duration);
         var world = main.SimulationSpace == ParticleSimulationSpace.World;
+        var localOffset = at && !world ? pose.LocalToWorld.Inverse.MultiplyPoint3x4(worldPosition) : Vector3.Zero;
+        var toWorld = at && world ? Matrix4x4.Translate(worldPosition - pose.Position) * pose.LocalToWorld : pose.LocalToWorld;
+        var extraVelocity = world ? addedVelocity : pose.Rotation.Inverse * addedVelocity;
         var emitted = 0;
         for (; emitted < count; emitted++)
         {
@@ -277,9 +304,15 @@ public sealed class ParticleSimulation
             var velocity = direction * main.StartSpeed.Evaluate(normalized, ParticleRandom.Value(seed, Salt.Speed));
             if (world)
             {
-                position = pose.LocalToWorld.MultiplyPoint3x4(position);
+                position = toWorld.MultiplyPoint3x4(position);
                 velocity = pose.Rotation * velocity;
             }
+            else
+            {
+                position += localOffset;
+            }
+
+            velocity += extraVelocity;
 
             var size = main.StartSize.Evaluate(normalized, ParticleRandom.Value(seed, Salt.Size));
             particles.Position[i] = position;
@@ -290,11 +323,21 @@ public sealed class ParticleSimulation
             particles.Size[i] = particles.StartSize[i];
             particles.Rotation[i] = new Vector3(0f, 0f, main.StartRotation.Evaluate(normalized, ParticleRandom.Value(seed, Salt.Rotation)));
             particles.AngularVelocity[i] = Vector3.Zero;
-            particles.StartColor[i] = particles.Color[i] = main.StartColor.Evaluate(normalized, ParticleRandom.Value(seed, Salt.Color));
+            var color = main.StartColor.Evaluate(normalized, ParticleRandom.Value(seed, Salt.Color));
+            if (tint is { } t)
+            {
+                color = new Color(color.R * t.R, color.G * t.G, color.B * t.B, color.A * t.A);
+            }
+
+            particles.StartColor[i] = particles.Color[i] = color;
             particles.Age[i] = 0f;
             particles.Lifetime[i] = Math.Max(1e-3f, main.StartLifetime.Evaluate(normalized, ParticleRandom.Value(seed, Salt.Lifetime)));
             particles.Frame[i] = 0;
             particles.Seed[i] = seed;
+            if (Events.RecordBirths)
+            {
+                Events.Add(new ParticleEvent(SubEmitterEvent.Birth, world ? position : pose.LocalToWorld.MultiplyPoint3x4(position), world ? velocity : pose.Rotation * velocity, color, Vector3.Zero));
+            }
         }
 
         _rateAccumulator = emitted < count ? 0f : _rateAccumulator;

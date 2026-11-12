@@ -28,6 +28,8 @@ public sealed partial class ParticleSystem : Component
 
     private ParticleSimulation? _simulation;
     private AssetRef _loadedAsset;
+    private readonly Dictionary<string, ParticleSystem?> _subEmitters = new(StringComparer.Ordinal);
+    private ParticleRandom _subEmitterRandom = new(0x5EED);
 
     /// <summary>A <c>.mnvtparticle</c> asset; set at run time, it loads and restarts the system.</summary>
     public AssetRef Asset
@@ -86,6 +88,9 @@ public sealed partial class ParticleSystem : Component
     /// <summary>Raised when a non-looping system has finished (after its stop action).</summary>
     public event Action<ParticleSystem>? Stopped;
 
+    /// <summary>Raised per particle hitting a collision plane, when the collision module sends events.</summary>
+    public event Action<ParticleSystem, ParticleEvent>? Collided;
+
     public void Play() => Simulation.Play();
 
     public void Pause() => Simulation.Pause();
@@ -120,6 +125,99 @@ public sealed partial class ParticleSystem : Component
         {
             simulation.Settings = Settings;
             simulation.Step(Main.UseUnscaledTime ? Time.UnscaledDeltaTime : Time.DeltaTime, Pose());
+            DispatchEvents(simulation);
+        }
+    }
+
+    /// <summary>
+    /// Runs the sub-emitters and raises <see cref="Collided"/> for the last step's events. Public for hosts that step the
+    /// simulation themselves (the editor preview).
+    /// </summary>
+    public void DispatchEvents(ParticleSimulation simulation)
+    {
+        ArgumentNullException.ThrowIfNull(simulation);
+        var events = simulation.Events;
+        if (events.Count == 0)
+        {
+            return;
+        }
+
+        if (Collided is { } collided && Settings.Collision.SendCollisionEvents)
+        {
+            foreach (var item in events.AsSpan())
+            {
+                if (item.Kind == SubEmitterEvent.Collision)
+                {
+                    collided(this, item);
+                }
+            }
+        }
+
+        var module = Settings.SubEmitters;
+        if (!module.Enabled)
+        {
+            return;
+        }
+
+        var budget = Math.Max(0, module.MaxEmitsPerStep);
+        foreach (var subEmitter in module.Emitters)
+        {
+            if (budget == 0 || FindSubEmitter(subEmitter.Emitter) is not { } target)
+            {
+                continue;
+            }
+
+            var pose = target.Pose();
+            foreach (var item in events.AsSpan())
+            {
+                if (item.Kind != subEmitter.Event || (subEmitter.Probability < 1f && _subEmitterRandom.NextFloat() >= subEmitter.Probability))
+                {
+                    continue;
+                }
+
+                var count = Math.Min(Math.Max(0, subEmitter.Count), budget);
+                budget -= target.Simulation.EmitAt(count, item.Position, pose, item.Velocity * Math.Clamp(subEmitter.InheritVelocity, 0f, 1f), subEmitter.InheritColor ? item.Color : null);
+                if (budget == 0)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    /// <summary>A descendant's particle system by object name (cached; children only, so emitters cannot form cycles).</summary>
+    private ParticleSystem? FindSubEmitter(string name)
+    {
+        if (name.Length == 0)
+        {
+            return null;
+        }
+
+        if (_subEmitters.TryGetValue(name, out var cached) && cached is { IsDestroyed: false })
+        {
+            return cached;
+        }
+
+        var found = Find(Transform, name);
+        _subEmitters[name] = found;
+        return found;
+
+        static ParticleSystem? Find(Transform parent, string name)
+        {
+            foreach (var child in parent.Children)
+            {
+                if (child.GameObject.Name == name && child.GameObject.GetComponent<ParticleSystem>() is { } system)
+                {
+                    return system;
+                }
+
+                if (Find(child, name) is { } deeper)
+                {
+                    return deeper;
+                }
+            }
+
+            return null;
         }
     }
 

@@ -52,6 +52,7 @@ public sealed class ParticlePreview
             if (!system.IsDestroyed)
             {
                 system.Simulation.Step(dt, system.Pose());
+                system.DispatchEvents(system.Simulation);
             }
         }
     }

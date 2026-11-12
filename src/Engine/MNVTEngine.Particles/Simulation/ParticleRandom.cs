@@ -42,5 +42,5 @@ internal static class Salt
 {
     public const uint Lifetime = 1, Speed = 2, Size = 3, SizeY = 4, SizeZ = 5, Rotation = 6, Color = 7, Velocity = 8, Force = 9,
         ColorOverLifetime = 10, SizeOverLifetime = 11, RotationOverLifetime = 12, StartFrame = 13, FrameOverTime = 14,
-        VelocityY = 15, VelocityZ = 16, ForceY = 17, ForceZ = 18, Gravity = 19, SpeedModifier = 20;
+        VelocityY = 15, VelocityZ = 16, ForceY = 17, ForceZ = 18, Gravity = 19, SpeedModifier = 20, Noise = 21, SubEmitter = 22;
 }

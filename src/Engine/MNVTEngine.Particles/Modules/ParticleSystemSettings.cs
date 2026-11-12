@@ -24,6 +24,12 @@ public sealed class ParticleSystemSettings
 
     public TextureSheetAnimationModule TextureSheetAnimation { get; set; } = new();
 
+    public NoiseModule Noise { get; set; } = new();
+
+    public CollisionModule Collision { get; set; } = new();
+
+    public SubEmittersModule SubEmitters { get; set; } = new();
+
     public ParticleRendererSettings Renderer { get; set; } = new();
 
     /// <summary>A deep copy (through the asset format), for editing without touching the original.</summary>
@@ -60,6 +66,21 @@ public sealed class ParticleSystemSettings
         if (TextureSheetAnimation.Enabled)
         {
             yield return "textureSheetAnimation";
+        }
+
+        if (Noise.Enabled)
+        {
+            yield return "noise";
+        }
+
+        if (Collision.Enabled)
+        {
+            yield return "collision";
+        }
+
+        if (SubEmitters.Enabled)
+        {
+            yield return "subEmitters";
         }
     }
 }

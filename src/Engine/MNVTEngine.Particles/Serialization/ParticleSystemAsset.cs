@@ -83,6 +83,12 @@ public static class ParticleSystemAsset
             Check(float.IsFinite(burst.Time) && burst.Time >= 0f && burst.Cycles >= 0 && burst.Probability is >= 0f and <= 1f, "emission.bursts", "time must be 0 or more, cycles 0 or more, probability 0 to 1.");
         }
 
+        Check(float.IsFinite(settings.Noise.Frequency) && float.IsFinite(settings.Noise.ScrollSpeed), "noise", "frequency and scroll speed must be finite numbers.");
+        var collision = settings.Collision;
+        Check(collision.Bounce is >= 0f and <= 1f && collision.Dampen is >= 0f and <= 1f && collision.LifetimeLoss is >= 0f and <= 1f, "collision", "bounce, dampen and lifetime loss must be 0 to 1.");
+        Check(collision.Planes.TrueForAll(p => p.Normal.SqrMagnitude > 1e-12f), "collision.planes", "every plane needs a non-zero normal.");
+        Check(settings.SubEmitters.MaxEmitsPerStep >= 0, "subEmitters.maxEmitsPerStep", "must be 0 or more.");
+        Check(settings.SubEmitters.Emitters.TrueForAll(e => e.Count >= 0 && e.Probability is >= 0f and <= 1f && e.InheritVelocity is >= 0f and <= 1f), "subEmitters.emitters", "count must be 0 or more; probability and inherit velocity 0 to 1.");
         foreach (var (path, curve) in Curves(settings))
         {
             problems.AddRange(curve.Validate(path).Select(p => (path, p)));
@@ -106,7 +112,7 @@ public static class ParticleSystemAsset
         ("velocityOverLifetime.x", s.VelocityOverLifetime.X), ("velocityOverLifetime.y", s.VelocityOverLifetime.Y), ("velocityOverLifetime.z", s.VelocityOverLifetime.Z),
         ("forceOverLifetime.x", s.ForceOverLifetime.X), ("forceOverLifetime.y", s.ForceOverLifetime.Y), ("forceOverLifetime.z", s.ForceOverLifetime.Z),
         ("sizeOverLifetime.size", s.SizeOverLifetime.Size), ("rotationOverLifetime.angularVelocity", s.RotationOverLifetime.AngularVelocity),
-        ("textureSheetAnimation.frameOverTime", s.TextureSheetAnimation.FrameOverTime),
+        ("textureSheetAnimation.frameOverTime", s.TextureSheetAnimation.FrameOverTime), ("noise.strength", s.Noise.Strength),
     ];
 
     private static JsonSerializer CreateSerializer()

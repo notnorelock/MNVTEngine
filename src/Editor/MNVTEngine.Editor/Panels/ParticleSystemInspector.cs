@@ -39,6 +39,9 @@ internal sealed class ParticleSystemInspector(EditorContext context)
         changed |= Module("Size over Lifetime", settings.SizeOverLifetime, () => settings.SizeOverLifetime.Enabled, v => settings.SizeOverLifetime.Enabled = v);
         changed |= Module("Rotation over Lifetime", settings.RotationOverLifetime, () => settings.RotationOverLifetime.Enabled, v => settings.RotationOverLifetime.Enabled = v);
         changed |= Module("Texture Sheet Animation", settings.TextureSheetAnimation, () => settings.TextureSheetAnimation.Enabled, v => settings.TextureSheetAnimation.Enabled = v);
+        changed |= Module("Noise", settings.Noise, () => settings.Noise.Enabled, v => settings.Noise.Enabled = v);
+        changed |= Module("Collision", settings.Collision, () => settings.Collision.Enabled, v => settings.Collision.Enabled = v);
+        changed |= Module("Sub Emitters", settings.SubEmitters, () => settings.SubEmitters.Enabled, v => settings.SubEmitters.Enabled = v);
         changed |= Module("Renderer", settings.Renderer, null);
         if (changed)
         {
@@ -91,6 +94,17 @@ internal sealed class ParticleSystemInspector(EditorContext context)
                 break;
             case List<ParticleBurst> bursts:
                 changed = Bursts(bursts);
+                break;
+            case List<CollisionPlane> planes:
+                changed = ObjectList(label, planes);
+                break;
+            case List<SubEmitter> emitters:
+                changed = ObjectList(label, emitters);
+                break;
+            case string text:
+                InspectorPanel.Row(label);
+                changed = ImGui.InputText("##v", ref text, 256);
+                updated = text;
                 break;
             case AssetRef asset:
                 InspectorPanel.Row(label);
@@ -274,6 +288,51 @@ internal sealed class ParticleSystemInspector(EditorContext context)
         if (ImGui.SmallButton("Add burst"))
         {
             bursts.Add(new ParticleBurst());
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    /// <summary>A list of settings objects: one tree node per item with its fields, remove and add buttons.</summary>
+    private bool ObjectList<T>(string label, List<T> items)
+        where T : class, new()
+    {
+        var changed = false;
+        var remove = -1;
+        Gui.TextDisabled($"{label} ({items.Count})");
+        for (var i = 0; i < items.Count; i++)
+        {
+            ImGui.PushID(i);
+            var open = ImGui.TreeNode("##item", $"{InspectableMember.Nicify(typeof(T).Name)} {i + 1}");
+            ImGui.SameLine();
+            if (ImGui.SmallButton("x"))
+            {
+                remove = i;
+            }
+
+            if (open)
+            {
+                foreach (var property in typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(p => p.CanRead && p.CanWrite))
+                {
+                    changed |= Field(items[i], property);
+                }
+
+                ImGui.TreePop();
+            }
+
+            ImGui.PopID();
+        }
+
+        if (remove >= 0)
+        {
+            items.RemoveAt(remove);
+            changed = true;
+        }
+
+        if (ImGui.SmallButton($"Add##{label}"))
+        {
+            items.Add(new T());
             changed = true;
         }
 

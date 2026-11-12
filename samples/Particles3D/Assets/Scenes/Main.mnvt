@@ -517,6 +517,14 @@
                   "min": -30,
                   "max": 30
                 }
+              },
+              "noise": {
+                "enabled": true,
+                "strength": {
+                  "max": 0.6
+                },
+                "frequency": 0.8,
+                "scrollSpeed": 0.5
               }
             }
           }
@@ -663,6 +671,109 @@
                     ]
                   }
                 }
+              },
+              "collision": {
+                "enabled": true,
+                "planes": [
+                  {
+                    "point": {
+                      "x": 0,
+                      "y": 0,
+                      "z": 0
+                    },
+                    "normal": {
+                      "x": 0,
+                      "y": 1,
+                      "z": 0
+                    }
+                  }
+                ],
+                "bounce": 0.4,
+                "dampen": 0.2,
+                "radiusScale": 0
+              },
+              "subEmitters": {
+                "enabled": true,
+                "emitters": [
+                  {
+                    "event": "collision",
+                    "emitter": "Flash",
+                    "count": 2,
+                    "probability": 0.5,
+                    "inheritColor": true
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a3000000-0000-0000-0000-000000000108",
+      "name": "Flash",
+      "active": true,
+      "parent": "a3000000-0000-0000-0000-000000000105",
+      "transform": {
+        "localPosition": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "localRotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "localScale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.ParticleSystem",
+          "id": "b3000000-0000-0000-0000-000000000108",
+          "enabled": true,
+          "data": {
+            "settings": {
+              "main": {
+                "autoRandomSeed": false,
+                "duration": 1.0,
+                "startLifetime": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.15,
+                  "max": 0.3
+                },
+                "startSpeed": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.3,
+                  "max": 0.8
+                },
+                "startSize": {
+                  "mode": "randomBetweenConstants",
+                  "min": 0.08,
+                  "max": 0.15
+                },
+                "maxParticles": 300,
+                "simulationSpace": "world",
+                "playOnAwake": false,
+                "randomSeed": 23
+              },
+              "emission": {
+                "rateOverTime": {
+                  "max": 0
+                }
+              },
+              "shape": {
+                "kind": "hemisphere",
+                "radius": 0.02
+              },
+              "renderer": {
+                "blend": "additive",
+                "texture": "asset:9a000000-0000-4000-8000-000000000001"
               }
             }
           }

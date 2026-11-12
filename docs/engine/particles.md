@@ -7,7 +7,7 @@ Particle systems are the `particles` [module](modules.md) (`MNVTEngine.Particles
 | Core: data model, lifecycle, storage, emission, bursts, shapes, curves, gradients, lifetime modules, `.mnvtparticle` | Done |
 | 2D rendering (`particles.2d`), editor inspector and preview, presets, sample `samples/Particles2D` | Done |
 | 3D rendering (`particles.3d`): billboard modes, depth, sorting; editor preview in the 3D Scene view; sample `samples/Particles3D` | Done |
-| Noise, collision, sub-emitters | Planned |
+| Noise, collision (world planes), sub-emitters | Done |
 | GPU simulation (Vulkan compute) | To be evaluated; the simulation is CPU-only and is reported as such |
 
 ## Using a particle system
@@ -52,8 +52,26 @@ bool playing = fire.IsPlaying, paused = fire.IsPaused, emitting = fire.IsEmittin
 | `ColorOverLifetime` | Multiplies the start color |
 | `SizeOverLifetime` | Multiplies the start size (uniform or per axis) |
 | `RotationOverLifetime` | Degrees per second around the facing axis, or per axis |
+| `Noise` | Moves particles through deterministic 3D gradient noise (strength over the lifetime, per axis optional, frequency, scroll speed) without changing their own velocity |
+| `Collision` | Infinite world planes: bounce, dampen, lifetime loss per hit, minimum kill speed, radius (half the size times a scale). Optional collision events |
+| `SubEmitters` | Other systems emitting where particles are born, die or collide |
 | `TextureSheetAnimation` | Grid sprite sheet: frame over the lifetime or at a frame rate, start frame (random for a random frame), cycles, loop |
 | `Renderer` | Texture, material, blend (alpha, additive), render mode, sort mode, sorting order. Data for the 2D and 3D renderers |
+
+### Collision and sub-emitters
+
+Collision tests each particle against the module's planes (`collision.planes`, in world space; a default ground plane at the origin). A particle inside a plane and moving into it is pushed out:
+- **Velocity:** the normal part is reflected by `bounce`, and the tangential part is reduced by `dampen`.
+- **Life:** the particle loses `lifetimeLoss` of its lifetime. It dies when that runs out or when it is slower than `minKillSpeed`.
+
+`ParticleSimulation.CollisionChecksLastStep` counts the tests. With `sendCollisionEvents`, `ParticleSystem.Collided` is raised per hit with the position, normal, velocity and color. Physics colliders are not used: the particle module does not depend on the physics modules.
+
+A sub-emitter names a child object (at any depth) with a `ParticleSystem`. On `birth`, `death` or `collision` of a particle, that system emits `count` particles at the particle's position:
+- **Chance:** `probability` per event.
+- **Inheritance:** optionally part of the particle's velocity (`inheritVelocity`) and its color (`inheritColor`).
+- **Safety:** children only, so emitters cannot form cycles. `maxEmitsPerStep` caps what one step emits, which prevents runaway chains.
+- **Recording:** events are recorded only for the kinds something uses, in a reused buffer (`ParticleSimulation.Events`).
+- **Targets:** the target system usually has `playOnAwake` off and no emission of its own. The reference is a name, so it also works inside `.mnvtparticle` assets and prefabs.
 
 ### Curves and gradients
 
