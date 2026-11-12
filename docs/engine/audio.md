@@ -4,7 +4,7 @@ Two projects split the audio system the same way graphics is split:
 
 | Project | Owns | Dependencies |
 |---|---|---|
-| `MNVTEngine.Audio` | `IAudioDevice`/`IAudioVoice`/`IAudioBuffer`, WAV and Ogg Vorbis decoding, `AudioSource`/`AudioListener`, per-scene `AudioSystem`, silent `NullAudioDevice` | Scenes, NVorbis (MIT) |
+| `MNVTEngine.Audio` | `IAudioDevice`/`IAudioVoice`/`IAudioBuffer`, `IStreamingVoice` (PCM queued while it plays, e.g. [browser page audio](browser.md#audio)), WAV and Ogg Vorbis decoding, `AudioSource`/`AudioListener`, per-scene `AudioSystem`, silent `NullAudioDevice` | Scenes, NVorbis (MIT) |
 | `MNVTEngine.Audio.OpenAL` | `OpenALAudioDevice` | Audio, Silk.NET.OpenAL (MIT), OpenAL Soft native (`soft_oal.dll`, LGPL) |
 
 The host chooses the backend:

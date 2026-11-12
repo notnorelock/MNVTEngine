@@ -131,6 +131,7 @@ internal static class Program
 
         // Game pages may play sound without a click first; the game mutes browsers it wants silent.
         settings.CefCommandLineArgs["autoplay-policy"] = "no-user-gesture-required";
+        settings.EnableAudio(); // CefSharp.OffScreen adds --mute-audio; page audio goes to the game through GameAudioHandler
         settings.RegisterScheme(new CefCustomScheme
         {
             SchemeName = BrowserSecurityPolicy.GameScheme,

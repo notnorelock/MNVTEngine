@@ -175,6 +175,43 @@ public sealed class SharedFrameTests
     }
 }
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
+public sealed class SharedAudioTests
+{
+    [Fact]
+    public unsafe void Frames_ArriveInterleaved_AndAReaderThatFallsBehindSkipsAhead()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Named shared memory is Windows-only.");
+        }
+
+        var name = "mnvt-test-" + Guid.NewGuid().ToString("N");
+        using var host = SharedAudio.Create(name, 2, 1000, seconds: 1.024f); // 1024 frames
+        using var game = SharedAudio.Open(name)!;
+        Assert.Equal((2, 1000, 1024), (game.Channels, game.SampleRate, game.CapacityFrames));
+
+        var left = new float[] { 0.5f, -1f, 2f };
+        var right = new float[] { 0f, 0.25f, -2f };
+        var buffer = new short[4096];
+        fixed (float* l = left, r = right)
+        {
+            var planes = stackalloc float*[] { l, r };
+            host.Write((nint)planes, 3);
+            Assert.Equal(3, game.Read(buffer));
+            Assert.Equal(new short[] { 16383, 0, -32767, 8191, 32767, -32767 }, buffer[..6]); // clamped to -1..1
+            Assert.Equal(0, game.Read(buffer));
+
+            for (var i = 0; i < 400; i++)
+            {
+                host.Write((nint)planes, 3); // 1200 frames: more than the ring holds
+            }
+        }
+
+        Assert.Equal(1024, game.Read(buffer)); // the newest ring's worth, the rest skipped
+    }
+}
+
 public sealed class ProtocolTests
 {
     [Fact]

@@ -1,4 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Browser.World2D\MNVTEngine.Browser.World2D.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Browser.World3D\MNVTEngine.Browser.World3D.csproj" />

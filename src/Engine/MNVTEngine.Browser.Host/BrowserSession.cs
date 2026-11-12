@@ -53,7 +53,10 @@ internal sealed class BrowserSession : IDisposable
     private readonly ChromiumWebBrowser _browser;
     private readonly bool _transparent;
     private readonly Lock _frameLock = new();
+    private readonly Lock _audioLock = new();
     private SharedFrame? _frame;
+    private SharedAudio? _audio;
+    private int _audioGeneration;
     private CefSharp.DevTools.DevToolsClient? _devTools;
     private bool _pageStarted;
 
@@ -87,6 +90,7 @@ internal sealed class BrowserSession : IDisposable
             PermissionHandler = new DenyPermissions(this),
             JsDialogHandler = new SuppressDialogs(this),
             RenderProcessMessageHandler = new PageErrorReporter(this),
+            AudioHandler = new GameAudioHandler(this),
         };
         _browser.Size = new System.Drawing.Size(width, height);
         _browser.JavascriptObjectRepository.Settings.JavascriptBindingApiEnabled = Policy.Capabilities != BrowserCapabilities.None && Policy.Profile != BrowserSecurityProfile.Restricted;
@@ -305,6 +309,12 @@ internal sealed class BrowserSession : IDisposable
             _frame = null;
         }
 
+        lock (_audioLock)
+        {
+            _audio?.Dispose();
+            _audio = null;
+        }
+
         _browser.Dispose();
     }
 
@@ -366,6 +376,35 @@ internal sealed class BrowserSession : IDisposable
         }
 
         Load(StartUrl);
+    }
+
+    /// <summary>A page started playing: a new audio ring (its format may differ from the last one). CEF's audio thread.</summary>
+    public void OnAudioStarted(int channels, int sampleRate)
+    {
+        lock (_audioLock)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _audio?.Dispose();
+            _audio = SharedAudio.Create(SharedAudio.NameFor(_host.Session, Id, ++_audioGeneration), channels, sampleRate);
+            var audio = Event(BrowserProtocol.Audio);
+            (audio["name"], audio["channels"], audio["sampleRate"]) = (_audio.Name, channels, sampleRate);
+            _host.Send(audio);
+        }
+    }
+
+    public void OnAudioPacket(nint planar, int frames)
+    {
+        lock (_audioLock)
+        {
+            if (!_disposed && _audio is { } audio && planar != 0 && frames > 0)
+            {
+                audio.Write(planar, frames);
+            }
+        }
     }
 
     private void OnPaint(object? sender, OnPaintEventArgs e)

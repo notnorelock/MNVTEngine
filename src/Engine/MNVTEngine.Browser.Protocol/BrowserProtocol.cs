@@ -36,7 +36,7 @@ public static class BrowserProtocol
     public const string Ready = "ready", Created = "created", Failed = "failed", LoadStarted = "loadStarted", LoadCompleted = "loadCompleted",
         LoadError = "loadError", Title = "title", Address = "address", NavigationState = "navigationState", Console = "console", Message = "message",
         Request = "request", EvaluateResult = "evaluateResult", Crashed = "crashed", Closed = "closed", Resource = "resource", Blocked = "blocked",
-        Surface = "surface", Log = "log";
+        Surface = "surface", Log = "log", Audio = "audio";
 
     private static readonly JsonSerializerSettings Settings = new() { TypeNameHandling = TypeNameHandling.None, MaxDepth = 64 };
 

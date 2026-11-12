@@ -179,7 +179,7 @@ public static class BuiltinModules
 
     public static ModuleDefinition Browser { get; } = new("browser", "Embedded browser", "Chromium web pages rendered into textures, with a C# API and a JavaScript bridge. Ships MNVTBrowserHost.exe, CefSharp and CEF (about 360 MB).")
     {
-        Requires = ["core", "runtime"],
+        Requires = ["core", "runtime", "audio"], // page audio plays through the mixer
         RuntimeAssemblies = ["MNVTEngine.Browser", "MNVTEngine.Browser.Protocol"],
         Components = [],
     };

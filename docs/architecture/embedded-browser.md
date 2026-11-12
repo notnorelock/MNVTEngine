@@ -106,9 +106,13 @@ download and permission handlers; the game enforces bridge capabilities again on
 
 ### Audio
 
-Chromium plays page audio itself, through the system's default device. The first implementation supports muting and
-enabling audio per browser; routing PCM into the engine mixer (CEF's audio handler) is future work behind the same
-`AudioEnabled`/`Muted` settings.
+Page audio goes through the engine mixer. The host enables audio (CefSharp.OffScreen adds `--mute-audio` by default)
+and sets a CEF audio handler, so Chromium hands over each stream's planar float PCM (asked for as 48 kHz stereo)
+instead of playing it. The host writes it as interleaved 16-bit samples into a lock-free shared-memory ring per browser
+(`SharedAudio`, one second, one writer and one reader; a reader that falls a ring behind skips ahead) and tells the
+game its name. Each frame the browser system copies new frames into an `IStreamingVoice` of the scene's audio device
+(OpenAL queued buffers) at the browser's volume times its `AudioMixer` group, dropping audio when more than a quarter
+second is queued.
 
 ## Alternatives considered
 

@@ -252,8 +252,8 @@ public sealed partial class AudioSystem : GameSystem
     /// <summary>The scene mixer used this frame, if any.</summary>
     public AudioMixer? Mixer => _mixer ??= _scene.FindObjectsOfType<AudioMixer>().FirstOrDefault(m => m.IsActiveAndEnabled);
 
-    /// <summary>Volume factor of a mixer group (1 without a mixer).</summary>
-    internal float Mix(string group) => Mixer?.EffectiveVolume(group) ?? 1f;
+    /// <summary>Volume factor of a mixer group (1 without a mixer; unknown groups play through Master).</summary>
+    public float Mix(string group) => Mixer?.EffectiveVolume(group) ?? 1f;
 
     internal IAudioVoice CreateVoice()
     {

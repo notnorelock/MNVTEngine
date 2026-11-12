@@ -30,7 +30,8 @@ A game without browser content does not ship any of it; `build-report.json` has 
 | Transparent | The page's transparent areas stay transparent (overlays); otherwise the background is white |
 | Frame Rate | Chromium's paint rate, 1 to 120 (lower costs less) |
 | Profile, Allowed Domains, Capabilities | [Security](#security) |
-| Muted | Page audio off |
+| Muted | Page audio off (Chromium stops producing it) |
+| Volume, Audio Group | Page audio level and its `AudioMixer` group (default `Browser`); see [Audio](#audio) |
 | Interactive | Mouse and keyboard reach the page |
 | Emissive, Brightness (3D) | Shown as a display that lighting does not darken (on by default) |
 | Double Sided (3D) | Pointer hits on the back of the triangles too |
@@ -124,8 +125,21 @@ the `RemoteWeb` or `Restricted` profile and no capabilities unless you control t
 
 ## Audio
 
-Chromium plays page audio itself, on the system's default device, and may play without a click first. **Muted** and
-`SetMuted` silence a browser. Page audio does not go through the engine's mixer (volume groups, 3D positioning).
+Page audio plays through the engine's audio, not straight to the speakers: Chromium hands the decoded sound (48 kHz
+stereo) to the browser host, which writes it into a shared-memory ring per browser; each frame the game moves it into a
+streaming voice of the scene's audio output. Its volume is the browser's **Volume** times its **Audio Group** in the
+scene's `AudioMixer` (default `Browser`: add a `Browser` group to the mixer, under Master, to control all page audio;
+an unknown group plays through Master). Pages may play without a click first.
+
+| Control | Effect |
+|---|---|
+| **Volume**, `BrowserInstance.Volume` | This browser's level, before its group |
+| **Audio Group**, `BrowserInstance.AudioGroup` | The mixer group (`AudioMixer.SetVolume("Browser", 0.5f)`, `SetMuted`) |
+| **Muted**, `SetMuted` | Chromium stops producing audio for the browser (saves the work) |
+
+Page audio is not positional (no 3D attenuation). When the game runs slower than the page, more than a quarter second
+of queued audio is dropped so sound stays in sync with the page. Requires the `audio` module (the `browser` module
+brings it).
 
 ## Diagnostics
 

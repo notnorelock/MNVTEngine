@@ -59,3 +59,17 @@ $('form').addEventListener('submit', (e) => {
   }
   $('name').value = '';
 });
+
+// Page audio plays through the game's AudioMixer ("Browser" group), not straight to the speakers.
+$('tone').addEventListener('click', () => {
+  const context = new AudioContext();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.frequency.value = 440;
+  gain.gain.setValueAtTime(0.3, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.6);
+  oscillator.connect(gain).connect(context.destination);
+  oscillator.start();
+  oscillator.stop(context.currentTime + 0.6);
+  log('tone played');
+});

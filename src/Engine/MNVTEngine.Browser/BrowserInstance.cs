@@ -32,6 +32,12 @@ public sealed record BrowserOptions
 
     public bool Muted { get; init; }
 
+    /// <summary>Page audio volume, before the mixer group.</summary>
+    public float Volume { get; init; } = 1f;
+
+    /// <summary>The <c>AudioMixer</c> group page audio plays through (an unknown group plays through Master).</summary>
+    public string AudioGroup { get; init; } = BrowserInstance.DefaultAudioGroup;
+
     public BrowserSecurityPolicy Policy => new(Profile, AllowedDomains, Capabilities);
 }
 
@@ -76,6 +82,9 @@ public sealed class BrowserInstance : IDisposable
     private readonly Dictionary<string, Func<JToken, Task<object?>>> _requestHandlers = new(StringComparer.Ordinal);
     private readonly Lock _frameLock = new();
     private SharedFrame? _frame;
+    private SharedAudio? _audio;
+    private Audio.IStreamingVoice? _voice;
+    private readonly short[] _audioBuffer = new short[48000 * 2]; // a second of stereo: more than one frame ever brings
     private (string Name, int Width, int Height)? _pendingSurface;
     private int _nextEvaluation;
 
@@ -85,6 +94,7 @@ public sealed class BrowserInstance : IDisposable
         Policy = options.Policy;
         Url = options.Html is null ? options.Url : "";
         (Width, Height, Muted, FrameRate) = (options.Width, options.Height, options.Muted, options.FrameRate);
+        (Volume, AudioGroup) = (options.Volume, options.AudioGroup);
     }
 
     public int Id { get; }
@@ -94,6 +104,18 @@ public sealed class BrowserInstance : IDisposable
     public BrowserSecurityPolicy Policy { get; }
 
     public BrowserState State { get; private set; } = BrowserState.Creating;
+
+    /// <summary>The mixer group browsers play through unless told otherwise.</summary>
+    public const string DefaultAudioGroup = "Browser";
+
+    /// <summary>Page audio volume, before the mixer group (0 silences the page in the game; <see cref="SetMuted"/> also stops Chromium producing it).</summary>
+    public float Volume { get; set; } = 1f;
+
+    /// <summary>The <c>AudioMixer</c> group page audio plays through.</summary>
+    public string AudioGroup { get; set; } = DefaultAudioGroup;
+
+    /// <summary>Seconds of page audio queued in the game's audio output (0 without audio or an audio output).</summary>
+    public float QueuedAudioSeconds => _voice?.QueuedSeconds ?? 0f;
 
     /// <summary>Why the browser failed or crashed.</summary>
     public string? Error { get; private set; }
@@ -334,6 +356,61 @@ public sealed class BrowserInstance : IDisposable
         _service.Close(this);
         FailPending("The browser was closed.");
         CloseFrame();
+        CloseAudio();
+        _voice?.Dispose();
+        _voice = null;
+    }
+
+    /// <summary>
+    /// Moves the page audio Chromium produced since the last frame into this browser's voice of <paramref name="device"/>,
+    /// at <see cref="Volume"/> times <paramref name="groupVolume"/>. Game thread, once a frame. Without a device the
+    /// audio is read and dropped (the ring never backs up).
+    /// </summary>
+    internal void PumpAudio(Audio.IAudioDevice? device, float groupVolume)
+    {
+        if (_audio is not { } ring || !OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var frames = ring.Read(_audioBuffer);
+        if (device is null)
+        {
+            return;
+        }
+
+        if (_voice is null || _voice.Channels != ring.Channels || _voice.SampleRate != ring.SampleRate)
+        {
+            _voice?.Dispose();
+            _voice = device.CreateStreamingVoice(ring.Channels, ring.SampleRate);
+        }
+
+        _voice.Volume = Math.Max(0f, Volume) * groupVolume;
+
+        // More than a quarter second queued means the game ran slower than the page: drop, so the sound stays in sync.
+        if (frames > 0 && _voice.QueuedSeconds < 0.25f)
+        {
+            _voice.Queue(_audioBuffer.AsSpan(0, frames * ring.Channels));
+        }
+    }
+
+    private void OpenAudio(string name)
+    {
+        CloseAudio();
+        if (OperatingSystem.IsWindows())
+        {
+            _audio = SharedAudio.Open(name);
+        }
+    }
+
+    private void CloseAudio()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            _audio?.Dispose();
+        }
+
+        _audio = null;
     }
 
     /// <summary>Pixels painted since the last call, under the shared-memory lock (never waits for it).</summary>
@@ -404,6 +481,7 @@ public sealed class BrowserInstance : IDisposable
         }
 
         CloseFrame();
+        CloseAudio();
         FailPending(reason);
         State = failed ? BrowserState.Failed : BrowserState.Crashed;
         Error = reason;
@@ -420,6 +498,9 @@ public sealed class BrowserInstance : IDisposable
 
         switch (message.Value<string>("type"))
         {
+            case BrowserProtocol.Audio:
+                OpenAudio(message.Value<string>("name") ?? "");
+                break;
             case BrowserProtocol.Created:
                 State = BrowserState.Ready;
                 break;

@@ -233,6 +233,26 @@ public sealed class BrowserHostTests : IDisposable
     }
 
     [Fact]
+    public void PageAudio_ReachesTheGamesVoice_AtBrowserTimesGroupVolume()
+    {
+        const string Page = "<script>const c = new AudioContext(); const o = c.createOscillator(); o.connect(c.destination); o.start();</script>";
+        var device = new Audio.NullAudioDevice();
+        using var browser = Open(Page);
+        browser.Volume = 0.5f;
+        Assert.True(Pump(() =>
+        {
+            browser.PumpAudio(device, groupVolume: 0.8f);
+            return browser.QueuedAudioSeconds > 0.05f;
+        }), "no page audio arrived");
+        var voice = Assert.Single(device.StreamingVoices);
+        Assert.Equal((2, 48000), (voice.Channels, voice.SampleRate));
+        Assert.Equal(0.4f, voice.Volume, 3);
+
+        browser.Dispose();
+        Assert.Empty(device.StreamingVoices); // closing the browser releases its voice
+    }
+
+    [Fact]
     public void Stress_EightAnimatedBrowsers_AllKeepPainting()
     {
         const string Page = "<style>@keyframes s{to{transform:translateX(200px)}}div{width:50px;height:50px;background:#f80;animation:s .5s linear infinite alternate}</style><div></div>";

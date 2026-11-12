@@ -214,6 +214,25 @@ public interface IAudioVoice : IDisposable
     void Stop();
 }
 
+/// <summary>
+/// A voice fed with 16-bit PCM while it plays (a browser page, a video, voice chat). It plays whatever is queued and
+/// goes quiet, not stopped for good, when the samples run out; the next <see cref="Queue"/> continues.
+/// </summary>
+public interface IStreamingVoice : IDisposable
+{
+    int Channels { get; }
+
+    int SampleRate { get; }
+
+    float Volume { get; set; }
+
+    /// <summary>Seconds of audio queued and not played yet.</summary>
+    float QueuedSeconds { get; }
+
+    /// <param name="interleaved">Whole frames: a multiple of <see cref="Channels"/> samples.</param>
+    void Queue(ReadOnlySpan<short> interleaved);
+}
+
 /// <summary>An audio output. Not thread-safe: use it from the main thread.</summary>
 public interface IAudioDevice : IDisposable
 {
@@ -227,6 +246,9 @@ public interface IAudioDevice : IDisposable
     IAudioBuffer CreateBuffer(AudioClipData clip);
 
     IAudioVoice CreateVoice();
+
+    /// <param name="channels">1 or 2.</param>
+    IStreamingVoice CreateStreamingVoice(int channels, int sampleRate);
 
     /// <summary>Called once per frame (devices that need housekeeping or simulated time).</summary>
     void Update(float deltaTime);
@@ -267,11 +289,29 @@ public sealed class NullAudioDevice : IAudioDevice
         return voice;
     }
 
+    /// <summary>Live streams, for inspecting what would be heard.</summary>
+    public List<IStreamingVoice> StreamingVoices { get; } = [];
+
+    public IStreamingVoice CreateStreamingVoice(int channels, int sampleRate)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(channels, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(channels, 2);
+        ArgumentOutOfRangeException.ThrowIfLessThan(sampleRate, 1);
+        var stream = new StreamingVoice(this, channels, sampleRate);
+        StreamingVoices.Add(stream);
+        return stream;
+    }
+
     public void Update(float deltaTime)
     {
         foreach (var voice in _voices)
         {
             voice.Advance(deltaTime);
+        }
+
+        foreach (var stream in StreamingVoices.OfType<StreamingVoice>())
+        {
+            stream.Advance(deltaTime);
         }
     }
 
@@ -293,6 +333,30 @@ public sealed class NullAudioDevice : IAudioDevice
                 device.LiveBuffers--;
             }
         }
+    }
+
+    private sealed class StreamingVoice(NullAudioDevice device, int channels, int sampleRate) : IStreamingVoice
+    {
+        public int Channels => channels;
+
+        public int SampleRate => sampleRate;
+
+        public float Volume { get; set; } = 1f;
+
+        public float QueuedSeconds { get; private set; }
+
+        /// <summary>Samples queued since creation (what a test checks arrived).</summary>
+        public long QueuedSamples { get; private set; }
+
+        public void Queue(ReadOnlySpan<short> interleaved)
+        {
+            QueuedSamples += interleaved.Length;
+            QueuedSeconds += interleaved.Length / (float)(channels * sampleRate);
+        }
+
+        public void Advance(float seconds) => QueuedSeconds = Math.Max(0f, QueuedSeconds - seconds);
+
+        public void Dispose() => device.StreamingVoices.Remove(this);
     }
 
     private sealed class Voice(NullAudioDevice device) : IAudioVoice

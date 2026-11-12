@@ -42,6 +42,14 @@ public abstract class BrowserSurface : Component
     [SerializeField]
     public bool Muted { get; set; }
 
+    /// <summary>Page audio volume, before the mixer group.</summary>
+    [SerializeField]
+    public float Volume { get; set; } = 1f;
+
+    /// <summary>The <c>AudioMixer</c> group page audio plays through (give the mixer a "Browser" group under Master).</summary>
+    [SerializeField]
+    public string AudioGroup { get; set; } = BrowserInstance.DefaultAudioGroup;
+
     /// <summary>Mouse and keyboard reach the page.</summary>
     [SerializeField]
     public bool Interactive { get; set; } = true;
@@ -66,6 +74,8 @@ public abstract class BrowserSurface : Component
         AllowedDomains = [.. AllowedDomains],
         Capabilities = Capabilities,
         Muted = Muted,
+        Volume = Volume,
+        AudioGroup = AudioGroup,
     };
 
     public override void Start()

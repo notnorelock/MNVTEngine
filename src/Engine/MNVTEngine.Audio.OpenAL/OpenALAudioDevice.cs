@@ -108,6 +108,18 @@ public sealed unsafe partial class OpenALAudioDevice : IAudioDevice
         return new Voice(this, source);
     }
 
+    public IStreamingVoice CreateStreamingVoice(int channels, int sampleRate)
+    {
+        ThrowIfDisposed();
+        ArgumentOutOfRangeException.ThrowIfLessThan(channels, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(channels, 2);
+        ArgumentOutOfRangeException.ThrowIfLessThan(sampleRate, 1);
+        var source = _al.GenSource();
+        Check("GenSource");
+        _sources.Add(source);
+        return new StreamingVoice(this, source, channels, sampleRate);
+    }
+
     public void Update(float deltaTime)
     {
     }
@@ -174,6 +186,98 @@ public sealed unsafe partial class OpenALAudioDevice : IAudioDevice
             if (device._device != null && device._buffers.Remove(id))
             {
                 device._al.DeleteBuffer(id);
+            }
+        }
+    }
+
+    /// <summary>A non-spatial source with a queue of buffers: played buffers are reused for new samples.</summary>
+    private sealed class StreamingVoice : IStreamingVoice
+    {
+        private readonly OpenALAudioDevice _device;
+        private readonly uint _id;
+        private readonly Queue<(uint Buffer, int Frames)> _queued = new();
+        private readonly Stack<uint> _free = new();
+        private float _volume = 1f;
+
+        public StreamingVoice(OpenALAudioDevice device, uint id, int channels, int sampleRate)
+        {
+            (_device, _id, Channels, SampleRate) = (device, id, channels, sampleRate);
+            Al.SetSourceProperty(_id, SourceBoolean.SourceRelative, true);
+            Al.SetSourceProperty(_id, SourceFloat.RolloffFactor, 0f);
+            Al.SetSourceProperty(_id, SourceVector3.Position, 0f, 0f, 0f);
+        }
+
+        public int Channels { get; }
+
+        public int SampleRate { get; }
+
+        public float Volume { get => _volume; set { _volume = value; Al.SetSourceProperty(_id, SourceFloat.Gain, value); } }
+
+        public float QueuedSeconds
+        {
+            get
+            {
+                Reclaim();
+                return _queued.Sum(q => q.Frames) / (float)SampleRate;
+            }
+        }
+
+        private AL Al => _device._al;
+
+        public void Queue(ReadOnlySpan<short> interleaved)
+        {
+            if (interleaved.IsEmpty || _device._device == null)
+            {
+                return;
+            }
+
+            Reclaim();
+            if (!_free.TryPop(out var buffer))
+            {
+                buffer = Al.GenBuffer();
+                _device._buffers.Add(buffer);
+            }
+
+            fixed (short* samples = interleaved)
+            {
+                Al.BufferData(buffer, Channels == 1 ? BufferFormat.Mono16 : BufferFormat.Stereo16, samples, interleaved.Length * sizeof(short), SampleRate);
+            }
+
+            Al.SourceQueueBuffers(_id, 1, &buffer);
+            _queued.Enqueue((buffer, interleaved.Length / Channels));
+            Al.GetSourceProperty(_id, GetSourceInteger.SourceState, out var state);
+            if ((SourceState)state != SourceState.Playing)
+            {
+                Al.SourcePlay(_id); // first samples, or the queue ran dry
+            }
+
+            _device.Check("stream queue");
+        }
+
+        public void Dispose()
+        {
+            if (_device._device != null && _device._sources.Remove(_id))
+            {
+                Al.SourceStop(_id);
+                Al.DeleteSource(_id);
+                foreach (var buffer in _queued.Select(q => q.Buffer).Concat(_free))
+                {
+                    _device._buffers.Remove(buffer);
+                    Al.DeleteBuffer(buffer);
+                }
+            }
+        }
+
+        /// <summary>Takes the buffers OpenAL has played back for reuse.</summary>
+        private void Reclaim()
+        {
+            Al.GetSourceProperty(_id, GetSourceInteger.BuffersProcessed, out var processed);
+            for (var i = 0; i < processed && _queued.Count > 0; i++)
+            {
+                uint buffer;
+                Al.SourceUnqueueBuffers(_id, 1, &buffer);
+                _queued.Dequeue();
+                _free.Push(buffer);
             }
         }
     }

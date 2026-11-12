@@ -186,3 +186,28 @@ internal sealed class GameAssetHandler(BrowserHost host, string assetPath) : Res
         return CefReturnValue.ContinueAsync;
     }
 }
+
+/// <summary>
+/// Page audio goes to the game's mixer, not to the speakers: with this handler Chromium hands over the decoded PCM
+/// (planar float) instead of playing it, and the session writes it into its shared audio ring.
+/// </summary>
+internal sealed class GameAudioHandler(BrowserSession session) : CefSharp.Handler.AudioHandler
+{
+    public const int SampleRate = 48000;
+
+    protected override bool GetAudioParameters(IWebBrowser chromiumWebBrowser, IBrowser browser, ref CefSharp.Structs.AudioParameters parameters)
+    {
+        parameters.ChannelLayout = CefSharp.Enums.ChannelLayout.LayoutStereo;
+        parameters.SampleRate = SampleRate;
+        return true;
+    }
+
+    protected override void OnAudioStreamStarted(IWebBrowser chromiumWebBrowser, IBrowser browser, CefSharp.Structs.AudioParameters parameters, int channels) =>
+        session.OnAudioStarted(Math.Clamp(channels, 1, 2), parameters.SampleRate);
+
+    protected override void OnAudioStreamPacket(IWebBrowser chromiumWebBrowser, IBrowser browser, IntPtr data, int noOfFrames, long pts) =>
+        session.OnAudioPacket(data, noOfFrames);
+
+    protected override void OnAudioStreamError(IWebBrowser chromiumWebBrowser, IBrowser browser, string errorMessage) =>
+        Console.Error.WriteLine($"Browser {session.Id}: audio stream error: {errorMessage}");
+}

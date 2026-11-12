@@ -312,4 +312,20 @@ public class AudioMixerTests
         _frame++;
         scene.Update(new FrameTime(0.016f, 0.016f, _frame * 0.016, _frame * 0.016, _frame));
     }
+
+    [Fact]
+    public void StreamingVoices_QueueAndDrainWithTime()
+    {
+        var device = new NullAudioDevice();
+        using var voice = device.CreateStreamingVoice(2, 48000);
+        voice.Queue(new short[24000]); // a quarter second of stereo (12000 frames)
+        Assert.Equal(0.25f, voice.QueuedSeconds, 3);
+        device.Update(0.1f);
+        Assert.Equal(0.15f, voice.QueuedSeconds, 3);
+        device.Update(1f);
+        Assert.Equal(0f, voice.QueuedSeconds);
+        Assert.Throws<ArgumentOutOfRangeException>(() => device.CreateStreamingVoice(3, 48000));
+        voice.Dispose();
+        Assert.Empty(device.StreamingVoices);
+    }
 }
