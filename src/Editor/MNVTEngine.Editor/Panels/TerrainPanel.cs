@@ -409,7 +409,7 @@ internal sealed class TerrainPanel(EditorContext context)
         }
 
         ImGui.Button("Drop a model here", new System.Numerics.Vector2(-1f, 0f));
-        if (Gui.AcceptStringPayload(Gui.AssetPayload) is { } path && context.ResolveAsset(path) is { Type: AssetTypes.Model } model)
+        if (Gui.DropTarget(Gui.AssetPayload) is { } path && context.ResolveAsset(path) is { Type: AssetTypes.Model } model)
         {
             Editor.PropAsset = store.AddAsset(MeshAssetData.Create(Path.GetFileNameWithoutExtension(path), new AssetRef(model.Guid).ToString()));
             Editor.Commit("Add Prop Asset");
@@ -784,7 +784,7 @@ internal sealed class TerrainPanel(EditorContext context)
     {
         var shown = AssetRef.TryParse(current, out var reference) && context.Session.Assets.Get(reference.Guid) is { } record ? record.Name : current.Length > 0 ? current : "None (drop a texture)";
         ImGui.Button($"{label}: {shown}##{label}", new System.Numerics.Vector2(-1f, 0f));
-        return Gui.AcceptStringPayload(Gui.AssetPayload) is { } path && context.ResolveAsset(path) is { Type: AssetTypes.Texture } texture
+        return Gui.DropTarget(Gui.AssetPayload) is { } path && context.ResolveAsset(path) is { Type: AssetTypes.Texture } texture
             ? new AssetRef(texture.Guid).ToString()
             : null;
     }
