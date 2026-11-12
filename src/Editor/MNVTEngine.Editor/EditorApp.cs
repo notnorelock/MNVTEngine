@@ -40,7 +40,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private NativeMenuBar? _nativeMenu;
     private InspectorPanel _inspector = null!;
     private SceneViewPanel _sceneView = null!;
-    private TerrainPanel _terrainPanel = null!;
+    private TerrainPanel? _terrainPanel; // 3D projects only
     private GameViewPanel _gameView = null!;
     private ProjectPanel _projectPanel = null!;
     private ConsolePanel _console = null!;
@@ -127,8 +127,10 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _hierarchy = new HierarchyPanel(_context);
         _inspector = new InspectorPanel(_context);
         _sceneView = new SceneViewPanel(_context);
-        _terrainPanel = new TerrainPanel(_context);
-        _context.TerrainTools = _terrainPanel;
+        if (project.Profile == Modules.ProjectProfile.ThreeD)
+        {
+            CreateTerrainTools();
+        }
         _gameView = new GameViewPanel(_context);
         _projectPanel = new ProjectPanel(_context);
         _console = new ConsolePanel(_context);
@@ -253,7 +255,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _hierarchy.Draw();
         _inspector.Draw();
         _sceneView.Draw();
-        _terrainPanel.Update();
+        _terrainPanel?.Update();
         _gameView.Draw();
         _projectPanel.Draw();
         _console.Draw();
@@ -368,8 +370,42 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
     public void Resize(int width, int height) => _context.Device.ResizeBackBuffer(width, height);
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)] // terrain assemblies load in 3D projects only
+    private bool HandleTerrainUndo(bool shift)
+    {
+        if (_context.TerrainEditor.Target is null)
+        {
+            return false;
+        }
+
+        if (ImGui.IsKeyPressed(ImGuiKey.Y, false) || (shift && ImGui.IsKeyPressed(ImGuiKey.Z, false)))
+        {
+            _context.TerrainEditor.Redo();
+            return true;
+        }
+
+        if (ImGui.IsKeyPressed(ImGuiKey.Z, false))
+        {
+            _context.TerrainEditor.Undo();
+            return true;
+        }
+
+        return false;
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)] // terrain assemblies load in 3D projects only
+    private void CreateTerrainTools()
+    {
+        _terrainPanel = new TerrainPanel(_context);
+        _context.TerrainTools = _terrainPanel;
+    }
+
     public void Unload()
     {
+        // Which engine assemblies this session loaded: a project of one profile should never load the other's.
+        var engine = string.Join(", ", AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetName().Name ?? "").Where(n => n.StartsWith("MNVTEngine.", StringComparison.Ordinal)).Order(StringComparer.Ordinal));
+        var profileName = project.Profile?.ToString() ?? "unknown";
+        EditorLog.EngineAssembliesLoaded(_logger, profileName, engine);
         if (_context is null)
         {
             return; // the graphics device could not be created
@@ -780,20 +816,10 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             return;
         }
 
-        // While a terrain world is being edited, undo and redo go to its history.
-        if (io.KeyCtrl && !io.WantTextInput && _context.TerrainEditor.Target is not null)
+        // While a terrain world is being edited (3D projects), undo and redo go to its history.
+        if (io.KeyCtrl && !io.WantTextInput && _terrainPanel is not null && HandleTerrainUndo(io.KeyShift))
         {
-            if (ImGui.IsKeyPressed(ImGuiKey.Y, false) || (io.KeyShift && ImGui.IsKeyPressed(ImGuiKey.Z, false)))
-            {
-                _context.TerrainEditor.Redo();
-                return;
-            }
-
-            if (ImGui.IsKeyPressed(ImGuiKey.Z, false))
-            {
-                _context.TerrainEditor.Undo();
-                return;
-            }
+            return;
         }
 
         if (!io.KeyCtrl || io.WantTextInput)

@@ -182,7 +182,7 @@ Selecting a `.mnvtmat` in the Project panel shows it in the Inspector ([format](
 
 ## Project Hub and building
 
-- **Project Hub.** Starting the editor without a project, or **File → Project Hub**, opens the hub: recent projects (right-click to remove one), New Project (choose 2D or 3D, then a template of that profile), and Open. Opening a project from before profiles saves its inferred profile (keeping `<name>.mnvtproj.v1.bak`); when its scenes mix 2D and 3D, the hub asks which it is. The recent list is kept in `%APPDATA%/MNVTEngine/recent-projects.json`.
+- **Project Hub.** Starting the editor without a project, or **File → Project Hub**, opens the hub: recent projects (right-click to remove one), New Project (choose 2D or 3D, then a template of that profile), and Open. The editor works with the project's profile only: it registers that profile's components, draws with its passes, and creates its tools (terrain tools in 3D projects), so the other profile's assemblies are never loaded. The log line "Engine assemblies loaded for this ... project" at exit lists what a session loaded. Opening a project from before profiles saves its inferred profile (keeping `<name>.mnvtproj.v1.bak`); when its scenes mix 2D and 3D, the hub asks which it is. The recent list is kept in `%APPDATA%/MNVTEngine/recent-projects.json`.
 - **Build menu (`BuildController`).** Build Settings (profile, output folder), Build (Ctrl+B), Build and Run (Ctrl+Shift+B), Run Last Build, Validate Project, Open Build Folder.
   - Work runs on a background task while the editor stays usable. The toolbar shows "Building (N s)", and diagnostics go to the Console.
   - Builds use the files on disk, so unsaved scene changes are offered for saving first.

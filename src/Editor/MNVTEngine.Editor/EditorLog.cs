@@ -23,6 +23,9 @@ internal static partial class EditorLog
     [LoggerMessage(EventId = 5206, Level = LogLevel.Information, Message = "Saved profile {Profile} in {Path} (the project predates profiles; previous file kept as .v1.bak). {Reason}")]
     public static partial void ProfileMigrated(ILogger logger, string profile, string path, string reason);
 
+    [LoggerMessage(EventId = 5207, Level = LogLevel.Information, Message = "Engine assemblies loaded for this {Profile} project: {Assemblies}")]
+    public static partial void EngineAssembliesLoaded(ILogger logger, string profile, string assemblies);
+
     [LoggerMessage(EventId = 5203, Message = "Asset {Path}: {Message}")]
     public static partial void AssetDiagnostic(ILogger logger, LogLevel level, string path, string message);
 }

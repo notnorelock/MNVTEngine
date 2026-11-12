@@ -78,25 +78,23 @@ public sealed class ScriptProject
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
     }
 
-    // Module version ids of the engine assemblies scripts can reference (every module's, and what they reference), by name.
+    // Module version ids of the engine assemblies next to the host (what scripts compile against), read from the files
+    // without loading them: a host of one profile never loads the other profile's assemblies just to check a stamp.
     private static readonly Lazy<IReadOnlyList<string>> EngineAssemblies = new(() =>
     {
-        var found = new SortedDictionary<string, System.Reflection.Assembly>(StringComparer.Ordinal);
-        var pending = new Stack<System.Reflection.Assembly>([typeof(Scene).Assembly, typeof(GameProject).Assembly, .. EngineModuleSet.All().Select(m => m.GetType().Assembly)]);
-        while (pending.TryPop(out var assembly))
+        var found = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(AppContext.BaseDirectory, "MNVTEngine.*.dll").Order(StringComparer.Ordinal))
         {
-            if (!found.TryAdd(assembly.GetName().Name!, assembly))
+            using var stream = File.OpenRead(file);
+            using var pe = new System.Reflection.PortableExecutable.PEReader(stream);
+            if (pe.HasMetadata)
             {
-                continue;
-            }
-
-            foreach (var reference in assembly.GetReferencedAssemblies().Where(r => r.Name?.StartsWith("MNVTEngine.", StringComparison.Ordinal) == true))
-            {
-                pending.Push(System.Reflection.Assembly.Load(reference));
+                var metadata = System.Reflection.Metadata.PEReaderExtensions.GetMetadataReader(pe);
+                found.Add($"{Path.GetFileNameWithoutExtension(file)}:{metadata.GetGuid(metadata.GetModuleDefinition().Mvid)}");
             }
         }
 
-        return [.. found.Select(p => $"{p.Key}:{p.Value.ManifestModule.ModuleVersionId}")];
+        return found;
     });
 
     /// <summary>True if the last successful build used exactly the current sources.</summary>

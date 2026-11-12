@@ -29,6 +29,7 @@ namespace MNVTEngine.Editor.Panels;
 /// </summary>
 internal sealed class ModelInspector(EditorContext context) : IDisposable
 {
+    private bool _usedPreview;
     private const int PreviewSize = 220;
     private static readonly SysVector4 Warning = new(1f, 0.75f, 0.35f, 1f);
     private ModelWorkflow? _workflow;
@@ -98,7 +99,20 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
     {
         var visible = _visible;
         _visible = false;
-        if (!visible || _model is null || _workflow is null || _preview is null)
+        if (!visible || _preview is null)
+        {
+            return;
+        }
+
+        RenderPreview();
+    }
+
+    // A method of its own: the preview uses world.3d's renderer, so a 2D project that never shows a model never loads it.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void RenderPreview()
+    {
+        _usedPreview = true;
+        if (_model is null || _workflow is null || _preview is null)
         {
             return;
         }
@@ -143,7 +157,8 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         device.SetRenderTarget(null);
     }
 
-    public void Dispose()
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void DisposePreviewMeshes()
     {
         if (_meshes is not null)
         {
@@ -151,6 +166,15 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         }
 
         _meshes?.Dispose();
+    }
+
+    public void Dispose()
+    {
+        if (_usedPreview)
+        {
+            DisposePreviewMeshes(); // world.3d's types are touched only if a model preview was drawn
+        }
+
         _preview?.Dispose();
         _default = null;
     }

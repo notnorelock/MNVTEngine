@@ -33,6 +33,7 @@ internal sealed class MaterialInspector(EditorContext context) : IDisposable
     private GpuMeshCache? _meshes;
     private Renderer3D? _renderer;
     private MaterialDocument? _document;
+    private bool _usedMeshPreview;
     private Material? _material;
     private Shader? _ownedShader;
     private string? _builtJson;
@@ -129,22 +130,37 @@ internal sealed class MaterialInspector(EditorContext context) : IDisposable
             return;
         }
 
+        RenderSpherePreview(device, _material);
+    }
+
+    // A method of its own: the sphere preview uses world.3d's renderer, which only mesh materials (3D projects) need.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void RenderSpherePreview(IGraphicsDevice device, Material material)
+    {
+        _usedMeshPreview = true;
         device.ClearDepth();
         _meshes ??= new GpuMeshCache(device);
         _renderer ??= new Renderer3D(device);
         var sphere = _meshes.Get(MeshPrimitives.Sphere(0.5f, 48, 24));
         var eye = new Vector3(0f, 0.4f, 1.9f);
         var view = new View3D(Matrix4x4.LookAt(eye, Vector3.Zero, Vector3.Up), Matrix4x4.PerspectiveZeroToOne(35f, 1f, 0.05f, 20f), eye);
-        _renderer.Render(view, [new MeshDrawItem(sphere, 0, _material, context.Resources.GetDefaultTexture(DefaultTexture.White), Matrix4x4.Identity)], SceneLighting.Preview);
+        _renderer.Render(view, [new MeshDrawItem(sphere, 0, material, context.Resources.GetDefaultTexture(DefaultTexture.White), Matrix4x4.Identity)], SceneLighting.Preview);
         device.SetRenderTarget(null);
     }
 
     public void Dispose()
     {
         _ownedShader?.Dispose();
-        _meshes?.Dispose();
+        if (_usedMeshPreview)
+        {
+            DisposeMeshPreview(); // world.3d's types are touched only if a mesh preview was drawn
+        }
+
         _preview?.Dispose();
     }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void DisposeMeshPreview() => _meshes?.Dispose();
 
     private static bool IsMeshMaterial(MaterialDefinition definition) =>
         definition.Builtin is MaterialDefinition.BuiltinStandard or MaterialDefinition.BuiltinUnlit || definition.VertexShader is not null;

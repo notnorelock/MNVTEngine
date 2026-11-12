@@ -95,6 +95,13 @@ internal sealed class SceneViewPanel : IDisposable
             return;
         }
 
+        Render2D(scene);
+    }
+
+    // A method of its own: the 2D view's sprite and tilemap code (world.2d's types) is compiled only in 2D projects.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void Render2D(Scene scene)
+    {
         _context.SceneRenderer.RenderView(scene, _camera, Background, _view.Target, options: new Runtime.SceneViewOptions { IsVisible = _context.Visibility.IsVisible });
 
         var batch = _context.Renderer.Begin(_camera, SpriteSortMode.BackToFront, target: _view.Target);
@@ -130,7 +137,11 @@ internal sealed class SceneViewPanel : IDisposable
 
     public void Dispose()
     {
-        _view3D.Dispose();
+        if (Is3D)
+        {
+            _view3D.Dispose(); // only a 3D project's view created GPU meshes (and loads world.3d)
+        }
+
         _view.Dispose();
     }
 
