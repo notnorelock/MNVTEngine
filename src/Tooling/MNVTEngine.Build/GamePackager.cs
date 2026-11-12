@@ -151,6 +151,74 @@ public static class GamePackager
         return [];
     }
 
+    /// <summary>The folder of the browser host and CEF in a game with the browser module.</summary>
+    public const string BrowserFolder = "Browser";
+
+    private static readonly string[] BrowserHostFiles = ["MNVTBrowserHost.exe", "libcef.dll", "CefSharp.Core.Runtime.dll", "icudtl.dat", "resources.pak"];
+
+    /// <summary>
+    /// Publishes MNVTBrowserHost.exe with CEF into the staged game's <see cref="BrowserFolder"/>: self-contained (its
+    /// own .NET runtime, because CefSharp's C++/CLI needs CoreCLR and AOT games have none), with only the locale
+    /// <paramref name="locale"/> of CEF's translations. Returns the folder's size in bytes with the diagnostics.
+    /// </summary>
+    public static async Task<(IReadOnlyList<BuildDiagnostic> Diagnostics, long Bytes)> PublishBrowserHostAsync(
+        string engineRoot, BuildProfile profile, string workDirectory, string packageDirectory, string locale = "en-US", CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        var output = Path.Combine(packageDirectory, BrowserFolder);
+        if (Directory.Exists(output))
+        {
+            Directory.Delete(output, recursive: true);
+        }
+
+        List<string> arguments =
+        [
+            "publish", EngineLocation.BrowserHostProject(engineRoot),
+            "-c", profile.Configuration,
+            "-r", profile.Target,
+            "--self-contained", "true",
+            "-o", output,
+            "--artifacts-path", Path.Combine(workDirectory, "artifacts-browser-host"),
+            "-nologo", "-v:q", "-clp:NoSummary;ForceNoAlign",
+            "-p:Deterministic=true",
+            "-p:ContinuousIntegrationBuild=true",
+            "-p:DebugType=none",
+        ];
+        var result = await DotnetCli.RunAsync(arguments, engineRoot, PublishTimeout, cancellationToken).ConfigureAwait(false);
+        if (result.StartError is { } error)
+        {
+            return ([BuildDiagnostic.Error("MNVB402", error)], 0);
+        }
+
+        if (result.ExitCode != 0)
+        {
+            return ([BuildDiagnostic.Error("MNVB406", $"The browser host (MNVTBrowserHost.exe, CEF) could not be published (exit code {result.ExitCode}).\n{result.Output.Trim()}")], 0);
+        }
+
+        // CEF's translations are 51 MB: keep the locale the game runs CEF with.
+        var locales = Path.Combine(output, "locales");
+        if (Directory.Exists(locales))
+        {
+            foreach (var file in Directory.EnumerateFiles(locales).Where(f => !Path.GetFileNameWithoutExtension(f).Equals(locale, StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                File.Delete(file);
+            }
+        }
+
+        foreach (var file in Directory.EnumerateFiles(output, "*.pdb", SearchOption.AllDirectories).Concat(Directory.EnumerateFiles(output, "*.xml")).ToList())
+        {
+            File.Delete(file);
+        }
+
+        var missing = BrowserHostFiles.Where(f => !File.Exists(Path.Combine(output, f))).ToList();
+        if (missing.Count > 0)
+        {
+            return ([BuildDiagnostic.Error("MNVB406", $"The published browser host is missing {string.Join(", ", missing)}.")], 0);
+        }
+
+        return ([], Directory.EnumerateFiles(output, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length));
+    }
+
     /// <summary>The private runtime's shared/Microsoft.NETCore.App/&lt;version&gt; folder of a staged game; null when there is none.</summary>
     public static string? FrameworkDirectory(string packageDirectory)
     {

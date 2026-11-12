@@ -90,6 +90,7 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 - [Assets: metas, GUIDs, importers, prefabs](docs/engine/assets.md); [models: FBX, glTF and GLB import](docs/engine/models.md)
 - [C# scripting: game assemblies, hot reload, unloading](docs/engine/csharp-scripting.md)
 - [Particle systems: simulation, emission, shapes, modules, curves, `.mnvtparticle`](docs/engine/particles.md)
+- [Embedded browser: Chromium pages on sprites and meshes, C# API, JavaScript bridge, security profiles](docs/engine/browser.md) ([architecture](docs/architecture/embedded-browser.md))
 - [.mnvts language reference: grammar, semantics, VM limits, errors](docs/scripting/language.md)
 - [Missions: lifecycle, script API, persistence](docs/scripting/missions.md)
 - [Building and exporting games: CLI, profiles, packaging, validation](docs/build-system/building.md)

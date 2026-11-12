@@ -13,7 +13,7 @@ public sealed class ModuleCatalogTests
         Assert.Empty(ModuleCatalog.Validate(BuiltinModules.All));
         var ids = ModuleCatalog.Builtin.Modules.Select(m => m.Id).ToList();
         Assert.Equal(ids.Order(StringComparer.Ordinal), ids);
-        Assert.Equal(17, ids.Count);
+        Assert.Equal(20, ids.Count);
     }
 
     [Fact]

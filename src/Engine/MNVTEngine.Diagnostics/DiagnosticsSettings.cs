@@ -32,7 +32,7 @@ public enum OverlayCorner
 /// <summary>What the HUD overlay shows and where.</summary>
 public sealed class OverlaySettings
 {
-    /// <summary>Sections in display order: frame, memory, renderer, runtime, scripting, physics, assets, warnings.</summary>
+    /// <summary>Sections in display order: frame, memory, renderer, runtime, scripting, physics, particles, browser, assets, warnings.</summary>
     [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
     public List<string> Sections { get; set; } = ["frame", "memory", "renderer", "runtime", "warnings"];
 

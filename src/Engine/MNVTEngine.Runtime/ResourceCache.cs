@@ -18,6 +18,7 @@ public sealed partial class ResourceCache : IDisposable
     private readonly AssetDatabase _assets;
     private readonly ILogger _logger;
     private readonly Dictionary<Guid, Texture2D> _textures = [];
+    private readonly Dictionary<Guid, Texture2D> _runtimeTextures = [];
     private readonly Dictionary<Guid, LoadedMaterial?> _materials = [];
     private readonly Dictionary<string, Shader> _builtinShaders = new(StringComparer.Ordinal);
     private readonly Dictionary<Graphics.Materials.DefaultTexture, Texture2D> _defaultTextures = [];
@@ -48,8 +49,30 @@ public sealed partial class ResourceCache : IDisposable
     /// <summary>Raised after cached textures were released because their assets changed (e.g. new import settings).</summary>
     public event Action<IReadOnlyCollection<Guid>>? TexturesEvicted;
 
+    /// <summary>
+    /// Shows a texture made at run time (a browser page, a video frame) under an id that is no asset, so sprites and
+    /// materials referencing <c>asset:&lt;id&gt;</c> draw it. The caller keeps owning (and disposing) the texture; null
+    /// removes it.
+    /// </summary>
+    public void SetRuntimeTexture(Guid id, Texture2D? texture)
+    {
+        if (texture is null)
+        {
+            _runtimeTextures.Remove(id);
+        }
+        else
+        {
+            _runtimeTextures[id] = texture;
+        }
+    }
+
     public Texture2D GetTexture(AssetRef asset)
     {
+        if (_runtimeTextures.TryGetValue(asset.Guid, out var runtime))
+        {
+            return runtime;
+        }
+
         if (_textures.TryGetValue(asset.Guid, out var cached))
         {
             return cached;

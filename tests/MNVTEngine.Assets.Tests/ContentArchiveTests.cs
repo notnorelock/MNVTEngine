@@ -115,6 +115,9 @@ public sealed class ContentArchiveTests : IDisposable
         Assert.Equal(AssetTypes.Text, packaged.GetAssetType(guid));
         Assert.Equal("hello", Encoding.UTF8.GetString(packaged.ReadAllBytes(guid)));
         Assert.Equal([9, 9], packaged.ReadCompiled(guid));
+        Assert.True(packaged.TryGetGuid("Text/readme.txt", out var byPath)); // lookups by path work without an Assets folder
+        Assert.Equal(guid, byPath);
+        Assert.False(packaged.TryGetGuid("../Text/readme.txt", out _));
         Assert.Throws<ArgumentException>(() => packaged.ReadAllBytes("../outside.txt"));
         Assert.Throws<InvalidOperationException>(() => packaged.FullPath(guid));
         Assert.False(packaged.Refresh().HasChanges);

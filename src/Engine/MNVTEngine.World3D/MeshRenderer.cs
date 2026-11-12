@@ -4,7 +4,8 @@ using MNVTEngine.Serialization;
 namespace MNVTEngine;
 
 /// <summary>Triangles of a mesh in its local space: positions, and three indices per triangle.</summary>
-public sealed record MeshData(Mathematics.Vector3[] Positions, int[] Indices);
+/// <param name="TexCoords">UV0 per position when the mesh has it (texture-space hits, e.g. pointer input on a browser surface).</param>
+public sealed record MeshData(Mathematics.Vector3[] Positions, int[] Indices, Mathematics.Vector2[]? TexCoords = null);
 
 /// <summary>Implemented by the host: the triangles a <see cref="MeshRenderer"/> draws (primitive or model mesh), or null.</summary>
 public interface IMeshDataProvider

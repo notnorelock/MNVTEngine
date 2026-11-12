@@ -9,6 +9,8 @@
     <PackageVersion Include="BepuPhysics" Version="2.4.0" />
     <PackageVersion Include="ImGui.NET" Version="1.91.6.1" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
+    <!-- Embedded browser host only (MNVTEngine.Browser.Host): Chromium 156 via CEF; see docs/architecture/embedded-browser.md. -->
+    <PackageVersion Include="CefSharp.OffScreen.NETCore" Version="156.0.150" />
     <!-- Terrain: polygon booleans for the terrain mesher and buildings (BSL-1.0) -->
     <PackageVersion Include="Clipper2" Version="2.0.0" />
     <PackageVersion Include="Silk.NET.Input.Glfw" Version="2.23.0" />

@@ -49,6 +49,9 @@ public static partial class UsageAnalyzer
 {
     private const int EvidencePerModule = 5;
 
+    /// <summary>The folder of the files embedded browsers load from <c>mnvt://game/</c>.</summary>
+    public const string WebRoot = "Web/";
+
     public static ProjectUsage Analyze(GameProject project, AssetDatabase assets, IReadOnlyDictionary<Guid, IReadOnlyCollection<Guid>> dependencies, string? scriptsAssembly, ModuleCatalog? catalog = null)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -85,6 +88,12 @@ public static partial class UsageAnalyzer
         foreach (var record in assets.Assets.Where(a => assets.IsAlwaysIncluded(a.Guid)))
         {
             Keep(record.Guid, "always include (.meta)");
+        }
+
+        // Web pages load their files by URL (mnvt://game/...), which the build cannot follow: Assets/Web ships whole.
+        foreach (var record in assets.Assets.Where(a => a.Path.StartsWith(WebRoot, StringComparison.OrdinalIgnoreCase)))
+        {
+            Keep(record.Guid, "web content (Assets/Web, mnvt://game/)");
         }
 
         // Strings in code: scenes loaded by name, prefabs and other content addressed by path or asset reference.

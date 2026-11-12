@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The game's C# components. References the engine's gameplay API only; the host provides these assemblies. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Engine\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\src\Engine\MNVTEngine.Browser\MNVTEngine.Browser.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\src\Engine\MNVTEngine.Browser.World2D\MNVTEngine.Browser.World2D.csproj" Private="false" />
+  </ItemGroup>
+</Project>

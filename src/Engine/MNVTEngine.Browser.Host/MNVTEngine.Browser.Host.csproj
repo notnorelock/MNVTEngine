@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    MNVTBrowserHost.exe: the browser process of games with the "browser" module. Runs Chromium (CEF) through
+    CefSharp.OffScreen, renders pages off screen into shared memory and answers the game over a named pipe
+    (MNVTEngine.Browser.Protocol). It is also CEF's subprocess executable (renderer, GPU, utility). CefSharp is C++/CLI:
+    this process always runs on CoreCLR, also next to NativeAOT games. See docs/architecture/embedded-browser.md.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <AssemblyName>MNVTBrowserHost</AssemblyName>
+    <RootNamespace>MNVTEngine.BrowserHosting.Host</RootNamespace>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- CefSharp's own BrowserSubprocess.exe is not needed: this executable hosts the subprocesses itself. -->
+    <CefSharpExcludeSubProcessExe>true</CefSharpExcludeSubProcessExe>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CefSharp.OffScreen.NETCore" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Browser.Protocol\MNVTEngine.Browser.Protocol.csproj" />
+  </ItemGroup>
+  <!--
+    Licenses shipped next to the host (CEF's README requires LICENSE.txt with binary redistributions). The versions
+    follow CefSharp.OffScreen.NETCore in Directory.Packages.props: a missing file after an update fails the build.
+  -->
+  <ItemGroup>
+    <None Include="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(NuGetPackageRoot)chromiumembeddedframework.runtime.win-x64/156.0.15/LICENSE.txt" Link="licenses/CEF-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(NuGetPackageRoot)cefsharp.common.netcore/156.0.150/LICENSE" Link="licenses/CefSharp-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 2,
+  "name": "Main",
+  "gameObjects": [
+    {
+      "id": "a0000000-0000-0000-0000-000000000001",
+      "name": "Main Camera",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.Camera",
+          "id": "b0000000-0000-0000-0000-000000000001",
+          "enabled": true,
+          "data": {
+            "orthographicSize": 5.0,
+            "backgroundColor": {
+              "r": 0.06,
+              "g": 0.07,
+              "b": 0.09,
+              "a": 1.0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000101",
+      "name": "Browser",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": -1.6,
+          "y": -0.4
+        },
+        "localRotation": 0.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.SpriteRenderer",
+          "id": "b0000000-0000-0000-0000-000000000101",
+          "enabled": true,
+          "data": {
+            "size": {
+              "x": 13.0,
+              "y": 7.3125
+            },
+            "sortingOrder": 0
+          }
+        },
+        {
+          "type": "MNVTEngine.BrowserSurface2D",
+          "id": "b0000000-0000-0000-0000-000000000102",
+          "enabled": true,
+          "data": {
+            "url": "mnvt://game/index.html",
+            "pageWidth": 1280,
+            "pageHeight": 720,
+            "transparent": false,
+            "frameRate": 60,
+            "profile": "trustedLocal",
+            "capabilities": "messages, requests",
+            "interactive": true
+          }
+        },
+        {
+          "type": "Browser2D.BrowserDemo",
+          "id": "b0000000-0000-0000-0000-000000000103",
+          "enabled": true,
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000201",
+      "name": "HUD",
+      "active": true,
+      "parent": null,
+      "transform": {
+        "localPosition": {
+          "x": 6.3,
+          "y": 3.4
+        },
+        "localRotation": 8.0,
+        "localScale": {
+          "x": 1.0,
+          "y": 1.0
+        }
+      },
+      "components": [
+        {
+          "type": "MNVTEngine.SpriteRenderer",
+          "id": "b0000000-0000-0000-0000-000000000201",
+          "enabled": true,
+          "data": {
+            "size": {
+              "x": 4.0,
+              "y": 1.6
+            },
+            "sortingOrder": 10
+          }
+        },
+        {
+          "type": "MNVTEngine.BrowserSurface2D",
+          "id": "b0000000-0000-0000-0000-000000000202",
+          "enabled": true,
+          "data": {
+            "url": "mnvt://game/hud.html",
+            "pageWidth": 400,
+            "pageHeight": 160,
+            "transparent": true,
+            "frameRate": 10,
+            "profile": "trustedLocal",
+            "capabilities": "none",
+            "interactive": true
+          }
+        }
+      ]
+    }
+  ]
+}

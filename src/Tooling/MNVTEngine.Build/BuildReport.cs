@@ -17,6 +17,9 @@ public sealed record BuildReportInput(GameProject Project, BuildProfile Profile,
 
     /// <summary>How the game's C# runs; see docs/architecture/il2cpp-aot-pipeline.md.</summary>
     public string ScriptingBackend { get; init; } = "jit";
+
+    /// <summary>Size of the Browser folder (MNVTBrowserHost.exe and CEF); null without the browser module or before packaging.</summary>
+    public long? BrowserHostBytes { get; init; }
 }
 
 /// <summary>
@@ -68,6 +71,18 @@ public static class BuildReport
                     : "CoreCLR with the JIT: engine and game C# ship as IL assemblies and are compiled at run time.",
             },
             ["devTools"] = input.DevTools,
+            ["browser"] = resolution.Modules.Any(m => m.Id == "browser")
+                ? new JObject
+                {
+                    ["host"] = $"{GamePackager.BrowserFolder}/MNVTBrowserHost.exe",
+                    ["engine"] = "Chromium via CEF and CefSharp.OffScreen (out of process; the host is self-contained CoreCLR in JIT and AOT games)",
+                    ["rendering"] = "CPU off-screen rendering: dirty rectangles through shared memory into textures; no GPU zero-copy",
+                    ["platforms"] = new JArray("win-x64"),
+                    ["locales"] = new JArray("en-US"),
+                    ["size"] = input.BrowserHostBytes,
+                    ["licenses"] = "CEF and CefSharp: BSD 3-clause; Chromium: its bundled third-party licenses (THIRD-PARTY-NOTICES.md). No proprietary codecs (H.264, AAC).",
+                }
+                : null,
             ["modules"] = new JObject
             {
                 ["enabled"] = new JArray(resolution.Modules.Select(m => new JObject

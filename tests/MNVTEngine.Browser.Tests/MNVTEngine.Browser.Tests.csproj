@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Browser.World2D\MNVTEngine.Browser.World2D.csproj" />
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Browser.World3D\MNVTEngine.Browser.World3D.csproj" />
+    <!-- Built first so the host tests find MNVTBrowserHost.exe in its build output (BrowserService.FindHost); not copied here. -->
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Browser.Host\MNVTEngine.Browser.Host.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" Private="false" />
+  </ItemGroup>
+</Project>

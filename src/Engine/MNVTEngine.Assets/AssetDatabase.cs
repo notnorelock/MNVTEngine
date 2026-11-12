@@ -216,7 +216,8 @@ public sealed class AssetDatabase : IAssetLookup
         guid = Guid.Empty;
         try
         {
-            return _byPath.TryGetValue(AssetPaths.Normalize(_assetsDirectory, relativePath), out guid);
+            // Packaged games have no Assets folder on disk: their paths are only canonicalized.
+            return _byPath.TryGetValue(_archive is null ? AssetPaths.Normalize(_assetsDirectory, relativePath) : AssetPaths.Canonical(relativePath), out guid);
         }
         catch (ArgumentException)
         {

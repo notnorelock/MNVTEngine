@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Embedded browser (module "browser"): the C# API (BrowserService, BrowserInstance), the connection to
+    MNVTBrowserHost.exe, the JavaScript bridge, browser textures and pointer and keyboard forwarding. Knows nothing of
+    CEF or CefSharp; see docs/architecture/embedded-browser.md. BrowserSurface2D and BrowserSurface3D live in
+    MNVTEngine.Browser.World2D and MNVTEngine.Browser.World3D.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Browser.Protocol\MNVTEngine.Browser.Protocol.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.Browser.World2D" />
+    <InternalsVisibleTo Include="MNVTEngine.Browser.World3D" />
+    <InternalsVisibleTo Include="MNVTEngine.Browser.Tests" />
+  </ItemGroup>
+</Project>

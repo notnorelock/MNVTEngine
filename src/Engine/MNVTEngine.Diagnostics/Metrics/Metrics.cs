@@ -123,6 +123,14 @@ public static class Metrics
     public const string ParticleVertices = "render.particleVertices";
     public const string ParticleTextureSwitches = "render.particleTextureSwitches";
     public const string ParticleRenderTime = "render.particleTime";
+    public const string BrowserInstances = "browser.instances";
+    public const string BrowserFramesPainted = "browser.framesPainted";
+    public const string BrowserFramesUploaded = "browser.framesUploaded";
+    public const string BrowserUploadBytes = "browser.uploadBytes";
+    public const string BrowserUploadTime = "browser.uploadTime";
+    public const string BrowserTextureMemory = "browser.textureMemory";
+    public const string BrowserHostMemory = "browser.hostMemory";
+    public const string BrowserGpuZeroCopy = "browser.gpuZeroCopy";
     public const string AudioSources = "audio.voices";
     public const string CSharpScripts = "scripts.csharp";
     public const string ScriptVms = "scripts.vms";
@@ -203,6 +211,14 @@ public static class Metrics
         new(ParticleVertices, "Particle vertices", "Renderer", MetricUnit.Count, "Vertices of the particle quads drawn."),
         new(ParticleTextureSwitches, "Particle texture switches", "Renderer", MetricUnit.Count, "3D particle runs that changed texture or blending."),
         new(ParticleRenderTime, "Particle rendering", "Renderer", MetricUnit.Milliseconds, "CPU time building and submitting particle geometry."),
+        new(BrowserInstances, "Browsers", "Browser", MetricUnit.Count, "Embedded browsers open (created or loading)."),
+        new(BrowserFramesPainted, "Browser paints", "Browser", MetricUnit.Count, "Paints Chromium delivered since the last frame (several merge into one upload)."),
+        new(BrowserFramesUploaded, "Browser uploads", "Browser", MetricUnit.Count, "Browser textures updated last frame."),
+        new(BrowserUploadBytes, "Browser upload size", "Browser", MetricUnit.Bytes, "Dirty pixels copied to the GPU last frame."),
+        new(BrowserUploadTime, "Browser upload", "Browser", MetricUnit.Milliseconds, "CPU time copying browser pixels from shared memory and queuing uploads last frame."),
+        new(BrowserTextureMemory, "Browser textures", "Browser", MetricUnit.Bytes, "GPU memory of the browser textures."),
+        new(BrowserHostMemory, "Browser host memory", "Browser", MetricUnit.Bytes, "Working set of MNVTBrowserHost.exe (Chromium's renderer and GPU processes are not counted)."),
+        new(BrowserGpuZeroCopy, "Browser GPU zero-copy", "Browser", MetricUnit.Count, "Unsupported: pages reach the GPU through CPU pixel buffers."),
         new(AudioSources, "Audio voices", "Audio", MetricUnit.Count, "Voices playing or paused."),
         new(CSharpScripts, "C# scripts", "Scripting", MetricUnit.Count, "Components from game assemblies."),
         new(ScriptVms, "Script VMs", "Scripting", MetricUnit.Count, "Running .mnvts VMs (MissionRunners)."),

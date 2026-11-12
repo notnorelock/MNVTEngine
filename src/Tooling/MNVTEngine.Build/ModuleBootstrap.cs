@@ -26,6 +26,9 @@ public static class ModuleBootstrap
 
     private static readonly Dictionary<string, Entry> Entries = new(StringComparer.Ordinal)
     {
+        ["browser"] = new("new global::MNVTEngine.Browser.BrowserModule()", ["MNVTEngine.Browser"]),
+        ["browser.2d"] = new("new global::MNVTEngine.Browser2DModule()", ["MNVTEngine.Browser.World2D"]),
+        ["browser.3d"] = new("new global::MNVTEngine.Browser3DModule()", ["MNVTEngine.Browser.World3D"]),
         ["audio"] = new("new global::MNVTEngine.AudioModule(global::MNVTEngine.Audio.OpenAL.OpenALAudioDevice.Create, logger)", ["MNVTEngine.Audio", "MNVTEngine.Audio.OpenAL"]),
         ["particles"] = new("new global::MNVTEngine.Particles.ParticlesModule()", ["MNVTEngine.Particles"]),
         ["particles.2d"] = new("new global::MNVTEngine.Particles2D.Particles2DModule()", ["MNVTEngine.Particles2D"]),

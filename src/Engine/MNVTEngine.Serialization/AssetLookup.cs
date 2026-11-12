@@ -43,5 +43,8 @@ public static class AssetTypes
 
     /// <summary>A particle system (<c>.mnvtparticle</c>).</summary>
     public const string ParticleSystem = "ParticleSystem";
+
+    /// <summary>A web page file (<c>.html</c>, <c>.css</c>, <c>.js</c>) loaded by embedded browsers through <c>mnvt://game/</c>.</summary>
+    public const string Web = "Web";
     public const string Unknown = "Unknown";
 }

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MNVT Browser Demo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Embedded browser</h1>
+    <span id="bridge" class="pill">bridge: waiting</span>
+  </header>
+  <main>
+    <section class="card">
+      <h2>Game bridge</h2>
+      <p>Clicks reach C# through <code>gameApi.sendMessage</code>; the game answers with <code>PostMessage</code>.</p>
+      <button id="click">Send "clicked"</button>
+      <button id="stats">gameApi.request("stats")</button>
+      <p id="score">Score: 0</p>
+      <pre id="answer">-</pre>
+    </section>
+    <section class="card">
+      <h2>Input</h2>
+      <form id="form">
+        <input id="name" placeholder="Type here, press Enter" autocomplete="off">
+      </form>
+      <ul id="log"></ul>
+      <div class="scroll" id="list"></div>
+    </section>
+    <section class="card wide">
+      <h2>Animation</h2>
+      <div class="track"><div class="ball"></div></div>
+      <p id="clock"></p>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

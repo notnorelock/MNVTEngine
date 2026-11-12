@@ -75,7 +75,7 @@ public sealed partial class ModelAnimationProvider : IModelAnimationProvider, IM
     {
         ArgumentNullException.ThrowIfNull(renderer);
         var mesh = !renderer.Mesh.IsNone ? MeshOf(renderer.Mesh)?.Mesh : renderer.Primitive != PrimitiveMesh.None ? MeshScenePass.GetPrimitive(renderer.Primitive) : null;
-        return mesh is null ? null : new MeshData(mesh.Positions, [.. mesh.IndexSpan.ToArray().Select(i => (int)i)]);
+        return mesh is null ? null : new MeshData(mesh.Positions, [.. mesh.IndexSpan.ToArray().Select(i => (int)i)], mesh.UV0);
     }
 
     public void Dispose() => _assets.AssetsChanged -= Evict;

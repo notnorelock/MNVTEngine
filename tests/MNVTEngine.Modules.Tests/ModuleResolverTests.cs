@@ -17,7 +17,7 @@ public sealed class ModuleResolverTests
     {
         var resolution = Resolve(ProjectProfile.TwoD);
         Assert.True(resolution.Succeeded);
-        Assert.Equal(["core", "audio", "graphics", "assets", "particles", "platform", "runtime", "scripting", "ui", "world.2d", "particles.2d", "physics.2d"], Ids(resolution));
+        Assert.Equal(["core", "audio", "graphics", "assets", "particles", "platform", "runtime", "browser", "scripting", "ui", "world.2d", "browser.2d", "particles.2d", "physics.2d"], Ids(resolution));
         Assert.DoesNotContain(resolution.Modules, m => m.ExclusiveProfile == ProjectProfile.ThreeD);
         Assert.Equal("not available in 2D", resolution.Excluded.Single(e => e.Module.Id == "world.3d").Reason);
         Assert.Equal("opt-in, not enabled", resolution.Excluded.Single(e => e.Module.Id == "devtools").Reason);
@@ -28,7 +28,7 @@ public sealed class ModuleResolverTests
     {
         var resolution = Resolve(ProjectProfile.ThreeD);
         Assert.True(resolution.Succeeded);
-        Assert.Equal(["core", "audio", "graphics", "assets", "particles", "platform", "runtime", "scripting", "ui", "world.3d", "particles.3d", "physics.3d", "terrain"], Ids(resolution));
+        Assert.Equal(["core", "audio", "graphics", "assets", "particles", "platform", "runtime", "browser", "scripting", "ui", "world.3d", "browser.3d", "particles.3d", "physics.3d", "terrain"], Ids(resolution));
         Assert.DoesNotContain(resolution.Modules, m => m.ExclusiveProfile == ProjectProfile.TwoD);
     }
 
@@ -96,14 +96,16 @@ public sealed class ModuleResolverTests
         Assert.Contains("graphics", Ids(always)); // reported, still listed as the infrastructure it is
 
         var needed = Resolve(ProjectProfile.TwoD, ("world.2d", false));
-        var error = Assert.Single(needed.Diagnostics, d => d.Severity == ModuleSeverity.Error);
-        Assert.Equal((ModuleDiagnostic.RequiredModuleDisabled, "world.2d"), (error.Code, error.Module));
-        Assert.Contains("'physics.2d' requires 'world.2d'", error.Message, StringComparison.Ordinal);
+        var errors = needed.Diagnostics.Where(d => d.Severity == ModuleSeverity.Error).ToList();
+        Assert.All(errors, e => Assert.Equal((ModuleDiagnostic.RequiredModuleDisabled, "world.2d"), (e.Code, e.Module)));
+        Assert.Equal(2, errors.Count);
+        Assert.Contains(errors, e => e.Message.Contains("'browser.2d' requires 'world.2d'", StringComparison.Ordinal));
+        Assert.Contains(errors, e => e.Message.Contains("'physics.2d' requires 'world.2d'", StringComparison.Ordinal));
         Assert.DoesNotContain("world.2d", Ids(needed));
         Assert.False(needed.Succeeded);
 
         // Disabling the dependent too is the consistent fix.
-        Assert.True(Resolve(ProjectProfile.TwoD, ("world.2d", false), ("physics.2d", false)).Succeeded);
+        Assert.True(Resolve(ProjectProfile.TwoD, ("world.2d", false), ("physics.2d", false), ("browser.2d", false)).Succeeded);
     }
 
     [Fact]

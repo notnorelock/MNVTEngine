@@ -59,6 +59,7 @@ do. `OpenReadOnly(assetsDir, artifactsLibrary: libraryDir)` reads imported model
 | Json | .json | Json | Valid JSON; dependencies |
 | AnimatorController | .mnvtanimator | AnimatorController | The state machine is valid (states, parameters, conditions, transitions); counts. See [models](models.md#animator-controllers). |
 | Shader / Script / Text | .glsl .vert .frag / .mnvts / .txt .md | Shader / Script / Text | Valid UTF-8; line count. Script compilation arrives with the `.mnvts` compiler (Milestone 6). |
+| Web | .html .htm .css .js .mjs | Web | Valid UTF-8; line count. Files under `Assets/Web` are served to [embedded browsers](browser.md) at `mnvt://game/` and always ship. |
 | Audio | .wav .ogg | Audio | RIFF/WAVE or OggS signature. Decoding arrives with the audio subsystem. |
 | Font | .ttf .otf | Font | TrueType/OpenType signature |
 | Model | .fbx .gltf .glb | Model | Assimp (FBX) or SharpGLTF (glTF); writes the `model` artifact. See [models](models.md). Without the model importer (runtime), model files only get the Model type. |

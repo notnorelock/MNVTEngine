@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 2D browser surfaces (module browser.2d): a browser page on a SpriteRenderer, with mouse picking in 2D. 2D projects only. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Browser\MNVTEngine.Browser.csproj" />
+    <ProjectReference Include="..\MNVTEngine.World2D\MNVTEngine.World2D.csproj" />
+  </ItemGroup>
+</Project>

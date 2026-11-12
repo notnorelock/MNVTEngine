@@ -24,6 +24,9 @@ public static class EngineModuleSet
         ["particles"] = (_, _) => new Particles.ParticlesModule(),
         ["particles.2d"] = (_, _) => new Particles2D.Particles2DModule(),
         ["particles.3d"] = (_, _) => new Particles3D.Particles3DModule(),
+        ["browser"] = (_, _) => new Browser.BrowserModule(),
+        ["browser.2d"] = (_, _) => new Browser2DModule(),
+        ["browser.3d"] = (_, _) => new Browser3DModule(),
     };
 
     /// <summary>A new instance of a module by catalog id (a host owns and starts its own); null for modules without a runtime implementation.</summary>

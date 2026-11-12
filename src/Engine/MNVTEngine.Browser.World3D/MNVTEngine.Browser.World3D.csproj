@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 3D browser surfaces (module browser.3d): a browser page on a MeshRenderer, with mouse picking through the mesh's UVs. 3D projects only. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Browser\MNVTEngine.Browser.csproj" />
+    <ProjectReference Include="..\MNVTEngine.World3D\MNVTEngine.World3D.csproj" />
+  </ItemGroup>
+</Project>

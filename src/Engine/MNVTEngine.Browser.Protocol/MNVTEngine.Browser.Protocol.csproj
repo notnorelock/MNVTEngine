@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The contract between the game (MNVTEngine.Browser) and the browser host process (MNVTBrowserHost.exe): message
+    names, framing on the named pipe, and the shared-memory frame layout. No engine or CEF dependencies.
+  -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.Browser.Tests" />
+  </ItemGroup>
+</Project>

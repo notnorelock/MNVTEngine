@@ -101,6 +101,7 @@ public static class AssetImporters
         new MaterialImporter(),
         new TextImporter("Shader", AssetTypes.Shader, ".glsl", ".vert", ".frag"),
         new TextImporter("Text", AssetTypes.Text, ".txt", ".md"),
+        new TextImporter("Web", AssetTypes.Web, ".html", ".htm", ".css", ".js", ".mjs"),
         new MagicImporter("Audio", AssetTypes.Audio, new Dictionary<string, Func<byte[], string?>>
         {
             [".wav"] = d => d.Length >= 12 && Ascii(d, 0, 4) == "RIFF" && Ascii(d, 8, 4) == "WAVE" ? "wav" : null,

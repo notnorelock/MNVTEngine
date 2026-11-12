@@ -124,6 +124,7 @@ public sealed partial class GameBuilder(ILogger logger)
         Directory.CreateDirectory(contentDirectory);
         string? scriptsAssembly = null;
         List<string> modules;
+        long? browserHostBytes = null;
         var aot = profile.ScriptingBackend == "aot";
         string? aotSource = null;
         ContentResult? compiled = null;
@@ -183,6 +184,13 @@ public sealed partial class GameBuilder(ILogger logger)
             }
 
             diagnostics.AddRange(await GamePackager.PublishCrashHandlerAsync(engineRoot, profile, work, stage, aot, cancellationToken).ConfigureAwait(false));
+            if (modules.Contains("browser"))
+            {
+                var (browserDiagnostics, browserBytes) = await GamePackager.PublishBrowserHostAsync(engineRoot, profile, work, stage, cancellationToken: cancellationToken).ConfigureAwait(false);
+                diagnostics.AddRange(browserDiagnostics);
+                browserHostBytes = browserBytes;
+            }
+
             if (diagnostics.HasErrors())
             {
                 return Fail(profile);
@@ -247,7 +255,7 @@ public sealed partial class GameBuilder(ILogger logger)
         var formattedSize = GamePackager.FormatSize(size);
         LogPackaged(logger, formattedSize, output);
         var reportPath = BuildReport.PathFor(output);
-        BuildReport.Write(BuildReport.Create(new BuildReportInput(project, profile, compiled!, modules.Contains("devtools"), diagnostics) { PackageDirectory = output, Pruning = pruning, ScriptingBackend = profile.ScriptingBackend }), reportPath);
+        BuildReport.Write(BuildReport.Create(new BuildReportInput(project, profile, compiled!, modules.Contains("devtools"), diagnostics) { PackageDirectory = output, Pruning = pruning, ScriptingBackend = profile.ScriptingBackend, BrowserHostBytes = browserHostBytes }), reportPath);
         LogReport(logger, reportPath);
 
         if (options.TestRunFrames is { } frames)

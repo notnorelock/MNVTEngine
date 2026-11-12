@@ -45,6 +45,7 @@ The HUD is a box in one corner of the view. Its sections are configurable (`over
 | `runtime` | Entities, components, systems, physics bodies, audio voices, C# scripts, script VMs, uptime, frame number |
 | `scripting`, `physics`, `assets` | Counts for those subsystems |
 | `particles` | Active particle systems, particles alive, emitted per frame, CPU simulation time, particles drawn, particle draw calls, particle rendering time ([particle metrics](particles.md#diagnostics-and-performance)) |
+| `browser` | Embedded browsers, Chromium paints and texture uploads per frame, upload size and time, texture memory, browser host memory; GPU zero-copy shows Unsupported ([browser diagnostics](browser.md#diagnostics)) |
 | `warnings` | Budgets at Warning or above, e.g. `WARNING: TEXTURE MEMORY BUDGET AT 91.20%` |
 
 **Values that are not measured show as `n/a`, never as 0:**
@@ -125,6 +126,7 @@ public sealed class PlayerController : Component
 | `fps`, `stats`, `memory`, `renderer` | Show metrics (`memory` also queries GPU memory once). |
 | `crash managed`, `crash native` | Crash the game on purpose, to test [crash reporting](crash-reporting.md). |
 | `scene`, `entities [filter]`, `scripts`, `missions` | Inspect the running game. |
+| `browsers`, `browser.reload <id>` | The browser host and every [embedded browser](browser.md); reload one (recovers it after a crash). |
 | `budgets`, `budgets set <id> <limit>` | List budgets; change a limit for this session. |
 | `profiler`, `profiler capture`, `profiler reset`, `profiler detail frame\|systems\|scripts` | Summary; report file; reset peaks; instrumentation level. |
 | `gc` | Run a full garbage collection and print the heap before and after. |

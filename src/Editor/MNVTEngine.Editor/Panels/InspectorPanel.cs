@@ -330,6 +330,11 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
                 DrawTilePalette(tilemap);
             }
 
+            if (component is Browser.BrowserSurface surface)
+            {
+                DrawBrowserSurface(surface);
+            }
+
             if (component is MeshRenderer meshRenderer)
             {
                 DrawBlendShapes(meshRenderer);
@@ -352,6 +357,50 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
     }
 
     /// <summary>One row per group: name, parent, volume, mute; Master's settings are the members above.</summary>
+    /// <summary>
+    /// A browser surface's checks (is the URL allowed by its profile, does the mnvt:// file exist) and, in Play mode,
+    /// its live state: page, texture, paints and uploads, the browser host, and Reload / crash test buttons.
+    /// </summary>
+    private void DrawBrowserSurface(Browser.BrowserSurface surface)
+    {
+        var options = surface.CreateOptions();
+        if (!options.Policy.IsNavigationAllowed(surface.Url))
+        {
+            Gui.TextColored(new System.Numerics.Vector4(1f, 0.7f, 0.3f, 1f), $"The {surface.Profile} profile does not allow loading this URL.");
+        }
+        else if (BrowserHosting.BrowserSecurityPolicy.TryGetGameAssetPath(surface.Url, out var assetPath) && !context.Session.Assets.TryGetGuid(assetPath, out _))
+        {
+            Gui.TextColored(new System.Numerics.Vector4(1f, 0.7f, 0.3f, 1f), $"Assets/{assetPath} does not exist.");
+        }
+
+        if (surface.Browser is not { } browser)
+        {
+            Gui.Muted("The page opens in Play mode (MNVTBrowserHost.exe, Chromium).");
+            return;
+        }
+
+        Gui.Muted($"{browser.State}{(browser.Error is { } error ? ": " + error : "")}");
+        Gui.Muted($"{browser.Title}  {browser.Url}");
+        Gui.Muted($"Texture {browser.TextureWidth}x{browser.TextureHeight}, {browser.FramesPainted} paints, {browser.FramesUploaded} uploads{(browser.IsLoading ? ", loading" : "")}");
+        if (SurfaceService(surface) is { } service)
+        {
+            Gui.Muted($"Host {service.HostState}, Chromium {service.ChromiumVersion ?? "-"}, process {service.HostProcessId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "-"}");
+        }
+
+        if (ImGui.Button("Reload"))
+        {
+            browser.Reload(ignoreCache: true);
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Crash renderer"))
+        {
+            browser.SimulateRendererCrash();
+        }
+
+        static Browser.BrowserService? SurfaceService(Browser.BrowserSurface s) => s.GameObject.Scene.GetService<Browser.BrowserService>();
+    }
+
     private void DrawMixer(AudioMixer mixer)
     {
         ImGui.SeparatorText("Groups");

@@ -177,6 +177,29 @@ public static class BuiltinModules
         BuildAssets = ["shader:particle-3d"],
     };
 
+    public static ModuleDefinition Browser { get; } = new("browser", "Embedded browser", "Chromium web pages rendered into textures, with a C# API and a JavaScript bridge. Ships MNVTBrowserHost.exe and CEF (about 400 MB).")
+    {
+        Requires = ["core", "runtime"],
+        RuntimeAssemblies = ["MNVTEngine.Browser", "MNVTEngine.Browser.Protocol"],
+        Components = [],
+    };
+
+    public static ModuleDefinition Browser2D { get; } = new("browser.2d", "2D browser surfaces", "Web pages on sprites, with mouse and keyboard input.")
+    {
+        Profiles = TwoD,
+        Requires = ["browser", "world.2d"],
+        RuntimeAssemblies = ["MNVTEngine.Browser.World2D"],
+        Components = ["MNVTEngine.BrowserSurface2D"],
+    };
+
+    public static ModuleDefinition Browser3D { get; } = new("browser.3d", "3D browser surfaces", "Web pages on meshes (screens, terminals), with mouse picking through the mesh's UVs.")
+    {
+        Profiles = ThreeD,
+        Requires = ["browser", "world.3d"],
+        RuntimeAssemblies = ["MNVTEngine.Browser.World3D"],
+        Components = ["MNVTEngine.BrowserSurface3D"],
+    };
+
     public static IReadOnlyList<ModuleDefinition> All { get; } =
-        [Core, Platform, Graphics, Assets, Runtime, Audio, Scripting, UI, DevTools, World2D, World3D, Physics2D, Physics3D, Terrain, Particles, Particles2D, Particles3D];
+        [Core, Platform, Graphics, Assets, Runtime, Audio, Scripting, UI, DevTools, World2D, World3D, Physics2D, Physics3D, Terrain, Particles, Particles2D, Particles3D, Browser, Browser2D, Browser3D];
 }

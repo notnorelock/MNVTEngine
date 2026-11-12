@@ -47,6 +47,9 @@ The engine is a set of **modules**. A project has a module or does not. Which on
 | `particles` | 2D, 3D | auto | core | | Particles: particle systems (simulation, emission, shapes, lifetime modules, curves, gradients, `.mnvtparticle`); see [Particle systems](particles.md) |
 | `particles.2d` | 2D | with `particles` | particles, world.2d | | Particles2D: draws particle systems in the sprite batch |
 | `particles.3d` | 3D | with `particles` | particles, world.3d | | Particles3D: billboards and oriented quads, depth-tested and sorted; the particle shader |
+| `browser` | 2D, 3D | auto | core, runtime | | Browser, Browser.Protocol: Chromium pages in textures, C# API, JavaScript bridge; the build adds `Browser/MNVTBrowserHost.exe` with CEF (about 445 MB). See [Embedded browser](browser.md) |
+| `browser.2d` | 2D | auto | browser, world.2d | | Browser.World2D: `BrowserSurface2D` |
+| `browser.3d` | 3D | auto | browser, world.3d | | Browser.World3D: `BrowserSurface3D` |
 
 Hosts are not modules. The game executable (GameHost) and the shared editor (Editor, Editor.Services) host every module. Profile-specific editor assemblies will belong to their module.
 
