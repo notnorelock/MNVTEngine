@@ -31,9 +31,10 @@ var logger = loggerFactory.CreateLogger("Editor");
 
 var projectArg = args.Where((a, i) => !a.StartsWith("--", StringComparison.Ordinal) && (i == 0 || args[i - 1] is not ("--frames" or "--screenshot" or "--select" or "--focus" or "--break" or "--edit" or "--build"))).FirstOrDefault();
 var recent = new MNVTEngine.Editor.Services.RecentProjects(MNVTEngine.Editor.Services.RecentProjects.DefaultFile);
-if (projectArg is null)
+// A project from before profiles whose scenes mix 2D and 3D opens in the hub, which asks for its profile.
+if (projectArg is null || ProjectHub.NeedsProfileChoice(projectArg))
 {
-    var hub = new ProjectHub(loggerFactory, recent, Value("--frames") is { } hubFrames ? int.Parse(hubFrames, CultureInfo.InvariantCulture) : null, Value("--screenshot"));
+    var hub = new ProjectHub(loggerFactory, recent, Value("--frames") is { } hubFrames ? int.Parse(hubFrames, CultureInfo.InvariantCulture) : null, Value("--screenshot"), projectArg);
     using (var hubWindow = new GameWindow(new GameWindowOptions { Title = "MNVTEngine - Projects", Width = 960, Height = 600, GraphicsValidation = args.Contains("--gpu-validation") }))
     {
         if (!RunGraphics(hubWindow, hub))
@@ -54,10 +55,16 @@ GameProject project;
 try
 {
     project = GameProject.Load(projectArg);
+    if (project.NeedsProfileMigration && ProjectProfileMigration.Migrate(project) is { Inference: { } inference } migrated)
+    {
+        var (profileName, reason) = (MNVTEngine.Modules.ProjectProfiles.DisplayName(migrated.Profile), inference.Describe());
+        EditorLog.ProfileMigrated(logger, profileName, project.ProjectFile, reason);
+    }
+
     recent.Add(project.ProjectFile);
     LoggingSettings.Load(LoggingSettings.PathFor(project)).ApplyTo(logHub);
 }
-catch (Exception ex) when (ex is SerializationException or FileNotFoundException)
+catch (Exception ex) when (ex is SerializationException or ProfileConflictException or IOException or UnauthorizedAccessException)
 {
     Console.Error.WriteLine(ex.Message);
     return 2;

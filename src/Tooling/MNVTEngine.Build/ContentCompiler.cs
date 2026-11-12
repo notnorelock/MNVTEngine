@@ -3,6 +3,7 @@ using MNVTEngine.Assets;
 using MNVTEngine.Assets.Models;
 using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Vulkan.Shaders;
+using MNVTEngine.Modules;
 using MNVTEngine.Runtime;
 using MNVTEngine.Scenes;
 using MNVTEngine.Scripting.Bytecode;
@@ -334,10 +335,15 @@ public static class ContentCompiler
         }
     }
 
-    /// <summary>The project file without development-only settings (C# project path, build profiles).</summary>
+    /// <summary>
+    /// The project file without development-only settings (C# project path, build profiles), at the current schema
+    /// with the profile it is built with (inferred for a project that predates profiles).
+    /// </summary>
     private static byte[] PackagedProjectFile(GameProject project)
     {
         var document = JObject.Parse(File.ReadAllText(project.ProjectFile));
+        document["schemaVersion"] = GameProject.CurrentSchemaVersion;
+        document["profile"] = ProjectProfileMigration.Resolve(project).Profile.Id();
         document.Remove("scripts");
         document.Remove("buildProfiles");
         return Encoding.UTF8.GetBytes(document.ToString(Formatting.Indented));

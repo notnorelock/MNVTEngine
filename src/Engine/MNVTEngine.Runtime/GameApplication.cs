@@ -48,6 +48,21 @@ public static partial class GameApplication
             return 2;
         }
 
+        try
+        {
+            // A project from before profiles plays with its inferred profile; the editor or `mnvt migrate` saves it.
+            if (ProjectProfileMigration.Resolve(project) is { Inference: { } inference } resolution)
+            {
+                LogProfileInferred(logger, Modules.ProjectProfiles.DisplayName(resolution.Profile), inference.Describe());
+                project.Profile = resolution.Profile;
+            }
+        }
+        catch (ProfileConflictException ex)
+        {
+            LogLoadFailed(logger, ex);
+            return 2;
+        }
+
         var registry = EngineComponents.CreateRegistry();
         if (prepareComponents is not null && !prepareComponents(project, registry))
         {
@@ -178,6 +193,9 @@ public static partial class GameApplication
 
     [LoggerMessage(EventId = 3202, Level = LogLevel.Critical, Message = "Graphics could not start: {Reason}")]
     private static partial void LogGraphicsFailed(ILogger logger, string reason);
+
+    [LoggerMessage(EventId = 3204, Level = LogLevel.Warning, Message = "The project has no profile; running as {Profile}. {Reason} Save it with `mnvt migrate` or the editor")]
+    private static partial void LogProfileInferred(ILogger logger, string profile, string reason);
 
     [LoggerMessage(EventId = 3200, Level = LogLevel.Critical, Message = "Game could not start")]
     private static partial void LogLoadFailed(ILogger logger, Exception exception);

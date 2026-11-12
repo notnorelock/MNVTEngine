@@ -4,13 +4,14 @@ This walkthrough creates a game, runs it, edits it in the editor, and exports a 
 
 ## 1. Create a project
 
-Start the editor without a project (`scripts\mnvt.cmd editor`, or run `MNVTEngine.Editor.exe`). The **Project Hub** opens. It lists recent projects, creates a new one from a template (name, location, template), or opens an existing folder. The command line does the same:
+Start the editor without a project (`scripts\mnvt.cmd editor`, or run `MNVTEngine.Editor.exe`). The **Project Hub** opens. It lists recent projects, creates a new one (name, location, **2D or 3D** profile, then a template of that profile), or opens an existing folder. See [project profiles](engine/project-profiles.md). The command line does the same:
 
 ```bash
 scripts\mnvt.cmd new MyGame --template basic-2d --path C:\Games
+scripts\mnvt.cmd new My3DGame --profile 3d --path C:\Games
 ```
 
-`basic-2d` is a player moved by a C# component, a goal, and a `.mnvts` mission. `empty-2d` is a camera in an empty scene.
+`basic-2d` is a player moved by a C# component, a goal, and a `.mnvts` mission. `empty-2d` is a camera in an empty scene. `empty-3d` is a perspective camera with a directional and an ambient light. `mnvt new` needs a profile: `--profile 2d|3d`, or a template, which implies one.
 
 ```text
 MyGame/

@@ -1,19 +1,25 @@
+using MNVTEngine.Modules;
 using MNVTEngine.Runtime;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace MNVTEngine.Build;
 
-public sealed record ProjectTemplate(string Id, string Description, string Directory);
+/// <param name="Name">Display name, e.g. "Empty 3D Project".</param>
+/// <param name="Profile">The profile of every project created from it.</param>
+public sealed record ProjectTemplate(string Id, string Name, string Description, ProjectProfile Profile, string Directory);
 
 /// <summary>
-/// Project creation from <c>templates/*</c>. A template is a folder with a <c>template.json</c> (<c>id</c>,
-/// <c>description</c>). Tokens are replaced in file names (<c>__Name__</c>, <c>__Identifier__</c>) and in text files
+/// Project creation from <c>templates/*</c>. A template is a folder with a <c>template.json</c> (<c>id</c>, <c>name</c>,
+/// <c>description</c> and <c>profile</c>, "2d" or "3d", which its .mnvtproj must declare too). Tokens are replaced in file names (<c>__Name__</c>, <c>__Identifier__</c>) and in text files
 /// (<c>{{Name}}</c>, <c>{{Identifier}}</c>, <c>{{EngineRoot}}</c>). Every new project gets its own content encryption key.
 /// </summary>
 public static class ProjectTemplates
 {
     public const string ManifestFile = "template.json";
+
+    /// <summary>The template <c>mnvt new --profile</c> uses: <c>empty-2d</c> or <c>empty-3d</c>.</summary>
+    public static string DefaultTemplateId(ProjectProfile profile) => "empty-" + profile.Id();
 
     private static readonly HashSet<string> TextExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -41,7 +47,13 @@ public static class ProjectTemplates
             try
             {
                 var json = JObject.Parse(File.ReadAllText(manifest));
-                templates.Add(new ProjectTemplate(json.Value<string>("id") ?? Path.GetFileName(directory), json.Value<string>("description") ?? "", directory));
+                var id = json.Value<string>("id") ?? Path.GetFileName(directory);
+                if (!ProjectProfiles.TryParse(json.Value<string>("profile"), out var profile))
+                {
+                    throw new InvalidDataException($"Template manifest '{manifest}' needs \"profile\": \"2d\" or \"3d\".");
+                }
+
+                templates.Add(new ProjectTemplate(id, json.Value<string>("name") ?? id, json.Value<string>("description") ?? "", profile, directory));
             }
             catch (JsonException ex)
             {
@@ -109,6 +121,12 @@ public static class ProjectTemplates
         }
 
         ContentKeys.Create(targetDirectory);
-        return GameProject.Load(targetDirectory).ProjectFile;
+        var project = GameProject.Load(targetDirectory);
+        if (project.Profile != template.Profile)
+        {
+            throw new InvalidDataException($"Template '{template.Id}' is a {template.Profile.DisplayName()} template, but its project file declares {(project.Profile is { } p ? p.DisplayName() : "no profile")}.");
+        }
+
+        return project.ProjectFile;
     }
 }

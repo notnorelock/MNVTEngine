@@ -1,6 +1,7 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "TerrainDemo",
+  "profile": "3d",
   "startupScene": "Scenes/Main.mnvt",
   "window": {
     "title": "MNVTEngine - TerrainDemo",

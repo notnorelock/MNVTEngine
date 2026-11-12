@@ -24,7 +24,6 @@ internal sealed class SceneViewPanel : IDisposable
     private readonly Camera2D _camera = new(1, 1) { OrthographicSize = 6f };
     private readonly TransformGizmo _gizmo = new();
     private readonly SceneView3D _view3D;
-    private bool? _mode3D;
     private GizmoHandle _hovered;
     private Vector2? _lastPaint;
     private Vector2 _mouseWorld;
@@ -37,7 +36,8 @@ internal sealed class SceneViewPanel : IDisposable
         _view3D = new SceneView3D(context);
     }
 
-    private bool Is3D => _mode3D ??= _context.ActiveScene.FindObjectsOfType<MeshRenderer>().Any() || _context.ActiveScene.FindObjectsOfType<Light>().Any();
+    /// <summary>The project's profile decides the Scene view: 3D projects edit in the 3D view, 2D projects in the 2D view.</summary>
+    private bool Is3D => _context.Session.Project.Profile == Modules.ProjectProfile.ThreeD;
 
     public void Draw()
     {
@@ -177,17 +177,6 @@ internal sealed class SceneViewPanel : IDisposable
             }
 
             ImGui.SameLine(0f, 12f);
-        }
-
-        if (Gui.IconButton(Icons.RectangleHorizontal, "2D view", !is3D))
-        {
-            _mode3D = false;
-        }
-
-        ImGui.SameLine(0f, 2f);
-        if (Gui.IconButton(Icons.Cuboid, "3D view", is3D))
-        {
-            _mode3D = true;
         }
 
         if (is3D)

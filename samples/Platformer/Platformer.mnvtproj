@@ -1,6 +1,7 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "Platformer",
+  "profile": "2d",
   "startupScene": "Scenes/Level1.mnvt",
   "window": {
     "title": "MNVTEngine - Platformer",

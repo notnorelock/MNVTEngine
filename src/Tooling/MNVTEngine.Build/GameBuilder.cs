@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Assets;
 using MNVTEngine.GameAssemblies;
+using MNVTEngine.Modules;
 using MNVTEngine.Runtime;
 using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
@@ -304,7 +305,7 @@ public sealed partial class GameBuilder(ILogger logger)
     {
         try
         {
-            return GameProject.Load(projectPath);
+            return WithProfile(GameProject.Load(projectPath), diagnostics);
         }
         catch (SerializationException ex)
         {
@@ -320,6 +321,30 @@ public sealed partial class GameBuilder(ILogger logger)
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// A project from before profiles builds with its inferred profile (MNVB110, without changing the project file);
+    /// mixed 2D and 3D content stops the build (MNVB109) until the profile is chosen.
+    /// </summary>
+    private static GameProject? WithProfile(GameProject project, List<BuildDiagnostic> diagnostics)
+    {
+        try
+        {
+            var resolution = ProjectProfileMigration.Resolve(project);
+            if (resolution.Inference is { } inference)
+            {
+                diagnostics.Add(BuildDiagnostic.Warning("MNVB110", $"The project has no profile; building as {resolution.Profile.DisplayName()}. {inference.Describe()} Save it with `mnvt migrate`.", project.ProjectFile));
+                project.Profile = resolution.Profile;
+            }
+
+            return project;
+        }
+        catch (ProfileConflictException ex)
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB109", ex.Message, project.ProjectFile));
+            return null;
+        }
     }
 
     /// <summary>Refuses output folders that would destroy something other than a previous build.</summary>

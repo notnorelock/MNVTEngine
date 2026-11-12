@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Project profiles (2D / 3D) and, later, the engine module catalog. No engine dependencies: tooling, runtime and editor all read it. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.Modules.Tests" />
+  </ItemGroup>
+</Project>

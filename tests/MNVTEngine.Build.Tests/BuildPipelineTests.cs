@@ -172,9 +172,9 @@ public sealed class BuildPipelineTests : IDisposable
         Assert.Equal(Cli.UsageError, await Cli.RunAsync(["build", "x", "--fast"], output, NullLoggerFactory.Instance, ct));
         Assert.Equal(Cli.UsageError, await Cli.RunAsync(["new", "G", "--template", "nope", "--path", _root], output, NullLoggerFactory.Instance, ct));
 
-        Assert.Equal(Cli.Ok, await Cli.RunAsync(["new", "Fresh", "--path", _root], output, NullLoggerFactory.Instance, ct));
+        Assert.Equal(Cli.Ok, await Cli.RunAsync(["new", "Fresh", "--profile", "2d", "--path", _root], output, NullLoggerFactory.Instance, ct));
         Assert.Equal(Cli.Ok, await Cli.RunAsync(["validate", Path.Combine(_root, "Fresh")], output, NullLoggerFactory.Instance, ct));
-        Assert.Equal(Cli.Failed, await Cli.RunAsync(["new", "Fresh", "--path", _root], output, NullLoggerFactory.Instance, ct)); // folder not empty
+        Assert.Equal(Cli.Failed, await Cli.RunAsync(["new", "Fresh", "--profile", "2d", "--path", _root], output, NullLoggerFactory.Instance, ct)); // folder not empty
         Assert.Equal(Cli.Failed, await Cli.RunAsync(["validate", Path.Combine(_root, "Missing")], output, NullLoggerFactory.Instance, ct));
         Assert.Contains("MNVB100", output.ToString(), StringComparison.Ordinal);
     }
@@ -286,6 +286,24 @@ public sealed class BuildPipelineTests : IDisposable
         var model = Assets.AssetDatabase.OpenPackaged(archive).ReadArtifact(guid, Assets.Models.ModelArtifact.Name);
         Assert.NotNull(model);
         Assert.NotEmpty(Assets.Models.ModelArtifact.Read(model).Meshes);
+    }
+
+    [Fact]
+    public void PackagedProjectFile_AlwaysDeclaresTheProfile_EvenForAProjectFromBeforeProfiles()
+    {
+        var project = NewProject("empty-3d");
+        var legacy = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(project.ProjectFile));
+        legacy["schemaVersion"] = 1;
+        legacy.Remove("profile");
+        File.WriteAllText(project.ProjectFile, legacy.ToString());
+        project = GameProject.Load(project.ProjectFile);
+        Assert.True(project.NeedsProfileMigration);
+
+        var (_, archives, key) = CompileInto(project);
+        using var archive = Assets.ContentArchiveSet.Open(_root, archives.Select(a => a.File), key);
+        var packaged = GameProject.LoadPackaged(archive, _root);
+        Assert.Equal(Modules.ProjectProfile.ThreeD, packaged.Profile);
+        Assert.Equal(GameProject.CurrentSchemaVersion, packaged.SchemaVersion);
     }
 
     private (ContentResult Result, List<PackagedArchive> Archives, byte[] Key) CompileInto(GameProject project)

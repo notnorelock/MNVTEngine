@@ -1,14 +1,50 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "UIShowcase",
+  "profile": "2d",
   "startupScene": "Scenes/Main.mnvt",
-  "window": { "title": "UIShowcase", "width": 1280, "height": 720, "vSync": true, "resizable": true, "mode": "windowed", "icon": "Textures/goal.png", "minWidth": 640, "minHeight": 480 },
-  "splashScreen": { "enabled": true, "title": "UIShowcase", "subtitle": "A game UI built with MNVTEngine", "logo": "Textures/player.png", "minimumDuration": 1.5, "showProgress": true, "showEngineBranding": true },
-  "loadingScreen": { "enabled": true, "title": "Loading...", "tips": ["Tab moves focus between controls.", "Ctrl+A, C, V and X work in text fields."] },
+  "window": {
+    "title": "UIShowcase",
+    "width": 1280,
+    "height": 720,
+    "vSync": true,
+    "resizable": true,
+    "mode": "windowed",
+    "icon": "Textures/goal.png",
+    "minWidth": 640,
+    "minHeight": 480
+  },
+  "splashScreen": {
+    "enabled": true,
+    "title": "UIShowcase",
+    "subtitle": "A game UI built with MNVTEngine",
+    "logo": "Textures/player.png",
+    "minimumDuration": 1.5,
+    "showProgress": true,
+    "showEngineBranding": true
+  },
+  "loadingScreen": {
+    "enabled": true,
+    "title": "Loading...",
+    "tips": [
+      "Tab moves focus between controls.",
+      "Ctrl+A, C, V and X work in text fields."
+    ]
+  },
   "fixedTimestep": 0.016666668,
-  "scripts": { "project": "Scripts/UIShowcase.Scripts.csproj" },
+  "scripts": {
+    "project": "Scripts/UIShowcase.Scripts.csproj"
+  },
   "buildProfiles": [
-    { "name": "debug", "configuration": "Debug", "target": "win-x64" },
-    { "name": "release", "configuration": "Release", "target": "win-x64" }
+    {
+      "name": "debug",
+      "configuration": "Debug",
+      "target": "win-x64"
+    },
+    {
+      "name": "release",
+      "configuration": "Release",
+      "target": "win-x64"
+    }
   ]
 }

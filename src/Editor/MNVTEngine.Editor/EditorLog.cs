@@ -20,6 +20,9 @@ internal static partial class EditorLog
     [LoggerMessage(EventId = 5205, Level = LogLevel.Information, Message = "Created prefab '{Path}' from '{GameObject}'")]
     public static partial void PrefabCreated(ILogger logger, string path, string gameObject);
 
+    [LoggerMessage(EventId = 5206, Level = LogLevel.Information, Message = "Saved profile {Profile} in {Path} (the project predates profiles; previous file kept as .v1.bak). {Reason}")]
+    public static partial void ProfileMigrated(ILogger logger, string profile, string path, string reason);
+
     [LoggerMessage(EventId = 5203, Message = "Asset {Path}: {Message}")]
     public static partial void AssetDiagnostic(ILogger logger, LogLevel level, string path, string message);
 }

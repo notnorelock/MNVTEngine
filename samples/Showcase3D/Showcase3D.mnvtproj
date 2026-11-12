@@ -1,6 +1,7 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "Showcase3D",
+  "profile": "3d",
   "startupScene": "Scenes/Main.mnvt",
   "window": {
     "title": "MNVTEngine - Showcase3D",

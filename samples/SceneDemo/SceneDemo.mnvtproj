@@ -1,6 +1,7 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "Scene Demo",
+  "profile": "2d",
   "startupScene": "Scenes/Main.mnvt",
   "window": {
     "title": "MNVTEngine - Scene Demo",

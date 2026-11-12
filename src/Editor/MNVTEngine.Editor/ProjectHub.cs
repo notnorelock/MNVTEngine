@@ -8,6 +8,7 @@ using MNVTEngine.Editor.Services;
 using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Mathematics;
+using MNVTEngine.Modules;
 using MNVTEngine.Platform;
 using MNVTEngine.Runtime;
 using MNVTEngine.Serialization;
@@ -17,11 +18,13 @@ using SysVector4 = System.Numerics.Vector4;
 namespace MNVTEngine.Editor;
 
 /// <summary>
-/// Shown when the editor starts without a project: recent projects, New Project from a template, and Open. Sets
-/// <see cref="SelectedProject"/> and closes; the editor then opens that project.
+/// Shown when the editor starts without a project: recent projects, New Project (2D or 3D, from a template of that
+/// profile), and Open. A project from before profiles gets its profile saved on open; when its scenes mix 2D and 3D,
+/// the hub asks which profile it is. Sets <see cref="SelectedProject"/> and closes; the editor then opens that project.
 /// </summary>
 [SuppressMessage("Design", "CA1001", Justification = "GPU and ImGui resources live from IGameLoop.Load to IGameLoop.Unload.")]
-internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects recent, int? exitAfterFrames = null, string? screenshot = null) : IGameLoop
+/// <param name="open">A project to open at once (asks for its profile when it needs one).</param>
+internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects recent, int? exitAfterFrames = null, string? screenshot = null, string? open = null) : IGameLoop
 {
     private static readonly SysVector4 ErrorColor = new(1f, 0.45f, 0.45f, 1f);
     private GameWindow _window = null!;
@@ -34,13 +37,30 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
     private string? _engineRoot;
     private string _name = "MyGame";
     private string _location = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "MNVTEngine Projects");
-    private int _template;
+    private int _template = -1;
+    private ProjectProfile? _profile;
+    private GameProject? _choosing; // a pre-profile project with mixed content, waiting for the user's choice
+    private ProfileInference? _conflict;
     private string _openPath = "";
     private string? _error;
     private int _frames;
 
     /// <summary>The project file chosen by the user, or null if the hub was closed.</summary>
     public string? SelectedProject { get; private set; }
+
+    /// <summary>A loadable project from before profiles whose scenes mix 2D and 3D: only the user can choose its profile.</summary>
+    public static bool NeedsProfileChoice(string path)
+    {
+        try
+        {
+            var project = GameProject.Load(path);
+            return project.NeedsProfileMigration && ProjectProfileMigration.Infer(project).IsConflict;
+        }
+        catch (Exception ex) when (ex is SerializationException or IOException)
+        {
+            return false; // the editor's own load reports it
+        }
+    }
 
     public void Load(GameWindow window)
     {
@@ -55,11 +75,15 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
         {
             _engineRoot = EngineLocation.FindRoot();
             _templates = ProjectTemplates.List(EngineLocation.TemplatesDirectory(_engineRoot));
-            _template = Math.Max(0, _templates.ToList().FindIndex(t => t.Id == "basic-2d"));
         }
-        catch (DirectoryNotFoundException ex)
+        catch (Exception ex) when (ex is DirectoryNotFoundException or InvalidDataException)
         {
             _error = $"Templates unavailable: {ex.Message}";
+        }
+
+        if (open is not null)
+        {
+            Choose(open);
         }
     }
 
@@ -88,7 +112,11 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
         Gui.Muted("Open a recent project, create a new one, or open an existing folder.");
         ImGui.Spacing();
 
-        if (ImGui.BeginTable("##hub-columns", 2, ImGuiTableFlags.BordersInnerV))
+        if (_choosing is not null && _conflict is not null)
+        {
+            DrawProfileChoice(_choosing, _conflict);
+        }
+        else if (ImGui.BeginTable("##hub-columns", 2, ImGuiTableFlags.BordersInnerV))
         {
             ImGui.TableNextColumn();
             DrawRecent();
@@ -180,24 +208,101 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
         ImGui.SeparatorText("New project");
         ImGui.InputText("Name", ref _name, 64);
         ImGui.InputText("Location", ref _location, 400);
-        if (_templates.Count > 0)
+        ImGui.TextUnformatted("Profile");
+        foreach (var profile in ProjectProfiles.All)
         {
-            var labels = _templates.Select(t => t.Id).ToArray();
-            ImGui.Combo("Template", ref _template, labels, labels.Length);
-            Gui.Muted(_templates[_template].Description);
+            ImGui.SameLine();
+            if (ImGui.RadioButton(profile == ProjectProfile.TwoD ? "2D" : "3D", _profile == profile) && _profile != profile)
+            {
+                _profile = profile;
+                _template = _templates.ToList().FindIndex(t => t.Id == ProjectTemplates.DefaultTemplateId(profile));
+            }
         }
 
+        if (_profile is not { } chosen)
+        {
+            Gui.Muted("Choose 2D or 3D: a project has one profile, which decides its engine modules.");
+            return;
+        }
+
+        var choices = _templates.Where(t => t.Profile == chosen).ToList();
+        if (choices.Count == 0)
+        {
+            Gui.Muted($"No {chosen.DisplayName()} templates found.");
+            return;
+        }
+
+        var selected = _template >= 0 && _template < _templates.Count && _templates[_template].Profile == chosen ? _templates[_template] : choices[0];
+        if (ImGui.BeginCombo("Template", selected.Name))
+        {
+            foreach (var template in choices)
+            {
+                if (ImGui.Selectable(template.Name, template == selected))
+                {
+                    _template = _templates.ToList().IndexOf(template);
+                    selected = template;
+                }
+            }
+
+            ImGui.EndCombo();
+        }
+
+        Gui.Muted(selected.Description);
         Gui.Muted($"Creates {Path.Combine(_location, _name)}");
-        if (ImGui.Button($"{Icons.Plus}  Create project", new SysVector2(160, 0)) && _engineRoot is not null && _templates.Count > 0)
+        if (ImGui.Button($"{Icons.Plus}  Create {chosen.DisplayName()} project", new SysVector2(200, 0)) && _engineRoot is not null)
         {
             try
             {
-                Choose(ProjectTemplates.Create(_templates[_template], _name, Path.Combine(_location, _name), _engineRoot));
+                Choose(ProjectTemplates.Create(selected, _name, Path.Combine(_location, _name), _engineRoot));
             }
-            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or SerializationException)
+            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or SerializationException or InvalidDataException)
             {
                 _error = ex.Message;
             }
+        }
+    }
+
+    private void DrawProfileChoice(GameProject project, ProfileInference conflict)
+    {
+        ImGui.SeparatorText($"Choose the profile of {project.Name}");
+        Gui.TextWrapped("This project was made before projects had a profile, and its scenes contain both 2D and 3D components. "
+            + "A project is either 2D or 3D, and the profile decides which engine modules it is built with; it cannot be guessed here.");
+        ImGui.Spacing();
+        Gui.TextWrapped(conflict.Describe());
+        ImGui.Spacing();
+        ImGui.PushTextWrapPos(0f);
+        Gui.Muted($"The profile is saved in {Path.GetFileName(project.ProjectFile)}; the current file is kept as {Path.GetFileName(project.ProjectFile)}.v1.bak. "
+            + "Components of the other profile stay in the scenes and are reported when the project is validated.");
+        ImGui.PopTextWrapPos();
+        ImGui.Spacing();
+        foreach (var profile in ProjectProfiles.All)
+        {
+            if (ImGui.Button($"Make it {profile.DisplayName()}", new SysVector2(160, 0)))
+            {
+                Migrate(project, profile);
+            }
+
+            ImGui.SameLine();
+        }
+
+        if (ImGui.Button("Cancel", new SysVector2(100, 0)))
+        {
+            (_choosing, _conflict) = (null, null);
+        }
+    }
+
+    private void Migrate(GameProject project, ProjectProfile? choice)
+    {
+        try
+        {
+            ProjectProfileMigration.Migrate(project, choice);
+            (_choosing, _conflict) = (null, null);
+            SelectedProject = project.ProjectFile;
+            _window.Close();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or Newtonsoft.Json.JsonException)
+        {
+            _error = ex.Message;
         }
     }
 
@@ -222,7 +327,15 @@ internal sealed class ProjectHub(ILoggerFactory loggerFactory, RecentProjects re
     {
         try
         {
-            SelectedProject = GameProject.Load(projectFile).ProjectFile; // validate before closing the hub
+            var project = GameProject.Load(projectFile); // validate before closing the hub
+            if (project.NeedsProfileMigration && ProjectProfileMigration.Infer(project) is { IsConflict: true } conflict)
+            {
+                (_choosing, _conflict) = (project, conflict);
+                return;
+            }
+
+            // The editor saves the profile of an unambiguous pre-profile project when it opens it.
+            SelectedProject = project.ProjectFile;
             _window.Close();
         }
         catch (Exception ex) when (ex is SerializationException or FileNotFoundException)

@@ -96,7 +96,7 @@ Schema 2 files (2D transforms: `{x, y}` positions and scales, rotation in degree
 
 ```text
 MyGame/
-├── MyGame.mnvtproj   { "schemaVersion": 1, "name", "startupScene", "window": {...}, "fixedTimestep" }
+├── MyGame.mnvtproj   { "schemaVersion": 2, "name", "profile": "2d" | "3d", "startupScene", "window": {...}, "fixedTimestep" }
 └── Assets/
     ├── Scenes/Main.mnvt
     └── Textures/player.png
@@ -104,7 +104,7 @@ MyGame/
 
 - Asset paths are relative to `Assets/`. Absolute paths, and paths that escape `Assets/` (for example `../`), are rejected. This is a trust boundary for project files.
 - Every asset has a `.meta` file with its GUID; see [assets](assets.md). A standalone game opens the asset database read-only.
-- The project file is strict: unknown keys are errors. It is validated on load: name, timestep, window size, and that the startup scene exists.
+- The project file is strict: unknown keys are errors. It is validated on load: name, [profile](project-profiles.md), timestep, window size, and that the startup scene exists.
 - **MSBuild note:** MSBuild treats any `*.*proj` file as a project. If a `.mnvtproj` sits next to the game's `.csproj`, name the `.csproj` explicitly in `dotnet build`. The solution build is unaffected.
 
 ## Standalone runtime

@@ -4,7 +4,7 @@ The `mnvt` command creates, validates, runs and exports projects. It is independ
 references editor code and only starts the editor as a separate process for `mnvt editor`.
 
 ```bash
-scripts\mnvt.cmd new MyGame --template basic-2d     # or: dotnet run --project src/Tooling/MNVTEngine.CLI -- new ...
+scripts\mnvt.cmd new MyGame --template basic-2d     # or --profile 2d|3d; or: dotnet run --project src/Tooling/MNVTEngine.CLI -- new ...
 scripts\mnvt.cmd run MyGame
 scripts\mnvt.cmd editor MyGame
 scripts\mnvt.cmd validate MyGame
@@ -28,8 +28,9 @@ Exit codes are 0 for success, 1 when there are errors, 64 for usage errors and 1
 
 | Id | Contents |
 |---|---|
-| `empty-2d` | A camera in an empty scene. |
-| `basic-2d` | A player moved by a C# component, a goal sprite, and a `.mnvts` mission that completes when the player reaches the goal. |
+| `empty-2d` | 2D: a camera in an empty scene. |
+| `empty-3d` | 3D: a perspective camera, a directional light and ambient light. |
+| `basic-2d` | 2D: a player moved by a C# component, a goal sprite, and a `.mnvts` mission that completes when the player reaches the goal. |
 
 A template is a folder with a `template.json` file (`id`, `description`). Two kinds of tokens are replaced:
 
@@ -209,7 +210,7 @@ Each archive has one AES-256-GCM encrypted, authenticated entry per file. The en
 
 | Range | Stage |
 |---|---|
-| MNVB1xx | Project, profile, output folder and key (`100` load, `101` unknown profile, `102` configuration, `103` target, `104` output folder, `105` name clash, `106` engine not found, `107` key created, `108` invalid key file) |
+| MNVB1xx | Project, profile, output folder and key (`100` load, `101` unknown profile, `102` configuration, `103` target, `104` output folder, `105` name clash, `106` engine not found, `107` key created, `108` invalid key file, `109` a project from before [project profiles](../engine/project-profiles.md) mixes 2D and 3D content, `110` warning: building a project from before profiles with its inferred profile) |
 | MNVB2xx | Content (`209` created a missing `.meta`, `201` asset index, `202` unreadable, `203` import settings, `204`/`205` import errors and warnings, `206` missing referenced asset, `207`/`208` scene and prefab loading, `220`/`221` model import errors and warnings, `222` model without an artifact) |
 | MNVB3xx, CSxxxx | C# scripts (`301` scripts project missing; compiler errors keep their `CS` codes and source positions) |
 | MNV1xxx–3xxx | `.mnvts` errors from the compiler; see the [language reference](../scripting/language.md) |

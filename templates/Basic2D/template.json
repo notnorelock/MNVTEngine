@@ -1,1 +1,1 @@
-{ "id": "basic-2d", "description": "Player moved by a C# component, a goal, and a .mnvts mission to reach it." }
+{ "id": "basic-2d", "profile": "2d", "name": "Basic 2D Game", "description": "Player moved by a C# component, a goal, and a .mnvts mission to reach it." }

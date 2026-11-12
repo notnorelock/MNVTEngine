@@ -1,1 +1,1 @@
-{ "id": "empty-2d", "description": "A camera in an empty scene." }
+{ "id": "empty-2d", "profile": "2d", "name": "Empty 2D Project", "description": "A camera in an empty scene." }

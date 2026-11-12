@@ -132,6 +132,12 @@ public sealed partial class SceneRenderer
 
         if (_items.Count == 0)
         {
+            // Nothing to draw, but what is drawn after (the editor grid, gizmos) still depth-tests against this frame.
+            if (target is not { HasDepth: false })
+            {
+                renderer.Device.ClearDepth();
+            }
+
             return;
         }
 

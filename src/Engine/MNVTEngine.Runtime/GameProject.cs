@@ -1,4 +1,5 @@
 using MNVTEngine.Assets;
+using MNVTEngine.Modules;
 using MNVTEngine.Serialization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -157,11 +158,23 @@ public sealed class BuildProfile
 public sealed class GameProject
 {
     public const string Extension = ".mnvtproj";
-    public const int CurrentSchemaVersion = 1;
+
+    /// <summary>2 added <see cref="Profile"/>; version 1 files load without one and are migrated by <see cref="ProjectProfileMigration"/>.</summary>
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
     public string Name { get; set; } = "Game";
+
+    /// <summary>
+    /// The project's primary rendering mode, "2d" or "3d" (<c>"profile"</c>). Required from schema version 2; null only
+    /// for a version 1 file that has not been migrated yet (<see cref="NeedsProfileMigration"/>).
+    /// </summary>
+    public ProjectProfile? Profile { get; set; }
+
+    /// <summary>A pre-profile (schema version 1) project: its profile must be inferred or chosen, then saved.</summary>
+    [JsonIgnore]
+    public bool NeedsProfileMigration => Profile is null;
 
     /// <summary>Scene loaded at startup, relative to Assets, e.g. "Scenes/Main.mnvt".</summary>
     public string StartupScene { get; set; } = "";
@@ -248,7 +261,22 @@ public sealed class GameProject
         try
         {
             var document = JObject.Parse(text);
-            new JsonMigrationPipeline(CurrentSchemaVersion).Migrate(document, diagnostics);
+            var original = new JsonMigrationPipeline(CurrentSchemaVersion)
+                .Add(1, _ => { }) // the profile cannot be read from the file; ProjectProfileMigration infers it from the content
+                .Migrate(document, diagnostics);
+            switch (document["profile"])
+            {
+                case null when original >= 2:
+                    throw new InvalidDataException("'profile' is required: \"2d\" or \"3d\".");
+                case null:
+                    break;
+                case JValue { Type: JTokenType.String } value when ProjectProfiles.TryParse(value.Value<string>(), out var parsed):
+                    document["profile"] = parsed.Id();
+                    break;
+                case var other:
+                    throw new InvalidDataException($"Unknown profile {other.ToString(Formatting.None)}; use \"2d\" or \"3d\".");
+            }
+
             project = document.ToObject<GameProject>(MnvtJson.CreateSerializer())
                 ?? throw new InvalidDataException("Project file is empty.");
         }
@@ -278,6 +306,47 @@ public sealed class GameProject
         document["diagnostics"] = JObject.FromObject(settings, MnvtJson.CreateSerializer());
         File.WriteAllText(ProjectFile, document.ToString(Formatting.Indented) + Environment.NewLine);
         Diagnostics = settings.Clone();
+    }
+
+    /// <summary>
+    /// Writes <paramref name="profile"/> into the project file (and raises a version 1 file to the current schema),
+    /// leaving every other setting as it is. A version 1 file is first copied to <c>&lt;file&gt;.v1.bak</c> (an existing
+    /// backup is kept); the new file is written next to the old one and then swapped in, so a failure leaves the
+    /// original intact.
+    /// </summary>
+    /// <exception cref="IOException">The project file cannot be read or written.</exception>
+    /// <exception cref="JsonException">The project file is no longer valid JSON.</exception>
+    public void SaveProfile(ProjectProfile profile)
+    {
+        var text = File.ReadAllText(ProjectFile);
+        var original = JObject.Parse(text);
+        var document = new JObject();
+        foreach (var property in original.Properties())
+        {
+            if (property.Name == "profile")
+            {
+                continue;
+            }
+
+            document[property.Name] = property.Name == "schemaVersion" ? CurrentSchemaVersion : property.Value;
+            if (property.Name == "name")
+            {
+                document["profile"] = profile.Id(); // next to the name, where people look for it
+            }
+        }
+
+        document["schemaVersion"] ??= CurrentSchemaVersion;
+        document["profile"] ??= profile.Id();
+        if (original.Value<int?>("schemaVersion") is < 2 && !File.Exists(ProjectFile + ".v1.bak"))
+        {
+            File.WriteAllText(ProjectFile + ".v1.bak", text);
+        }
+
+        var temporary = ProjectFile + ".tmp";
+        File.WriteAllText(temporary, document.ToString(Formatting.Indented) + Environment.NewLine);
+        File.Move(temporary, ProjectFile, overwrite: true);
+        Profile = profile;
+        SchemaVersion = CurrentSchemaVersion;
     }
 
     /// <exception cref="FileNotFoundException">No project file, or several in the directory.</exception>

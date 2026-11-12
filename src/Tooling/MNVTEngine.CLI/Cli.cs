@@ -3,6 +3,7 @@ using System.Globalization;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Build;
 using MNVTEngine.Graphics.Vulkan;
+using MNVTEngine.Modules;
 using MNVTEngine.Runtime;
 
 namespace MNVTEngine.CLI;
@@ -20,8 +21,10 @@ public static class Cli
     public const string Usage = """
         Usage: mnvt <command> [options]
 
-          new <Name> [--template empty-2d] [--path <parent folder>]
-                                Create a project from a template (see `mnvt new --list`)
+          new <Name> --profile 2d|3d [--template <id>] [--path <parent folder>]
+                                Create a 2D or 3D project (Empty 2D / Empty 3D, or a template of that profile; see `mnvt new --list`)
+          migrate <project> [--profile 2d|3d]
+                                Save the profile of a project made before profiles (inferred from its scenes; required when they mix 2D and 3D)
           editor [project] [--frames N]
                                 Open the project in the editor; without one, the Project Hub (--frames: close after N frames)
           run <project> [--frames N] [--screenshot file.png] [--profile report.txt]
@@ -56,7 +59,8 @@ public static class Cli
         {
             command = args[0] switch
             {
-                "new" => CommandLine.Parse(args, ["--template", "--path"], ["--list"]),
+                "new" => CommandLine.Parse(args, ["--profile", "--template", "--path"], ["--list"]),
+                "migrate" => CommandLine.Parse(args, ["--profile"], []),
                 "editor" => CommandLine.Parse(args, ["--frames"], []),
                 "run" => CommandLine.Parse(args, ["--frames", "--screenshot", "--profile"], ["--gpu-validation"]),
                 "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output"], [], optionalValues: ["--run"]),
@@ -75,6 +79,7 @@ public static class Cli
             return command.Name switch
             {
                 "new" => New(command, output),
+                "migrate" => Migrate(command, output),
                 "editor" => await EditorAsync(command, output, cancellationToken).ConfigureAwait(false),
                 "run" => Run(command, loggerFactory),
                 "build" => await BuildAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
@@ -101,20 +106,46 @@ public static class Cli
         {
             foreach (var t in templates)
             {
-                output.WriteLine($"  {t.Id,-12} {t.Description}");
+                output.WriteLine($"  {t.Id,-12} {t.Profile.DisplayName(),-3} {t.Description}");
             }
 
             return Ok;
         }
 
         var name = command.Single("project name");
-        var id = command.Value("--template") ?? "empty-2d";
+        ProjectProfile? profile = command.Value("--profile") is { } text ? ProjectProfiles.Parse(text) : null;
+        var id = command.Value("--template") ?? (profile is { } p ? ProjectTemplates.DefaultTemplateId(p)
+            : throw new FormatException("Choose the project's profile: --profile 2d or --profile 3d."));
         var template = templates.FirstOrDefault(t => t.Id == id)
             ?? throw new FormatException($"Unknown template '{id}'; available: {string.Join(", ", templates.Select(t => t.Id))}.");
+        if (profile is { } wanted && wanted != template.Profile)
+        {
+            throw new FormatException($"Template '{template.Id}' is {template.Profile.DisplayName()}, not {wanted.DisplayName()}.");
+        }
+
         var target = Path.GetFullPath(Path.Combine(command.Value("--path") ?? ".", name));
         var file = ProjectTemplates.Create(template, name, target, engineRoot);
-        output.WriteLine($"Created {file} from '{template.Id}'.\nNext: mnvt run \"{target}\"  or  mnvt editor \"{target}\"");
+        output.WriteLine($"Created {template.Profile.DisplayName()} project {file} from '{template.Id}'.\nNext: mnvt run \"{target}\"  or  mnvt editor \"{target}\"");
         return Ok;
+    }
+
+    private static int Migrate(CommandLine command, TextWriter output)
+    {
+        var project = GameProject.Load(command.Single("project"));
+        ProjectProfile? choice = command.Value("--profile") is { } text ? ProjectProfiles.Parse(text) : null;
+        try
+        {
+            var result = ProjectProfileMigration.Migrate(project, choice);
+            output.WriteLine(result.Inference is { } inference
+                ? $"Saved profile {result.Profile.DisplayName()} in {project.ProjectFile}. {inference.Describe()} The previous file is kept as {Path.GetFileName(project.ProjectFile)}.v1.bak."
+                : $"{project.ProjectFile} already has profile {result.Profile.DisplayName()}; nothing to migrate.");
+            return Ok;
+        }
+        catch (InvalidOperationException ex)
+        {
+            output.WriteLine($"error: {ex.Message}");
+            return Failed;
+        }
     }
 
     /// <summary>Starts the editor from the engine sources (the CLI never references the editor) and waits for it to close.</summary>

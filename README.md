@@ -30,7 +30,7 @@ dotnet test --solution MNVTEngine.sln
 ## The mnvt command
 
 ```bash
-scripts\mnvt.cmd new MyGame --template basic-2d   # empty-2d, basic-2d
+scripts\mnvt.cmd new MyGame --profile 2d          # or --profile 3d, or --template basic-2d (see docs/engine/project-profiles.md)
 scripts\mnvt.cmd run MyGame
 scripts\mnvt.cmd build MyGame --configuration release --run
 MyGame\Builds\release\MyGame.exe
@@ -83,6 +83,7 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 - [Vulkan 1.4 backend: audit, decisions, synchronization model](docs/graphics/vulkan-migration.md)
 - [3D engine and model pipeline: audit, library choices, plan](docs/graphics/3d-plan.md); [acceptance evidence](docs/graphics/3d-acceptance.md); [meshes, 3D cameras and 3D rendering](docs/graphics/meshes.md)
 - [Scenes, ECS, lifecycle, scene format, standalone runtime](docs/engine/scenes-and-runtime.md)
+- [Project profiles: 2D or 3D projects, legacy migration](docs/engine/project-profiles.md)
 - [Editor: panels, Play Mode, ImGui integration](docs/editor/editor.md)
 - [Assets: metas, GUIDs, importers, prefabs](docs/engine/assets.md); [models: FBX, glTF and GLB import](docs/engine/models.md)
 - [C# scripting: game assemblies, hot reload, unloading](docs/engine/csharp-scripting.md)

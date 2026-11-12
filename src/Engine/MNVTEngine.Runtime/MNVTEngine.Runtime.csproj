@@ -5,6 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="..\MNVTEngine.Assets\MNVTEngine.Assets.csproj" />
     <ProjectReference Include="..\MNVTEngine.Audio\MNVTEngine.Audio.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Modules\MNVTEngine.Modules.csproj" />
     <ProjectReference Include="..\MNVTEngine.CrashReporting\MNVTEngine.CrashReporting.csproj" />
     <ProjectReference Include="..\MNVTEngine.Diagnostics\MNVTEngine.Diagnostics.csproj" />
     <ProjectReference Include="..\MNVTEngine.Graphics\MNVTEngine.Graphics.csproj" />
