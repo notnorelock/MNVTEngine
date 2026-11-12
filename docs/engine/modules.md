@@ -11,7 +11,7 @@ The engine is a set of **modules**. A project has a module or does not. Which on
 | Field | Meaning |
 |---|---|
 | `Id` | Stable id: lowercase, dot-separated (`physics.2d`) |
-| `Activation` | `Always` (every project; cannot be disabled), `Default` (on unless the project disables it), `OptIn` (off unless enabled) |
+| `Activation` | `Always` (every project; cannot be disabled), `Auto` (in a build: included when the project uses it; in the editor and development runs: available), `OptIn` (off unless enabled) |
 | `Profiles` | Profiles it works in; a 2D-only module never enters a 3D project |
 | `Requires` | Modules it cannot work without. Enabling it enables them, transitively |
 | `Optional` | Modules it integrates with when present. They are never enabled because of it; when both are on, they start first |
@@ -35,15 +35,15 @@ The engine is a set of **modules**. A project has a module or does not. Which on
 | `graphics` | 2D, 3D | always | core | | Graphics, Graphics.Vulkan, Silk.NET Vulkan, Vortice VMA, Stb image/font; `vma.dll`; the sprite shader. Not the shader compiler: games run on precompiled SPIR-V |
 | `assets` | 2D, 3D | always | core, graphics | | Assets (database, archives, core importers) |
 | `runtime` | 2D, 3D | always | core, platform, graphics, assets | | Runtime, GameAssemblies, CrashReporting, logging |
-| `audio` | 2D, 3D | default | core | | Audio, Audio.OpenAL, NVorbis; `soft_oal.dll` |
-| `scripting` | 2D, 3D | default | core | | Scripting, Missions, Bindings |
-| `ui` | 2D, 3D | default | core, graphics, runtime | | UI (screen-space, the same in both profiles) |
+| `audio` | 2D, 3D | auto | core | | Audio, Audio.OpenAL, NVorbis; `soft_oal.dll` |
+| `scripting` | 2D, 3D | auto | core | | Scripting, Missions, Bindings |
+| `ui` | 2D, 3D | auto | core, graphics, runtime | | UI (screen-space, the same in both profiles) |
 | `devtools` | 2D, 3D | opt-in | runtime | | DebugUI, ImGui.NET; `cimgui.dll` |
-| `world.2d` | 2D | default | core, graphics, runtime | | World2D (sprites, sprite animation, tilemaps, 2D lights), World2D.Rendering (the sprite pass, 2D lighting) |
-| `world.3d` | 3D | default | core, graphics, assets, runtime | | World3D (meshes, models, model animation, 3D lights, environment), World3D.Rendering (3D renderer, meshes, skinning, lighting and shadows, the mesh, shadow and sky shaders, model artifacts and cache, the 3D pass) |
-| `physics.2d` | 2D | default | world.2d | | Physics2D, Box2D.NET |
-| `physics.3d` | 3D | default | world.3d | | Physics3D, BepuPhysics, BepuUtilities |
-| `terrain` | 3D | default | world.3d, physics.3d | | Terrain, Terrain.Components, Clipper2; the terrain shader |
+| `world.2d` | 2D | auto | core, graphics, runtime | | World2D (sprites, sprite animation, tilemaps, 2D lights), World2D.Rendering (the sprite pass, 2D lighting) |
+| `world.3d` | 3D | auto | core, graphics, assets, runtime | | World3D (meshes, models, model animation, 3D lights, environment), World3D.Rendering (3D renderer, meshes, skinning, lighting and shadows, the mesh, shadow and sky shaders, model artifacts and cache, the 3D pass) |
+| `physics.2d` | 2D | auto | world.2d | | Physics2D, Box2D.NET |
+| `physics.3d` | 3D | auto | world.3d | | Physics3D, BepuPhysics, BepuUtilities |
+| `terrain` | 3D | auto | world.3d, physics.3d | | Terrain, Terrain.Components, Clipper2; the terrain shader |
 
 Hosts are not modules. The game executable (GameHost) and the shared editor (Editor, Editor.Services) host every module. Profile-specific editor assemblies will belong to their module.
 
@@ -53,9 +53,17 @@ Hosts are not modules. The game executable (GameHost) and the shared editor (Edi
 { "profile": "3d", "modules": { "terrain": false, "devtools": true } }
 ```
 
-`modules` switches modules on or off on top of the profile's defaults; leave it out to get the defaults. `ModuleResolver.Resolve` (or `ProjectModules.Resolve` for a `GameProject`) returns the result:
+Each optional module has one of three states in `modules`:
 
-- **Enabled modules in startup order.** Each module comes after everything it depends on, and ties are broken by id, so the same input always gives the same order. Shutdown is the reverse. Each enabled module carries its reason: `always`, `default for 2D`, `enabled in the project`, `required by x`.
+| Value | Meaning |
+|---|---|
+| `true` | Always included, used or not (content the analysis cannot see, such as a module only reached through reflection) |
+| `false` | Never included. Using it anyway is an error (`MNVB608`) |
+| missing | Auto: a build includes it when the project uses it |
+
+`ModuleResolver.Resolve(catalog, profile, switches, usage)` (or `ProjectModules.Resolve` for a `GameProject`) returns the result. `usage` is what a build's [usage analysis](#usage-analysis) found, as evidence per module. Without it (the editor, `mnvt run`, the Player) every Auto module of the profile is available, so editing never loses a feature.
+
+- **Enabled modules in startup order.** Each module comes after everything it depends on, and ties are broken by id, so the same input always gives the same order. Shutdown is the reverse. Each enabled module carries its reason: `always`, `enabled in the project`, `used: <evidence>`, `required by x`, or `available in 2D` without a usage analysis.
 - **Required dependencies are added automatically**, with an info diagnostic (`MNVB610`).
 - **Errors are never resolved by guessing:**
 
@@ -66,7 +74,33 @@ Hosts are not modules. The game executable (GameHost) and the shared editor (Edi
 | `MNVB607` | An `Always` module is disabled, or a module an enabled module requires is disabled. The fix is to disable the dependent too |
 | `MNVB608` | A scene or prefab uses a component of a module the project does not have (a `Tilemap` in a 3D project, an `AudioSource` with `audio` disabled) |
 
-- **Excluded modules**, each with its reason: `not available in 2D`, `disabled in the project`, `opt-in, not enabled`.
+- **Excluded modules**, each with its reason: `not available in 2D`, `disabled in the project`, `opt-in, not enabled`, `not used: no components, assets or API of it in the project`.
+
+## Usage analysis
+
+A build includes only the modules and assets the game uses (`UsageAnalyzer`, run by `ContentCompiler` after every asset is imported).
+
+**Assets.** The asset graph starts at:
+
+- the startup scene;
+- assets named by project settings (window icon, splash and loading screen images and fonts);
+- assets marked `"alwaysInclude": true` in their `.meta` (see [Assets](assets.md#metadata));
+- assets whose path (scenes and prefabs also without extension) or `asset:` reference appears as a string literal in the C# scripts (read from the compiled assembly's metadata, without loading it) or in a reachable `.mnvts` script.
+
+From there it follows every reference the importers recorded: scene to prefab (nested), to material, to shader and texture, to model and its textures. Unreached assets are not shipped and are counted in the build log (`Modules: ...; N unused assets not shipped`). Unreached scenes, prefabs and audio clips are also reported as warning `MNVB223`, so content loaded by a computed path is never dropped silently: mark it `alwaysInclude`.
+
+**Modules.** Evidence comes from the shipped content only:
+
+| Evidence | Example |
+|---|---|
+| A module's component in a shipped scene or prefab | `Rigidbody2D in Scenes/Main.mnvt` enables `physics.2d` |
+| A shipped asset of a type the module owns (`AssetTypes` in the catalog) | `Audio asset Sounds/jump.wav` enables `audio`; models and animator controllers `world.3d`; terrains `terrain`; UI layouts `ui`; sprite animations `world.2d`; `.mnvts` scripts `scripting` |
+| `audio.*` calls in a shipped mission script | enables `audio` |
+| A type the C# scripts reference from a module's assembly | `C# scripts use AudioSource (MNVTEngine.Audio)` |
+
+Required modules follow as usual (`physics.2d` brings `world.2d`). Evidence for a module of the other profile, or for a module the project disables, is an error (`MNVB608`) naming the evidence.
+
+The packaged project file lists every optional module of the profile as `true` or `false`, exactly as the build resolved them, so the game starts the modules it was built with and no others.
 
 `mnvt build` and `mnvt validate` stop on any of these errors. The game host does not start (exit code 2). This includes `MNVB608` when a project runs from its sources (`mnvt run`, the Player): left to the scene loader, such a component would load as a `MissingComponent` and silently do nothing. Exports were checked when they were built.
 
@@ -116,21 +150,23 @@ mnvt modules validate <project> resolution problems plus content of missing modu
 mnvt modules graph <project>    startup order, reasons, dependencies, dependency tree, excluded modules
 ```
 
+These commands resolve without a usage analysis, so Auto modules show as `available in 2D`: what the editor and development runs get. The modules a build includes, with the evidence for each, are in the build log (`Modules: ...`).
+
 ```text
 > mnvt modules graph samples/Platformer
 Platformer (2D): 10 modules, in startup order (shutdown is the reverse)
 
-  #   Module      Why             Depends on
-  1   core        always          -
-  2   audio       default for 2D  core
-  3   graphics    always          core
-  4   platform    always          core
-  5   scripting   default for 2D  audio, core
-  6   assets      always          core, graphics, scripting (optional)
-  7   runtime     always          assets, core, graphics, platform
-  8   ui          default for 2D  core, graphics
-  9   world.2d    default for 2D  core, graphics
-  10  physics.2d  default for 2D  world.2d
+  #   Module      Why              Depends on
+  1   core        always           -
+  2   audio       available in 2D  core
+  3   graphics    always           core
+  4   assets      always           core, graphics
+  5   platform    always           core
+  6   runtime     always           assets, core, graphics, platform
+  7   scripting   available in 2D  core
+  8   ui          available in 2D  core, graphics, runtime
+  9   world.2d    available in 2D  core, graphics, runtime
+  10  physics.2d  available in 2D  world.2d
 ...
 Not in this project
   devtools    opt-in, not enabled
@@ -151,7 +187,8 @@ References that still cross module boundaries are listed as `KnownCouplings`. Th
 
 ## Limitations
 
-- **Exports still ship every module.** GameHost references every module's assemblies until the build generates its bootstrap and references from the resolved modules (phase B3).
+- **Exports still ship every module's assemblies.** The game starts only the resolved modules, and their content and shaders only are packaged, but GameHost references every module's assemblies until the build generates its bootstrap and references from the resolved modules (phase B3).
+- **Usage analysis is static.** A path built at run time (`"Levels/" + n`) is not seen; mark such assets `alwaysInclude` or name them literally. A module used only through reflection needs `"<module>": true`.
 - **The in-game debug UI (devtools) reads Physics2D, Audio, mission and UI state directly**, so a devtools build ships those assemblies. They are the remaining known couplings.
 - **The editor registers the components of the project's profile**, and draws with that profile's passes; its 2D and 3D tools are not yet in separate assemblies.
 - **`devtools` is still added by build configuration** (`MnvtDevTools`), not by the project's switches.

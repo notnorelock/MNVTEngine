@@ -99,12 +99,14 @@ public sealed partial class GameBuilder(ILogger logger)
         var registry = EngineModuleSet.CreateRegistry();
         GameCode? code = null;
         string? scriptsOutput = null;
+        string? scriptsAssemblyPath = null;
         if (scripts is not null)
         {
             scriptsOutput = Path.Combine(work, "Scripts");
             DeleteDirectory(scriptsOutput);
             LogCompilingScripts(logger, scripts.AssemblyName, profile.Configuration);
             var build = await ScriptCompiler.BuildAsync(scripts, profile.Configuration, scriptsOutput, cancellationToken).ConfigureAwait(false);
+            scriptsAssemblyPath = build.AssemblyPath;
             diagnostics.AddRange(build.Diagnostics.Select(BuildDiagnostic.FromScript));
             if (!build.Succeeded || (code = DevelopmentScripts.LoadAndRegister(build.AssemblyPath!, registry, diagnostics)) is null || diagnostics.HasErrors())
             {
@@ -124,7 +126,7 @@ public sealed partial class GameBuilder(ILogger logger)
             ContentResult content;
             try
             {
-                content = ContentCompiler.Compile(project, registry, archive);
+                content = ContentCompiler.Compile(project, registry, archive, scriptsAssemblyPath);
             }
             finally
             {
@@ -136,6 +138,7 @@ public sealed partial class GameBuilder(ILogger logger)
 
             diagnostics.AddRange(content.Diagnostics);
             LogContent(logger, content.AssetCount, content.ScriptCount, content.Shaders);
+            LogUsage(logger, content);
             if (diagnostics.HasErrors())
             {
                 return Fail(profile);
@@ -231,9 +234,10 @@ public sealed partial class GameBuilder(ILogger logger)
 
         try
         {
-            var content = ContentCompiler.Compile(project, registry, output: null);
+            var content = ContentCompiler.Compile(project, registry, output: null, code.Code?.MainAssembly.Location is { Length: > 0 } location ? location : null);
             diagnostics.AddRange(content.Diagnostics);
             LogContent(logger, content.AssetCount, content.ScriptCount, content.Shaders);
+            LogUsage(logger, content);
         }
         finally
         {
@@ -460,6 +464,18 @@ public sealed partial class GameBuilder(ILogger logger)
 
     [LoggerMessage(EventId = 8002, Level = LogLevel.Information, Message = "Compiled content: {Assets} assets, {Scripts} .mnvts scripts, {Shaders} shader stages precompiled")]
     private static partial void LogContent(ILogger logger, int assets, int scripts, int shaders);
+
+    private static void LogUsage(ILogger logger, ContentResult content)
+    {
+        if (content is { Usage: { } usage, Modules: { } modules })
+        {
+            var ids = string.Join(", ", modules.Modules.Select(m => m.Id));
+            LogModules(logger, ids, usage.Stripped.Count);
+        }
+    }
+
+    [LoggerMessage(EventId = 8010, Level = LogLevel.Information, Message = "Modules: {Modules}; {Stripped} unused assets not shipped")]
+    private static partial void LogModules(ILogger logger, string modules, int stripped);
 
     [LoggerMessage(EventId = 8007, Level = LogLevel.Information, Message = "Content split into {Count} archives: {Archives}")]
     private static partial void LogArchives(ILogger logger, int count, string archives);

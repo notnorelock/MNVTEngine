@@ -338,4 +338,21 @@ public sealed class AssetDatabaseTests : IDisposable
         Assert.Equal(AssetImportStatus.Failed, old.Status);
         Assert.Contains(old.Messages, m => m.Contains("version 2", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void AlwaysInclude_IsReadFromTheMeta_AndSurvivesMetaRewrites()
+    {
+        var db = OpenEditing();
+        Write("Sounds/a.wav", "XXXXXXXXXXXX");
+        db.Refresh();
+        var guid = db.Assets.Single(a => a.Path == "Sounds/a.wav").Guid;
+        Assert.False(db.IsAlwaysIncluded(guid));
+
+        db.SetAlwaysInclude(guid, true);
+        Assert.True(db.IsAlwaysIncluded(guid));
+        db.UpdateSettings(guid, db.GetSettings(guid)); // rewrites the meta
+        Assert.True(JObject.Parse(File.ReadAllText(Path.Combine(AssetsDir, "Sounds", "a.wav.meta"))).Value<bool>("alwaysInclude"));
+        db.SetAlwaysInclude(guid, false);
+        Assert.Null(JObject.Parse(File.ReadAllText(Path.Combine(AssetsDir, "Sounds", "a.wav.meta")))["alwaysInclude"]);
+    }
 }

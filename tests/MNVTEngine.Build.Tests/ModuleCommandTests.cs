@@ -30,11 +30,11 @@ public sealed class ModuleCommandTests : IDisposable
         var (exit, catalog) = await Run("modules", "list");
         Assert.Equal(Cli.Ok, exit);
         Assert.Contains("Engine modules (14)", catalog, StringComparison.Ordinal);
-        Assert.Matches(@"physics\.2d\s+2D\s+default\s+world\.2d", catalog);
+        Assert.Matches(@"physics\.2d\s+2D\s+auto\s+world\.2d", catalog);
 
         var (_, flat) = await Run("modules", "list", await NewProject("Flat", "2d"));
         Assert.Matches(@"world\.3d .*off: not available in 2D", flat);
-        Assert.Matches(@"world\.2d .*on: default for 2D", flat);
+        Assert.Matches(@"world\.2d .*on: available in 2D", flat);
     }
 
     [Fact]

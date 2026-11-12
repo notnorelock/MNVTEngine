@@ -26,12 +26,14 @@ public sealed class ContentLayout
     public IReadOnlyList<PackagedArchive> Levels { get; }
 
     /// <param name="dependencies">Assets each asset references directly (from its importer).</param>
-    public static ContentLayout Plan(AssetDatabase assets, string startupScene, IReadOnlyDictionary<Guid, IReadOnlyCollection<Guid>> dependencies)
+    /// <param name="include">The assets the game ships (see <see cref="UsageAnalyzer"/>); null for every asset.</param>
+    public static ContentLayout Plan(AssetDatabase assets, string startupScene, IReadOnlyDictionary<Guid, IReadOnlyCollection<Guid>> dependencies, Func<Guid, bool>? include = null)
     {
         ArgumentNullException.ThrowIfNull(dependencies);
         ArgumentNullException.ThrowIfNull(assets);
+        include ??= _ => true;
         var startup = AssetPaths.Canonical(startupScene);
-        var scenes = assets.Assets.Where(a => a.Type == AssetTypes.Scene)
+        var scenes = assets.Assets.Where(a => a.Type == AssetTypes.Scene && include(a.Guid))
             .OrderBy(a => AssetPaths.Comparer.Equals(a.Path, startup) ? 0 : 1)
             .ThenBy(a => a.Path, StringComparer.Ordinal)
             .ToList();
@@ -52,7 +54,7 @@ public sealed class ContentLayout
             }
         }
 
-        foreach (var record in assets.Assets)
+        foreach (var record in assets.Assets.Where(a => include(a.Guid)))
         {
             if (layout._archiveOf.ContainsKey(record.Guid))
             {
@@ -68,7 +70,7 @@ public sealed class ContentLayout
     }
 
     /// <summary>Archive file the asset is written to.</summary>
-    public string ArchiveOf(Guid guid) => _archiveOf[guid];
+    public string ArchiveOf(Guid guid) => _archiveOf.GetValueOrDefault(guid) ?? throw new KeyNotFoundException($"Asset {guid} is not shipped.");
 
     /// <summary>Everything a scene references, transitively, without crossing into other scenes; excludes the scene itself.</summary>
     private static HashSet<Guid> SceneDependencies(AssetDatabase assets, Guid scene, IReadOnlyDictionary<Guid, IReadOnlyCollection<Guid>> dependencies)

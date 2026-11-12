@@ -104,7 +104,7 @@ public static class ModuleReports
     private static string Activation(ModuleDefinition module) => module.Activation switch
     {
         ModuleActivation.Always => "always",
-        ModuleActivation.Default => "default",
+        ModuleActivation.Auto => "auto",
         _ => "opt-in",
     };
 

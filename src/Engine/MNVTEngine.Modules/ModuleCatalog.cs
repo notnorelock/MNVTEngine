@@ -36,6 +36,12 @@ public sealed partial class ModuleCatalog
 
     public bool TryGet(string id, out ModuleDefinition module) => _byId.TryGetValue(id, out module!);
 
+    /// <summary>The module whose run time an asset type needs; null for shared types (textures, materials, fonts, scenes).</summary>
+    public ModuleDefinition? ModuleOfAssetType(string assetType) => Modules.FirstOrDefault(m => m.AssetTypes.Contains(assetType, StringComparer.Ordinal));
+
+    /// <summary>The module that ships an assembly; null for assemblies of no module.</summary>
+    public ModuleDefinition? ModuleOfAssembly(string assemblyName) => Modules.FirstOrDefault(m => m.RuntimeAssemblies.Contains(assemblyName, StringComparer.Ordinal));
+
     /// <summary>The module that provides a component id; null for game components.</summary>
     public ModuleDefinition? ModuleOfComponent(string componentType) => _byComponent.GetValueOrDefault(componentType);
 
@@ -131,7 +137,7 @@ public sealed partial class ModuleCatalog
         foreach (var (kind, select) in new (string, Func<ModuleDefinition, IReadOnlyList<string>>)[]
         {
             ("runtime assembly", m => m.RuntimeAssemblies), ("editor assembly", m => m.EditorAssemblies),
-            ("native library", m => m.NativeLibraries), ("build asset", m => m.BuildAssets), ("component", m => m.Components),
+            ("native library", m => m.NativeLibraries), ("build asset", m => m.BuildAssets), ("component", m => m.Components), ("asset type", m => m.AssetTypes),
         })
         {
             foreach (var group in modules.SelectMany(m => select(m).Select(item => (Item: item, Module: m.Id))).GroupBy(p => p.Item, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))

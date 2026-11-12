@@ -17,7 +17,14 @@ using MNVTEngine.Graphics.Vulkan.ShaderCompilation;
 namespace MNVTEngine.Build;
 
 /// <param name="Shaders">Shader stages precompiled into the default resources.</param>
-public sealed record ContentResult(IReadOnlyList<BuildDiagnostic> Diagnostics, int AssetCount, int ScriptCount, int Shaders = 0);
+public sealed record ContentResult(IReadOnlyList<BuildDiagnostic> Diagnostics, int AssetCount, int ScriptCount, int Shaders = 0)
+{
+    /// <summary>What the project uses: shipped and stripped assets, module evidence. Null when the compile stopped early.</summary>
+    public ProjectUsage? Usage { get; init; }
+
+    /// <summary>The modules the game ships, resolved from <see cref="Usage"/>. Null when the compile stopped early.</summary>
+    public ModuleResolution? Modules { get; init; }
+}
 
 /// <summary>
 /// Asset compilation for exported games. Opens the project's assets read-only (call <see cref="CreateMissingMetas"/> and
@@ -94,7 +101,8 @@ public static class ContentCompiler
 
     /// <param name="registry">Built-in and game components, used to load scenes and prefabs.</param>
     /// <param name="output">Content archives to write; null to validate only.</param>
-    public static ContentResult Compile(GameProject project, ComponentRegistry registry, ContentArchiveWriter? output)
+    /// <param name="scriptsAssembly">The compiled C# scripts, read (not loaded) for usage evidence; null without scripts.</param>
+    public static ContentResult Compile(GameProject project, ComponentRegistry registry, ContentArchiveWriter? output, string? scriptsAssembly = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(registry);
@@ -155,12 +163,22 @@ public static class ContentCompiler
             }
         }
 
-        // Pass 2: every asset (and its bytecode) into its level, shared assets or resources archive.
-        var layout = ContentLayout.Plan(assets, project.StartupScene, dependencies);
+        // Usage: the assets the game ships (reachable from the startup scene, settings, code and "alwaysInclude") and the
+        // modules it needs. Unused assets are reported, never shipped silently or dropped silently.
+        var usage = UsageAnalyzer.Analyze(project, assets, dependencies, scriptsAssembly);
+        var resolution = ModuleResolver.Resolve(ModuleCatalog.Builtin, ProjectProfileMigration.Resolve(project).Profile, project.Modules, usage.Modules);
+        diagnostics.AddRange(resolution.Diagnostics.Where(d => d.Severity == ModuleSeverity.Error).Select(d => BuildDiagnostic.Error(d.Code, d.Message, project.ProjectFile)));
+        foreach (var note in usage.Notes)
+        {
+            diagnostics.Add(BuildDiagnostic.Warning("MNVB223", note));
+        }
+
+        // Pass 2: every shipped asset (and its bytecode) into its level, shared assets or resources archive.
+        var layout = ContentLayout.Plan(assets, project.StartupScene, dependencies, usage.Includes);
         if (output is not null)
         {
             output.DeclareLevels(layout.Levels);
-            foreach (var record in readable)
+            foreach (var record in readable.Where(r => usage.Includes(r.Guid)))
             {
                 var archive = output.For(layout.ArchiveOf(record.Guid));
                 if (models.TryGetValue(record.Guid, out var model))
@@ -177,14 +195,14 @@ public static class ContentCompiler
             }
         }
 
-        var shaders = PrecompileShaders(project, assets, diagnostics, output?.DefaultResources);
+        var shaders = PrecompileShaders(resolution, assets, usage, diagnostics, output?.DefaultResources);
         if (output is not null)
         {
-            output.Globals.Add(AssetDatabase.IndexEntry, Encoding.UTF8.GetBytes(assets.ExportIndex(layout.ArchiveOf).ToString(Formatting.None)));
-            output.Globals.Add(Path.GetFileName(project.ProjectFile), PackagedProjectFile(project));
+            output.Globals.Add(AssetDatabase.IndexEntry, Encoding.UTF8.GetBytes(assets.ExportIndex(layout.ArchiveOf, usage.Includes).ToString(Formatting.None)));
+            output.Globals.Add(Path.GetFileName(project.ProjectFile), PackagedProjectFile(project, resolution));
         }
 
-        return new ContentResult(diagnostics, assets.Assets.Count, scripts, shaders);
+        return new ContentResult(diagnostics, usage.Included.Count, scripts, shaders) { Usage = usage, Modules = resolution };
     }
 
     /// <summary>
@@ -193,10 +211,10 @@ public static class ContentCompiler
     /// to SPIR-V, checking them as the device would. Games have no shader compiler: what is not here cannot be drawn.
     /// Returns the number of stages.
     /// </summary>
-    private static int PrecompileShaders(GameProject project, AssetDatabase assets, List<BuildDiagnostic> diagnostics, ContentArchive.Writer? defaultResources)
+    private static int PrecompileShaders(ModuleResolution resolution, AssetDatabase assets, ProjectUsage usage, List<BuildDiagnostic> diagnostics, ContentArchive.Writer? defaultResources)
     {
         using var precompiler = new VulkanShaderPrecompiler(new ShadercCompiler());
-        var modules = ProjectModules.Implementations(ProjectModules.Resolve(project), EngineModuleSet.All()).Modules;
+        var modules = resolution.Modules.Select(m => EngineModuleSet.Create(m.Id)).OfType<IEngineModule>();
         ShaderSource[] builtins = [BuiltinShaders.Sprite, .. modules.OfType<IResourceIntegration>().SelectMany(m => m.BuiltinShaders)];
         foreach (var builtin in builtins)
         {
@@ -210,7 +228,7 @@ public static class ContentCompiler
                 diagnostics.Add(BuildDiagnostic.Error("MNVB212", $"Built-in shader failed to compile: {ex.Message}", builtin.Name));
             }
         }
-        foreach (var material in assets.Assets.Where(a => a.Type == AssetTypes.Material).OrderBy(a => a.Path, StringComparer.Ordinal))
+        foreach (var material in assets.Assets.Where(a => a.Type == AssetTypes.Material && usage.Includes(a.Guid)).OrderBy(a => a.Path, StringComparer.Ordinal))
         {
             try
             {
@@ -338,11 +356,18 @@ public static class ContentCompiler
     /// The project file without development-only settings (C# project path, build profiles), at the current schema
     /// with the profile it is built with (inferred for a project that predates profiles).
     /// </summary>
-    private static byte[] PackagedProjectFile(GameProject project)
+    /// <summary>
+    /// The project file the game reads. Its "modules" lists every optional module of the profile as on or off, as the
+    /// build resolved them, so the game starts exactly the modules it was built with.
+    /// </summary>
+    private static byte[] PackagedProjectFile(GameProject project, ModuleResolution resolution)
     {
         var document = JObject.Parse(File.ReadAllText(project.ProjectFile));
         document["schemaVersion"] = GameProject.CurrentSchemaVersion;
         document["profile"] = ProjectProfileMigration.Resolve(project).Profile.Id();
+        document["modules"] = new JObject(ModuleCatalog.Builtin.Modules
+            .Where(m => m.Activation != ModuleActivation.Always && m.Supports(resolution.Profile))
+            .Select(m => new JProperty(m.Id, resolution.IsEnabled(m.Id))));
         document.Remove("scripts");
         document.Remove("buildProfiles");
         return Encoding.UTF8.GetBytes(document.ToString(Formatting.Indented));

@@ -37,6 +37,7 @@ public sealed class AssetDatabase : IAssetLookup
     private readonly string? _libraryDirectory;
     private readonly Dictionary<string, IAssetImporter> _importers = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<Guid, AssetRecord> _records = [];
+    private HashSet<Guid> _alwaysIncluded = [];
     private Dictionary<Guid, JObject> _settings = [];
     private Dictionary<string, Guid> _byPath = new(AssetPaths.Comparer);
     private List<SerializationDiagnostic> _diagnostics = [];
@@ -163,10 +164,11 @@ public sealed class AssetDatabase : IAssetLookup
 
     /// <summary>The index an exported game opens with <see cref="OpenPackaged"/>: GUID, path, type and settings of every asset.</summary>
     /// <param name="archiveOf">Archive file each asset is written to (informational: reads are routed by entry); null to omit.</param>
-    public JObject ExportIndex(Func<Guid, string?>? archiveOf = null) => new()
+    /// <param name="include">The assets the game ships (a build strips unused ones); null for every asset.</param>
+    public JObject ExportIndex(Func<Guid, string?>? archiveOf = null, Func<Guid, bool>? include = null) => new()
     {
         ["schemaVersion"] = MetaSchemaVersion,
-        ["assets"] = new JArray(_records.Values.OrderBy(r => r.Path, StringComparer.Ordinal).Select(r => new JObject
+        ["assets"] = new JArray(_records.Values.Where(r => include?.Invoke(r.Guid) ?? true).OrderBy(r => r.Path, StringComparer.Ordinal).Select(r => new JObject
         {
             ["guid"] = r.Guid.ToString("D"),
             ["path"] = r.Path,
@@ -294,6 +296,7 @@ public sealed class AssetDatabase : IAssetLookup
         var diagnostics = new List<SerializationDiagnostic>();
         var previous = _records;
         var records = new Dictionary<Guid, AssetRecord>();
+        var alwaysIncluded = new HashSet<Guid>();
         var settingsByGuid = new Dictionary<Guid, JObject>();
         var added = new List<Guid>();
         var reimported = new List<Guid>();
@@ -316,14 +319,14 @@ public sealed class AssetDatabase : IAssetLookup
                 return null;
             }
 
-            return File.Exists(full) && ReadOrCreateMeta(full, relativePath, _importers.GetValueOrDefault(Path.GetExtension(full)), diagnostics) is (var guid, _) ? guid : null;
+            return File.Exists(full) && ReadOrCreateMeta(full, relativePath, _importers.GetValueOrDefault(Path.GetExtension(full)), diagnostics) is (var guid, _, _) ? guid : null;
         }
 
         foreach (var file in EnumerateAssetFiles())
         {
             var relative = AssetPaths.ToRelative(_assetsDirectory, file);
             var importer = _importers.GetValueOrDefault(Path.GetExtension(file));
-            if (ReadOrCreateMeta(file, relative, importer, diagnostics) is not (var guid, var settings))
+            if (ReadOrCreateMeta(file, relative, importer, diagnostics) is not (var guid, var settings, var alwaysInclude))
             {
                 continue;
             }
@@ -338,8 +341,13 @@ public sealed class AssetDatabase : IAssetLookup
                 }
 
                 guid = Guid.NewGuid();
-                WriteMeta(file + MetaExtension, guid, settings);
+                WriteMeta(file + MetaExtension, guid, settings, alwaysInclude);
                 diagnostics.Add(Warning(relative, $"Duplicate GUID (also used by '{clash.Path}'); assigned new GUID {guid}."));
+            }
+
+            if (alwaysInclude)
+            {
+                alwaysIncluded.Add(guid);
             }
 
             var info = new FileInfo(file);
@@ -422,6 +430,7 @@ public sealed class AssetDatabase : IAssetLookup
         }
 
         _records = records;
+        _alwaysIncluded = alwaysIncluded;
         _settings = settingsByGuid;
         _byPath = records.Values.ToDictionary(r => r.Path, r => r.Guid, AssetPaths.Comparer);
         ReportProblems(diagnostics);
@@ -597,6 +606,22 @@ public sealed class AssetDatabase : IAssetLookup
     private sealed record CompletedImport(Guid Guid, int Version, AssetRecord Record, Dictionary<string, byte[]> Artifacts);
 
     /// <summary>Writes new import settings to the asset's meta and reimports it.</summary>
+    /// <summary>
+    /// Whether builds keep the asset even when nothing the build analyses references it (<c>"alwaysInclude": true</c> in
+    /// its .meta): content the game loads by a path or GUID computed at run time.
+    /// </summary>
+    public bool IsAlwaysIncluded(Guid guid) => _alwaysIncluded.Contains(guid);
+
+    /// <summary>Sets <see cref="IsAlwaysIncluded"/> in the asset's .meta.</summary>
+    public void SetAlwaysInclude(Guid guid, bool alwaysInclude)
+    {
+        EnsureWritable();
+        var path = FullPath(guid) + MetaExtension;
+        var meta = JObject.Parse(File.ReadAllText(path));
+        WriteMeta(path, guid, meta["settings"] as JObject ?? [], alwaysInclude);
+        Refresh();
+    }
+
     /// <returns>Problems found while normalizing the settings.</returns>
     public IReadOnlyList<string> UpdateSettings(Guid guid, JObject settings)
     {
@@ -605,7 +630,7 @@ public sealed class AssetDatabase : IAssetLookup
         var problems = new List<string>();
         var importer = record.Importer is null ? null : _importers.Values.First(i => i.Name == record.Importer);
         var normalized = importer?.NormalizeSettings(settings, problems) ?? [];
-        WriteMeta(FullPath(guid) + MetaExtension, guid, normalized);
+        WriteMeta(FullPath(guid) + MetaExtension, guid, normalized, IsAlwaysIncluded(guid));
         Refresh();
         return problems;
     }
@@ -688,7 +713,7 @@ public sealed class AssetDatabase : IAssetLookup
             .Order(StringComparer.Ordinal);
     }
 
-    private (Guid Guid, JObject Settings)? ReadOrCreateMeta(string file, string relative, IAssetImporter? importer, List<SerializationDiagnostic> diagnostics)
+    private (Guid Guid, JObject Settings, bool AlwaysInclude)? ReadOrCreateMeta(string file, string relative, IAssetImporter? importer, List<SerializationDiagnostic> diagnostics)
     {
         var metaPath = file + MetaExtension;
         if (!File.Exists(metaPath))
@@ -702,7 +727,7 @@ public sealed class AssetDatabase : IAssetLookup
             var created = importer?.NormalizeSettings([], []) ?? [];
             var guid = Guid.NewGuid();
             WriteMeta(metaPath, guid, created);
-            return (guid, created);
+            return (guid, created, false);
         }
 
         JObject meta;
@@ -731,15 +756,16 @@ public sealed class AssetDatabase : IAssetLookup
             diagnostics.Add(Warning(relative + MetaExtension, problem));
         }
 
+        var alwaysInclude = meta.Value<bool?>("alwaysInclude") ?? false;
         if (!IsReadOnly && (!JToken.DeepEquals(settings, stored) || meta.Value<int?>("schemaVersion") != MetaSchemaVersion))
         {
-            WriteMeta(metaPath, id, settings); // complete defaults so metas stay self-describing
+            WriteMeta(metaPath, id, settings, alwaysInclude); // complete defaults so metas stay self-describing
         }
 
-        return (id, settings);
+        return (id, settings, alwaysInclude);
     }
 
-    private static void WriteMeta(string path, Guid guid, JObject settings)
+    private static void WriteMeta(string path, Guid guid, JObject settings, bool alwaysInclude = false)
     {
         var meta = new JObject
         {
@@ -747,6 +773,11 @@ public sealed class AssetDatabase : IAssetLookup
             ["guid"] = guid.ToString(),
             ["settings"] = settings,
         };
+        if (alwaysInclude)
+        {
+            meta["alwaysInclude"] = true; // kept in builds even when nothing references it (assets loaded by path at run time)
+        }
+
         File.WriteAllText(path, meta.ToString(Formatting.Indented) + Environment.NewLine);
     }
 

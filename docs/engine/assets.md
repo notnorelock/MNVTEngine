@@ -20,6 +20,7 @@ Each asset file has a sidecar `<file>.meta`. Commit meta files together with the
 | Incomplete or outdated settings | Rewritten with defaults filled in. Unknown keys are dropped with a warning; valid values are kept. |
 | Unreadable meta, or no valid `guid` | Reported as an error and the asset is skipped. The meta is never overwritten, because its GUID may still be recoverable. |
 | Copied file + meta (duplicate GUID) | The copy gets a new GUID, with a warning. |
+| `"alwaysInclude": true` | Builds ship the asset even when nothing references it, for content the game loads by a path computed at run time. Kept when the meta is rewritten; `AssetDatabase.SetAlwaysInclude` sets it. See [usage analysis](modules.md#usage-analysis). |
 | Meta whose asset no longer exists | Reported as an orphan; not deleted automatically. |
 | File renamed outside the editor together with its meta | Detected as a move; the GUID is kept. |
 | Folders, `*.tmp`, dot-files | Not assets. |

@@ -120,7 +120,7 @@ public sealed class BuildPipelineTests : IDisposable
     {
         var project = NewProject();
         File.WriteAllText(Path.Combine(project.AssetsDirectory, "Hello.mnvts"), "on start { log(\"hi\") }");
-        File.WriteAllText(Path.Combine(project.AssetsDirectory, "Hello.mnvts.meta"), """{ "schemaVersion": 1, "guid": "33333333-3333-4333-8333-333333333333", "settings": {} }""");
+        File.WriteAllText(Path.Combine(project.AssetsDirectory, "Hello.mnvts.meta"), """{ "schemaVersion": 1, "guid": "33333333-3333-4333-8333-333333333333", "settings": {}, "alwaysInclude": true }""");
         var (result, archives, key) = CompileInto(project);
 
         Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
@@ -199,11 +199,11 @@ public sealed class BuildPipelineTests : IDisposable
         var project = NewProject();
         var assets = project.AssetsDirectory;
         var png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
-        void Asset(string path, byte[] data, string guid)
+        void Asset(string path, byte[] data, string guid, bool alwaysInclude = false)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(assets, path))!);
             File.WriteAllBytes(Path.Combine(assets, path), data);
-            File.WriteAllText(Path.Combine(assets, path + ".meta"), $$"""{ "schemaVersion": 1, "guid": "{{guid}}", "settings": {} }""");
+            File.WriteAllText(Path.Combine(assets, path + ".meta"), $$"""{ "schemaVersion": 1, "guid": "{{guid}}", "settings": {}{{(alwaysInclude ? ", \"alwaysInclude\": true" : "")}} }""");
         }
 
         const string Shared = "a1000000-0000-4000-8000-000000000001", OnlySecond = "a1000000-0000-4000-8000-000000000002";
@@ -212,7 +212,8 @@ public sealed class BuildPipelineTests : IDisposable
         Asset("Textures/second.png", png, OnlySecond);
         Asset("Shaders/Tint.frag", "#version 450 core\nin vec2 vTexCoord;\nin vec4 vColor;\nlayout(binding = 0) uniform sampler2D uTexture;\nuniform vec4 uTint;\nout vec4 fragColor;\nvoid main() { fragColor = texture(uTexture, vTexCoord) * vColor * uTint; }\n"u8.ToArray(), Shader);
         Asset("Materials/Tint.mnvtmat", System.Text.Encoding.UTF8.GetBytes($$"""{ "schemaVersion": 1, "shader": "asset:{{Shader}}", "blend": "Alpha", "uniforms": { "uTint": [1, 0, 0, 1] } }"""), Material);
-        Asset("Missions/Unused.mnvts", "on start { log(\"spawned by code\") }"u8.ToArray(), "a1000000-0000-4000-8000-000000000005");
+        Asset("Missions/Unused.mnvts", "on start { log(\"spawned by code\") }"u8.ToArray(), "a1000000-0000-4000-8000-000000000005", alwaysInclude: true);
+        Asset("Textures/stray.png", png, "a1000000-0000-4000-8000-000000000007"); // nothing uses it: not shipped
 
         var main = Path.Combine(assets, "Scenes", "Main.mnvt");
         var template = File.ReadAllText(main);
@@ -226,7 +227,7 @@ public sealed class BuildPipelineTests : IDisposable
         Asset("Scenes/Second.mnvt", System.Text.Encoding.UTF8.GetBytes(WithSprite(Shared, null).Replace(
             "\"gameObjects\": [",
             $"\"gameObjects\": [ {{ \"id\": \"c0000000-0000-4000-8000-000000000001\", \"name\": \"Prop\", \"parent\": null, \"components\": [ {{ \"type\": \"MNVTEngine.SpriteRenderer\", \"id\": \"b0000000-0000-0000-0000-0000000000fe\", \"enabled\": true, \"data\": {{ \"texture\": \"asset:{OnlySecond}\" }} }} ] }},",
-            StringComparison.Ordinal)), "a1000000-0000-4000-8000-000000000006");
+            StringComparison.Ordinal)), "a1000000-0000-4000-8000-000000000006", alwaysInclude: true);
 
         var (result, archives, key) = CompileInto(project);
         Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
@@ -252,6 +253,13 @@ public sealed class BuildPipelineTests : IDisposable
 
         var index = Newtonsoft.Json.Linq.JObject.Parse(System.Text.Encoding.UTF8.GetString(content.Read(Assets.AssetDatabase.IndexEntry)));
         Assert.Equal("level1.mnvtpak", index["assets"]!.Single(a => (string?)a["guid"] == OnlySecond)["archive"]!.ToString());
+
+        // Stripping: the unreferenced texture is reported and neither in an archive nor in the index.
+        Assert.DoesNotContain(content.Entries, e => e.EndsWith("stray.png", StringComparison.Ordinal));
+        Assert.DoesNotContain(index["assets"]!, a => (string?)a["path"] == "Textures/stray.png");
+        Assert.Equal("Textures/stray.png", Assert.Single(result.Usage!.Stripped).Path);
+        Assert.Equal("always include (.meta)", result.Usage.Included.Single(a => a.Path == "Scenes/Second.mnvt").Reason);
+        Assert.Equal("referenced by Materials/Tint.mnvtmat", result.Usage.Included.Single(a => a.Path == "Shaders/Tint.frag").Reason);
     }
 
     [Fact]
@@ -261,7 +269,7 @@ public sealed class BuildPipelineTests : IDisposable
         File.WriteAllText(Path.Combine(project.AssetsDirectory, "Broken.frag"), "#version 450 core\nout vec4 c;\nvoid main() { c = undefined; }\n");
         File.WriteAllText(Path.Combine(project.AssetsDirectory, "Broken.frag.meta"), """{ "schemaVersion": 1, "guid": "a2000000-0000-4000-8000-000000000001", "settings": {} }""");
         File.WriteAllText(Path.Combine(project.AssetsDirectory, "Broken.mnvtmat"), """{ "schemaVersion": 1, "shader": "asset:a2000000-0000-4000-8000-000000000001", "blend": "Alpha", "uniforms": {} }""");
-        File.WriteAllText(Path.Combine(project.AssetsDirectory, "Broken.mnvtmat.meta"), """{ "schemaVersion": 1, "guid": "a2000000-0000-4000-8000-000000000002", "settings": {} }""");
+        File.WriteAllText(Path.Combine(project.AssetsDirectory, "Broken.mnvtmat.meta"), """{ "schemaVersion": 1, "guid": "a2000000-0000-4000-8000-000000000002", "settings": {}, "alwaysInclude": true }""");
 
         var error = Assert.Single(ContentCompiler.Compile(project, Registry, output: null).Diagnostics, d => d.Code == "MNVB210");
         Assert.Equal(("Broken.mnvtmat", BuildSeverity.Error), (error.File, error.Severity));
@@ -271,9 +279,9 @@ public sealed class BuildPipelineTests : IDisposable
     [Fact]
     public void Models_ShipAsTheirArtifact_AndFailTheBuildWhenNeverImported()
     {
-        var project = NewProject();
+        var project = NewProject("empty-3d"); // models need world.3d
         File.Copy(Path.Combine(AppContext.BaseDirectory, "Models", "Khronos", "BoxAnimated.glb"), Path.Combine(project.AssetsDirectory, "Box.glb"));
-        File.WriteAllText(Path.Combine(project.AssetsDirectory, "Box.glb.meta"), """{ "schemaVersion": 1, "guid": "44444444-4444-4444-8444-444444444444", "settings": {} }""");
+        File.WriteAllText(Path.Combine(project.AssetsDirectory, "Box.glb.meta"), """{ "schemaVersion": 1, "guid": "44444444-4444-4444-8444-444444444444", "settings": {}, "alwaysInclude": true }""");
         var guid = Guid.Parse("44444444-4444-4444-8444-444444444444");
 
         Assert.Single(ContentCompiler.Compile(project, Registry, output: null).Diagnostics, d => d.Code == "MNVB222");
@@ -292,9 +300,42 @@ public sealed class BuildPipelineTests : IDisposable
     public void Shaders_ArePrecompiledForTheProjectsModulesOnly()
     {
         // 3D: sprite (2 stages), the shared mesh vertex stage with the Standard, Unlit and Sky fragments, the shadow
-        // caster (2), the skinned and instanced vertex stages (3); terrain adds its splat fragment.
-        Assert.Equal(12, ContentCompiler.Compile(NewProject("empty-3d", "Deep"), Registry, output: null).Shaders);
+        // caster (2), the skinned and instanced vertex stages (3). Terrain is auto: an empty project does not use it, so
+        // its splat fragment comes only once the project enables it.
+        var deep = NewProject("empty-3d", "Deep");
+        var built = ContentCompiler.Compile(deep, Registry, output: null);
+        Assert.Equal(11, built.Shaders);
+        Assert.False(built.Modules!.IsEnabled("terrain"));
+        Assert.Equal("not used: no components, assets or API of it in the project", built.Modules.Excluded.Single(e => e.Module.Id == "terrain").Reason);
+        deep.Modules["terrain"] = true;
+        Assert.Equal(12, ContentCompiler.Compile(deep, Registry, output: null).Shaders);
         Assert.Equal(2, ContentCompiler.Compile(NewProject("empty-2d", "Flat"), Registry, output: null).Shaders); // the sprite shader only
+    }
+
+    [Fact]
+    public void Usage_FollowsNamesInMissionScripts_AndThePackagedProjectListsTheBuiltModules()
+    {
+        var project = NewProject();
+        var assets = project.AssetsDirectory;
+        File.WriteAllText(Path.Combine(assets, "Intro.mnvts"), "on start { scene.load(\"Scenes/Level2\") }");
+        File.WriteAllText(Path.Combine(assets, "Intro.mnvts.meta"), """{ "schemaVersion": 1, "guid": "a3000000-0000-4000-8000-000000000001", "settings": {}, "alwaysInclude": true }""");
+        File.Copy(Path.Combine(assets, "Scenes", "Main.mnvt"), Path.Combine(assets, "Scenes", "Level2.mnvt"));
+        File.WriteAllText(Path.Combine(assets, "Scenes", "Level2.mnvt.meta"), """{ "schemaVersion": 1, "guid": "a3000000-0000-4000-8000-000000000002", "settings": {} }""");
+        File.Copy(Path.Combine(assets, "Scenes", "Main.mnvt"), Path.Combine(assets, "Scenes", "Unloaded.mnvt"));
+        File.WriteAllText(Path.Combine(assets, "Scenes", "Unloaded.mnvt.meta"), """{ "schemaVersion": 1, "guid": "a3000000-0000-4000-8000-000000000003", "settings": {} }""");
+
+        var (result, archives, key) = CompileInto(project);
+        Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
+        Assert.Equal("named in Intro.mnvts", result.Usage!.Included.Single(a => a.Path == "Scenes/Level2.mnvt").Reason);
+        Assert.Contains(result.Usage.Stripped, a => a.Path == "Scenes/Unloaded.mnvt");
+        Assert.Contains(result.Diagnostics, d => d.Code == "MNVB223" && d.Message.Contains("Scenes/Unloaded.mnvt", StringComparison.Ordinal)); // reported, not silently dropped
+        Assert.Contains("used: Script asset Intro.mnvts", result.Modules!.Reasons["scripting"], StringComparison.Ordinal);
+
+        using var archive = Assets.ContentArchiveSet.Open(_root, archives.Select(a => a.File), key);
+        var packaged = GameProject.LoadPackaged(archive, _root);
+        Assert.True(packaged.Modules["scripting"]);
+        Assert.False(packaged.Modules["audio"]); // nothing plays sound
+        Assert.Equal(result.Modules.Modules.Select(m => m.Id), Runtime.ProjectModules.Resolve(packaged).Modules.Select(m => m.Id)); // the game starts what was built
     }
 
     [Fact]

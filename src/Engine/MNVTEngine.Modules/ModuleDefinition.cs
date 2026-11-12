@@ -6,8 +6,12 @@ public enum ModuleActivation
     /// <summary>Engine infrastructure every project has; cannot be disabled.</summary>
     Always,
 
-    /// <summary>On for the profiles it supports unless the project disables it.</summary>
-    Default,
+    /// <summary>
+    /// Included when the project uses it (a build's usage analysis finds its components, assets or API in the project),
+    /// or when the project enables it. Without a usage analysis (development runs, the editor), every Auto module of the
+    /// profile is available. The project can forbid it (<c>false</c>).
+    /// </summary>
+    Auto,
 
     /// <summary>Off unless the project enables it.</summary>
     OptIn,
@@ -23,7 +27,7 @@ public sealed record ModuleDefinition(string Id, string DisplayName, string Desc
 {
     public Version Version { get; init; } = new(1, 0, 0);
 
-    public ModuleActivation Activation { get; init; } = ModuleActivation.Default;
+    public ModuleActivation Activation { get; init; } = ModuleActivation.Auto;
 
     /// <summary>Profiles the module works in; a 2D-only module never enters a 3D project.</summary>
     public IReadOnlyList<ProjectProfile> Profiles { get; init; } = ProjectProfiles.All;
@@ -48,6 +52,9 @@ public sealed record ModuleDefinition(string Id, string DisplayName, string Desc
 
     /// <summary>Serialized ids of the components the module provides (scene content of a disabled module is an error).</summary>
     public IReadOnlyList<string> Components { get; init; } = [];
+
+    /// <summary>Asset types whose content needs this module at run time (a packaged audio clip needs audio).</summary>
+    public IReadOnlyList<string> AssetTypes { get; init; } = [];
 
     public bool Supports(ProjectProfile profile) => Profiles.Contains(profile);
 

@@ -25,7 +25,10 @@ public sealed class ModuleResolution
     /// <summary>Enabled modules in startup order: every module after its dependencies, ties by id. Shut down in reverse.</summary>
     public IReadOnlyList<ModuleDefinition> Modules { get; }
 
-    /// <summary>Why each enabled module is enabled ("always", "default for 2D", "enabled in the project", "required by x").</summary>
+    /// <summary>
+    /// Why each enabled module is enabled: "always", "enabled in the project", "used: &lt;evidence&gt;", "required by x", or
+    /// without a usage analysis "available in 2D".
+    /// </summary>
     public IReadOnlyDictionary<string, string> Reasons { get; }
 
     public IReadOnlyList<ExcludedModule> Excluded { get; }
@@ -60,13 +63,17 @@ public sealed class ModuleResolution
 }
 
 /// <summary>
-/// Turns a profile and the project's module switches (<c>"modules": { "terrain": false }</c>) into the set of enabled
-/// modules. Required dependencies are added automatically (and reported); a dependency that is unavailable in the
+/// Turns a profile, the project's module switches (<c>"modules": { "terrain": false }</c>) and, for builds, what the
+/// project uses into the set of enabled modules. Required dependencies are added automatically (and reported); a dependency that is unavailable in the
 /// profile, or that the project disables, is an error, never silently enabled or dropped.
 /// </summary>
 public static class ModuleResolver
 {
-    public static ModuleResolution Resolve(ModuleCatalog catalog, ProjectProfile profile, IReadOnlyDictionary<string, bool>? switches = null)
+    /// <param name="usage">
+    /// What the project uses, by module id, with the evidence (a build's usage analysis): Auto modules are then included
+    /// only when used. Null (development runs, the editor): every Auto module of the profile is available.
+    /// </param>
+    public static ModuleResolution Resolve(ModuleCatalog catalog, ProjectProfile profile, IReadOnlyDictionary<string, bool>? switches = null, IReadOnlyDictionary<string, IReadOnlyList<string>>? usage = null)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         switches ??= new Dictionary<string, bool>();
@@ -90,14 +97,34 @@ public static class ModuleResolver
             }
         }
 
+        // Used modules the project cannot have: of the other profile, or forbidden by the project.
+        foreach (var (id, evidence) in (usage ?? new Dictionary<string, IReadOnlyList<string>>()).Where(u => u.Value.Count > 0).OrderBy(u => u.Key, StringComparer.Ordinal))
+        {
+            if (!catalog.TryGet(id, out var module))
+            {
+                continue;
+            }
+
+            if (!module.Supports(profile))
+            {
+                diagnostics.Add(ModuleDiagnostic.Error(ModuleDiagnostic.ComponentOfDisabledModule, $"The project uses module '{id}', which is not available in {profileName} projects: {evidence[0]}.", id));
+            }
+            else if (switches.TryGetValue(id, out var allowed) && !allowed)
+            {
+                diagnostics.Add(ModuleDiagnostic.Error(ModuleDiagnostic.ComponentOfDisabledModule, $"The project uses module '{id}', which it disables: {evidence[0]}. Enable it, or remove what uses it.", id));
+            }
+        }
+
         foreach (var module in catalog.Modules.Where(m => m.Supports(profile)))
         {
             var switched = switches.TryGetValue(module.Id, out var on) ? on : (bool?)null;
+            var used = usage is null ? null : usage.TryGetValue(module.Id, out var evidence) && evidence.Count > 0 ? evidence[0] : null;
             var reason = module.Activation switch
             {
                 ModuleActivation.Always => "always",
-                ModuleActivation.Default when switched is not false => switched is true ? "enabled in the project" : $"default for {profileName}",
-                ModuleActivation.OptIn when switched is true => "enabled in the project",
+                _ when switched is true => "enabled in the project",
+                ModuleActivation.Auto when switched is not false && usage is null => $"available in {profileName}",
+                ModuleActivation.Auto when switched is not false && used is not null => "used: " + used,
                 _ => null,
             };
             if (reason is not null)
@@ -146,14 +173,15 @@ public static class ModuleResolver
 
         var order = StartupOrder(reasons.Keys, dependencies, diagnostics);
         var excluded = catalog.Modules.Where(m => !reasons.ContainsKey(m.Id))
-            .Select(m => new ExcludedModule(m, ExclusionReason(m, profile, switches, diagnostics))).ToList();
+            .Select(m => new ExcludedModule(m, ExclusionReason(m, profile, switches, diagnostics, usage is not null))).ToList();
         return new ModuleResolution(profile, [.. order.Select(id => catalog[id])], reasons, excluded, dependencies, diagnostics);
     }
 
-    private static string ExclusionReason(ModuleDefinition module, ProjectProfile profile, IReadOnlyDictionary<string, bool> switches, List<ModuleDiagnostic> diagnostics) =>
+    private static string ExclusionReason(ModuleDefinition module, ProjectProfile profile, IReadOnlyDictionary<string, bool> switches, List<ModuleDiagnostic> diagnostics, bool analysed) =>
         !module.Supports(profile) ? $"not available in {profile.DisplayName()}"
         : switches.TryGetValue(module.Id, out var on) && !on ? "disabled in the project"
         : module.Activation == ModuleActivation.OptIn ? "opt-in, not enabled"
+        : module.Activation == ModuleActivation.Auto && analysed ? "not used: no components, assets or API of it in the project"
         : diagnostics.Any(d => d.Module == module.Id) ? "not resolved"
         : "not enabled";
 

@@ -66,6 +66,7 @@ public static class BuiltinModules
         Requires = ["core"],
         RuntimeAssemblies = ["MNVTEngine.Audio", "MNVTEngine.Audio.OpenAL", "Silk.NET.OpenAL", "NVorbis"],
         NativeLibraries = ["soft_oal.dll"],
+        AssetTypes = ["Audio"],
         Components = ["MNVTEngine.AudioSource", "MNVTEngine.AudioListener", "MNVTEngine.AudioMixer"],
     };
 
@@ -73,6 +74,7 @@ public static class BuiltinModules
     {
         Requires = ["core"],
         RuntimeAssemblies = ["MNVTEngine.Scripting", "MNVTEngine.Scripting.Missions", "MNVTEngine.Scripting.Bindings"],
+        AssetTypes = ["Script"],
         Components = ["MNVTEngine.MissionRunner"],
     };
 
@@ -80,6 +82,7 @@ public static class BuiltinModules
     {
         Requires = ["core", "graphics", "runtime"],
         RuntimeAssemblies = ["MNVTEngine.UI"],
+        AssetTypes = ["UILayout"],
         Components = ["MNVTEngine.UIDocument"],
     };
 
@@ -96,6 +99,7 @@ public static class BuiltinModules
         Profiles = TwoD,
         Requires = ["core", "graphics", "runtime"],
         RuntimeAssemblies = ["MNVTEngine.World2D", "MNVTEngine.World2D.Rendering"],
+        AssetTypes = ["Animation"],
         Components = ["MNVTEngine.SpriteRenderer", "MNVTEngine.SpriteAnimator", "MNVTEngine.Tilemap", "MNVTEngine.Light2D", "MNVTEngine.GlobalLight2D"],
     };
 
@@ -104,6 +108,7 @@ public static class BuiltinModules
         Profiles = ThreeD,
         Requires = ["core", "graphics", "assets", "runtime"],
         RuntimeAssemblies = ["MNVTEngine.World3D", "MNVTEngine.World3D.Rendering"],
+        AssetTypes = ["Model", "AnimatorController"],
         BuildAssets =
         [
             "shader:standard", "shader:standard-skinned", "shader:standard-instanced", "shader:unlit", "shader:unlit-skinned",
@@ -143,6 +148,7 @@ public static class BuiltinModules
         Requires = ["world.3d", "physics.3d"],
         RuntimeAssemblies = ["MNVTEngine.Terrain", "MNVTEngine.Terrain.Components", "Clipper2Lib"],
         BuildAssets = ["shader:terrain-splat"],
+        AssetTypes = ["Terrain"],
         Components = ["MNVTEngine.WorldTerrain"],
     };
 

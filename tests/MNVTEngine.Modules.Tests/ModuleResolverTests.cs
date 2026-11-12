@@ -4,7 +4,7 @@ public sealed class ModuleResolverTests
 {
     private static readonly ModuleCatalog Builtin = ModuleCatalog.Builtin;
 
-    private static ModuleDefinition M(string id, string[]? requires = null, string[]? optional = null, ModuleActivation activation = ModuleActivation.Default, ProjectProfile[]? profiles = null) =>
+    private static ModuleDefinition M(string id, string[]? requires = null, string[]? optional = null, ModuleActivation activation = ModuleActivation.Auto, ProjectProfile[]? profiles = null) =>
         new(id, id, "test") { Requires = requires ?? [], Optional = optional ?? [], Activation = activation, Profiles = profiles ?? ProjectProfiles.All };
 
     private static string[] Ids(ModuleResolution resolution) => [.. resolution.Modules.Select(m => m.Id)];
@@ -142,5 +142,31 @@ public sealed class ModuleResolverTests
         Assert.All(problems, p => Assert.Equal(ModuleDiagnostic.ComponentOfDisabledModule, p.Code));
         Assert.Contains("MNVTEngine.Rigidbody2D (module 'physics.2d', disabled in the project) is used in Scenes/Level.mnvt.", problems.Select(p => p.Message));
         Assert.Contains("MNVTEngine.MeshRenderer (module 'world.3d', not available in 2D) is used in Prefabs/Crate.mnvtprefab.", problems.Select(p => p.Message));
+    }
+
+    [Fact]
+    public void WithUsage_AutoModulesComeOnlyWhenUsed_AndExplicitSwitchesStillWin()
+    {
+        var usage = new Dictionary<string, IReadOnlyList<string>> { ["physics.2d"] = ["Rigidbody2D in Scenes/Main.mnvt"] };
+        var resolution = ModuleResolver.Resolve(Builtin, ProjectProfile.TwoD, new Dictionary<string, bool> { ["ui"] = true }, usage);
+        Assert.True(resolution.Succeeded);
+        Assert.Equal(["core", "graphics", "assets", "platform", "runtime", "ui", "world.2d", "physics.2d"], Ids(resolution));
+        Assert.Equal("used: Rigidbody2D in Scenes/Main.mnvt", resolution.Reasons["physics.2d"]);
+        Assert.Equal("required by physics.2d", resolution.Reasons["world.2d"]);
+        Assert.Equal("enabled in the project", resolution.Reasons["ui"]);
+        Assert.Equal("not used: no components, assets or API of it in the project", resolution.Excluded.Single(e => e.Module.Id == "audio").Reason);
+    }
+
+    [Fact]
+    public void WithUsage_UsingADisabledOrOtherProfileModule_IsAnError()
+    {
+        var disabled = ModuleResolver.Resolve(Builtin, ProjectProfile.TwoD, new Dictionary<string, bool> { ["audio"] = false },
+            new Dictionary<string, IReadOnlyList<string>> { ["audio"] = ["Audio asset Sounds/jump.wav"] });
+        var error = Assert.Single(disabled.Diagnostics, d => d.Severity == ModuleSeverity.Error);
+        Assert.Contains("disables: Audio asset Sounds/jump.wav", error.Message, StringComparison.Ordinal);
+
+        var other = ModuleResolver.Resolve(Builtin, ProjectProfile.TwoD, usage: new Dictionary<string, IReadOnlyList<string>> { ["world.3d"] = ["Model asset Box.glb"] });
+        Assert.False(other.Succeeded);
+        Assert.False(other.IsEnabled("world.3d"));
     }
 }
