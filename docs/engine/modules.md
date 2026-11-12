@@ -102,6 +102,19 @@ Required modules follow as usual (`physics.2d` brings `world.2d`). Evidence for 
 
 The packaged project file lists every optional module of the profile as `true` or `false`, exactly as the build resolved them, so the game starts the modules it was built with and no others.
 
+## Sizes
+
+Release exports (KB), from before Phase B to now:
+
+| Export | Before (every module) | Modules only (B3) | + framework pruning (B4) |
+|---|---:|---:|---:|
+| Platformer (2D) | 105,720 | 97,202 | 82,758 |
+| UIShowcase (2D) | | 95,906 | 81,458 |
+| Showcase3D (3D) | | 99,722 | 85,278 |
+| TerrainDemo (3D) | | 96,943 | 82,499 |
+
+The private runtime is now 70.8 MB of each export (103 files, 13.9 MB, pruned). Debug Platformer with dev tools: 85,502 KB.
+
 ## Generated bootstrap
 
 The game executable is built with the game's modules only. `ModuleBootstrap` (MNVTEngine.Build) writes two files into `Library/Build/<profile>/Bootstrap`:
@@ -206,4 +219,5 @@ References that still cross module boundaries are listed as `KnownCouplings`. Th
 - **Usage analysis is static.** A path built at run time (`"Levels/" + n`) is not seen; mark such assets `alwaysInclude` or name them literally. A module used only through reflection needs `"<module>": true`.
 - **The in-game debug UI (devtools) reads Physics2D, Audio, mission and UI state directly**, so a devtools build ships those assemblies. They are the remaining known couplings.
 - **The editor registers the components of the project's profile**, and draws with that profile's passes; its 2D and 3D tools are not yet in separate assemblies.
-- **`devtools` is still added by build configuration** (`MnvtDevTools`), not by the project's switches.
+- **Vortice.Vulkan (1.6 MB) ships in every game** only because Vortice.VulkanMemoryAllocator depends on it; the engine calls ten VMA functions (`vmaCreateAllocator`, `vmaCreateBuffer`, `vmaCreateImage`, `vmaDestroy*`, `vmaFlushAllocation`, `vmaInvalidateAllocation`, `vmaGetAllocationInfo`, `vmaGetHeapBudgets`) and uses Silk.NET for everything else. Own `[LibraryImport]` declarations against `vma.dll` would remove it; not done yet.
+- **The framework keeps what Newtonsoft.Json references** (System.Private.Xml, System.Data.Common, System.Linq.Expressions, and through Xml System.Net.Http). Removing those needs member-level trimming, which builds do not do.

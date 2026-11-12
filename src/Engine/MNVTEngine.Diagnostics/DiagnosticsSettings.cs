@@ -113,7 +113,10 @@ public sealed class DiagnosticsSettings
     /// <summary>Master switch for development builds, the Player and editor Play Mode.</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Release exports normally contain no debug UI at all; true ships it (the project opts in explicitly).</summary>
+    /// <summary>
+    /// Release exports normally contain no debug UI at all; true ships it. Stored in the project as the devtools module
+    /// switch (<c>"modules": { "devtools": true }</c>); older files with <c>includeInRelease</c> are read as that switch.
+    /// </summary>
     public bool IncludeInRelease { get; set; }
 
     public bool ShowOverlayByDefault { get; set; }

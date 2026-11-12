@@ -217,6 +217,30 @@ public sealed class RuntimeDiagnosticsTests : IDisposable
     }
 
     [Fact]
+    public void IncludeInRelease_IsMigratedToTheDevToolsSwitch_AndSavedAsIt()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "Assets", "Scenes"));
+        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "Main.mnvt"), """{ "schemaVersion": 2, "gameObjects": [] }""");
+        var file = Path.Combine(_root, "Game.mnvtproj");
+        File.WriteAllText(file, """{ "schemaVersion": 2, "profile": "2d", "name": "Game", "startupScene": "Scenes/Main.mnvt", "diagnostics": { "includeInRelease": true } }""");
+
+        var project = GameProject.Load(file);
+        Assert.True(project.Modules["devtools"]);
+        Assert.True(project.Diagnostics.IncludeInRelease); // mirrors the switch for the editor's checkbox
+
+        project.SaveDiagnostics(project.Diagnostics.Clone());
+        var saved = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(file));
+        Assert.True(saved["modules"]!.Value<bool>("devtools"));
+        Assert.False(saved["diagnostics"]!.Value<bool>("includeInRelease"));
+
+        var off = project.Diagnostics.Clone();
+        off.IncludeInRelease = false;
+        project.SaveDiagnostics(off);
+        Assert.Null(Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(file))["modules"]); // back to the default: Debug only
+        Assert.False(GameProject.Load(file).Modules.ContainsKey("devtools"));
+    }
+
+    [Fact]
     public void WindowSettings_LoadModesIconAndLimits_AndRejectBadValues()
     {
         Directory.CreateDirectory(Path.Combine(_root, "Assets", "Scenes"));

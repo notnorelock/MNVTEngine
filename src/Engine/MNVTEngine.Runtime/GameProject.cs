@@ -139,6 +139,12 @@ public sealed class BuildProfile
     /// <summary>Show a console window with the log; defaults to true for Debug and false for Release.</summary>
     public bool? Console { get; set; }
 
+    /// <summary>
+    /// Leave out the framework assemblies the game cannot reach from its references (default). Turn off for games that
+    /// load framework assemblies by name at run time.
+    /// </summary>
+    public bool PruneFramework { get; set; } = true;
+
     [JsonIgnore]
     public bool ShowsConsole => Console ?? Configuration == "Debug";
 
@@ -177,6 +183,8 @@ public sealed class GameProject
     /// <see cref="ProjectModules"/>. Unknown, incompatible or required modules are reported when the modules are resolved.
     /// </summary>
     public Dictionary<string, bool> Modules { get; set; } = new(StringComparer.Ordinal);
+
+    private const string DevToolsModule = "devtools";
 
     /// <summary>A pre-profile (schema version 1) project: its profile must be inferred or chosen, then saved.</summary>
     [JsonIgnore]
@@ -309,7 +317,24 @@ public sealed class GameProject
     {
         ArgumentNullException.ThrowIfNull(settings);
         var document = JObject.Parse(File.ReadAllText(ProjectFile));
-        document["diagnostics"] = JObject.FromObject(settings, MnvtJson.CreateSerializer());
+        var saved = settings.Clone();
+        saved.IncludeInRelease = false; // stored as the devtools switch
+        document["diagnostics"] = JObject.FromObject(saved, MnvtJson.CreateSerializer());
+        if (settings.IncludeInRelease)
+        {
+            Modules[DevToolsModule] = true;
+        }
+        else if (Modules.GetValueOrDefault(DevToolsModule))
+        {
+            Modules.Remove(DevToolsModule); // back to the default: on in Debug builds, off in Release
+        }
+
+        document["modules"] = new JObject(Modules.OrderBy(m => m.Key, StringComparer.Ordinal).Select(m => new JProperty(m.Key, m.Value)));
+        if (Modules.Count == 0)
+        {
+            document.Remove("modules");
+        }
+
         File.WriteAllText(ProjectFile, document.ToString(Formatting.Indented) + Environment.NewLine);
         Diagnostics = settings.Clone();
     }
@@ -391,6 +416,15 @@ public sealed class GameProject
         void Error(string path, string message) => diagnostics.Add(new SerializationDiagnostic(DiagnosticSeverity.Error, path, message));
 
         Diagnostics ??= new Diagnostics.DiagnosticsSettings();
+
+        // diagnostics.includeInRelease became the devtools module switch: read as "devtools": true; in memory it mirrors
+        // the switch (the editor's checkbox) and SaveDiagnostics writes it back as the switch.
+        if (Diagnostics.IncludeInRelease)
+        {
+            Modules.TryAdd(DevToolsModule, true);
+        }
+
+        Diagnostics.IncludeInRelease = Modules.GetValueOrDefault(DevToolsModule);
         foreach (var problem in Diagnostics.Validate())
         {
             diagnostics.Add(new SerializationDiagnostic(DiagnosticSeverity.Warning, "diagnostics", problem));

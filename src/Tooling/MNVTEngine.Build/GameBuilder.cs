@@ -121,13 +121,17 @@ public sealed partial class GameBuilder(ILogger logger)
         Directory.CreateDirectory(contentDirectory);
         string? scriptsAssembly = null;
         List<string> modules;
+        ContentResult? compiled = null;
+        FrameworkPruning? pruning = null;
         var archive = new ContentArchiveWriter(contentDirectory, key);
         using (archive)
         {
             ContentResult content;
             try
             {
+                ApplyDevToolsDefault(project, profile);
                 content = ContentCompiler.Compile(project, registry, archive, scriptsAssemblyPath);
+                compiled = content;
             }
             finally
             {
@@ -150,7 +154,7 @@ public sealed partial class GameBuilder(ILogger logger)
             // The host is built with the game's modules only (generated bootstrap: references and explicit creation).
             var bootstrap = ModuleBootstrap.Write(content.Modules!, Path.Combine(work, "Bootstrap"));
             modules = [.. content.Modules!.Modules.Select(m => m.Id)];
-            diagnostics.AddRange(await GamePackager.PublishHostAsync(engineRoot, profile, executableName, key, work, stage, GamePackager.IncludesDevTools(profile, project), bootstrap, cancellationToken).ConfigureAwait(false));
+            diagnostics.AddRange(await GamePackager.PublishHostAsync(engineRoot, profile, executableName, key, work, stage, modules.Contains("devtools"), bootstrap, cancellationToken).ConfigureAwait(false));
             if (diagnostics.HasErrors())
             {
                 return Fail(profile);
@@ -160,6 +164,17 @@ public sealed partial class GameBuilder(ILogger logger)
             if (scripts is not null)
             {
                 scriptsAssembly = GamePackager.AddGameCode(archive.Globals, scriptsOutput!, scripts.AssemblyName, stage, profile.Configuration == "Debug", diagnostics);
+            }
+
+            if (profile.PruneFramework && GamePackager.FrameworkDirectory(stage) is { } framework)
+            {
+                // Roots: the host, its dependencies and the game's C# code (which the host loads from the archive).
+                var roots = Directory.EnumerateFiles(stage, "*.dll")
+                    .Concat(Directory.EnumerateFiles(Path.Combine(stage, GamePackage.ManagedFolder), "*.dll"))
+                    .Concat(scriptsOutput is not null && Directory.Exists(scriptsOutput) ? Directory.EnumerateFiles(scriptsOutput, "*.dll") : []);
+                var pruned = pruning = FrameworkPruner.Prune(framework, roots);
+                var prunedSize = GamePackager.FormatSize(pruned.RemovedBytes);
+                LogPruned(logger, pruned.Removed.Count, prunedSize, pruned.Kept);
             }
         }
 
@@ -179,7 +194,7 @@ public sealed partial class GameBuilder(ILogger logger)
             ExecutableName = executableName,
             Profile = profile.Name,
             Configuration = profile.Configuration,
-            DevTools = GamePackager.IncludesDevTools(profile, project),
+            DevTools = modules.Contains("devtools"),
             Modules = modules,
             Target = profile.Target,
             EngineVersion = GamePackager.EngineVersion,
@@ -208,6 +223,9 @@ public sealed partial class GameBuilder(ILogger logger)
         var size = Directory.EnumerateFiles(output, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
         var formattedSize = GamePackager.FormatSize(size);
         LogPackaged(logger, formattedSize, output);
+        var reportPath = BuildReport.PathFor(output);
+        BuildReport.Write(BuildReport.Create(new BuildReportInput(project, profile, compiled!, modules.Contains("devtools"), diagnostics) { PackageDirectory = output, Pruning = pruning }), reportPath);
+        LogReport(logger, reportPath);
 
         if (options.TestRunFrames is { } frames)
         {
@@ -216,6 +234,54 @@ public sealed partial class GameBuilder(ILogger logger)
         }
 
         return new BuildResult(!diagnostics.HasErrors(), profile, output, Path.Combine(output, executableName + ".exe"), diagnostics, watch.Elapsed);
+    }
+
+    /// <summary>
+    /// What a build of <paramref name="options"/>' profile would contain and why, without packaging: C# scripts compiled,
+    /// content analysed and modules resolved exactly as <see cref="BuildAsync"/> does (<c>mnvt build analyze</c>).
+    /// </summary>
+    /// <returns>The report (see <see cref="BuildReport"/>; no sizes), or null when the project does not get that far.</returns>
+    public async Task<(Newtonsoft.Json.Linq.JObject? Report, IReadOnlyList<BuildDiagnostic> Diagnostics)> AnalyzeAsync(string projectPath, BuildOptions options, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var diagnostics = new List<BuildDiagnostic>();
+        if (LoadProject(projectPath, diagnostics) is not { } project || ResolveProfile(project, options, diagnostics) is not { } profile)
+        {
+            return (null, diagnostics);
+        }
+
+        diagnostics.AddRange(ContentCompiler.ImportModels(project));
+        var registry = EngineModuleSet.CreateRegistry();
+        var code = await DevelopmentScripts.LoadAsync(project, registry, file => LogCompilingScripts(logger, file, "Debug"), cancellationToken).ConfigureAwait(false);
+        diagnostics.AddRange(code.Diagnostics);
+        if (!code.Succeeded)
+        {
+            return (null, diagnostics);
+        }
+
+        try
+        {
+            ApplyDevToolsDefault(project, profile);
+            var content = ContentCompiler.Compile(project, registry, output: null, code.Code?.MainAssembly.Location is { Length: > 0 } location ? location : null);
+            diagnostics.AddRange(content.Diagnostics);
+            return content.Modules is null ? (null, diagnostics) : (BuildReport.Create(new BuildReportInput(project, profile, content, content.Modules.IsEnabled("devtools"), diagnostics)), diagnostics);
+        }
+        finally
+        {
+            if (code.Code is not null)
+            {
+                DevelopmentScripts.Unload(code.Code, registry);
+            }
+        }
+    }
+
+    /// <summary>devtools is a module like the others; without a project switch, Debug builds switch it on.</summary>
+    private static void ApplyDevToolsDefault(GameProject project, BuildProfile profile)
+    {
+        if (GamePackager.IncludesDevTools(profile, project))
+        {
+            project.Modules["devtools"] = true;
+        }
     }
 
     /// <summary>Everything a build checks, without producing output: project, profiles, C# scripts, assets, .mnvts scripts, scenes.</summary>
@@ -478,6 +544,12 @@ public sealed partial class GameBuilder(ILogger logger)
             LogModules(logger, ids, usage.Stripped.Count);
         }
     }
+
+    [LoggerMessage(EventId = 8012, Level = LogLevel.Information, Message = "Build report: {Path}")]
+    private static partial void LogReport(ILogger logger, string path);
+
+    [LoggerMessage(EventId = 8011, Level = LogLevel.Information, Message = "Framework: {Removed} unreachable files removed ({Size}), {Kept} assemblies kept")]
+    private static partial void LogPruned(ILogger logger, int removed, string size, int kept);
 
     [LoggerMessage(EventId = 8010, Level = LogLevel.Information, Message = "Modules: {Modules}; {Stripped} unused assets not shipped")]
     private static partial void LogModules(ILogger logger, string modules, int stripped);

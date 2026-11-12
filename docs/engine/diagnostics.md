@@ -222,7 +222,6 @@ The `diagnostics` section of the `.mnvtproj`. Every value is optional; the defau
 ```json
 "diagnostics": {
   "enabled": true,
-  "includeInRelease": false,
   "showOverlayByDefault": false,
   "enableProfiler": true,
   "enableGpuTiming": true,
@@ -242,7 +241,8 @@ The `diagnostics` section of the `.mnvtproj`. Every value is optional; the defau
 ```
 
 - **Invalid values** (negative limits, thresholds that do not increase, out-of-range counts) are replaced by their defaults with a warning when the project loads.
-- **Editing in the editor:** **Window → Diagnostics Settings** edits these settings for the session and saves them into the project. Saving rewrites only this section.
+- **Editing in the editor:** **Window → Diagnostics Settings** edits these settings for the session and saves them into the project. Saving rewrites only this section and the `devtools` module switch ("Include in Release builds").
+- **`includeInRelease`** from older projects is read as the module switch `"modules": { "devtools": true }` and saved as that switch.
 - **Command-line switches** (Player and exports): `--overlay` shows the HUD at start, and `--no-diagnostics` runs without diagnostics.
 
 ## Build modes
@@ -252,9 +252,10 @@ The `diagnostics` section of the `.mnvtproj`. Every value is optional; the defau
 | Editor Play Mode, Player | yes | yes | yes |
 | Debug export | yes (`cimgui.dll` in `Dependencies/Native`) | yes | yes |
 | Release export | **not in the build** | off | no-ops; no monitoring |
-| Release with `includeInRelease: true` | yes (opt-in) | yes | yes |
+| Release with `"modules": { "devtools": true }` | yes (opt-in) | yes | yes |
+| Debug with `"modules": { "devtools": false }` | no | off | no-ops |
 
-- **Mechanism:** the game host references `MNVTEngine.DebugUI` only when the MSBuild property `MnvtDevTools` is true. That is the default for Debug, and `mnvt build` passes it for Release only when the project opts in. It also defines `MNVT_DEVTOOLS`.
+- **Mechanism:** dev tools are the `devtools` [module](modules.md): the project's switch decides, and without one Debug builds have it and Release builds do not. The build resolves it with the other modules and passes the result to the game host as `MnvtDevTools`, which references `MNVTEngine.DebugUI` and defines `MNVT_DEVTOOLS`.
 - **The manifest** records `devTools`.
 - **The build validator** rejects DebugUI and ImGui files in a game without dev tools (MNVB508), and requires `cimgui.dll` in one that has them.
 - **The architecture tests** check that only the editor, the Player and (conditionally) the game host reference the debug UI.

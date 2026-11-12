@@ -24,6 +24,9 @@ public sealed record ContentResult(IReadOnlyList<BuildDiagnostic> Diagnostics, i
 
     /// <summary>The modules the game ships, resolved from <see cref="Usage"/>. Null when the compile stopped early.</summary>
     public ModuleResolution? Modules { get; init; }
+
+    /// <summary>What the precompiled shaders were made from: built-in shader names and material paths.</summary>
+    public IReadOnlyList<string> ShaderSources { get; init; } = [];
 }
 
 /// <summary>
@@ -195,14 +198,15 @@ public static class ContentCompiler
             }
         }
 
-        var shaders = PrecompileShaders(resolution, assets, usage, diagnostics, output?.DefaultResources);
+        var shaderSources = new List<string>();
+        var shaders = PrecompileShaders(resolution, assets, usage, diagnostics, output?.DefaultResources, shaderSources);
         if (output is not null)
         {
             output.Globals.Add(AssetDatabase.IndexEntry, Encoding.UTF8.GetBytes(assets.ExportIndex(layout.ArchiveOf, usage.Includes).ToString(Formatting.None)));
             output.Globals.Add(Path.GetFileName(project.ProjectFile), PackagedProjectFile(project, resolution));
         }
 
-        return new ContentResult(diagnostics, usage.Included.Count, scripts, shaders) { Usage = usage, Modules = resolution };
+        return new ContentResult(diagnostics, usage.Included.Count, scripts, shaders) { Usage = usage, Modules = resolution, ShaderSources = shaderSources };
     }
 
     /// <summary>
@@ -211,7 +215,7 @@ public static class ContentCompiler
     /// to SPIR-V, checking them as the device would. Games have no shader compiler: what is not here cannot be drawn.
     /// Returns the number of stages.
     /// </summary>
-    private static int PrecompileShaders(ModuleResolution resolution, AssetDatabase assets, ProjectUsage usage, List<BuildDiagnostic> diagnostics, ContentArchive.Writer? defaultResources)
+    private static int PrecompileShaders(ModuleResolution resolution, AssetDatabase assets, ProjectUsage usage, List<BuildDiagnostic> diagnostics, ContentArchive.Writer? defaultResources, List<string> sources)
     {
         using var precompiler = new VulkanShaderPrecompiler(new ShadercCompiler());
         var modules = resolution.Modules.Select(m => EngineModuleSet.Create(m.Id)).OfType<IEngineModule>();
@@ -221,6 +225,7 @@ public static class ContentCompiler
             try
             {
                 precompiler.Add(builtin);
+                sources.Add(builtin.Name);
             }
             catch (ShaderCompilationException ex)
             {
@@ -238,6 +243,7 @@ public static class ContentCompiler
                     // Decoded exactly as ResourceCache does, so the source text (and the precompiled entry's key) match.
                     var vertex = definition.VertexShader is { } vertexShader ? Encoding.UTF8.GetString(assets.ReadAllBytes(vertexShader)) : BuiltinShaders.Sprite.VertexGlsl;
                     precompiler.Add(new ShaderSource(material.Path, vertex, Encoding.UTF8.GetString(assets.ReadAllBytes(shader))));
+                    sources.Add(material.Path);
                 }
             }
             catch (ShaderCompilationException ex)

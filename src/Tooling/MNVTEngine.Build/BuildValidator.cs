@@ -140,6 +140,14 @@ public static class BuildValidator
             diagnostics.Add(BuildDiagnostic.Error("MNVB504", $"The private .NET {version} runtime is incomplete: {file} is missing; the game would need an installed .NET.", GamePackage.RuntimeFolder));
         }
 
+        if (Directory.Exists(framework))
+        {
+            foreach (var entry in FrameworkPruner.MissingDeps(framework))
+            {
+                diagnostics.Add(BuildDiagnostic.Error("MNVB504", $"The runtime's {FrameworkPruner.DepsFile} lists {entry}, which is missing; the game would not start.", GamePackage.RuntimeFolder));
+            }
+        }
+
         return Directory.Exists(framework) ? framework : null;
     }
 

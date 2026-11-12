@@ -86,7 +86,7 @@ public static class BuiltinModules
         Components = ["MNVTEngine.UIDocument"],
     };
 
-    public static ModuleDefinition DevTools { get; } = new("devtools", "Developer tools", "In-game debug UI (ImGui). Debug builds include it; Release only when diagnostics.includeInRelease is set.")
+    public static ModuleDefinition DevTools { get; } = new("devtools", "Developer tools", "In-game debug UI (ImGui). The project switch decides; without one, Debug builds include it and Release builds do not.")
     {
         Activation = ModuleActivation.OptIn,
         Requires = ["runtime"],

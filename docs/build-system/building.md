@@ -85,15 +85,17 @@ The steps run in this order. Every step reports diagnostics as `file(line,col): 
    - The shipped assets are written into the encrypted content archives: the asset index (GUID, path, type and import settings of every shipped asset, so GUID references stay valid), the assets, bytecode per script GUID, and the project file without its development-only settings (`scripts`, `buildProfiles`) and with every optional module listed as on or off, as the build resolved them.
 4. **Host** (`GamePackager`). Runs `dotnet publish` on `src/Engine/MNVTEngine.GameHost` for the profile's RID with `--artifacts-path Library/Build/<profile>/artifacts`, which keeps builds separate from each other and from the engine's own `bin`/`obj`.
    - The host is renamed to the game (`-p:MnvtGameName`) and carries the content key (`-p:MnvtContentKey`). Release builds ship no `.pdb` files.
-   - Debug builds include the in-game debug UI (`-p:MnvtDevTools=true`: `MNVTEngine.DebugUI`, ImGui.NET, `cimgui.dll`); Release builds leave it out unless the project sets `diagnostics.includeInRelease`. The manifest records `devTools`, and validation fails with MNVB508 if debug UI files appear in a build without it. See [Runtime diagnostics](../engine/diagnostics.md#build-modes).
+   - The in-game debug UI is the `devtools` module (`-p:MnvtDevTools=true`: `MNVTEngine.DebugUI`, ImGui.NET, `cimgui.dll`). The project switch `"modules": { "devtools": true | false }` decides; without one, Debug builds include it and Release builds do not. `diagnostics.includeInRelease` from older projects is read as `"devtools": true` and saved as the switch. The manifest records `devTools`, and validation fails with MNVB508 if debug UI files appear in a build without it. See [Runtime diagnostics](../engine/diagnostics.md#build-modes).
    - The host is built with the game's modules only: the build generates `ModuleBootstrap.g.cs` and `.g.props` from the resolved modules and passes them as `-p:MnvtBootstrap` (see [Generated bootstrap](../engine/modules.md#generated-bootstrap)).
    - Publishing also copies a private .NET runtime from the runtime pack into `Dependencies/Runtime`.
    - The packager then moves every other managed assembly to `Dependencies/Managed` and every native library to `Dependencies/Native`, and removes `deps.json`.
+   - **Framework pruning** (`FrameworkPruner`, on unless the build profile sets `"pruneFramework": false`): a runtime-pack assembly stays when the host, a shipped dependency or the game's C# code references it, directly or through other assemblies. Through a type-forwarding facade (`netstandard`, `mscorlib`) only the assemblies of the forwarded types actually named count. Whole files only, no IL trimming. The runtime itself, `createdump` and the DAC (crash dumps) and the assemblies CoreLib loads by name stay; the alternative GCs and natives whose assembly went are removed. The framework `deps.json` is rewritten to list exactly what remains. Games that load framework assemblies by name at run time turn it off.
    - The game's C# assemblies go into the archive under `Scripts/`, except assemblies the host already ships, because the host's copy is always used at run time.
-5. **Manifest.** Writes `<Game>_Data/package.json`: name, profile, configuration, target, engine version, the scripts assembly, and the size and SHA-256 of every file.
+5. **Manifest.** Writes `<Game>_Data/package.json`: name, profile, configuration, target, engine version, the game's modules, the scripts assembly, and the size and SHA-256 of every file.
 6. **Validation** (`BuildValidator`). Validates the staged game (see [Validation](#validation)).
 7. **Output.** The previous build is first moved aside in one step, which fails cleanly if a file in it is in use (the game is running, or a terminal is open in the folder). Then the staged game is moved in, and the previous build is deleted. If anything fails, the previous build is put back.
-8. **Test run** (`--run [N]`, optional). Starts the exported game for N frames. The game must exit with code 0.
+8. **Report.** Writes `<output>.build-report.json` next to the game folder (see [Build report](#build-report)).
+9. **Test run** (`--run [N]`, optional). Starts the exported game for N frames. The game must exit with code 0.
 
 ## Output layout
 
@@ -127,6 +129,25 @@ How each part is found at run time:
 - **Content.** The host reads `<its assembly name>_Data/package.json` and opens every archive it lists. Renaming the `.exe` does not break the game. Reads go to whichever archive holds the entry, so engine code never needs to know the layout.
 
 Size is about 89 MB, mostly the .NET runtime. Trimming is not enabled because component discovery and serialization use reflection.
+
+## Build report
+
+Every build writes `<output>.build-report.json` beside the game folder (it does not ship). `mnvt build analyze <project> [--profile p] [--configuration c] [--json file]` produces the same report without packaging: it compiles the C# scripts, analyses the content and resolves the modules exactly as a build does, and prints it as text.
+
+| Field | Contents |
+|---|---|
+| `profile`, `buildProfile`, `configuration`, `target`, `engineVersion` | What was built |
+| `scriptingBackend` | `jit` (CoreCLR, IL assemblies); see [IL2CPP / AOT](../architecture/il2cpp-aot-pipeline.md) |
+| `devTools` | Whether the in-game debug UI ships |
+| `modules.enabled` | Each module with `inclusion` (`always`, `explicit`, `automatic`, `dependency`, `available`), reason and usage evidence |
+| `modules.excluded` | Each module left out, with the reason |
+| `assemblies`, `nativeLibraries` | Included files with size and owning module; files of excluded modules with the reason |
+| `framework` | Pruning: assemblies kept, files and bytes removed; `trimming` is always `none` |
+| `shaders` | Precompiled stages and their sources (built-in shaders, material paths) |
+| `assets` | Shipped assets with size, owning module and what keeps them; stripped assets with size |
+| `dynamicDependencies` | What the static analysis cannot see (`MNVB223` notes) |
+| `sizes` | `total`, `framework`, `managed`, `native`, `content` in bytes (null for `analyze`) |
+| `diagnostics` | Warnings and errors of the build |
 
 ## Content layout
 

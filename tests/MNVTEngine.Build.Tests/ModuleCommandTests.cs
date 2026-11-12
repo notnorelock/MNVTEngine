@@ -38,6 +38,19 @@ public sealed class ModuleCommandTests : IDisposable
     }
 
     [Fact]
+    public async Task BuildAnalyze_ExplainsModulesAndAssets_WithoutPackaging()
+    {
+        var project = await NewProject("Lean", "3d");
+        var (exit, text) = await Run("build", "analyze", project);
+        Assert.Equal(Cli.Ok, exit);
+        Assert.Matches(@"\+ world\.3d\s+automatic\s+used: ", text);
+        Assert.Matches(@"- audio\s+not used", text);
+        Assert.Contains("MNVTEngine.Audio (audio: not used", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Size:", text, StringComparison.Ordinal); // nothing was packaged
+        Assert.False(Directory.Exists(Path.Combine(project, "Builds")));
+    }
+
+    [Fact]
     public async Task Graph_ListsStartupOrder_AndExcludedModules()
     {
         var (exit, graph) = await Run("modules", "graph", await NewProject("Deep", "3d"));

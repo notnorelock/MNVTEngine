@@ -11,7 +11,7 @@ using ModuleDefinition = MNVTEngine.Modules.ModuleDefinition;
 namespace MNVTEngine.Build;
 
 /// <summary>An asset the build keeps, or strips, and why.</summary>
-public sealed record AssetDecision(Guid Guid, string Path, string Type, string Reason);
+public sealed record AssetDecision(Guid Guid, string Path, string Type, string Reason, long Size = 0);
 
 /// <summary>What a project uses: the assets it ships, the ones it does not, and the evidence for each module.</summary>
 public sealed class ProjectUsage
@@ -121,9 +121,9 @@ public static partial class UsageAnalyzer
         }
 
         var included = reasons.Select(p => (Record: assets.Get(p.Key)!, Reason: p.Value)).OrderBy(p => p.Record.Path, StringComparer.Ordinal)
-            .Select(p => new AssetDecision(p.Record.Guid, p.Record.Path, p.Record.Type, p.Reason)).ToList();
+            .Select(p => new AssetDecision(p.Record.Guid, p.Record.Path, p.Record.Type, p.Reason, p.Record.Size)).ToList();
         var stripped = assets.Assets.Where(a => !reasons.ContainsKey(a.Guid)).OrderBy(a => a.Path, StringComparer.Ordinal)
-            .Select(a => new AssetDecision(a.Guid, a.Path, a.Type, "nothing the build analyses uses it")).ToList();
+            .Select(a => new AssetDecision(a.Guid, a.Path, a.Type, "nothing the build analyses uses it", a.Size)).ToList();
         foreach (var dynamicKind in stripped.Where(a => a.Type is AssetTypes.Scene or AssetTypes.Prefab or AssetTypes.Audio).Take(10))
         {
             notes.Add($"{dynamicKind.Path} is not referenced and not shipped. If the game loads it by a path computed at run time, set \"alwaysInclude\": true in its .meta.");

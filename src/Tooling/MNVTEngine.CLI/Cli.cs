@@ -69,6 +69,7 @@ public static class Cli
                 "modules" => CommandLine.Parse(args, [], []),
                 "editor" => CommandLine.Parse(args, ["--frames"], []),
                 "run" => CommandLine.Parse(args, ["--frames", "--screenshot", "--profile"], ["--gpu-validation"]),
+                "build" when args.Length > 1 && args[1] == "analyze" => CommandLine.Parse(["analyze", .. args[2..]], ["--profile", "--configuration", "--target", "--json"], []),
                 "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output"], [], optionalValues: ["--run"]),
                 "validate" => CommandLine.Parse(args, [], [], optionalValues: ["--run"]),
                 _ => throw new FormatException($"Unknown command '{args[0]}'."),
@@ -90,6 +91,7 @@ public static class Cli
                 "editor" => await EditorAsync(command, output, cancellationToken).ConfigureAwait(false),
                 "run" => Run(command, loggerFactory),
                 "build" => await BuildAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
+                "analyze" => await AnalyzeAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
                 _ => await ValidateAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
             };
         }
@@ -251,6 +253,27 @@ public static class Cli
             ? $"Build succeeded in {seconds} s: {result.Executable}"
             : $"Build FAILED after {seconds} s.");
         return result.Succeeded ? Ok : Failed;
+    }
+
+    private static async Task<int> AnalyzeAsync(CommandLine command, TextWriter output, ILoggerFactory loggerFactory, CancellationToken cancellationToken)
+    {
+        var options = new BuildOptions { Profile = command.Value("--profile"), Configuration = command.Value("--configuration"), Target = command.Value("--target") };
+        var (report, diagnostics) = await new GameBuilder(loggerFactory.CreateLogger("Analyze")).AnalyzeAsync(command.Single("project"), options, cancellationToken).ConfigureAwait(false);
+        Report(output, diagnostics);
+        if (report is null)
+        {
+            output.WriteLine("Analysis FAILED.");
+            return Failed;
+        }
+
+        output.Write(BuildReport.Describe(report));
+        if (command.Value("--json") is { } json)
+        {
+            BuildReport.Write(report, json);
+            output.WriteLine($"Report written to {json}");
+        }
+
+        return diagnostics.HasErrors() ? Failed : Ok;
     }
 
     private static async Task<int> ValidateAsync(CommandLine command, TextWriter output, ILoggerFactory loggerFactory, CancellationToken cancellationToken)

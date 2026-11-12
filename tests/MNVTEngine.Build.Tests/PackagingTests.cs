@@ -69,6 +69,24 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
         Assert.Equal(BuildValidator.RequiredNatives(package), Directory.EnumerateFiles(Path.Combine(Output, "Dependencies", "Native")).Select(Path.GetFileName).Order(StringComparer.OrdinalIgnoreCase));
         Assert.Contains("glfw3.dll", BuildValidator.RequiredNatives(package));
         Assert.Equal(package.Modules!.Contains("audio"), File.Exists(Path.Combine(Output, "Dependencies", "Native", "soft_oal.dll")));
+
+        // Framework pruning: unreachable runtime-pack assemblies are gone (also those only a facade such as netstandard
+        // forwards to), deps.json lists exactly what remains (MNVB504 in the validation below), CoreLib stays.
+        var framework = GamePackager.FrameworkDirectory(Output)!;
+        Assert.True(File.Exists(Path.Combine(framework, "System.Private.CoreLib.dll")));
+        Assert.True(File.Exists(Path.Combine(framework, "createdump.exe"))); // crash dumps
+        Assert.False(File.Exists(Path.Combine(framework, "Microsoft.VisualBasic.Core.dll")));
+        Assert.False(File.Exists(Path.Combine(framework, "System.Net.HttpListener.dll")));
+        Assert.False(File.Exists(Path.Combine(framework, "clrgc.dll")));
+
+        // build-report.json next to the package (not inside it), with modules, reasons and sizes.
+        var report = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(BuildReport.PathFor(Output)));
+        Assert.Equal(("2d", "jit", false), ((string?)report["profile"], (string?)report["scriptingBackend"]!["id"], (bool)report["devTools"]!));
+        Assert.Contains(report["modules"]!["enabled"]!, m => (string?)m["id"] == "world.2d" && (string?)m["inclusion"] is "automatic" or "dependency");
+        Assert.Contains(report["modules"]!["excluded"]!, m => (string?)m["id"] == "world.3d" && (string?)m["reason"] == "not available in 2D");
+        Assert.Contains(report["assemblies"]!["excluded"]!, a => (string?)a["name"] == "MNVTEngine.World3D.Rendering");
+        Assert.Equal(Directory.EnumerateFiles(Output, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length), (long)report["sizes"]!["total"]!);
+        Assert.True((long)report["framework"]!["removedBytes"]! > 5_000_000);
         Assert.Equal(
             ["defaultresources.mnvtpak", "globals.mnvtpak", "level0.mnvtpak", "package.json"],
             Directory.EnumerateFiles(data).Select(Path.GetFileName).Where(f => f is not "resources.mnvtpak" and not "sharedassets.mnvtpak").Order(StringComparer.Ordinal));

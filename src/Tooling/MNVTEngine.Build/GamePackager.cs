@@ -20,9 +20,10 @@ public static class GamePackager
     public static string EngineVersion =>
         typeof(GameProject).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0";
 
-    /// <summary>Debug builds include the in-game debug UI; Release only when the project sets diagnostics.includeInRelease.</summary>
+    /// <summary>The devtools module (in-game debug UI): the project's switch decides; without one, Debug builds have it and Release builds do not.</summary>
     public static bool IncludesDevTools(BuildProfile profile, GameProject project) =>
-        (profile ?? throw new ArgumentNullException(nameof(profile))).Configuration != "Release" || (project ?? throw new ArgumentNullException(nameof(project))).Diagnostics.IncludeInRelease;
+        (project ?? throw new ArgumentNullException(nameof(project))).Modules.TryGetValue("devtools", out var on) ? on
+        : (profile ?? throw new ArgumentNullException(nameof(profile))).Configuration != "Release";
 
     /// <param name="workDirectory">Per-profile build cache (<c>Library/Build/&lt;profile&gt;</c>); holds the intermediate output of the engine build.</param>
     /// <param name="devTools">Compile the debug UI into the game host (MnvtDevTools).</param>
@@ -83,6 +84,13 @@ public static class GamePackager
     /// their symbols) go to <c>Dependencies/Managed</c>, native libraries to <c>Dependencies/Native</c>. The deps.json is
     /// removed: the host resolves these folders itself (see MNVTEngine.GameHost's HostLayout).
     /// </summary>
+    /// <summary>The private runtime's shared/Microsoft.NETCore.App/&lt;version&gt; folder of a staged game; null when there is none.</summary>
+    public static string? FrameworkDirectory(string packageDirectory)
+    {
+        var shared = Path.Combine(packageDirectory, GamePackage.RuntimeFolder, "shared", "Microsoft.NETCore.App");
+        return Directory.Exists(shared) ? Directory.EnumerateDirectories(shared).SingleOrDefault() : null;
+    }
+
     public static void ArrangeLayout(string packageDirectory, string executableName)
     {
         var managed = Path.Combine(packageDirectory, GamePackage.ManagedFolder);
