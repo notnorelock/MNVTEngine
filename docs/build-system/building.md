@@ -86,6 +86,7 @@ The steps run in this order. Every step reports diagnostics as `file(line,col): 
 4. **Host** (`GamePackager`). Runs `dotnet publish` on `src/Engine/MNVTEngine.GameHost` for the profile's RID with `--artifacts-path Library/Build/<profile>/artifacts`, which keeps builds separate from each other and from the engine's own `bin`/`obj`.
    - The host is renamed to the game (`-p:MnvtGameName`) and carries the content key (`-p:MnvtContentKey`). Release builds ship no `.pdb` files.
    - Debug builds include the in-game debug UI (`-p:MnvtDevTools=true`: `MNVTEngine.DebugUI`, ImGui.NET, `cimgui.dll`); Release builds leave it out unless the project sets `diagnostics.includeInRelease`. The manifest records `devTools`, and validation fails with MNVB508 if debug UI files appear in a build without it. See [Runtime diagnostics](../engine/diagnostics.md#build-modes).
+   - The host is built with the game's modules only: the build generates `ModuleBootstrap.g.cs` and `.g.props` from the resolved modules and passes them as `-p:MnvtBootstrap` (see [Generated bootstrap](../engine/modules.md#generated-bootstrap)).
    - Publishing also copies a private .NET runtime from the runtime pack into `Dependencies/Runtime`.
    - The packager then moves every other managed assembly to `Dependencies/Managed` and every native library to `Dependencies/Native`, and removes `deps.json`.
    - The game's C# assemblies go into the archive under `Scripts/`, except assemblies the host already ships, because the host's copy is always used at run time.
@@ -181,7 +182,7 @@ Each archive has one AES-256-GCM encrypted, authenticated entry per file. The en
 
 - Windows 10/11 x64.
 - A GPU and driver with **Vulkan 1.4**. `vulkan-1.dll` (the loader) and the GPU driver come from the vendor; they are not packaged and cannot be. Without them the game logs the reason and exits with code 4.
-- Nothing else needs to be installed: the .NET runtime, `glfw3.dll`, `soft_oal.dll` and `vma.dll` ship in `Dependencies/`. The shader compiler (shaderc) does not: games run on SPIR-V precompiled at build time, and the validator rejects shaderc in a package (MNVB507). Without an audio device the game runs silently.
+- Nothing else needs to be installed: the .NET runtime, `glfw3.dll` and `vma.dll` (and `soft_oal.dll` when the game uses audio) ship in `Dependencies/`. The shader compiler (shaderc) does not: games run on SPIR-V precompiled at build time, and the validator rejects shaderc in a package (MNVB507). Without an audio device the game runs silently.
 - Shaders compile on first run and are cached with the driver's pipeline cache in `%LOCALAPPDATA%\MNVTEngine\GpuCache\<game>`.
 
 ## Validation
@@ -194,7 +195,7 @@ Each archive has one AES-256-GCM encrypted, authenticated entry per file. The en
 | MNVB503 | `<exe>.exe`, `.dll` and `.runtimeconfig.json` are in the root |
 | MNVB504 | The private runtime is complete: `hostfxr`, `hostpolicy`, `coreclr`, `System.Private.CoreLib` and the framework `deps.json` for the version in the runtime config |
 | MNVB505 | Every assembly reference of the host and of `Dependencies/Managed` resolves to the private runtime or `Dependencies/Managed`; every shipped assembly is valid |
-| MNVB506 | Required native libraries for the target are in `Dependencies/Native` (`glfw3.dll`, `soft_oal.dll`, `vma.dll` on win-x64) |
+| MNVB506 | The native libraries of the game's modules are in `Dependencies/Native` (`glfw3.dll` and `vma.dll`; `soft_oal.dll` with audio; `cimgui.dll` with dev tools). Builds without a module list need all of them |
 | MNVB507 | No development-only assemblies (editor, build tooling, ImGui, MSBuild, Roslyn) |
 | MNVB508 | Every file matches its manifest size and SHA-256 |
 | MNVB509 | Warning for files that are not part of the build (`Logs/` is ignored) |
@@ -205,6 +206,7 @@ Each archive has one AES-256-GCM encrypted, authenticated entry per file. The en
 | MNVB512 | The asset index loads, and every indexed asset is in the archive |
 | MNVB513 | The C# scripts assembly named in the manifest is in the content |
 | MNVB516 | Layout: globals first and only once, the index in globals, each level holds its scene, each asset is in the archive the index names |
+| MNVB517 | No assembly or native library of a module the game does not have (with dev tools, what the debug UI references is allowed) |
 | MNVB520 | `--run`: the game started, rendered N frames and exited with code 0 |
 
 ## Diagnostic codes

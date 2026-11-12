@@ -91,6 +91,9 @@ public sealed partial class GamePackage
     /// <summary>True when the in-game debug UI (and Dear ImGui) ships: Debug builds, or Release when the project opts in.</summary>
     public bool DevTools { get; set; }
 
+    /// <summary>Engine modules built into the game, in startup order; null in builds made before modules were resolved per game.</summary>
+    public List<string>? Modules { get; set; }
+
     /// <summary>The game's C# code: archive entry such as "Scripts/MyGame.Scripts.dll"; null without C# scripts.</summary>
     public string? ScriptsAssembly { get; set; }
 

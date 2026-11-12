@@ -21,7 +21,12 @@
     <!-- In-game debug UI: on for Debug, off for Release unless the build passes MnvtDevTools=true (diagnostics.includeInRelease). -->
     <MnvtDevTools Condition="'$(MnvtDevTools)' == '' and '$(Configuration)' != 'Release'">true</MnvtDevTools>
     <DefineConstants Condition="'$(MnvtDevTools)' == 'true'">$(DefineConstants);MNVT_DEVTOOLS</DefineConstants>
+    <!-- Game settings only concern this executable; engine libraries build the same for every game. -->
+    <MnvtGameProperties>MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools;MnvtBootstrap</MnvtGameProperties>
   </PropertyGroup>
+  <!-- mnvt build passes the game's generated module bootstrap (ModuleBootstrap.g.props): references to the modules the
+       game uses and the code that creates them. Without it (development builds, tests) the host has every module. -->
+  <Import Project="$(MnvtBootstrap)" Condition="'$(MnvtBootstrap)' != ''" />
   <ItemGroup>
     <AssemblyMetadata Include="MNVTEngine.ContentKey" Value="$(MnvtContentKey)" Condition="'$(MnvtContentKey)' != ''" />
   </ItemGroup>
@@ -29,21 +34,23 @@
     <PackageReference Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Game settings only concern this executable; engine libraries build the same for every game. -->
-    <ProjectReference Include="..\MNVTEngine.Audio.OpenAL\MNVTEngine.Audio.OpenAL.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
-    <ProjectReference Include="..\MNVTEngine.CrashReporting\MNVTEngine.CrashReporting.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
-    <ProjectReference Include="..\MNVTEngine.GameAssemblies\MNVTEngine.GameAssemblies.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
-    <ProjectReference Include="..\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
-    <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
-    <ProjectReference Include="..\MNVTEngine.World2D.Rendering\MNVTEngine.World2D.Rendering.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
-    <ProjectReference Include="..\MNVTEngine.World3D.Rendering\MNVTEngine.World3D.Rendering.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
-    <ProjectReference Include="..\MNVTEngine.Terrain.Components\MNVTEngine.Terrain.Components.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
-    <ProjectReference Include="..\MNVTEngine.Audio\MNVTEngine.Audio.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
-    <ProjectReference Include="..\MNVTEngine.UI\MNVTEngine.UI.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
-    <ProjectReference Include="..\MNVTEngine.Physics2D\MNVTEngine.Physics2D.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
-    <ProjectReference Include="..\MNVTEngine.Physics3D\MNVTEngine.Physics3D.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
-    <ProjectReference Include="..\MNVTEngine.Scripting.Bindings\MNVTEngine.Scripting.Bindings.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
-    <ProjectReference Include="..\MNVTEngine.DebugUI\MNVTEngine.DebugUI.csproj" Condition="'$(MnvtDevTools)' == 'true'" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
+    <ProjectReference Include="..\MNVTEngine.CrashReporting\MNVTEngine.CrashReporting.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.GameAssemblies\MNVTEngine.GameAssemblies.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.DebugUI\MNVTEngine.DebugUI.csproj" Condition="'$(MnvtDevTools)' == 'true'" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+  </ItemGroup>
+  <!-- Every module, for development builds; keep in step with ModuleBootstrap (MNVTEngine.Build), which a test checks. -->
+  <ItemGroup Condition="'$(MnvtBootstrap)' == ''">
+    <ProjectReference Include="..\MNVTEngine.Audio.OpenAL\MNVTEngine.Audio.OpenAL.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.Audio\MNVTEngine.Audio.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.Physics2D\MNVTEngine.Physics2D.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.Physics3D\MNVTEngine.Physics3D.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.Scripting.Bindings\MNVTEngine.Scripting.Bindings.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.Terrain.Components\MNVTEngine.Terrain.Components.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.UI\MNVTEngine.UI.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.World2D.Rendering\MNVTEngine.World2D.Rendering.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.World3D.Rendering\MNVTEngine.World3D.Rendering.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
   </ItemGroup>
 
   <!-- Private runtime in the layout of a .NET install (host/fxr + shared/Microsoft.NETCore.App), as hostfxr requires.

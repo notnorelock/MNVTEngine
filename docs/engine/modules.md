@@ -102,6 +102,22 @@ Required modules follow as usual (`physics.2d` brings `world.2d`). Evidence for 
 
 The packaged project file lists every optional module of the profile as `true` or `false`, exactly as the build resolved them, so the game starts the modules it was built with and no others.
 
+## Generated bootstrap
+
+The game executable is built with the game's modules only. `ModuleBootstrap` (MNVTEngine.Build) writes two files into `Library/Build/<profile>/Bootstrap`:
+
+- `ModuleBootstrap.g.cs`: `HostModules.Create`, one explicit constructor call per resolved module in startup order. No reflection and no assembly scanning, so it is safe for trimming and AOT.
+- `ModuleBootstrap.g.props`: references to those modules' projects, and it swaps the host's development list (`HostModules.cs`) for the generated file.
+
+`dotnet publish` of GameHost imports the props through `-p:MnvtBootstrap`. Assemblies and natives of modules the game does not use are never built into it. The manifest records the game's modules (`package.json` `modules`). The validator then requires only those modules' native libraries (MNVB506), and fails on any file of a module the game does not have (MNVB517). Without a bootstrap (solution builds, tests) GameHost references every module; `ModuleBootstrapTests` keeps that list equal to the generator's.
+
+| Export (release) | Modules beyond core, platform, graphics, assets and runtime | Engine and third-party assemblies | Natives |
+|---|---|---|---|
+| Platformer | audio, scripting, ui, world.2d, physics.2d | + Audio(.OpenAL), NVorbis, Scripting(.Missions, .Bindings), UI, World2D(.Rendering), Physics2D, Box2D.NET | glfw3, soft_oal, vma |
+| UIShowcase | scripting, ui, world.2d | + Scripting(.Missions, .Bindings), UI, World2D(.Rendering) | glfw3, vma |
+| Showcase3D | world.3d, physics.3d | + World3D(.Rendering), Physics3D, Bepu | glfw3, vma |
+| TerrainDemo | world.3d, physics.3d, terrain | + World3D(.Rendering), Physics3D, Bepu, Terrain(.Components), Clipper2 | glfw3, vma |
+
 `mnvt build` and `mnvt validate` stop on any of these errors. The game host does not start (exit code 2). This includes `MNVB608` when a project runs from its sources (`mnvt run`, the Player): left to the scene loader, such a component would load as a `MissingComponent` and silently do nothing. Exports were checked when they were built.
 
 ## Lifecycle
@@ -187,7 +203,6 @@ References that still cross module boundaries are listed as `KnownCouplings`. Th
 
 ## Limitations
 
-- **Exports still ship every module's assemblies.** The game starts only the resolved modules, and their content and shaders only are packaged, but GameHost references every module's assemblies until the build generates its bootstrap and references from the resolved modules (phase B3).
 - **Usage analysis is static.** A path built at run time (`"Levels/" + n`) is not seen; mark such assets `alwaysInclude` or name them literally. A module used only through reflection needs `"<module>": true`.
 - **The in-game debug UI (devtools) reads Physics2D, Audio, mission and UI state directly**, so a devtools build ships those assemblies. They are the remaining known couplings.
 - **The editor registers the components of the project's profile**, and draws with that profile's passes; its 2D and 3D tools are not yet in separate assemblies.

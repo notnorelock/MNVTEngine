@@ -17,11 +17,25 @@ namespace MNVTEngine.Build;
 /// </summary>
 public static class BuildValidator
 {
-    /// <summary>Native libraries the engine loads by name at run time, per target. Vulkan itself (vulkan-1.dll) comes from the GPU driver.</summary>
+    /// <summary>
+    /// Native libraries of every module, per target: what builds without a module list (<see cref="GamePackage.Modules"/>)
+    /// must ship. Newer builds need the libraries of their modules only (<see cref="RequiredNatives"/>). Vulkan itself
+    /// (vulkan-1.dll) comes from the GPU driver.
+    /// </summary>
     public static readonly IReadOnlyDictionary<string, string[]> RequiredNativeLibraries = new Dictionary<string, string[]>
     {
         ["win-x64"] = ["glfw3.dll", "soft_oal.dll", "vma.dll"],
     };
+
+    /// <summary>The native libraries a game must ship: those of its modules, plus Dear ImGui with dev tools.</summary>
+    public static IReadOnlyList<string> RequiredNatives(GamePackage package)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        IEnumerable<string> natives = package.Modules is { } modules
+            ? modules.Where(id => Modules.ModuleCatalog.Builtin.TryGet(id, out _)).SelectMany(id => Modules.ModuleCatalog.Builtin[id].NativeLibraries)
+            : RequiredNativeLibraries.GetValueOrDefault(package.Target, []);
+        return [.. natives.Concat(package.DevTools ? ["cimgui.dll"] : []).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase)];
+    }
 
     /// <summary>Assembly name prefixes that must never ship: the editor, build tooling, compilers.</summary>
     public static readonly IReadOnlyList<string> DevelopmentOnlyPrefixes =
@@ -160,7 +174,7 @@ public static class BuildValidator
             }
         }
 
-        foreach (var native in RequiredNativeLibraries.GetValueOrDefault(package.Target, []).Concat(package.DevTools ? ["cimgui.dll"] : []))
+        foreach (var native in RequiredNatives(package))
         {
             if (!File.Exists(Path.Combine(gameDirectory, GamePackage.NativeFolder, native)))
             {
@@ -178,6 +192,46 @@ public static class BuildValidator
             else if (!package.DevTools && DevToolsPrefixes.Any(p => fileName.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
             {
                 diagnostics.Add(BuildDiagnostic.Error("MNVB508", $"Debug UI in a build without dev tools (Release): {fileName}", Path.GetRelativePath(gameDirectory, file)));
+            }
+        }
+
+        ValidateModuleAssemblies(gameDirectory, package, managed, diagnostics);
+    }
+
+    /// <summary>
+    /// MNVB517: an assembly or native library of a module the game does not have ships anyway. With dev tools, what the
+    /// debug UI references is allowed (its known couplings: it reads physics, audio and UI state).
+    /// </summary>
+    private static void ValidateModuleAssemblies(string gameDirectory, GamePackage package, string managed, List<BuildDiagnostic> diagnostics)
+    {
+        if (package.Modules is null)
+        {
+            return;
+        }
+
+        var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var pending = new Stack<string>(package.DevTools ? ["MNVTEngine.DebugUI"] : []);
+        while (pending.Count > 0)
+        {
+            var name = pending.Pop();
+            var file = Path.Combine(managed, name + ".dll");
+            if (allowed.Add(name) && File.Exists(file))
+            {
+                foreach (var reference in References(file))
+                {
+                    pending.Push(reference);
+                }
+            }
+        }
+
+        // A module the debug UI pulls in (any of its assemblies is referenced) ships whole with dev tools.
+        foreach (var module in Modules.ModuleCatalog.Builtin.Modules.Where(m => !package.Modules.Contains(m.Id) && !m.RuntimeAssemblies.Any(allowed.Contains)))
+        {
+            var files = module.RuntimeAssemblies.Select(a => Path.Combine(GamePackage.ManagedFolder, a + ".dll"))
+                .Concat(module.NativeLibraries.Select(n => Path.Combine(GamePackage.NativeFolder, n)));
+            foreach (var file in files.Where(f => File.Exists(Path.Combine(gameDirectory, f))))
+            {
+                diagnostics.Add(BuildDiagnostic.Error("MNVB517", $"Module '{module.Id}' is not part of the game, but its file ships: {file.Replace('\\', '/')}", file.Replace('\\', '/')));
             }
         }
     }

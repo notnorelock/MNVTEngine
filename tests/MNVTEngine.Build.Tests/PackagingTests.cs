@@ -56,11 +56,19 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
         Assert.Equal(["Managed", "Native", "Runtime"], Directory.EnumerateDirectories(Path.Combine(Output, "Dependencies")).Select(Path.GetFileName).Order(StringComparer.Ordinal));
         Assert.True(File.Exists(Path.Combine(Output, "Dependencies", "Managed", "MNVTEngine.Runtime.dll")));
         Assert.True(File.Exists(Path.Combine(Output, "Dependencies", "Managed", "Newtonsoft.Json.dll")));
-        Assert.Equal(["glfw3.dll", "soft_oal.dll", "vma.dll"], Directory.EnumerateFiles(Path.Combine(Output, "Dependencies", "Native")).Select(Path.GetFileName).Order(StringComparer.Ordinal));
         Assert.DoesNotContain(Directory.EnumerateFiles(Path.Combine(Output, "Dependencies", "Managed")), f => Path.GetFileName(f).Contains("Shaderc", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(f).Contains("ShaderCompiler", StringComparison.Ordinal)); // games run on precompiled SPIR-V
         Assert.Single(Directory.GetFiles(Path.Combine(Output, "Dependencies", "Runtime"), "coreclr.dll", SearchOption.AllDirectories)); // private .NET runtime
         var data = Path.Combine(Output, "PackTest_Data");
         var package = GamePackage.Load(data);
+
+        // Only the game's modules are built in (generated bootstrap): 2D, no 3D world, physics or terrain; natives of its modules only.
+        Assert.Contains("world.2d", package.Modules!);
+        Assert.DoesNotContain(package.Modules!, id => id is "world.3d" or "physics.3d" or "terrain");
+        var managed = Directory.EnumerateFiles(Path.Combine(Output, "Dependencies", "Managed")).Select(Path.GetFileNameWithoutExtension).ToList();
+        Assert.DoesNotContain(managed, f => f!.StartsWith("MNVTEngine.World3D", StringComparison.Ordinal) || f.StartsWith("MNVTEngine.Terrain", StringComparison.Ordinal) || f.StartsWith("Bepu", StringComparison.Ordinal));
+        Assert.Equal(BuildValidator.RequiredNatives(package), Directory.EnumerateFiles(Path.Combine(Output, "Dependencies", "Native")).Select(Path.GetFileName).Order(StringComparer.OrdinalIgnoreCase));
+        Assert.Contains("glfw3.dll", BuildValidator.RequiredNatives(package));
+        Assert.Equal(package.Modules!.Contains("audio"), File.Exists(Path.Combine(Output, "Dependencies", "Native", "soft_oal.dll")));
         Assert.Equal(
             ["defaultresources.mnvtpak", "globals.mnvtpak", "level0.mnvtpak", "package.json"],
             Directory.EnumerateFiles(data).Select(Path.GetFileName).Where(f => f is not "resources.mnvtpak" and not "sharedassets.mnvtpak").Order(StringComparer.Ordinal));
@@ -162,9 +170,10 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
         File.Delete(Path.Combine(copy, "Dependencies", "Managed", "Newtonsoft.Json.dll"));
         Directory.Delete(Path.Combine(copy, "Dependencies", "Runtime", "host"), recursive: true);
         File.WriteAllText(Path.Combine(copy, "Dependencies", "Managed", "MNVTEngine.Editor.dll"), "");
+        File.WriteAllText(Path.Combine(copy, "Dependencies", "Managed", "MNVTEngine.World3D.dll"), ""); // a module the game does not have
 
         var codes = BuildValidator.Validate(copy).Where(d => d.Severity == BuildSeverity.Error).Select(d => d.Code).ToHashSet();
-        Assert.Superset(new HashSet<string> { "MNVB504", "MNVB505", "MNVB506", "MNVB507", "MNVB508", "MNVB515" }, codes);
+        Assert.Superset(new HashSet<string> { "MNVB504", "MNVB505", "MNVB506", "MNVB507", "MNVB508", "MNVB515", "MNVB517" }, codes);
 
         Assert.Contains(BuildValidator.Validate(Output, Assets.ContentArchive.CreateKey()), d => d.Code == "MNVB514"); // wrong key
     }

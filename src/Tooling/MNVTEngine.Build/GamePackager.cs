@@ -26,8 +26,9 @@ public static class GamePackager
 
     /// <param name="workDirectory">Per-profile build cache (<c>Library/Build/&lt;profile&gt;</c>); holds the intermediate output of the engine build.</param>
     /// <param name="devTools">Compile the debug UI into the game host (MnvtDevTools).</param>
+    /// <param name="bootstrap">The game's <see cref="ModuleBootstrap"/> props (MnvtBootstrap); null builds the host with every module.</param>
     public static async Task<IReadOnlyList<BuildDiagnostic>> PublishHostAsync(
-        string engineRoot, BuildProfile profile, string executableName, byte[] contentKey, string workDirectory, string packageDirectory, bool devTools, CancellationToken cancellationToken = default)
+        string engineRoot, BuildProfile profile, string executableName, byte[] contentKey, string workDirectory, string packageDirectory, bool devTools, string? bootstrap = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
         var hostProject = EngineLocation.GameHostProject(engineRoot);
@@ -55,6 +56,11 @@ public static class GamePackager
         if (profile.Configuration == "Release")
         {
             arguments.Add("-p:DebugType=none");
+        }
+
+        if (bootstrap is not null)
+        {
+            arguments.Add($"-p:MnvtBootstrap={bootstrap}");
         }
 
         var result = await DotnetCli.RunAsync(arguments, engineRoot, PublishTimeout, cancellationToken).ConfigureAwait(false);

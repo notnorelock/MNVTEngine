@@ -120,6 +120,7 @@ public sealed partial class GameBuilder(ILogger logger)
         DeleteDirectory(contentDirectory);
         Directory.CreateDirectory(contentDirectory);
         string? scriptsAssembly = null;
+        List<string> modules;
         var archive = new ContentArchiveWriter(contentDirectory, key);
         using (archive)
         {
@@ -146,7 +147,10 @@ public sealed partial class GameBuilder(ILogger logger)
 
             // 3. Host with its private runtime; dependencies into Dependencies/Managed and Dependencies/Native.
             LogPublishing(logger, executableName, profile.Target);
-            diagnostics.AddRange(await GamePackager.PublishHostAsync(engineRoot, profile, executableName, key, work, stage, GamePackager.IncludesDevTools(profile, project), cancellationToken).ConfigureAwait(false));
+            // The host is built with the game's modules only (generated bootstrap: references and explicit creation).
+            var bootstrap = ModuleBootstrap.Write(content.Modules!, Path.Combine(work, "Bootstrap"));
+            modules = [.. content.Modules!.Modules.Select(m => m.Id)];
+            diagnostics.AddRange(await GamePackager.PublishHostAsync(engineRoot, profile, executableName, key, work, stage, GamePackager.IncludesDevTools(profile, project), bootstrap, cancellationToken).ConfigureAwait(false));
             if (diagnostics.HasErrors())
             {
                 return Fail(profile);
@@ -176,6 +180,7 @@ public sealed partial class GameBuilder(ILogger logger)
             Profile = profile.Name,
             Configuration = profile.Configuration,
             DevTools = GamePackager.IncludesDevTools(profile, project),
+            Modules = modules,
             Target = profile.Target,
             EngineVersion = GamePackager.EngineVersion,
             ScriptsAssembly = scriptsAssembly,
