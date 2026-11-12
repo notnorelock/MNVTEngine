@@ -120,14 +120,7 @@ public enum ToneMapping
 /// </summary>
 public static class LightingUniforms
 {
-    public static readonly IReadOnlyList<string> Names =
-    [
-        "uCameraPosition", "uAmbient", "uLightCount", "uLight0", "uLight1", "uLight2", "uLight3", "uLight4", "uLight5",
-        "uLight6", "uLight7", "uShadowMatrix", "uShadowParams", "uShadowMap", "uShadowMatrix1", "uShadowParams1",
-        "uShadowMap1", "uShadowMatrix2", "uShadowParams2", "uShadowMap2", "uPointShadowMatrix0", "uPointShadowMatrix1",
-        "uPointShadowMatrix2", "uPointShadowMatrix3", "uPointShadowMatrix4", "uPointShadowMatrix5", "uPointShadowParams",
-        "uPointShadowMap", "uToneMapping", "uEnvironment", "uEnvironmentMap",
-    ];
+    public static readonly IReadOnlyList<string> Names = Material.LightingUniformNames;
 
     private static readonly string[] SlotSuffix = ["", "1", "2"];
 

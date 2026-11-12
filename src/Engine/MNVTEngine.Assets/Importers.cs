@@ -84,6 +84,10 @@ public interface IAssetImporter
 
 public static class AssetImporters
 {
+    /// <summary>
+    /// The importers of the asset types every project may have. Modules' importers (scripts, terrain, models) are added by
+    /// the build tooling and the editor (<c>MNVTEngine.Build.EngineImporters</c>): games never import.
+    /// </summary>
     public static IReadOnlyList<IAssetImporter> CreateDefault() =>
     [
         new TextureImporter(),
@@ -96,8 +100,6 @@ public static class AssetImporters
         new AnimatorControllerImporter(),
         new MaterialImporter(),
         new TextImporter("Shader", AssetTypes.Shader, ".glsl", ".vert", ".frag"),
-        new ScriptImporter(),
-        new TerrainImporter(),
         new TextImporter("Text", AssetTypes.Text, ".txt", ".md"),
         new MagicImporter("Audio", AssetTypes.Audio, new Dictionary<string, Func<byte[], string?>>
         {
@@ -408,49 +410,6 @@ public sealed class UILayoutImporter() : SimpleImporter("UILayout", AssetTypes.U
     }
 }
 
-/// <summary>
-/// Terrain worlds (<c>.mnvtterrain</c>, TerrainHeaven project JSON): validates the file and records the textures and prop
-/// meshes it references as dependencies (paths next to the file or from the Assets root, or <c>asset:</c> references), so
-/// builds include them. A reference that matches no asset is a warning: the terrain draws without it.
-/// </summary>
-public sealed class TerrainImporter() : SimpleImporter("Terrain", AssetTypes.Terrain, ".mnvtterrain")
-{
-    public override void Import(AssetImportContext context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        Terrain.Project.ProjectData data;
-        try
-        {
-            data = Terrain.Project.TerrainProject.Parse(new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(context.Data));
-        }
-        catch (Exception ex) when (ex is InvalidDataException or DecoderFallbackException)
-        {
-            context.Errors.Add(ex.Message);
-            return;
-        }
-
-        context.Properties["elements"] = (data.Elements?.Count ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        foreach (var reference in Terrain.Project.TerrainProject.CollectReferences(data))
-        {
-            if (Terrain.Project.TerrainProject.TryParseAssetReference(reference, out var guid, out _))
-            {
-                context.Dependencies.Add(guid);
-                continue;
-            }
-
-            var resolved = Terrain.Project.TerrainProject.ResolveCandidates(context.RelativePath, reference).Select(context.ResolveAsset).FirstOrDefault(g => g is not null);
-            if (resolved is { } found)
-            {
-                context.Dependencies.Add(found);
-            }
-            else
-            {
-                context.Warnings.Add($"'{reference}' matches no asset; the terrain draws without it.");
-            }
-        }
-    }
-}
-
 public sealed class JsonImporter() : SimpleImporter("Json", AssetTypes.Json, ".json")
 {
     public override void Import(AssetImportContext context)
@@ -481,46 +440,6 @@ public sealed class TextImporter(string name, string assetType, params string[] 
         catch (DecoderFallbackException ex)
         {
             context.Errors.Add($"Not valid UTF-8 text: {ex.Message}");
-        }
-    }
-}
-
-/// <summary>
-/// Compiles <c>.mnvts</c> scripts on import, so errors show when a script is saved rather than when the game runs.
-/// Functions outside <see cref="Scripting.Missions.StandardApi.All"/> are allowed with a warning (game code may add modules).
-/// </summary>
-public sealed class ScriptImporter() : SimpleImporter("Script", AssetTypes.Script, ".mnvts")
-{
-    public override int Version => 2;
-
-    public override void Import(AssetImportContext context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        string text;
-        try
-        {
-            text = new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(context.Data);
-        }
-        catch (DecoderFallbackException ex)
-        {
-            context.Errors.Add($"Not valid UTF-8 text: {ex.Message}");
-            return;
-        }
-
-        var result = Scripting.Compiler.ScriptCompiler.Compile(text, context.RelativePath, new Scripting.Compiler.CompileOptions
-        {
-            Api = Scripting.Missions.StandardApi.All,
-            AllowUnknownFunctions = true,
-        });
-        foreach (var diagnostic in result.Diagnostics)
-        {
-            (diagnostic.Severity == Scripting.Syntax.DiagnosticSeverity.Error ? context.Errors : context.Warnings).Add(diagnostic.ToString());
-        }
-
-        if (result.Script is { } script)
-        {
-            context.Properties["missions"] = string.Join(", ", script.Missions.Select(m => m.Id));
-            context.Properties["lines"] = (text.Count(c => c == '\n') + (text.Length > 0 ? 1 : 0)).ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
     }
 }

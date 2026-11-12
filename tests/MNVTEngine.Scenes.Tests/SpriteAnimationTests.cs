@@ -105,7 +105,7 @@ public class SpriteAnimationTests
         go.AddComponent<SpriteRenderer>().SourceRect = new Rect(16, 0, 16, 16);
         var animator = go.AddComponent<SpriteAnimator>();
         (animator.Clip, animator.Speed, animator.PlayOnStart) = (Walk, 2f, false);
-        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var serializer = new SceneSerializer(TestRegistry.Create());
 
         var copy = serializer.Deserialize(serializer.Serialize(scene)).Scene.Find("Hero")!;
         Assert.Equal(new Rect(16, 0, 16, 16), copy.GetComponent<SpriteRenderer>()!.SourceRect);

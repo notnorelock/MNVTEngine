@@ -4,7 +4,6 @@
     <RootNamespace>MNVTEngine</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\MNVTEngine.Audio\MNVTEngine.Audio.csproj" />
     <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
     <ProjectReference Include="..\MNVTEngine.Scripting.Missions\MNVTEngine.Scripting.Missions.csproj" />
   </ItemGroup>

@@ -95,9 +95,9 @@ internal static class Game
                 args,
                 (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication(package.Name, window.Options.VSync, window.Options.GraphicsValidation) with { PrecompiledShaders = archive.TryRead }),
                 loggerFactory,
+                HostModules.Create(loggerFactory.CreateLogger("Audio")),
                 (_, registry) => LoadScripts(package, archive, registry, logger),
                 archive,
-                Audio.OpenAL.OpenALAudioDevice.Create,
                 tools);
         }
     }

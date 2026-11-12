@@ -83,6 +83,12 @@ public interface IPrefabProvider
 }
 
 /// <summary>Implemented by the host (runtime, editor) to give components read access to text assets (e.g. scripts).</summary>
+public interface IAssetReader
+{
+    /// <exception cref="InvalidOperationException">The asset is missing or unreadable.</exception>
+    byte[] ReadAllBytes(AssetRef asset);
+}
+
 public interface ITextAssetReader
 {
     /// <exception cref="InvalidOperationException">The asset is missing, unreadable, or not of <paramref name="assetType"/>.</exception>

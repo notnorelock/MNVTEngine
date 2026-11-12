@@ -21,14 +21,11 @@ public class ModuleBoundaryTests
     /// </summary>
     private static readonly (string From, string To)[] KnownCouplings =
     [
-        ("MNVTEngine.Assets", "MNVTEngine.Scripting.Missions"), // mission compilation in the asset pipeline (scripting is optional for assets)
-        ("MNVTEngine.Assets", "MNVTEngine.Terrain"),            // the terrain importer lives in Assets
-        ("MNVTEngine.Runtime", "MNVTEngine.Audio"),
-        ("MNVTEngine.Runtime", "MNVTEngine.Physics2D"),
-        ("MNVTEngine.Runtime", "MNVTEngine.Physics3D"),
-        ("MNVTEngine.Runtime", "MNVTEngine.Scripting.Bindings"),
-        ("MNVTEngine.Runtime", "MNVTEngine.Terrain.Components"),
-        ("MNVTEngine.Runtime", "MNVTEngine.UI"),
+        // The in-game debug UI's inspection panels read these modules' state directly (devtools builds only).
+        ("MNVTEngine.DebugUI", "MNVTEngine.Audio"),
+        ("MNVTEngine.DebugUI", "MNVTEngine.Physics2D"),
+        ("MNVTEngine.DebugUI", "MNVTEngine.Scripting.Bindings"),
+        ("MNVTEngine.DebugUI", "MNVTEngine.UI"),
     ];
 
     private static Dictionary<string, ModuleDefinition> Owners() =>

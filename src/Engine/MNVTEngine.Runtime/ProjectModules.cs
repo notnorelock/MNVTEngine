@@ -3,33 +3,6 @@ using MNVTEngine.Scenes;
 
 namespace MNVTEngine.Runtime;
 
-/// <summary>
-/// The runtime implementations of the catalog's modules, created explicitly by id (no assembly scanning). Modules
-/// without one are infrastructure the host itself provides (core, platform, graphics, assets, runtime), modules whose
-/// components still live in core (world.2d, world.3d), or the debug UI, which the host adds itself.
-/// </summary>
-public static class EngineModules
-{
-    /// <summary>The module's runtime implementation; null when it has none.</summary>
-    public static IEngineModule? Create(string id) => id switch
-    {
-        "audio" => new AudioModule(),
-        "scripting" => new ScriptingModule(),
-        "ui" => new UI.UIModule(),
-        "physics.2d" => new Physics2DModule(),
-        "physics.3d" => new Physics3DModule(),
-        "terrain" => new TerrainModule(),
-        _ => null,
-    };
-
-    /// <summary>Implementations of the resolved modules, in startup order, for a <see cref="ModuleHost"/>.</summary>
-    public static IReadOnlyList<IEngineModule> For(ModuleResolution resolution)
-    {
-        ArgumentNullException.ThrowIfNull(resolution);
-        return [.. resolution.Modules.Select(m => Create(m.Id)).OfType<IEngineModule>()];
-    }
-}
-
 /// <summary>The modules of a game project: its profile, the profile's defaults and the project's "modules" switches.</summary>
 public static class ProjectModules
 {
@@ -38,6 +11,33 @@ public static class ProjectModules
     {
         ArgumentNullException.ThrowIfNull(project);
         return ModuleResolver.Resolve(catalog ?? ModuleCatalog.Builtin, ProjectProfileMigration.Resolve(project).Profile, project.Modules);
+    }
+
+    /// <summary>
+    /// The implementations of the resolved modules, in startup order, taken from the ones a host was built with.
+    /// A resolved module that provides components but is not in the host is MNVB611 (the host was built for other modules);
+    /// infrastructure (core) registers its components itself.
+    /// </summary>
+    public static (IReadOnlyList<IEngineModule> Modules, IReadOnlyList<ModuleDiagnostic> Missing) Implementations(ModuleResolution resolution, IReadOnlyList<IEngineModule> available)
+    {
+        ArgumentNullException.ThrowIfNull(resolution);
+        ArgumentNullException.ThrowIfNull(available);
+        var byId = available.ToDictionary(m => m.Id, StringComparer.Ordinal);
+        var modules = new List<IEngineModule>();
+        var missing = new List<ModuleDiagnostic>();
+        foreach (var module in resolution.Modules)
+        {
+            if (byId.TryGetValue(module.Id, out var implementation))
+            {
+                modules.Add(implementation);
+            }
+            else if (module.Components.Count > 0 && module.Activation != ModuleActivation.Always)
+            {
+                missing.Add(ModuleDiagnostic.Error(ModuleDiagnostic.ModuleNotInHost, $"Module '{module.Id}' is part of the project but not built into this executable; rebuild the game.", module.Id));
+            }
+        }
+
+        return (modules, missing);
     }
 
     /// <summary>Resolution problems plus scene and prefab components of modules the project does not have (MNVB608).</summary>

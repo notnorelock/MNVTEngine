@@ -8,6 +8,7 @@
     <PackageReference Include="Box2D.NET" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+    <!-- World2D for Tilemap (TilemapCollider2D); it brings Scenes. -->
+    <ProjectReference Include="..\MNVTEngine.World2D\MNVTEngine.World2D.csproj" />
   </ItemGroup>
 </Project>

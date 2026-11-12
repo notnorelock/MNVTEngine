@@ -35,6 +35,14 @@
     <ProjectReference Include="..\MNVTEngine.GameAssemblies\MNVTEngine.GameAssemblies.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
     <ProjectReference Include="..\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
     <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
+    <ProjectReference Include="..\MNVTEngine.World2D.Rendering\MNVTEngine.World2D.Rendering.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
+    <ProjectReference Include="..\MNVTEngine.World3D.Rendering\MNVTEngine.World3D.Rendering.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
+    <ProjectReference Include="..\MNVTEngine.Terrain.Components\MNVTEngine.Terrain.Components.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
+    <ProjectReference Include="..\MNVTEngine.Audio\MNVTEngine.Audio.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
+    <ProjectReference Include="..\MNVTEngine.UI\MNVTEngine.UI.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
+    <ProjectReference Include="..\MNVTEngine.Physics2D\MNVTEngine.Physics2D.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
+    <ProjectReference Include="..\MNVTEngine.Physics3D\MNVTEngine.Physics3D.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
+    <ProjectReference Include="..\MNVTEngine.Scripting.Bindings\MNVTEngine.Scripting.Bindings.csproj" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
     <ProjectReference Include="..\MNVTEngine.DebugUI\MNVTEngine.DebugUI.csproj" Condition="'$(MnvtDevTools)' == 'true'" GlobalPropertiesToRemove="MnvtGameName;MnvtConsole;MnvtContentKey;MnvtDevTools" />
   </ItemGroup>
 

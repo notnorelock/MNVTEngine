@@ -5,6 +5,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.World3D.Rendering\MNVTEngine.World3D.Rendering.csproj" />
     <ProjectReference Include="..\MNVTEngine.Assets\MNVTEngine.Assets.csproj" />
   </ItemGroup>
   <ItemGroup>

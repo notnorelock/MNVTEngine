@@ -1,9 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Development-time tooling: compiles game code with the .NET SDK. Never referenced by shipped game hosts. -->
   <ItemGroup>
+    <ProjectReference Include="..\..\Engine\MNVTEngine.World3D.Rendering\MNVTEngine.World3D.Rendering.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Assets.Models\MNVTEngine.Assets.Models.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.GameAssemblies\MNVTEngine.GameAssemblies.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" />
+    <!-- Every module, for development hosts (EngineModuleSet) and usage analysis. -->
+    <ProjectReference Include="..\..\Engine\MNVTEngine.World2D.Rendering\MNVTEngine.World2D.Rendering.csproj" />
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Audio\MNVTEngine.Audio.csproj" />
+    <ProjectReference Include="..\..\Engine\MNVTEngine.UI\MNVTEngine.UI.csproj" />
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Scripting.Bindings\MNVTEngine.Scripting.Bindings.csproj" />
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Physics2D\MNVTEngine.Physics2D.csproj" />
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Physics3D\MNVTEngine.Physics3D.csproj" />
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Terrain.Components\MNVTEngine.Terrain.Components.csproj" />
   </ItemGroup>
 </Project>

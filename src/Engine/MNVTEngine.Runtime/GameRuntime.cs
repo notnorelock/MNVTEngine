@@ -3,6 +3,7 @@ using MNVTEngine.Assets;
 using MNVTEngine.Core.Timing;
 using MNVTEngine.Graphics;
 using MNVTEngine.Platform;
+using MNVTEngine.Runtime.Loading;
 using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
 
@@ -22,8 +23,6 @@ public sealed record GameRuntimeOptions
     /// <summary>Frame profiler bracketed by the runtime (the host makes it <see cref="Core.Diagnostics.Profiler.Current"/>); null when not profiling.</summary>
     public Core.Diagnostics.FrameProfiler? Profiler { get; init; }
 
-    /// <summary>Audio output for every scene; null plays nothing. Owned by the host.</summary>
-    public Audio.IAudioDevice? Audio { get; init; }
 
     /// <summary>Content of an exported game: assets, index and compiled scripts come from it instead of the project folder.</summary>
     public ContentArchiveSet? Archive { get; init; }
@@ -42,6 +41,12 @@ public sealed record GameRuntimeOptions
 
     /// <summary>Draw copies of a mesh and material with instanced draws (default); false draws each by itself.</summary>
     public bool GpuInstancing { get; init; } = true;
+
+    /// <summary>Importers for a project played from its sources (the build tooling's full set); exports read imported content.</summary>
+    public IReadOnlyList<IAssetImporter>? Importers { get; init; }
+
+    /// <summary>The project's started engine modules, in startup order; those with scene passes draw the scenes.</summary>
+    public IReadOnlyList<IEngineModule> Modules { get; init; } = [];
 
     /// <summary>Log entries shown in the debug console.</summary>
     public Core.Logging.InMemoryLoggerProvider? DebugLogs { get; init; }
@@ -70,7 +75,8 @@ public sealed partial class GameRuntime(
     private GameWindow _window = null!;
     private IGraphicsDevice _device = null!;
     private Renderer2D _renderer = null!;
-    private UI.UIRenderer _ui = null!;
+    private StartupCanvas _startup = null!;
+    private IReadOnlyList<IScreenLayer> _screenLayers = [];
     private Graphics.Text.Font _uiFont = null!;
     private DebugTextRenderer? _debugText;
     private Texture2D? _engineLogo;
@@ -79,7 +85,6 @@ public sealed partial class GameRuntime(
     private AssetDatabase _assets = null!;
     private SceneSerializer _serializer = null!;
     private PrefabProvider _prefabs = null!;
-    private ModelAnimationProvider? _animations;
     private string? _pendingScene;
     private int _frames;
     private bool _frameStarted;
@@ -96,9 +101,9 @@ public sealed partial class GameRuntime(
         _renderer = new Renderer2D(_device);
         _uiFont = Graphics.Text.Font.LoadDefault();
         Application.QuitRequested += OnQuitRequested;
-        _ui = new UI.UIRenderer(_device, _renderer.DefaultMaterial);
+        _startup = new StartupCanvas(_renderer);
         _assets = _options.Archive is { } archive ? AssetDatabase.OpenPackaged(archive)
-            : AssetDatabase.OpenReadOnly(project.AssetsDirectory, artifactsLibrary: Path.Combine(project.RootDirectory, "Library"));
+            : AssetDatabase.OpenReadOnly(project.AssetsDirectory, _options.Importers, artifactsLibrary: Path.Combine(project.RootDirectory, "Library"));
         foreach (var diagnostic in _assets.Diagnostics)
         {
             LogAssetDiagnostic(_logger, diagnostic.Path, diagnostic.Message);
@@ -106,15 +111,17 @@ public sealed partial class GameRuntime(
 
         _serializer = new SceneSerializer(registry, _assets);
         _prefabs = new PrefabProvider(_serializer, _assets, loggerFactory.CreateLogger("Prefabs"));
-        _animations = new ModelAnimationProvider(_assets, loggerFactory.CreateLogger("Animation"));
         _resources = new ResourceCache(_device, _assets, loggerFactory.CreateLogger("Resources"));
-        _sceneRenderer = new SceneRenderer(_renderer, _resources, _logger) { GpuSkinning = _options.GpuSkinning, GpuInstancing = _options.GpuInstancing };
+        _sceneRenderer = new SceneRenderer(_renderer, _resources, _logger,
+            ModuleIntegration.CreatePasses(_options.Modules, _renderer, _resources, loggerFactory, new RenderSettings(_options.GpuSkinning, _options.GpuInstancing)));
+        _screenLayers = ModuleIntegration.CreateScreenLayers(_options.Modules, new ScreenServices(window, _renderer, _resources, _assets, _uiFont));
         Application.SetHostWindow(new RuntimeWindow(window, _device, _assets));
         LogStarting(_logger, project.Name, project.StartupScene);
 
         if (_options.Diagnostics is { } diagnostics)
         {
-            diagnostics.Attach(new DiagnosticsTarget(_device, () => CurrentScene, _resources, _assets, _sceneRenderer, _ui));
+            diagnostics.Attach(new DiagnosticsTarget(_device, () => CurrentScene, _resources, _assets, _sceneRenderer, _options.Modules));
+            ModuleIntegration.AddDiagnostics(_options.Modules, diagnostics.Collector, diagnostics.Commands, () => CurrentScene);
             diagnostics.Install();
             _options.Overlay?.Load(new RuntimeOverlayContext(
                 _device, _renderer, diagnostics, window.Input,
@@ -162,12 +169,13 @@ public sealed partial class GameRuntime(
             return; // gameplay is frozen while a scene loads or the splash shows
         }
 
-        if (CurrentScene is { } scene && UI.UISystem.For(scene) is { } ui)
+        if (CurrentScene is { } scene)
         {
-            // Before gameplay: input the UI takes (focused text field, pointer over UI) reads as released for scripts.
-            using var uiSample = Core.Diagnostics.Profiler.Sample("UI");
-            var framebufferScale = _window.WindowWidth > 0 ? (float)_window.FramebufferWidth / _window.WindowWidth : 1f;
-            ui.Update(_window.Input, new Mathematics.Vector2(_window.WindowWidth, _window.WindowHeight), framebufferScale, time.UnscaledDeltaTime);
+            // Before gameplay: input a screen layer takes (focused text field, pointer over UI) reads as released for scripts.
+            foreach (var layer in _screenLayers)
+            {
+                layer.Update(scene, time.UnscaledDeltaTime);
+            }
         }
 
         CurrentScene?.Update(time);
@@ -187,11 +195,9 @@ public sealed partial class GameRuntime(
             using var sample = Core.Diagnostics.Profiler.Sample("Render");
             using var gpuScope = new GpuScope(gpu, "Scene");
             _sceneRenderer.Render(CurrentScene, _window.FramebufferWidth, _window.FramebufferHeight);
-            if (UI.UISystem.For(CurrentScene) is { } ui)
+            foreach (var layer in _screenLayers)
             {
-                using var uiSample = Core.Diagnostics.Profiler.Sample("UI");
-                _device.SetRenderTarget(null);
-                ui.Render(_ui, _window.FramebufferWidth, _window.FramebufferHeight);
+                layer.Render(CurrentScene, _window.FramebufferWidth, _window.FramebufferHeight);
             }
         }
 
@@ -234,7 +240,11 @@ public sealed partial class GameRuntime(
         _device.Present();
         if (exiting)
         {
-            LogAutoExit(_logger, _frames, _sceneRenderer.SpritesDrawn, _sceneRenderer.SpritesCulled, _sceneRenderer.MeshesDrawn, _sceneRenderer.MeshesCulled, _sceneRenderer.GpuSkinnedMeshes, _sceneRenderer.InstancedMeshes, _sceneRenderer.MeshDrawCalls);
+            var statistics = _sceneRenderer.Statistics;
+            int Stat(string name) => statistics.GetValueOrDefault(name);
+            var (sprites, culled, meshes, meshesCulled) = (Stat(RenderStatistics.SpritesDrawn), Stat(RenderStatistics.SpritesCulled), Stat(RenderStatistics.MeshesDrawn), Stat(RenderStatistics.MeshesCulled));
+            var (skinned, instanced, draws) = (Stat(RenderStatistics.GpuSkinnedMeshes), Stat(RenderStatistics.InstancedMeshes), Stat(RenderStatistics.MeshDrawCalls));
+            LogAutoExit(_logger, _frames, sprites, culled, meshes, meshesCulled, skinned, instanced, draws);
             _window.Close();
         }
     }
@@ -256,12 +266,16 @@ public sealed partial class GameRuntime(
         _options.Diagnostics?.Uninstall();
         CurrentScene?.Unload();
         _sceneRenderer?.Dispose();
-        _ui?.Dispose();
+        foreach (var layer in _screenLayers)
+        {
+            layer.Dispose();
+        }
+
+        _startup?.Dispose();
         _uiFont?.Dispose();
         _debugText?.Dispose();
         _engineLogo?.Dispose();
         _resources?.Dispose();
-        _animations?.Dispose();
         _renderer?.Dispose();
         if (_device.Resources.LiveCount > 0)
         {
@@ -308,14 +322,12 @@ public sealed partial class GameRuntime(
         next.Loader = this;
         next.Prefabs = _prefabs;
         next.TextAssets = _prefabs;
-        next.ModelAnimations = _animations;
-        next.MeshData = _animations;
-        if (_options.Audio is { } audio)
+        next.AssetReader = new AssetBytesReader(_assets);
+        ModuleIntegration.SceneLoaded(_options.Modules, next);
+        foreach (var layer in _screenLayers)
         {
-            AudioSystem.Attach(next, audio, clip => _assets.ReadAllBytes(clip.Guid));
+            layer.SceneLoaded(next);
         }
-
-        UI.UISystem.Attach(next, new UI.UIServices(_uiFont, new WindowClipboard(_window), asset => _assets.ReadAllBytes(asset.Guid), asset => _resources.GetTexture(asset)));
 
         // DontDestroyOnLoad objects move in once the new scene's services exist, before the old scene is torn down.
         CurrentScene?.MovePersistentObjectsTo(next);
@@ -357,4 +369,10 @@ public sealed partial class GameRuntime(
 
     [LoggerMessage(EventId = 3105, Level = LogLevel.Error, Message = "{Count} GPU resources leaked")]
     private static partial void LogLeaks(ILogger logger, int count);
+}
+
+/// <summary>Asset bytes for scene services (audio clips).</summary>
+internal sealed class AssetBytesReader(AssetDatabase assets) : IAssetReader
+{
+    public byte[] ReadAllBytes(AssetRef asset) => assets.ReadAllBytes(asset.Guid);
 }

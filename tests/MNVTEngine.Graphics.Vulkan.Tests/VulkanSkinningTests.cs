@@ -20,7 +20,7 @@ public class VulkanSkinningTests
         using var flat = device.CreateTexture(1, 1, [128, 128, 255, 255], SamplerState.PointClamp);
         var renderer = new Renderer3D(device);
         var material = new Material(standard, BlendMode.Opaque, "Skinned") { Cull = CullMode.None };
-        MaterialShaders.ApplyDefaults(material, MaterialShaders.StandardProperties, kind => kind == DefaultTexture.FlatNormal ? flat : white);
+        MaterialProperties.ApplyDefaults(material, MaterialShaders.StandardProperties, kind => kind == DefaultTexture.FlatNormal ? flat : white);
 
         // A 10 x 10 floor: the left half on joint 0, the right half on joint 1.
         var plane = MeshPrimitives.Plane();

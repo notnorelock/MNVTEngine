@@ -3,6 +3,7 @@
     <PackageReference Include="StbImageWriteSharp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.World3D.Rendering\MNVTEngine.World3D.Rendering.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics\MNVTEngine.Graphics.csproj" />
   </ItemGroup>
   <ItemGroup>

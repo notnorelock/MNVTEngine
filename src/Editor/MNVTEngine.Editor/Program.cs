@@ -71,7 +71,7 @@ catch (Exception ex) when (ex is SerializationException or ProfileConflictExcept
 }
 
 // Game components are compiled and loaded from the project's scripts project by ScriptReloadController.
-var registry = EngineComponents.CreateRegistry();
+var registry = MNVTEngine.Build.EngineModuleSet.CreateRegistry(project.Profile); // only the profile's components: a 2D project cannot add a MeshRenderer
 
 var options = new EditorOptions(
     Value("--frames") is { } frames ? int.Parse(frames, CultureInfo.InvariantCulture) : null,

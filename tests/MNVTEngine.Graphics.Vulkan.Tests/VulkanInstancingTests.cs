@@ -19,7 +19,7 @@ public class VulkanInstancingTests
         using var flat = device.CreateTexture(1, 1, [128, 128, 255, 255], SamplerState.PointClamp);
         using var meshes = new GpuMeshCache(device);
         var material = new Material(standard, BlendMode.Opaque, "Shared");
-        MaterialShaders.ApplyDefaults(material, MaterialShaders.StandardProperties, kind => kind == DefaultTexture.FlatNormal ? flat : white);
+        MaterialProperties.ApplyDefaults(material, MaterialShaders.StandardProperties, kind => kind == DefaultTexture.FlatNormal ? flat : white);
         material.SetColor("_BaseColor", new Color(0.2f, 0.6f, 1f, 1f));
         var twin = new Material(instancedShader, BlendMode.Opaque, "Shared (instanced)");
         var renderer = new Renderer3D(device);

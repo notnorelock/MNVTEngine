@@ -9,7 +9,7 @@ namespace MNVTEngine.Scenes.Tests;
 public class AssetAndPrefabTests
 {
     private static readonly Guid Texture = Guid.Parse("0f5e0000-0000-4000-8000-000000000001");
-    private static readonly ComponentRegistry Registry = ComponentRegistry.CreateDefault().Register<Inspector>().Register<AwakeProbe>();
+    private static readonly ComponentRegistry Registry = TestRegistry.Create().Register<Inspector>().Register<AwakeProbe>();
 
     [Fact]
     public void AssetRef_RoundTripsAsPrefixedString()

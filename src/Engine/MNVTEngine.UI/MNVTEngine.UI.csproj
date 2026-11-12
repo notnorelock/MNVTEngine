@@ -6,6 +6,6 @@
   <ItemGroup>
     <ProjectReference Include="..\MNVTEngine.Graphics\MNVTEngine.Graphics.csproj" />
     <ProjectReference Include="..\MNVTEngine.Input\MNVTEngine.Input.csproj" />
-    <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" />
   </ItemGroup>
 </Project>

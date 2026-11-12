@@ -71,7 +71,7 @@ public sealed class ModelWorkflowTests : IDisposable
         var scene = new Scene();
         scene.CreateGameObject("Old").AddComponent<MeshRenderer>().Mesh = new AssetRef(workflow.Guid, "mesh/Ground"); // renamed to "Floor" since
         scene.CreateGameObject("Current").AddComponent<MeshRenderer>().Mesh = new AssetRef(workflow.Guid, "mesh/Floor");
-        db.WriteText("Scenes/Level.mnvt", new SceneSerializer(Runtime.EngineComponents.CreateRegistry()).Serialize(scene));
+        db.WriteText("Scenes/Level.mnvt", new SceneSerializer(Build.EngineModuleSet.CreateRegistry()).Serialize(scene));
 
         var missing = Assert.Single(workflow.FindMissingMeshReferences());
         Assert.Equal(("Ground", "Scenes/Level.mnvt"), (missing.Mesh, Assert.Single(missing.UsedBy)));

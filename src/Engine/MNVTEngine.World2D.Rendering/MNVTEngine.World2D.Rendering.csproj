@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The 2D world's runtime side (module world.2d): its engine module and scene pass (sprites, tilemaps, 2D lighting). -->
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.World2D\MNVTEngine.World2D.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" />
+  </ItemGroup>
+</Project>

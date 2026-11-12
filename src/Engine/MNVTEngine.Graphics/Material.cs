@@ -74,10 +74,23 @@ public sealed class Material
     public static readonly IReadOnlySet<string> ReservedNames = new HashSet<string>(StringComparer.Ordinal) { "uViewProjection", "uTexture", "uModel", "uNormalMatrix" };
 
     /// <summary>
+    /// The lighting uniforms the 3D pass sets (world.3d's <c>LightingUniforms</c>). Only the names live here, so every
+    /// shader's property list leaves them out whether or not the 3D renderer is part of the build.
+    /// </summary>
+    public static IReadOnlyList<string> LightingUniformNames { get; } =
+    [
+        "uCameraPosition", "uAmbient", "uLightCount", "uLight0", "uLight1", "uLight2", "uLight3", "uLight4", "uLight5",
+        "uLight6", "uLight7", "uShadowMatrix", "uShadowParams", "uShadowMap", "uShadowMatrix1", "uShadowParams1",
+        "uShadowMap1", "uShadowMatrix2", "uShadowParams2", "uShadowMap2", "uPointShadowMatrix0", "uPointShadowMatrix1",
+        "uPointShadowMatrix2", "uPointShadowMatrix3", "uPointShadowMatrix4", "uPointShadowMatrix5", "uPointShadowParams",
+        "uPointShadowMap", "uToneMapping", "uEnvironment", "uEnvironmentMap",
+    ];
+
+    /// <summary>
     /// Values a renderer sets on materials every pass (lighting, see <c>LightingUniforms</c>): not material properties,
     /// so they are not listed by <see cref="Shader.Properties"/> or saved in material files.
     /// </summary>
-    public static IReadOnlySet<string> RendererNames { get; } = new HashSet<string>(Rendering3D.LightingUniforms.Names, StringComparer.Ordinal);
+    public static IReadOnlySet<string> RendererNames { get; } = new HashSet<string>(LightingUniformNames, StringComparer.Ordinal);
 
     private readonly Dictionary<string, UniformValue> _uniforms = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Texture2D> _textures = new(StringComparer.Ordinal);

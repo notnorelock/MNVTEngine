@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The 3D world's components (module world.3d). Scene data only: rendering is MNVTEngine.World3D.Rendering, so physics can read meshes without graphics. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+  </ItemGroup>
+</Project>

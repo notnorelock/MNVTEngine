@@ -315,7 +315,8 @@ public sealed class AssetDatabaseTests : IDisposable
     [Fact]
     public void TerrainWorlds_AreValidated_AndDependOnTheTexturesTheyReference()
     {
-        var db = OpenEditing();
+        // The terrain importer is build tooling (the terrain module's), not part of the runtime asset database.
+        var db = AssetDatabase.OpenForEditing(AssetsDir, LibraryDir, [.. AssetImporters.CreateDefault(), new Build.TerrainImporter()]);
         Write("World/Textures/grass.png", "not decoded by this test");
         Write("Shared/rock.png", "not decoded by this test");
         Write("World/Island.mnvtterrain", """

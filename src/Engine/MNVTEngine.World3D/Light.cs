@@ -81,15 +81,6 @@ public sealed class AmbientLight : Component
     public float Intensity { get; set; } = 1f;
 }
 
-public enum ToneMappingMode
-{
-    /// <summary>Colors above 1 clip to white.</summary>
-    None,
-
-    /// <summary>The ACES filmic curve: highlights roll off smoothly, the look of most modern games.</summary>
-    Aces,
-}
-
 /// <summary>
 /// The scene's surroundings for 3D: an equirectangular (2:1 latitude-longitude) sky image that surfaces drawn with the
 /// Standard shader reflect (sharper when smoother) and are lit by (image-based lighting), optionally drawn as the

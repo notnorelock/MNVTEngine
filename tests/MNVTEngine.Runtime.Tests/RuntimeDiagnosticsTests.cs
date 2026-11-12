@@ -97,7 +97,11 @@ public sealed class RuntimeDiagnosticsTests : IDisposable
     {
         var diagnostics = Create();
         Frame(diagnostics);
-        Assert.Equal(MetricStatus.Unavailable, diagnostics.Metrics.Get(DiagnosticMetrics.UIElements).Status); // no UI: not 0
+        Assert.Equal(MetricStatus.Unavailable, diagnostics.Metrics.Get(DiagnosticMetrics.UIElements).Status); // no UI module: not 0
+
+        ModuleIntegration.AddDiagnostics([new UI.UIModule()], diagnostics.Collector, diagnostics.Commands, () => _scene);
+        Frame(diagnostics);
+        Assert.Equal(MetricStatus.Unavailable, diagnostics.Metrics.Get(DiagnosticMetrics.UIElements).Status); // a scene without UI: still not 0
 
         var system = UI.UISystem.Attach(_scene, new UI.UIServices(Graphics.Text.Font.LoadDefault(), null, null, null));
         var context = system.CreateContext();

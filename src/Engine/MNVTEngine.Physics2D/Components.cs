@@ -397,10 +397,30 @@ public static class Physics2DComponents
     }
 }
 
-/// <summary>The "physics.2d" engine module. 2D physics: registers the 2D rigidbody and collider components; each scene starts its physics world on first use.</summary>
-public sealed class Physics2DModule : Scenes.IEngineModule
+/// <summary>The "physics.2d" engine module: registers the 2D rigidbody and collider components; each scene starts its physics world on first use.</summary>
+public sealed class Physics2DModule : Scenes.IEngineModule, Scenes.IDiagnosticsIntegration
 {
     public string Id => "physics.2d";
 
     public void Register(Scenes.ComponentRegistry components) => Physics2DComponents.Register(components);
+
+    public IEnumerable<Diagnostics.IMetricsProvider> CreateMetricsProviders(Func<Scene?> scene) => [new Physics2DMetrics(scene)];
+
+    /// <summary>Bodies and colliders of the running scene's 2D physics.</summary>
+    private sealed class Physics2DMetrics(Func<Scene?> scene) : Diagnostics.IMetricsProvider
+    {
+        public string Name => "Physics2D";
+
+        public void Collect(Diagnostics.MetricsSnapshot metrics)
+        {
+            if (scene() is not { } current)
+            {
+                return;
+            }
+
+            metrics.Set(Diagnostics.Metrics.PhysicsBodies, current.Systems.Get<PhysicsWorld2D>()?.BodyCount ?? 0);
+            metrics.Set(Diagnostics.Metrics.PhysicsColliders, current.World.Pool<BoxCollider2D>().Components.Length
+                + current.World.Pool<CircleCollider2D>().Components.Length + current.World.Pool<TilemapCollider2D>().Components.Length);
+        }
+    }
 }

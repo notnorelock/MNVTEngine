@@ -5,7 +5,7 @@ using MNVTEngine.Serialization;
 namespace MNVTEngine.Runtime;
 
 /// <summary>Environment (sky) images: textures loaded with a full mip chain, whatever their import settings.</summary>
-public sealed partial class ResourceCache
+public sealed partial class ModelCache
 {
     private readonly Dictionary<Guid, Texture2D?> _environments = [];
 
@@ -26,19 +26,19 @@ public sealed partial class ResourceCache
         }
 
         Texture2D? texture = null;
-        var name = _assets.Get(asset.Guid)?.Path ?? asset.ToString();
+        var name = resources.Assets.Get(asset.Guid)?.Path ?? asset.ToString();
         try
         {
-            if (_assets.GetAssetType(asset.Guid) != AssetTypes.Texture)
+            if (resources.Assets.GetAssetType(asset.Guid) != AssetTypes.Texture)
             {
                 throw new InvalidDataException($"{asset} is not a texture asset in this project.");
             }
 
-            texture = _device.CreateTexture(Image.Decode(_assets.ReadAllBytes(asset.Guid), name), new SamplerState(TextureFilter.Linear, TextureWrap.Repeat, GenerateMipmaps: true), name + " (environment)");
+            texture = resources.Device.CreateTexture(Image.Decode(resources.Assets.ReadAllBytes(asset.Guid), name), new SamplerState(TextureFilter.Linear, TextureWrap.Repeat, GenerateMipmaps: true), name + " (environment)");
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or KeyNotFoundException)
         {
-            LogEnvironmentFailed(_logger, ex, name);
+            LogEnvironmentFailed(resources.Logger, ex, name);
         }
 
         _environments.Add(asset.Guid, texture);

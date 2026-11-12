@@ -215,10 +215,64 @@ public static class ScriptingComponents
     }
 }
 
-/// <summary>The "scripting" engine module. Scripting: registers the mission runner.</summary>
-public sealed class ScriptingModule : Scenes.IEngineModule
+/// <summary>The "scripting" engine module: registers the mission runner, and reports mission VMs and their states.</summary>
+public sealed class ScriptingModule : Scenes.IEngineModule, Scenes.IDiagnosticsIntegration
 {
     public string Id => "scripting";
 
     public void Register(Scenes.ComponentRegistry components) => ScriptingComponents.Register(components);
+
+    public IEnumerable<Diagnostics.IMetricsProvider> CreateMetricsProviders(Func<Scene?> scene) => [new ScriptingMetrics(scene)];
+
+    public void RegisterCommands(Diagnostics.DebugCommandRegistry commands, Func<Scene?> scene)
+    {
+        ArgumentNullException.ThrowIfNull(commands);
+        commands.Register("missions", "Mission VMs, and the mission and objective states of every MissionRunner.", _ => Missions(scene()));
+    }
+
+    private static Diagnostics.DebugCommandResult Missions(Scene? scene)
+    {
+        var runners = scene?.FindObjectsOfType<MissionRunner>().ToList() ?? [];
+        var text = new System.Text.StringBuilder(System.FormattableString.Invariant($"Mission VMs: {runners.Count(r => r.Vm is not null)} running of {runners.Count}"));
+        foreach (var runner in runners)
+        {
+            text.Append(System.FormattableString.Invariant($"\n  {runner.GameObject.Name}: {(runner.Vm is { } vm ? $"{vm.Fibers.Count} coroutines" : "not running")}"));
+            foreach (var mission in runner.Missions?.Missions.Values ?? [])
+            {
+                text.Append(System.FormattableString.Invariant($"\n    {mission.Info.Id}: {mission.State}"));
+                foreach (var objective in mission.Objectives.Values)
+                {
+                    text.Append(System.FormattableString.Invariant($"\n      {objective.Info.Id}: {objective.State}"));
+                }
+            }
+        }
+
+        return new Diagnostics.DebugCommandResult(true, text.ToString());
+    }
+
+    /// <summary>Mission VMs and their coroutines in the running scene.</summary>
+    private sealed class ScriptingMetrics(Func<Scene?> scene) : Diagnostics.IMetricsProvider
+    {
+        private int _frame;
+        private (int Vms, int Fibers) _counts;
+
+        public string Name => "Scripting";
+
+        public void Collect(Diagnostics.MetricsSnapshot metrics)
+        {
+            if (scene() is not { } current)
+            {
+                return;
+            }
+
+            if (_frame++ % 10 == 0)
+            {
+                var vms = current.FindObjectsOfType<MissionRunner>().Where(r => r.Vm is not null).ToList();
+                _counts = (vms.Count, vms.Sum(r => r.Vm!.Fibers.Count));
+            }
+
+            metrics.Set(Diagnostics.Metrics.ScriptVms, _counts.Vms);
+            metrics.Set(Diagnostics.Metrics.ScriptFibers, _counts.Fibers);
+        }
+    }
 }

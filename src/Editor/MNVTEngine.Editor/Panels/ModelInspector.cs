@@ -1,4 +1,5 @@
 using ImGuiNET;
+using MNVTEngine.Runtime;
 using MNVTEngine.Assets;
 using MNVTEngine.Assets.Models;
 using MNVTEngine.DebugUI.ImGuiBackend;
@@ -110,7 +111,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         if (_meshes is null)
         {
             _meshes = new GpuMeshCache(device);
-            context.Resources.MeshesEvicted += OnMeshesEvicted;
+            context.Resources.Models.MeshesEvicted += OnMeshesEvicted;
         }
 
         _renderer ??= new Renderer3D(device);
@@ -146,7 +147,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
     {
         if (_meshes is not null)
         {
-            context.Resources.MeshesEvicted -= OnMeshesEvicted;
+            context.Resources.Models.MeshesEvicted -= OnMeshesEvicted;
         }
 
         _meshes?.Dispose();
@@ -161,7 +162,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         if (_default is null)
         {
             _default = new Material(context.Resources.GetBuiltinShader(MaterialDefinition.BuiltinStandard), BlendMode.Opaque, "Model preview default");
-            MaterialShaders.ApplyDefaults(_default, MaterialShaders.StandardProperties, context.Resources.GetDefaultTexture);
+            MaterialProperties.ApplyDefaults(_default, MaterialShaders.StandardProperties, context.Resources.GetDefaultTexture);
         }
 
         return _default;

@@ -36,7 +36,7 @@ public static class ModelInstantiation
             {
                 var renderer = gameObject.AddComponent<MeshRenderer>();
                 renderer.Primitive = PrimitiveMesh.None;
-                renderer.Mesh = new AssetRef(model, ResourceCache.MeshSubAssetPrefix + data.Meshes[node.Mesh].Name);
+                renderer.Mesh = new AssetRef(model, ModelCache.MeshSubAssetPrefix + data.Meshes[node.Mesh].Name);
                 renderer.DoubleSided = data.Meshes[node.Mesh].SubMeshMaterials.Any(m => m >= 0 && m < data.Materials.Count && data.Materials[m].DoubleSided);
                 renderer.BlendShapeWeights = data.Meshes[node.Mesh].DefaultBlendShapeWeights; // the shape the model was saved in
             }

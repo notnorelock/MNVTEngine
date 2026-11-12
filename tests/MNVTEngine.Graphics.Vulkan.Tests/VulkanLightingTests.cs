@@ -36,7 +36,7 @@ public class VulkanLightingTests
             _points = new PointShadowMap(device, 256);
             Material = new Material(_standard, BlendMode.Opaque, "Floor") { Cull = CullMode.Back };
             Material.SetColor("_BaseColor", baseColor);
-            MaterialShaders.ApplyDefaults(Material, MaterialShaders.StandardProperties, kind => kind == DefaultTexture.FlatNormal ? _flat : _white);
+            MaterialProperties.ApplyDefaults(Material, MaterialShaders.StandardProperties, kind => kind == DefaultTexture.FlatNormal ? _flat : _white);
         }
 
         public Material Material { get; }

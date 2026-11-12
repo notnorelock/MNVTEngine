@@ -58,6 +58,7 @@ public sealed class MaterialLoadingTests : IDisposable
         {
             var assets = AssetDatabase.OpenForEditing(Assets, Path.Combine(_root, "Library"));
             using var resources = new ResourceCache(device, assets, NullLogger.Instance);
+            new World3D.Rendering.World3DModule().RegisterResources(resources); // the Standard shader is world.3d's
             var glass = resources.GetMaterial(new AssetRef(Glass))!;
             Assert.Equal((BlendMode.Alpha, Material.TransparentQueue, false, true, CullMode.Back), (glass.BlendMode, glass.RenderQueue, glass.DepthWrite, glass.DepthTest, glass.Cull));
             Assert.Same(resources.GetTexture(new AssetRef(Texture)), glass.GetTexture("_BaseColorMap"));

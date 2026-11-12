@@ -1,5 +1,6 @@
 using ImGuiNET;
 using Microsoft.Extensions.Logging;
+using MNVTEngine.Runtime;
 using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Editor.Services;
 using MNVTEngine.Mathematics;
@@ -772,7 +773,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
                     {
                         foreach (var mesh in ModelMeshNames(candidate))
                         {
-                            var part = Runtime.ResourceCache.MeshSubAssetPrefix + mesh;
+                            var part = Runtime.ModelCache.MeshSubAssetPrefix + mesh;
                             if (ImGui.MenuItem(mesh, null, candidate.Guid == value.Guid && value.SubAsset == part))
                             {
                                 result = (true, new AssetRef(candidate.Guid, part));

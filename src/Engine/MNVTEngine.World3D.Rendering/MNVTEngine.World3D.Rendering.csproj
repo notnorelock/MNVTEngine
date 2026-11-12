@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The 3D world's runtime side (module world.3d): the 3D renderer, meshes, skinning, lights and shadows, the mesh,
+       shadow and sky shaders, model artifacts and their cache, model instantiation and animation, and its scene pass. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.World3D\MNVTEngine.World3D.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" />
+  </ItemGroup>
+</Project>

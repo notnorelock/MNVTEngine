@@ -8,8 +8,11 @@ using Mesh = MNVTEngine.Graphics.Meshes.Mesh;
 
 namespace MNVTEngine.Runtime;
 
-/// <summary>Imported models: their artifact, read on first use, with engine materials and embedded textures.</summary>
-public sealed partial class ResourceCache
+/// <summary>
+/// Imported models: their artifact, read on first use, with engine materials and embedded textures; and environment
+/// images. The world.3d module adds it to the <see cref="ResourceCache"/>, which evicts and disposes it.
+/// </summary>
+public sealed partial class ModelCache(ResourceCache resources) : IResourceExtension
 {
     /// <summary>Sub-asset prefix of a model's meshes: <c>asset:&lt;guid&gt;#mesh/Body</c>.</summary>
     public const string MeshSubAssetPrefix = "mesh/";
@@ -52,7 +55,7 @@ public sealed partial class ResourceCache
 
         if (model.ReportedMissing.Add(name))
         {
-            LogModelMeshMissing(_logger, ModelName(asset.Guid), name);
+            LogModelMeshMissing(resources.Logger, ModelName(asset.Guid), name);
         }
 
         return null;
@@ -69,7 +72,7 @@ public sealed partial class ResourceCache
             return null;
         }
 
-        return loaded.Data.Materials[index].Override is { } replacement ? GetMaterial(new AssetRef(replacement)) ?? loaded.Materials[index] : loaded.Materials[index];
+        return loaded.Data.Materials[index].Override is { } replacement ? resources.GetMaterial(new AssetRef(replacement)) ?? loaded.Materials[index] : loaded.Materials[index];
     }
 
     private LoadedModel? Load(Guid guid)
@@ -83,12 +86,12 @@ public sealed partial class ResourceCache
         var name = ModelName(guid);
         try
         {
-            if (_assets.GetAssetType(guid) != AssetTypes.Model)
+            if (resources.Assets.GetAssetType(guid) != AssetTypes.Model)
             {
                 throw new InvalidDataException($"asset:{guid} is not a model asset in this project.");
             }
 
-            var artifact = _assets.ReadArtifact(guid, ModelArtifact.Name)
+            var artifact = resources.Assets.ReadArtifact(guid, ModelArtifact.Name)
                 ?? throw new InvalidDataException("The model has not been imported (no artifact); open the project in the editor or fix its import errors.");
             var data = ModelArtifact.Read(artifact);
             loaded = new LoadedModel(data, new Texture2D?[data.Textures.Count], []);
@@ -102,19 +105,19 @@ public sealed partial class ResourceCache
             }
 
             loaded = null;
-            LogModelFailed(_logger, ex, name);
+            LogModelFailed(resources.Logger, ex, name);
         }
 
         _models.Add(guid, loaded);
         return loaded;
     }
 
-    private string ModelName(Guid guid) => _assets.Get(guid)?.Path ?? $"asset:{guid}";
+    private string ModelName(Guid guid) => resources.Assets.Get(guid)?.Path ?? $"asset:{guid}";
 
     private Material BuildModelMaterial(LoadedModel model, ModelMaterial source, string modelName)
     {
         var blend = source.AlphaMode == ModelAlphaMode.Blend ? BlendMode.Alpha : BlendMode.Opaque;
-        var material = new Material(GetBuiltinShader(MaterialDefinition.BuiltinStandard), blend, $"{modelName}#{source.Name}")
+        var material = new Material(resources.GetBuiltinShader(MaterialDefinition.BuiltinStandard), blend, $"{modelName}#{source.Name}")
         {
             Cull = source.DoubleSided ? CullMode.None : CullMode.Back,
             RenderQueue = blend != BlendMode.Opaque ? Material.TransparentQueue : source.AlphaMode == ModelAlphaMode.Mask ? Material.AlphaTestQueue : Material.GeometryQueue,
@@ -140,7 +143,7 @@ public sealed partial class ResourceCache
             }
         }
 
-        MaterialShaders.ApplyDefaults(material, MaterialShaders.StandardProperties, GetDefaultTexture);
+        MaterialProperties.ApplyDefaults(material, MaterialShaders.StandardProperties, resources.GetDefaultTexture);
         return material;
     }
 
@@ -156,12 +159,12 @@ public sealed partial class ResourceCache
         if (texture.ProjectAsset is { } guid)
         {
             model.Dependencies.Add(guid);
-            return GetTexture(new AssetRef(guid));
+            return resources.GetTexture(new AssetRef(guid));
         }
 
         if (texture.Embedded is { } bytes)
         {
-            return model.Embedded[index] ??= _device.CreateTexture(Image.Decode(bytes, texture.Name), SamplerState.LinearRepeat, texture.Name);
+            return model.Embedded[index] ??= resources.Device.CreateTexture(Image.Decode(bytes, texture.Name), SamplerState.LinearRepeat, texture.Name);
         }
 
         return null;
@@ -176,6 +179,18 @@ public sealed partial class ResourceCache
     }
 
     /// <summary>Drops models whose artifact or textures changed; their meshes are reported for GPU release.</summary>
+    public void Evict(IReadOnlyCollection<Guid> changed)
+    {
+        EvictModels(changed);
+        EvictEnvironments(changed);
+    }
+
+    public void Dispose()
+    {
+        DisposeModels();
+        DisposeEnvironments();
+    }
+
     private void EvictModels(IReadOnlyCollection<Guid> changed)
     {
         var meshes = new List<Mesh>();

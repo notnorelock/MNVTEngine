@@ -15,7 +15,7 @@ public sealed class UndoTests : IDisposable
         Directory.CreateDirectory(Path.Combine(_root, "Assets", "Scenes"));
         File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "Main.mnvt"), """{ "schemaVersion": 2, "name": "Main", "gameObjects": [] }""");
         File.WriteAllText(Path.Combine(_root, "Game.mnvtproj"), """{ "schemaVersion": 1, "name": "Game", "startupScene": "Scenes/Main.mnvt" }""");
-        _session = new EditorSession(GameProject.Load(_root), EngineComponents.CreateRegistry());
+        _session = new EditorSession(GameProject.Load(_root), Build.EngineModuleSet.CreateRegistry());
         _session.OpenScene("Scenes/Main.mnvt");
     }
 

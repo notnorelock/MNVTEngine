@@ -44,7 +44,7 @@ public class TilemapTests
         map.SetTile(-2, 0, 7);
         map.SetTile(0, 0, 1);
         map.SortingOrder = -3;
-        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var serializer = new SceneSerializer(TestRegistry.Create());
 
         var json = serializer.Serialize(scene);
         var copy = serializer.Deserialize(json).Scene.Find("Map")!.GetComponent<Tilemap>()!;

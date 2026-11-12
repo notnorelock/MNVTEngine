@@ -25,11 +25,11 @@ public sealed class PlatformerSampleTests
     private static async Task<Level> LoadAsync()
     {
         var project = GameProject.Load(Path.Combine(EngineLocation.FindRoot(), "samples", "Platformer"));
-        var registry = EngineComponents.CreateRegistry();
+        var registry = Build.EngineModuleSet.CreateRegistry();
         var code = await DevelopmentScripts.LoadAsync(project, registry, cancellationToken: TestContext.Current.CancellationToken);
         Assert.True(code.Succeeded, string.Join("\n", code.Diagnostics));
 
-        var assets = AssetDatabase.OpenReadOnly(project.AssetsDirectory);
+        var assets = AssetDatabase.OpenReadOnly(project.AssetsDirectory, EngineImporters.All());
         var serializer = new SceneSerializer(registry, assets);
         var loaded = serializer.Deserialize(File.ReadAllText(project.ResolveAsset(project.StartupScene)), project.StartupScene);
         Assert.DoesNotContain(loaded.Diagnostics, d => d.Severity >= Serialization.DiagnosticSeverity.Warning);

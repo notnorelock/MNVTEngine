@@ -269,7 +269,7 @@ public sealed class ModelAnimatorTests
         var asset = new AssetRef(Guid.Parse("e7000000-0000-4000-8000-000000000006"));
         go.AddComponent<ModelAnimatorController>().Controller = asset;
 
-        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var serializer = new SceneSerializer(TestRegistry.Create());
         var copy = serializer.Deserialize(serializer.Serialize(scene)).Scene.Find("Hero")!;
         Assert.Equal(asset, copy.GetComponent<ModelAnimatorController>()!.Controller);
         Assert.True(copy.GetComponent<ModelAnimator>()!.RootMotionRotation);
@@ -355,7 +355,7 @@ public sealed class ModelAnimatorTests
         var animator = scene.CreateGameObject("Model").AddComponent<ModelAnimator>();
         (animator.Model, animator.Clip, animator.Speed, animator.Loop, animator.PlayOnStart) = (new AssetRef(Guid.Parse("e7000000-0000-4000-8000-000000000002")), "Run", 1.5f, false, false);
 
-        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var serializer = new SceneSerializer(TestRegistry.Create());
         var copy = serializer.Deserialize(serializer.Serialize(scene)).Scene.Find("Model")!.GetComponent<ModelAnimator>()!;
         Assert.Equal((animator.Model, "Run", 1.5f, false, false), (copy.Model, copy.Clip, copy.Speed, copy.Loop, copy.PlayOnStart));
     }

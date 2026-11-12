@@ -117,13 +117,13 @@ public sealed class SceneLoadingTests : IDisposable
             using var font = Graphics.Text.Font.LoadDefault();
             using var logo = device.CreateTexture(Graphics.Svg.EngineLogo.Render(420), SamplerState.LinearClamp, "logo");
             using var renderer2D = new Renderer2D(device);
-            using var ui = new UI.UIRenderer(device, renderer2D.DefaultMaterial);
+            using var canvas = new Loading.StartupCanvas(renderer2D);
             var settings = new SplashScreenSettings { Enabled = true, Title = "", FadeIn = 0f, ShowProgress = false, ShowEngineBranding = true, Background = Mathematics.Color.Black, Foreground = Mathematics.Color.White };
             using var view = new SplashScreenView(settings, new StartupAssets(font, _ => null, _ => null, logo), AssetRef.None, AssetRef.None);
             view.Update(loaded: false, null, skip: false, new Mathematics.Vector2(640, 360), 1f, 0.016f);
             device.SetRenderTarget(null);
             device.Clear(Mathematics.Color.Black);
-            view.Render(ui, 640, 360);
+            view.Render(canvas, 640, 360);
             var pixels = new byte[640 * 360 * 4];
             device.ReadPixels(pixels);
             device.Present();

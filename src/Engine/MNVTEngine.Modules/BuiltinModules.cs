@@ -47,7 +47,6 @@ public static class BuiltinModules
     {
         Activation = ModuleActivation.Always,
         Requires = ["core", "graphics"],
-        Optional = ["scripting"],
         RuntimeAssemblies = ["MNVTEngine.Assets"],
     };
 
@@ -72,14 +71,14 @@ public static class BuiltinModules
 
     public static ModuleDefinition Scripting { get; } = new("scripting", "Scripting", "The .mnvts language, its VM and missions, and their engine bindings.")
     {
-        Requires = ["core", "audio"],
+        Requires = ["core"],
         RuntimeAssemblies = ["MNVTEngine.Scripting", "MNVTEngine.Scripting.Missions", "MNVTEngine.Scripting.Bindings"],
         Components = ["MNVTEngine.MissionRunner"],
     };
 
-    public static ModuleDefinition UI { get; } = new("ui", "UI", "Screen-space UI documents; the same in 2D and 3D projects.")
+    public static ModuleDefinition UI { get; } = new("ui", "UI", "Screen-space UI documents, drawn over the scene; the same in 2D and 3D projects.")
     {
-        Requires = ["core", "graphics"],
+        Requires = ["core", "graphics", "runtime"],
         RuntimeAssemblies = ["MNVTEngine.UI"],
         Components = ["MNVTEngine.UIDocument"],
     };
@@ -95,14 +94,16 @@ public static class BuiltinModules
     public static ModuleDefinition World2D { get; } = new("world.2d", "2D world", "Sprites, sprite animation, tilemaps and 2D lighting, and their rendering.")
     {
         Profiles = TwoD,
-        Requires = ["core", "graphics"],
+        Requires = ["core", "graphics", "runtime"],
+        RuntimeAssemblies = ["MNVTEngine.World2D", "MNVTEngine.World2D.Rendering"],
         Components = ["MNVTEngine.SpriteRenderer", "MNVTEngine.SpriteAnimator", "MNVTEngine.Tilemap", "MNVTEngine.Light2D", "MNVTEngine.GlobalLight2D"],
     };
 
     public static ModuleDefinition World3D { get; } = new("world.3d", "3D world", "Meshes, models and their animation, 3D lights, shadows, environment and sky, and their rendering.")
     {
         Profiles = ThreeD,
-        Requires = ["core", "graphics", "assets"],
+        Requires = ["core", "graphics", "assets", "runtime"],
+        RuntimeAssemblies = ["MNVTEngine.World3D", "MNVTEngine.World3D.Rendering"],
         BuildAssets =
         [
             "shader:standard", "shader:standard-skinned", "shader:standard-instanced", "shader:unlit", "shader:unlit-skinned",

@@ -3,6 +3,7 @@
     <PackageReference Include="StbImageWriteSharp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Tooling\MNVTEngine.Build\MNVTEngine.Build.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Assets\MNVTEngine.Assets.csproj" />
   </ItemGroup>
 </Project>

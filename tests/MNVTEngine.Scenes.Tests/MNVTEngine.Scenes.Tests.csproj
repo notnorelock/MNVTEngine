@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.World3D\MNVTEngine.World3D.csproj" />
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.World2D\MNVTEngine.World2D.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
   </ItemGroup>
 </Project>

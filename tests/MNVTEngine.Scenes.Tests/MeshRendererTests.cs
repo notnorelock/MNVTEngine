@@ -13,7 +13,7 @@ public sealed class MeshRendererTests
         var renderer = scene.CreateGameObject("Mesh").AddComponent<MeshRenderer>();
         (renderer.Primitive, renderer.Color, renderer.Texture, renderer.Material, renderer.DoubleSided) = (PrimitiveMesh.Capsule, new Color(0.2f, 0.4f, 0.6f, 0.5f), texture, material, true);
 
-        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var serializer = new SceneSerializer(TestRegistry.Create());
         var copy = serializer.Deserialize(serializer.Serialize(scene)).Scene.Find("Mesh")!.GetComponent<MeshRenderer>()!;
         Assert.Equal((PrimitiveMesh.Capsule, new Color(0.2f, 0.4f, 0.6f, 0.5f), texture, material, true), (copy.Primitive, copy.Color, copy.Texture, copy.Material, copy.DoubleSided));
     }
@@ -25,7 +25,7 @@ public sealed class MeshRendererTests
         var scene = new Scene();
         scene.CreateGameObject("Mesh").AddComponent<MeshRenderer>().Mesh = mesh;
 
-        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var serializer = new SceneSerializer(TestRegistry.Create());
         var json = serializer.Serialize(scene);
         Assert.Contains("\"asset:e3000000-0000-4000-8000-000000000003#mesh/Body_1\"", json, StringComparison.Ordinal);
         Assert.Equal(mesh, serializer.Deserialize(json).Scene.Find("Mesh")!.GetComponent<MeshRenderer>()!.Mesh);
@@ -85,7 +85,7 @@ public sealed class MeshRendererTests
         Assert.True(renderer.ClearMaterialOverride("_Roughness"));
         Assert.False(renderer.ClearMaterialOverride("_Roughness"));
 
-        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var serializer = new SceneSerializer(TestRegistry.Create());
         var json = serializer.Serialize(scene);
         Assert.DoesNotContain("_BaseColor", json, StringComparison.Ordinal); // runtime only
         Assert.Empty(serializer.Deserialize(json).Scene.Find("Crate")!.GetComponent<MeshRenderer>()!.MaterialOverrides);
@@ -109,7 +109,7 @@ public sealed class MeshRendererTests
         renderer.SetBlendShapeWeight(0, 0.5f);
         Assert.True(renderer.BlendShapeVersion > version);
 
-        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var serializer = new SceneSerializer(TestRegistry.Create());
         var copy = serializer.Deserialize(serializer.Serialize(scene)).Scene.Find("Face")!.GetComponent<MeshRenderer>()!;
         Assert.Equal([0.5f, 1f], copy.BlendShapeWeights);
 

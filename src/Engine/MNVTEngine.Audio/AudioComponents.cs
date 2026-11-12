@@ -364,10 +364,84 @@ public sealed partial class AudioSystem : GameSystem
     private static partial void LogClipFailed(ILogger logger, Exception exception, string clip);
 }
 
-/// <summary>The "audio" engine module. Audio: registers audio sources, listeners and mixers; the host owns the output device.</summary>
-public sealed class AudioModule : Scenes.IEngineModule
+/// <summary>
+/// The "audio" engine module: registers audio sources, listeners and mixers, owns the audio output (created at
+/// initialization from the host's factory, silent without one) and attaches an <see cref="AudioSystem"/> to every scene.
+/// </summary>
+public sealed class AudioModule(Audio.AudioDeviceFactory? createDevice = null, Microsoft.Extensions.Logging.ILogger? logger = null)
+    : Scenes.IEngineModule, Scenes.ISceneIntegration, Scenes.IDiagnosticsIntegration
 {
+    private Audio.IAudioDevice? _device;
+
     public string Id => "audio";
 
+    /// <summary>The output scenes play on; null before initialization.</summary>
+    public Audio.IAudioDevice? Device => _device;
+
     public void Register(Scenes.ComponentRegistry components) => AudioComponents.Register(components);
+
+    public void Initialize() => _device = Audio.AudioDevices.CreateOrSilent(createDevice, logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+
+    public void Shutdown()
+    {
+        _device?.Dispose();
+        _device = null;
+    }
+
+    public void SceneLoaded(Scene scene)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        if (_device is { } device && scene.AssetReader is { } assets)
+        {
+            AudioSystem.Attach(scene, device, clip => assets.ReadAllBytes(clip));
+        }
+
+        scene.SetService<ISceneAudio>(new SceneAudio(scene));
+    }
+
+    public IEnumerable<Diagnostics.IMetricsProvider> CreateMetricsProviders(Func<Scene?> scene) => [new AudioMetrics(scene)];
+
+    /// <summary>Voices and buffer memory of the running scene's audio.</summary>
+    private sealed class AudioMetrics(Func<Scene?> scene) : Diagnostics.IMetricsProvider
+    {
+        public string Name => "Audio";
+
+        public void Collect(Diagnostics.MetricsSnapshot metrics)
+        {
+            if (scene() is { } current && AudioSystem.For(current) is { } audio)
+            {
+                metrics.Set(Diagnostics.Metrics.AudioSources, audio.VoiceCount);
+                metrics.Set(Diagnostics.Metrics.AudioMemory, audio.BufferBytes);
+            }
+        }
+    }
+}
+
+/// <summary>The audio module's <see cref="ISceneAudio"/>: sources and the active mixer of one scene.</summary>
+internal sealed class SceneAudio(Scene scene) : ISceneAudio
+{
+    public void PlaySound(GameObject target) => Source(target).Play();
+
+    public void StopSound(GameObject target) => Source(target).Stop();
+
+    public void SetGroupVolume(string group, float volume) => WithMixer(mixer => mixer.SetVolume(group, volume));
+
+    public void SetGroupMuted(string group, bool muted) => WithMixer(mixer => mixer.SetMuted(group, muted));
+
+    private static AudioSource Source(GameObject target) =>
+        target.GetComponent<AudioSource>() ?? throw new InvalidOperationException($"'{target.Name}' has no AudioSource.");
+
+    private void WithMixer(Action<AudioMixer> action)
+    {
+        var mixer = scene.FindObjectsOfType<AudioMixer>().FirstOrDefault(m => m.IsActiveAndEnabled)
+            ?? throw new InvalidOperationException("The scene has no AudioMixer.");
+        try
+        {
+            action(mixer);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            throw new InvalidOperationException(ex.Message, ex);
+        }
+    }
 }

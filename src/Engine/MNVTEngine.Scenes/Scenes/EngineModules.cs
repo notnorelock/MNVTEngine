@@ -26,6 +26,28 @@ public interface IEngineModule
     }
 }
 
+/// <summary>A module that prepares every scene the host activates (attaches its scene system, sets its scene services).</summary>
+public interface ISceneIntegration
+{
+    /// <summary>Called for every scene the host activates, after its host services are set and before it starts.</summary>
+    void SceneLoaded(Scene scene);
+}
+
+/// <summary>
+/// A module with runtime diagnostics of its own (physics bodies, audio voices, UI elements, mission VMs). Without the
+/// module its metrics are not collected at all, so they read as unavailable, never as zero.
+/// </summary>
+public interface IDiagnosticsIntegration
+{
+    /// <summary>Metric providers for the overlay, profiler and budgets; <paramref name="scene"/> gives the running scene.</summary>
+    IEnumerable<Diagnostics.IMetricsProvider> CreateMetricsProviders(Func<Scene?> scene);
+
+    /// <summary>Developer console commands of the module.</summary>
+    void RegisterCommands(Diagnostics.DebugCommandRegistry commands, Func<Scene?> scene)
+    {
+    }
+}
+
 public enum ModuleHostState
 {
     Created,

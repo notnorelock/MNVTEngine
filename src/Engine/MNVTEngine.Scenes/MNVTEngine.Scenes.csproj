@@ -4,6 +4,7 @@
     <RootNamespace>MNVTEngine</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Diagnostics\MNVTEngine.Diagnostics.csproj" />
     <ProjectReference Include="..\MNVTEngine.ECS\MNVTEngine.ECS.csproj" />
     <ProjectReference Include="..\MNVTEngine.Input\MNVTEngine.Input.csproj" />
     <ProjectReference Include="..\MNVTEngine.Serialization\MNVTEngine.Serialization.csproj" />

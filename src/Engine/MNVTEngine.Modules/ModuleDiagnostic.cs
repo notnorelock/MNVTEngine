@@ -41,6 +41,9 @@ public sealed record ModuleDiagnostic(string Code, ModuleSeverity Severity, stri
     /// <summary>Information: a module was enabled because an enabled module requires it.</summary>
     public const string EnabledAsDependency = "MNVB610";
 
+    /// <summary>A module of the project has no implementation in the running executable.</summary>
+    public const string ModuleNotInHost = "MNVB611";
+
     public static ModuleDiagnostic Error(string code, string message, string? module = null) => new(code, ModuleSeverity.Error, message, module);
 
     public static ModuleDiagnostic Info(string code, string message, string? module = null) => new(code, ModuleSeverity.Info, message, module);

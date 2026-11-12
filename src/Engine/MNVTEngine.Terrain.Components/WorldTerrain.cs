@@ -232,9 +232,21 @@ public static class TerrainComponents
 }
 
 /// <summary>The "terrain" engine module. Terrain: registers terrain worlds.</summary>
-public sealed class TerrainModule : Scenes.IEngineModule
+public sealed class TerrainModule : Scenes.IEngineModule, Runtime.IResourceIntegration, Runtime.IMeshItemIntegration
 {
     public string Id => "terrain";
 
     public void Register(Scenes.ComponentRegistry components) => TerrainComponents.Register(components);
+
+    public void RegisterResources(Runtime.ResourceCache resources)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+        if (!resources.HasBuiltinShader(Graphics.Materials.MaterialShaders.TerrainSplatId))
+        {
+            resources.RegisterBuiltinShader(Graphics.Materials.MaterialShaders.TerrainSplatId, Graphics.Materials.MaterialShaders.TerrainSplat);
+        }
+    }
+
+    /// <summary>Terrain has no pass of its own: it draws in world.3d's pass, with its lights and shadows.</summary>
+    public Runtime.IMeshItemSource CreateItemSource(Runtime.RenderServices services) => new Runtime.TerrainMeshSource(services);
 }

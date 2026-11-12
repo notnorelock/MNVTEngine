@@ -16,18 +16,24 @@ namespace MNVTEngine.Runtime;
 /// normals); terrain tiles draw with the four-layer splat shader. Foliage presets are crossed quads and
 /// placed props are their model meshes, both instanced. Rebuilt when the component's version changes.
 /// </summary>
-public sealed partial class SceneRenderer
+public sealed partial class TerrainMeshSource(RenderServices services) : IMeshItemSource
 {
+    private readonly Renderer2D renderer = services.Renderer;
+    private readonly ResourceCache resources = services.Resources;
+    private GpuMeshCache? _meshes;
     private readonly Dictionary<WorldTerrain, TerrainDraw> _terrains = new(ReferenceEqualityComparer.Instance);
     private Mesh? _foliageQuads;
     private Material? _propFallback;
     private bool _terrainEvents;
 
-    private void AddTerrainItems(Scene scene)
+    public void AddItems(MeshItemContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+        var scene = context.Scene;
+        _meshes = context.Meshes;
         foreach (var terrain in scene.World.Pool<WorldTerrain>().Components)
         {
-            if (!terrain.IsActiveAndEnabled || Hidden(terrain.GameObject) || terrain.Data is not { } data)
+            if (!terrain.IsActiveAndEnabled || context.IsHidden(terrain.GameObject) || terrain.Data is not { } data)
             {
                 continue;
             }
@@ -36,7 +42,7 @@ public sealed partial class SceneRenderer
             {
                 // Reimported textures or models replace what the built materials hold: rebuild every terrain.
                 resources.TexturesEvicted += _ => InvalidateTerrains();
-                resources.MeshesEvicted += _ => InvalidateTerrains();
+                resources.Models.MeshesEvicted += _ => InvalidateTerrains();
                 _terrainEvents = true;
             }
 
@@ -50,19 +56,19 @@ public sealed partial class SceneRenderer
                 Rebuild(draw, terrain, data);
             }
 
-            draw.LastFrame = _frame;
+            draw.LastFrame = context.Frame;
             var world = terrain.Transform.LocalToWorldMatrix;
             var white = resources.GetDefaultTexture(DefaultTexture.White);
             foreach (var surface in draw.Surfaces)
             {
-                _items.Add(new MeshDrawItem(Meshes().Get(surface.Mesh), surface.SubMesh, surface.Material, white, world * surface.Local, surface.Cull));
+                context.Items.Add(new MeshDrawItem(context.Meshes.Get(surface.Mesh), surface.SubMesh, surface.Material, white, world * surface.Local, surface.Cull));
             }
 
             foreach (var instance in draw.Instances)
             {
                 if ((instance.Foliage && terrain.DrawFoliage) || (!instance.Foliage && terrain.DrawProps))
                 {
-                    _items.Add(new MeshDrawItem(Meshes().Get(instance.Mesh), instance.SubMesh, instance.Material, white, world * instance.Local, instance.Cull));
+                    context.Items.Add(new MeshDrawItem(context.Meshes.Get(instance.Mesh), instance.SubMesh, instance.Material, white, world * instance.Local, instance.Cull));
                 }
             }
         }
@@ -70,7 +76,7 @@ public sealed partial class SceneRenderer
         // Release terrains that stopped drawing (destroyed or disabled); no allocation while every terrain draws.
         foreach (var (component, draw) in _terrains)
         {
-            if (draw.LastFrame != _frame)
+            if (draw.LastFrame != context.Frame)
             {
                 ReleaseTerrain(draw);
                 _terrains.Remove(component);
@@ -157,7 +163,7 @@ public sealed partial class SceneRenderer
     private Material SurfaceMaterial(WorldTerrain terrain, string? texture, MaterialHint? hint)
     {
         var material = new Material(resources.GetBuiltinShader(Serialization.MaterialDefinition.BuiltinStandard), BlendMode.Opaque, "Terrain surface");
-        MaterialShaders.ApplyDefaults(material, MaterialShaders.StandardProperties, resources.GetDefaultTexture);
+        MaterialProperties.ApplyDefaults(material, MaterialShaders.StandardProperties, resources.GetDefaultTexture);
         var color = hint?.Color is { } rgb ? new Color(((rgb >> 16) & 0xff) / 255f, ((rgb >> 8) & 0xff) / 255f, (rgb & 0xff) / 255f) : Color.White;
         var opacity = (float)(hint?.Opacity ?? 1);
         color.A = opacity;
@@ -182,7 +188,7 @@ public sealed partial class SceneRenderer
     private Material SplatMaterial(TerrainDraw draw, WorldTerrain terrain, Terrain.Elements.Terrain tile)
     {
         var material = new Material(resources.GetBuiltinShader(MaterialShaders.TerrainSplatId), BlendMode.Opaque, "Terrain splat");
-        MaterialShaders.ApplyDefaults(material, MaterialShaders.StandardProperties, resources.GetDefaultTexture);
+        MaterialProperties.ApplyDefaults(material, MaterialShaders.StandardProperties, resources.GetDefaultTexture);
         material.SetFloat("_Roughness", 1f);
         var paint = tile.TexturePaint;
         var control = renderer.Device.CreateTexture(paint.Resolution, paint.Resolution, paint.Data, SamplerState.LinearClamp, "Terrain control map");
@@ -214,7 +220,7 @@ public sealed partial class SceneRenderer
 
             // Unlit, like TerrainHeaven's foliage: the texture with an alpha cutoff, or the preset's mid tint without one.
             var material = new Material(resources.GetBuiltinShader(Serialization.MaterialDefinition.BuiltinUnlit), BlendMode.Opaque, $"Foliage {type.DisplayName}");
-            MaterialShaders.ApplyDefaults(material, MaterialShaders.UnlitProperties, resources.GetDefaultTexture);
+            MaterialProperties.ApplyDefaults(material, MaterialShaders.UnlitProperties, resources.GetDefaultTexture);
             if (TerrainTexture(terrain, type.TexturePath) is { } map)
             {
                 material.SetTexture("_BaseColorMap", map);
@@ -301,7 +307,7 @@ public sealed partial class SceneRenderer
         if (_propFallback is null)
         {
             _propFallback = new Material(resources.GetBuiltinShader(Serialization.MaterialDefinition.BuiltinStandard), BlendMode.Opaque, "Prop");
-            MaterialShaders.ApplyDefaults(_propFallback, MaterialShaders.StandardProperties, resources.GetDefaultTexture);
+            MaterialProperties.ApplyDefaults(_propFallback, MaterialShaders.StandardProperties, resources.GetDefaultTexture);
         }
 
         return _propFallback;
@@ -354,6 +360,8 @@ public sealed partial class SceneRenderer
         draw.Surfaces.Clear();
         draw.Instances.Clear();
     }
+
+    public void Dispose() => DisposeTerrains();
 
     private void DisposeTerrains()
     {

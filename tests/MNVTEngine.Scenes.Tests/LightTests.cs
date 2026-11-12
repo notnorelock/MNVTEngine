@@ -15,7 +15,7 @@ public sealed class LightTests
         var ambient = scene.CreateGameObject("Ambient").AddComponent<AmbientLight>();
         (ambient.Color, ambient.Intensity) = (new Color(0.1f, 0.2f, 0.3f), 0.5f);
 
-        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var serializer = new SceneSerializer(TestRegistry.Create());
         var copy = serializer.Deserialize(serializer.Serialize(scene)).Scene;
         var l = copy.Find("Spot")!.GetComponent<Light>()!;
         Assert.Equal((LightType.Spot, new Color(1f, 0.5f, 0.25f), 3f, 7f, 50f, 35f), (l.Type, l.Color, l.Intensity, l.Range, l.SpotAngle, l.InnerSpotAngle));
@@ -51,7 +51,7 @@ public sealed class LightTests
         var camera = scene.CreateGameObject("Camera").AddComponent<Camera>();
         (camera.ToneMapping, camera.Exposure) = (ToneMappingMode.Aces, 1.5f);
 
-        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var serializer = new SceneSerializer(TestRegistry.Create());
         var copy = serializer.Deserialize(serializer.Serialize(scene)).Scene;
         var e = copy.Find("Env")!.GetComponent<SceneEnvironment>()!;
         Assert.Equal((environment.Sky, 0.7f, 45f, false), (e.Sky, e.Intensity, e.Rotation, e.DrawSkybox));

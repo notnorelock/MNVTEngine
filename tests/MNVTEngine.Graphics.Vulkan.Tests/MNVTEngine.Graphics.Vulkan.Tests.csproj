@@ -7,6 +7,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.World3D.Rendering\MNVTEngine.World3D.Rendering.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Platform\MNVTEngine.Platform.csproj" />
   </ItemGroup>

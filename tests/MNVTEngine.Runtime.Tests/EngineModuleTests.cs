@@ -7,8 +7,8 @@ namespace MNVTEngine.Runtime.Tests;
 /// <summary>The catalog's component lists, the runtime module implementations and project resolution agree.</summary>
 public sealed class EngineModuleTests : IDisposable
 {
-    // Until the world modules get their own assemblies, their components are registered with core's.
-    private static readonly string[] HostedInCore = ["core", "world.2d", "world.3d"];
+    // Shared scene components (Transform, Camera) are registered by core itself.
+    private static readonly string[] HostedInCore = ["core"];
 
     private readonly string _root = Directory.CreateTempSubdirectory("mnvt-modules-").FullName;
 
@@ -19,9 +19,10 @@ public sealed class EngineModuleTests : IDisposable
     [Fact]
     public void EachModuleImplementation_RegistersExactlyItsCatalogComponents()
     {
+        var implementations = Build.EngineModuleSet.All().ToDictionary(m => m.Id);
         foreach (var module in ModuleCatalog.Builtin.Modules)
         {
-            if (EngineModules.Create(module.Id) is not { } implementation)
+            if (!implementations.TryGetValue(module.Id, out var implementation))
             {
                 Assert.True(HostedInCore.Contains(module.Id) || module.Components.Count == 0, $"'{module.Id}' declares components but has no implementation.");
                 continue;
@@ -40,7 +41,7 @@ public sealed class EngineModuleTests : IDisposable
     [Fact]
     public void EveryBuiltInComponent_BelongsToExactlyOneModule()
     {
-        var all = Ids(EngineComponents.CreateRegistry());
+        var all = Ids(Build.EngineModuleSet.CreateRegistry());
         Assert.Equal(ModuleCatalog.Builtin.Modules.SelectMany(m => m.Components).Order(StringComparer.Ordinal), all.Order(StringComparer.Ordinal));
     }
 
@@ -55,7 +56,7 @@ public sealed class EngineModuleTests : IDisposable
 
         // The game host registers only the enabled modules' components.
         var registry = ComponentRegistry.CreateDefault();
-        var host = new ModuleHost(EngineModules.For(resolution));
+        var host = new ModuleHost(ProjectModules.Implementations(resolution, Build.EngineModuleSet.All()).Modules);
         host.Start(registry);
         Assert.False(registry.TryGetType("MNVTEngine.AudioSource", out _));
         Assert.True(registry.TryGetType("MNVTEngine.Rigidbody2D", out _));
@@ -64,10 +65,21 @@ public sealed class EngineModuleTests : IDisposable
     }
 
     [Fact]
+    public void Hosts_MustContainTheProjectsModules_ButNotInfrastructure()
+    {
+        WriteProject("2d", "{}", "MNVTEngine.SpriteRenderer");
+        var resolution = ProjectModules.Resolve(GameProject.Load(_root));
+        Assert.Empty(ProjectModules.Implementations(resolution, Build.EngineModuleSet.All()).Missing);
+        var missing = ProjectModules.Implementations(resolution, [new AudioModule()]).Missing;
+        Assert.Contains(missing, d => d.Code == ModuleDiagnostic.ModuleNotInHost && d.Module == "world.2d");
+        Assert.DoesNotContain(missing, d => d.Module == "core"); // core's components are registered by Scenes itself
+    }
+
+    [Fact]
     public void TheGame_DoesNotStart_WhenItsModulesDoNotResolve()
     {
         WriteProject("2d", """{ "physics.3d": true }""", "MNVTEngine.Camera");
-        var exit = GameApplication.Run([_root], (_, _) => throw new InvalidOperationException("no window expected"), NullLoggerFactory.Instance);
+        var exit = GameApplication.Run([_root], (_, _) => throw new InvalidOperationException("no window expected"), NullLoggerFactory.Instance, Build.EngineModuleSet.All());
         Assert.Equal(2, exit);
     }
 
@@ -76,7 +88,7 @@ public sealed class EngineModuleTests : IDisposable
     {
         // Loading would keep the component as a MissingComponent and drop it silently.
         WriteProject("3d", """{ "terrain": false }""", "MNVTEngine.Camera", "MNVTEngine.WorldTerrain");
-        var exit = GameApplication.Run([_root], (_, _) => throw new InvalidOperationException("no window expected"), NullLoggerFactory.Instance);
+        var exit = GameApplication.Run([_root], (_, _) => throw new InvalidOperationException("no window expected"), NullLoggerFactory.Instance, Build.EngineModuleSet.All());
         Assert.Equal(2, exit);
     }
 

@@ -4,17 +4,11 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MNVTEngine.Assets\MNVTEngine.Assets.csproj" />
-    <ProjectReference Include="..\MNVTEngine.Audio\MNVTEngine.Audio.csproj" />
     <ProjectReference Include="..\MNVTEngine.Modules\MNVTEngine.Modules.csproj" />
     <ProjectReference Include="..\MNVTEngine.CrashReporting\MNVTEngine.CrashReporting.csproj" />
     <ProjectReference Include="..\MNVTEngine.Diagnostics\MNVTEngine.Diagnostics.csproj" />
     <ProjectReference Include="..\MNVTEngine.Graphics\MNVTEngine.Graphics.csproj" />
-    <ProjectReference Include="..\MNVTEngine.Physics2D\MNVTEngine.Physics2D.csproj" />
-    <ProjectReference Include="..\MNVTEngine.Physics3D\MNVTEngine.Physics3D.csproj" />
     <ProjectReference Include="..\MNVTEngine.Platform\MNVTEngine.Platform.csproj" />
     <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
-    <ProjectReference Include="..\MNVTEngine.Scripting.Bindings\MNVTEngine.Scripting.Bindings.csproj" />
-    <ProjectReference Include="..\MNVTEngine.Terrain.Components\MNVTEngine.Terrain.Components.csproj" />
-    <ProjectReference Include="..\MNVTEngine.UI\MNVTEngine.UI.csproj" />
   </ItemGroup>
 </Project>

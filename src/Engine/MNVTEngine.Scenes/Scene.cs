@@ -29,6 +29,8 @@ public sealed partial class Scene
         Name = name;
     }
 
+    private readonly Dictionary<Type, object> _services = [];
+
     public string Name { get; set; }
 
     public World World { get; } = new();
@@ -48,14 +50,33 @@ public sealed partial class Scene
     /// <summary>Host service for <see cref="Instantiate"/> and <see cref="Prefab.Instantiate"/>.</summary>
     public IPrefabProvider? Prefabs { get; set; }
 
+    /// <summary>Host service for modules that read asset bytes (audio clips).</summary>
+    public IAssetReader? AssetReader { get; set; }
+
     /// <summary>Host service for components that read text assets, such as mission scripts.</summary>
     public ITextAssetReader? TextAssets { get; set; }
 
-    /// <summary>Host service for <see cref="ModelAnimator"/>: the animation clips of imported models.</summary>
-    public IModelAnimationProvider? ModelAnimations { get; set; }
+    /// <summary>
+    /// A host service a module defines for its own components (for example world.3d's model animations), set by the
+    /// host for each scene; null when the host has none. Modules expose them as typed members of their own, so a
+    /// scene of a project without the module carries none of its types.
+    /// </summary>
+    public T? GetService<T>()
+        where T : class => _services.TryGetValue(typeof(T), out var service) ? (T)service : null;
 
-    /// <summary>Host service for systems that need a renderer's triangles on the CPU (mesh colliders).</summary>
-    public IMeshDataProvider? MeshData { get; set; }
+    /// <summary>Sets (or with null, removes) the host service of type <typeparamref name="T"/>.</summary>
+    public void SetService<T>(T? service)
+        where T : class
+    {
+        if (service is null)
+        {
+            _services.Remove(typeof(T));
+        }
+        else
+        {
+            _services[typeof(T)] = service;
+        }
+    }
 
     /// <summary>Exceptions from component callbacks are logged and the frame continues; set true to rethrow (tests, debugging).</summary>
     public bool RethrowScriptExceptions { get; set; }

@@ -8,7 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\MNVTEngine.Physics3D\MNVTEngine.Physics3D.csproj" />
-    <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+    <ProjectReference Include="..\MNVTEngine.World3D.Rendering\MNVTEngine.World3D.Rendering.csproj" />
     <ProjectReference Include="..\MNVTEngine.Terrain\MNVTEngine.Terrain.csproj" />
   </ItemGroup>
 </Project>

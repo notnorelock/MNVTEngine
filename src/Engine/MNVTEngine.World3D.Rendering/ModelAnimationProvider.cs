@@ -67,14 +67,14 @@ public sealed partial class ModelAnimationProvider : IModelAnimationProvider, IM
             return data.Meshes.Count == 1 ? data.Meshes[0] : null;
         }
 
-        return data.FindMesh(sub.StartsWith(ResourceCache.MeshSubAssetPrefix, StringComparison.Ordinal) ? sub[ResourceCache.MeshSubAssetPrefix.Length..] : sub);
+        return data.FindMesh(sub.StartsWith(ModelCache.MeshSubAssetPrefix, StringComparison.Ordinal) ? sub[ModelCache.MeshSubAssetPrefix.Length..] : sub);
     }
 
     /// <summary>A renderer's triangles: its model mesh (bind pose), or its primitive.</summary>
     public MeshData? GetMeshData(MeshRenderer renderer)
     {
         ArgumentNullException.ThrowIfNull(renderer);
-        var mesh = !renderer.Mesh.IsNone ? MeshOf(renderer.Mesh)?.Mesh : renderer.Primitive != PrimitiveMesh.None ? SceneRenderer.GetPrimitive(renderer.Primitive) : null;
+        var mesh = !renderer.Mesh.IsNone ? MeshOf(renderer.Mesh)?.Mesh : renderer.Primitive != PrimitiveMesh.None ? MeshScenePass.GetPrimitive(renderer.Primitive) : null;
         return mesh is null ? null : new MeshData(mesh.Positions, [.. mesh.IndexSpan.ToArray().Select(i => (int)i)]);
     }
 

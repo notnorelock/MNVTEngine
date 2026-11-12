@@ -72,7 +72,7 @@ public sealed class UIPanel() : DebugPanel("UI")
             Mark(context, _selected?.Context == context ? _selected : null, Color.Magenta, 2f);
         }
 
-        if (_showAtlas && Diagnostics.Target?.UI is { } renderer)
+        if (_showAtlas && Diagnostics.Target?.Modules?.OfType<UI.UIModule>().FirstOrDefault()?.Renderer is { } renderer)
         {
             var atlas = renderer.Atlas;
             Gui.Muted($"{atlas.PageCount} page(s) of {Graphics.Text.GlyphAtlas.PageSize}^2, {atlas.GlyphCount} glyphs, {atlas.ImageCount} shapes, generation {atlas.Generation}");

@@ -52,10 +52,19 @@ public sealed class ScriptProject
             : throw new FileNotFoundException($"Scripts project '{relative}' not found.", file);
     }
 
-    /// <summary>Fingerprint of every source input (paths, sizes, timestamps of .cs/.csproj/.props/.targets; bin and obj excluded).</summary>
+    /// <summary>
+    /// Fingerprint of every source input (paths, sizes, timestamps of .cs/.csproj/.props/.targets; bin and obj excluded)
+    /// and of the engine build the scripts compile against: a script assembly built against an older engine (for example
+    /// before a component moved to another assembly) would fail to load.
+    /// </summary>
     public string ComputeSourceStamp()
     {
         var builder = new StringBuilder();
+        foreach (var engine in EngineAssemblies.Value)
+        {
+            builder.Append(CultureInfo.InvariantCulture, $"engine:{engine}\n");
+        }
+
         var files = Directory.EnumerateFiles(SourceDirectory, "*", SearchOption.AllDirectories)
             .Where(f => Path.GetExtension(f).ToUpperInvariant() is ".CS" or ".CSPROJ" or ".PROPS" or ".TARGETS")
             .Where(f => !IsUnder(f, "bin") && !IsUnder(f, "obj"))
@@ -68,6 +77,27 @@ public sealed class ScriptProject
 
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
     }
+
+    // Module version ids of the engine assemblies scripts can reference (every module's, and what they reference), by name.
+    private static readonly Lazy<IReadOnlyList<string>> EngineAssemblies = new(() =>
+    {
+        var found = new SortedDictionary<string, System.Reflection.Assembly>(StringComparer.Ordinal);
+        var pending = new Stack<System.Reflection.Assembly>([typeof(Scene).Assembly, typeof(GameProject).Assembly, .. EngineModuleSet.All().Select(m => m.GetType().Assembly)]);
+        while (pending.TryPop(out var assembly))
+        {
+            if (!found.TryAdd(assembly.GetName().Name!, assembly))
+            {
+                continue;
+            }
+
+            foreach (var reference in assembly.GetReferencedAssemblies().Where(r => r.Name?.StartsWith("MNVTEngine.", StringComparison.Ordinal) == true))
+            {
+                pending.Push(System.Reflection.Assembly.Load(reference));
+            }
+        }
+
+        return [.. found.Select(p => $"{p.Key}:{p.Value.ManifestModule.ModuleVersionId}")];
+    });
 
     /// <summary>True if the last successful build used exactly the current sources.</summary>
     public bool IsBuildUpToDate() =>

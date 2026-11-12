@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The 2D world's components (module world.2d). Scene data only: rendering is MNVTEngine.World2D.Rendering, so physics can use tilemaps without graphics. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+  </ItemGroup>
+</Project>

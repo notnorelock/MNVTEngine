@@ -562,7 +562,7 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
     /// <summary>The CPU mesh a renderer draws, for picking (skinned meshes by their bind pose).</summary>
     private Mesh? MeshOf(MeshRenderer renderer) =>
         !renderer.Mesh.IsNone ? context.Resources.GetModelMesh(renderer.Mesh)?.Mesh
-        : renderer.Primitive != PrimitiveMesh.None ? SceneRenderer.GetPrimitive(renderer.Primitive) : null;
+        : renderer.Primitive != PrimitiveMesh.None ? MeshScenePass.GetPrimitive(renderer.Primitive) : null;
 
     /// <summary>World box of a GameObject: its mesh and its children's meshes, or a 1-unit box at its position.</summary>
     private Bounds BoundsOf(GameObject gameObject)
@@ -598,7 +598,7 @@ internal sealed class SceneView3D(EditorContext context) : IDisposable
             Cull = CullMode.None,
         };
         material.SetColor("_BaseColor", Color.White);
-        MaterialShaders.ApplyDefaults(material, MaterialShaders.UnlitProperties, context.Resources.GetDefaultTexture);
+        MaterialProperties.ApplyDefaults(material, MaterialShaders.UnlitProperties, context.Resources.GetDefaultTexture);
         return material;
     }
 

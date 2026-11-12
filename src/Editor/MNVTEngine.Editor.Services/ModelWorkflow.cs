@@ -70,7 +70,7 @@ public sealed class ModelWorkflow
             return [];
         }
 
-        var prefix = $"asset:{Guid:D}#{Runtime.ResourceCache.MeshSubAssetPrefix}";
+        var prefix = $"asset:{Guid:D}#{Runtime.ModelCache.MeshSubAssetPrefix}";
         var missing = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
         foreach (var record in _assets.Assets.Where(a => a.Type is AssetTypes.Scene or AssetTypes.Prefab).ToList())
         {

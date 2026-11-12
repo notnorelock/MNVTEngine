@@ -99,7 +99,7 @@ public sealed class ScriptDocumentTests : IDisposable
     public void SavedMissionScript_ReloadsInPlayMode_AfterAssetRefresh()
     {
         var project = NewProject();
-        var session = new EditorSession(project, EngineComponents.CreateRegistry());
+        var session = new EditorSession(project, Build.EngineModuleSet.CreateRegistry());
         session.OpenScene("Scenes/Main.mnvt");
         var script = session.Assets.WriteText("Logic.mnvts", "var level = 1; var seen = 0; on start { seen = level }");
         session.Scene.CreateGameObject("Logic").AddComponent<MissionRunner>().Script = new AssetRef(script);

@@ -16,7 +16,7 @@ public sealed class RenamedMover : Component
 
 public class ComponentIdTests
 {
-    private static readonly SceneSerializer Serializer = new(ComponentRegistry.CreateDefault().Register<PlainMover>().Register<RenamedMover>());
+    private static readonly SceneSerializer Serializer = new(TestRegistry.Create().Register<PlainMover>().Register<RenamedMover>());
 
     [Fact]
     public void WithoutAnAttribute_TheIdIsTheFullTypeName()

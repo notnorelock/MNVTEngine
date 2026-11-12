@@ -54,7 +54,7 @@ public static class ContentCompiler
             return [];
         }
 
-        AssetDatabase.OpenForEditing(project.AssetsDirectory, Path.Combine(project.RootDirectory, "Library"));
+        AssetDatabase.OpenForEditing(project.AssetsDirectory, Path.Combine(project.RootDirectory, "Library"), EngineImporters.All());
         return [.. missing.Where(f => File.Exists(f + AssetDatabase.MetaExtension)).Select(f => BuildDiagnostic.Warning(
             "MNVB209", "Created its .meta file (the asset's GUID); commit it together with the asset.", AssetPaths.ToRelative(project.AssetsDirectory, f)))];
     }
@@ -74,7 +74,7 @@ public static class ContentCompiler
             return [];
         }
 
-        var assets = AssetDatabase.OpenForEditing(project.AssetsDirectory, LibraryOf(project), ModelImporters.WithDefaults());
+        var assets = AssetDatabase.OpenForEditing(project.AssetsDirectory, LibraryOf(project), EngineImporters.All());
         var diagnostics = new List<BuildDiagnostic>();
         foreach (var record in assets.Assets.Where(r => r.Type == AssetTypes.Model).OrderBy(r => r.Path, StringComparer.Ordinal))
         {
@@ -98,10 +98,10 @@ public static class ContentCompiler
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(registry);
         var diagnostics = new List<BuildDiagnostic>();
-        var assets = AssetDatabase.OpenReadOnly(project.AssetsDirectory, artifactsLibrary: LibraryOf(project));
+        var assets = AssetDatabase.OpenReadOnly(project.AssetsDirectory, EngineImporters.All(), artifactsLibrary: LibraryOf(project));
         diagnostics.AddRange(assets.Diagnostics.Select(d => BuildDiagnostic.FromSerialization("MNVB201", d)));
 
-        var importers = AssetImporters.CreateDefault()
+        var importers = EngineImporters.All()
             .SelectMany(i => i.Extensions.Select(e => (Extension: e, Importer: i)))
             .ToDictionary(p => p.Extension, p => p.Importer, StringComparer.OrdinalIgnoreCase);
         var serializer = new SceneSerializer(registry, assets);

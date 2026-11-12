@@ -85,7 +85,7 @@ public sealed class CameraTests
         var scene = new Scene();
         var camera = scene.CreateGameObject("Eye").AddComponent<Camera>();
         (camera.Projection, camera.FieldOfView, camera.NearClip, camera.FarClip) = (CameraProjection.Perspective, 75f, 0.3f, 500f);
-        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var serializer = new SceneSerializer(TestRegistry.Create());
         var copy = serializer.Deserialize(serializer.Serialize(scene)).Scene.Find("Eye")!.GetComponent<Camera>()!;
         Assert.Equal((CameraProjection.Perspective, 75f, 0.3f, 500f), (copy.Projection, copy.FieldOfView, copy.NearClip, copy.FarClip));
     }

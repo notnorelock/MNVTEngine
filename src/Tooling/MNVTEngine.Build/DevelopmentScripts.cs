@@ -76,11 +76,11 @@ public static class DevelopmentScripts
 public static partial class DevelopmentRun
 {
     /// <returns>The <see cref="GameApplication.Run"/> exit code.</returns>
-    public static int Run(string[] args, ILoggerFactory loggerFactory, GraphicsDeviceFactory createDevice, AudioDeviceFactory? createAudio = null, DevelopmentTools? tools = null)
+    public static int Run(string[] args, ILoggerFactory loggerFactory, GraphicsDeviceFactory createDevice, Audio.AudioDeviceFactory? createAudio = null, DevelopmentTools? tools = null)
     {
         ArgumentNullException.ThrowIfNull(loggerFactory);
         var logger = loggerFactory.CreateLogger("Player");
-        return GameApplication.Run(args, createDevice, loggerFactory, (project, registry) =>
+        return GameApplication.Run(args, createDevice, loggerFactory, EngineModuleSet.All(createAudio, logger), (project, registry) =>
         {
             var models = ContentCompiler.ImportModels(project);
             var result = DevelopmentScripts.LoadAsync(project, registry, file => LogCompiling(logger, file)).GetAwaiter().GetResult();
@@ -90,7 +90,7 @@ public static partial class DevelopmentRun
             }
 
             return result.Succeeded;
-        }, createAudio: createAudio, tools: tools);
+        }, tools: tools, importers: EngineImporters.All());
     }
 
     [LoggerMessage(EventId = 6000, Level = LogLevel.Information, Message = "Compiling scripts {Project}...")]

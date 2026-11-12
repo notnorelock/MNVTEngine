@@ -146,12 +146,25 @@ public class MissionRunnerTests
             RethrowScriptExceptions = true,
         };
         var mixer = scene.CreateGameObject("Mixer").AddComponent<AudioMixer>();
+        new AudioModule().SceneLoaded(scene); // the audio module gives scenes their sound service (ISceneAudio)
         scene.CreateGameObject("Logic").AddComponent<MissionRunner>().Script = new AssetRef(Guid.NewGuid());
         scene.Start();
         Frame(scene, 2);
 
         Assert.Equal(0.25f, mixer.Find("Music")!.Volume);
         Assert.True(mixer.Find("Effects")!.Muted);
+    }
+
+    [Fact]
+    public void AudioNatives_DoNothing_WithoutTheAudioModule()
+    {
+        var scene = new Scene { TextAssets = new FakeTextAssets("""on start { audio.mute("Effects", true) }"""), RethrowScriptExceptions = true };
+        var mixer = scene.CreateGameObject("Mixer").AddComponent<AudioMixer>();
+        scene.CreateGameObject("Logic").AddComponent<MissionRunner>().Script = new AssetRef(Guid.NewGuid());
+        scene.Start();
+        Frame(scene, 2); // the script's fiber faults ("This game has no audio: ..."); the game keeps running
+
+        Assert.False(mixer.Find("Effects")!.Muted);
     }
 
     [Fact]

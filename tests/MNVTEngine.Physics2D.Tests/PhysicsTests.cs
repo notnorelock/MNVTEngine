@@ -235,7 +235,7 @@ public class PhysicsTests
         go.AddComponent<CircleCollider2D>().Radius = 2f;
         Assert.Null(scene.Systems.Get<PhysicsWorld2D>());
 
-        var serializer = new SceneSerializer(Physics2DComponents.Register(ComponentRegistry.CreateDefault()));
+        var serializer = new SceneSerializer(Physics2DComponents.Register(World2DComponents.Register(ComponentRegistry.CreateDefault())));
         var loaded = serializer.Deserialize(serializer.Serialize(scene));
         Assert.Empty(loaded.Diagnostics);
         var copy = loaded.Scene.Find("Box")!;
@@ -291,7 +291,7 @@ public class TilemapColliderTests
 
         Assert.Equal([(0, 0, 3), (4, 0, 2), (3, 2, 1)], collider.SolidRuns());
 
-        var serializer = new SceneSerializer(Physics2DComponents.Register(ComponentRegistry.CreateDefault()));
+        var serializer = new SceneSerializer(Physics2DComponents.Register(World2DComponents.Register(ComponentRegistry.CreateDefault())));
         var copy = serializer.Deserialize(serializer.Serialize(go.Scene)).Scene.Find("Map")!;
         Assert.Equal([9], copy.GetComponent<TilemapCollider2D>()!.IgnoredTiles);
         Assert.Equal(collider.SolidRuns(), copy.GetComponent<TilemapCollider2D>()!.SolidRuns());

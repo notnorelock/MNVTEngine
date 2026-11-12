@@ -169,13 +169,13 @@ public sealed partial class GameRuntime : ILoadingScreenHost
         }
 
         _device.SetRenderTarget(null);
-        _loadingView?.Render(_ui, _window.FramebufferWidth, _window.FramebufferHeight);
+        _loadingView?.Render(_startup, _window.FramebufferWidth, _window.FramebufferHeight);
         foreach (var manual in _manualScreens)
         {
-            manual.View.Render(_ui, _window.FramebufferWidth, _window.FramebufferHeight);
+            manual.View.Render(_startup, _window.FramebufferWidth, _window.FramebufferHeight);
         }
 
-        _splash?.Render(_ui, _window.FramebufferWidth, _window.FramebufferHeight);
+        _splash?.Render(_startup, _window.FramebufferWidth, _window.FramebufferHeight);
     }
 
     /// <summary>

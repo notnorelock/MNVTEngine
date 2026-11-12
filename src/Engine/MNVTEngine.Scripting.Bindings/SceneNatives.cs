@@ -35,10 +35,26 @@ public static class SceneNatives
             }),
             new("marker.show", c => SetActive(Find(c, 0), true)),
             new("marker.hide", c => SetActive(Find(c, 0), false)),
-            new("audio.play", c => Sound(Find(c, 0)).Play()),
-            new("audio.stop", c => Sound(Find(c, 0)).Stop()),
-            new("audio.set_volume", c => Mixer(scene, c.String(0), volume: (float)c.Number(1), muted: null)),
-            new("audio.mute", c => Mixer(scene, c.String(0), volume: null, muted: c[1].IsTruthy)),
+            new("audio.play", c =>
+            {
+                var target = Find(c, 0);
+                return Audio(scene, audio => audio.PlaySound(target));
+            }),
+            new("audio.stop", c =>
+            {
+                var target = Find(c, 0);
+                return Audio(scene, audio => audio.StopSound(target));
+            }),
+            new("audio.set_volume", c =>
+            {
+                var (group, volume) = (c.String(0), (float)c.Number(1));
+                return Audio(scene, audio => audio.SetGroupVolume(group, volume));
+            }),
+            new("audio.mute", c =>
+            {
+                var (group, muted) = (c.String(0), c[1].IsTruthy);
+                return Audio(scene, audio => audio.SetGroupMuted(group, muted));
+            }),
             new("scene.load", c =>
             {
                 (scene.Loader ?? throw new ScriptRuntimeException("This scene cannot load other scenes.")).RequestLoad(c.String(0));
@@ -64,32 +80,21 @@ public static class SceneNatives
         ["y"] = ScriptValue.FromNumber(position.Y),
     });
 
-    private static ScriptValue Mixer(Scene scene, string group, float? volume, bool? muted)
+    /// <summary>Sound through the scene's audio service (the audio module); a script error when the project has none.</summary>
+    private static ScriptValue Audio(Scene scene, Action<ISceneAudio> action)
     {
-        var mixer = scene.FindObjectsOfType<AudioMixer>().FirstOrDefault(m => m.IsActiveAndEnabled)
-            ?? throw new ScriptRuntimeException("The scene has no AudioMixer.");
+        var audio = scene.GetService<ISceneAudio>() ?? throw new ScriptRuntimeException("This game has no audio: the audio module is not part of the project.");
         try
         {
-            if (volume is { } v)
-            {
-                mixer.SetVolume(group, v);
-            }
-
-            if (muted is { } m)
-            {
-                mixer.SetMuted(group, m);
-            }
+            action(audio);
         }
-        catch (KeyNotFoundException ex)
+        catch (InvalidOperationException ex)
         {
             throw new ScriptRuntimeException(ex.Message);
         }
 
         return ScriptValue.Null;
     }
-
-    private static AudioCall Sound(GameObject target) =>
-        new(target.GetComponent<AudioSource>() ?? throw new ScriptRuntimeException($"'{target.Name}' has no AudioSource."));
 
     private static ScriptValue SetActive(GameObject target, bool active)
     {
@@ -99,20 +104,4 @@ public static class SceneNatives
 
     private static Key ParseKey(string name) =>
         Enum.TryParse<Key>(name, ignoreCase: true, out var key) && Enum.IsDefined(key) ? key : throw new ScriptRuntimeException($"Unknown key '{name}'.");
-}
-
-/// <summary>Adapts AudioSource calls to natives, which return a value.</summary>
-internal readonly struct AudioCall(AudioSource source)
-{
-    public ScriptValue Play()
-    {
-        source.Play();
-        return ScriptValue.Null;
-    }
-
-    public ScriptValue Stop()
-    {
-        source.Stop();
-        return ScriptValue.Null;
-    }
 }

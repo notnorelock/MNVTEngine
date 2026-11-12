@@ -14,23 +14,12 @@ public sealed class ComponentRegistry
 
     public IReadOnlyDictionary<string, Type> Types => _byId;
 
-    /// <summary>Registry with the engine's built-in components.</summary>
+    /// <summary>Registry with the shared scene components; each module adds its own (world.2d, world.3d, physics, ...).</summary>
     public static ComponentRegistry CreateDefault()
     {
         var registry = new ComponentRegistry();
         registry.Register<Transform>();
-        registry.Register<SpriteRenderer>();
         registry.Register<Camera>();
-        registry.Register<SpriteAnimator>();
-        registry.Register<Tilemap>();
-        registry.Register<Light2D>();
-        registry.Register<GlobalLight2D>();
-        registry.Register<MeshRenderer>();
-        registry.Register<Light>();
-        registry.Register<AmbientLight>();
-        registry.Register<ModelAnimator>();
-        registry.Register<ModelAnimatorController>();
-        registry.Register<SceneEnvironment>();
         registry.Register<HierarchyStyle>();
         return registry;
     }

@@ -25,10 +25,10 @@ public static partial class GameApplication
     /// </summary>
     /// <param name="prepareComponents">Registers game components (e.g. loads compiled scripts); returning false aborts startup.</param>
     /// <param name="archive">Content of an exported game; the project is read from it and a path argument is ignored.</param>
-    /// <param name="createAudio">Audio backend; without one (or without an output device) the game runs silently.</param>
     /// <param name="tools">Development builds: diagnostics and the debug UI.</param>
     /// <returns>Process exit code: 0 ok, 1 resource leaks, 2 project or startup scene could not be loaded, 3 game code failed to load, 4 graphics could not start (no Vulkan 1.4 GPU or driver).</returns>
-    public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, Func<GameProject, ComponentRegistry, bool>? prepareComponents = null, ContentArchiveSet? archive = null, AudioDeviceFactory? createAudio = null, DevelopmentTools? tools = null)
+    /// <param name="available">The engine modules built into this host (an export: the generated bootstrap; development hosts: every module). The project's resolved modules are taken from it.</param>
+    public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, IReadOnlyList<IEngineModule> available, Func<GameProject, ComponentRegistry, bool>? prepareComponents = null, ContentArchiveSet? archive = null, DevelopmentTools? tools = null, IReadOnlyList<IAssetImporter>? importers = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(createDevice);
@@ -66,8 +66,10 @@ public static partial class GameApplication
         // Only the project's modules register components and start; a scene that uses another module's components fails to load.
         // Exports were checked when they were built; a project played from its sources is checked here, so content of a
         // disabled module stops the game instead of loading as missing components.
+        ArgumentNullException.ThrowIfNull(available);
         var modules = ProjectModules.Resolve(project);
-        var problems = archive is null ? ProjectModules.Validate(project).Diagnostics : modules.Diagnostics;
+        var (implementations, missing) = ProjectModules.Implementations(modules, available);
+        IReadOnlyList<Modules.ModuleDiagnostic> problems = [.. archive is null ? ProjectModules.Validate(project).Diagnostics : modules.Diagnostics, .. missing];
         foreach (var problem in problems.Where(d => d.Severity == Modules.ModuleSeverity.Error))
         {
             LogModuleProblem(logger, problem.Code, problem.Message);
@@ -79,7 +81,7 @@ public static partial class GameApplication
         }
 
         var registry = ComponentRegistry.CreateDefault();
-        var host = new ModuleHost(EngineModules.For(modules));
+        var host = new ModuleHost(implementations);
         try
         {
             host.Start(registry);
@@ -92,7 +94,7 @@ public static partial class GameApplication
 
         try
         {
-            return RunGame(args, createDevice, loggerFactory, logger, project, registry, prepareComponents, archive, createAudio, tools);
+            return RunGame(args, createDevice, loggerFactory, logger, project, registry, implementations, prepareComponents, archive, tools, importers);
         }
         finally
         {
@@ -107,8 +109,8 @@ public static partial class GameApplication
         }
     }
 
-    private static int RunGame(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, ILogger logger, GameProject project, ComponentRegistry registry,
-        Func<GameProject, ComponentRegistry, bool>? prepareComponents, ContentArchiveSet? archive, AudioDeviceFactory? createAudio, DevelopmentTools? tools)
+    private static int RunGame(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, ILogger logger, GameProject project, ComponentRegistry registry, IReadOnlyList<IEngineModule> modules,
+        Func<GameProject, ComponentRegistry, bool>? prepareComponents, ContentArchiveSet? archive, DevelopmentTools? tools, IReadOnlyList<IAssetImporter>? importers)
     {
         if (prepareComponents is not null && !prepareComponents(project, registry))
         {
@@ -134,7 +136,6 @@ public static partial class GameApplication
             GraphicsValidation = args.Contains("--gpu-validation"),
         });
 
-        using var audio = AudioDevices.CreateOrSilent(createAudio, loggerFactory.CreateLogger("Audio"));
         var profileReport = Option(args, "--profile");
         var profiler = profileReport is null ? null : new Core.Diagnostics.FrameProfiler(history: 100_000);
         Core.Diagnostics.Profiler.Current = profiler;
@@ -156,7 +157,8 @@ public static partial class GameApplication
             ExitAfterFrames = Option(args, "--frames") is { } frames ? int.Parse(frames, CultureInfo.InvariantCulture) : null,
             ScreenshotPath = Option(args, "--screenshot"),
             Archive = archive,
-            Audio = audio,
+            Modules = modules,
+            Importers = importers,
             Profiler = profiler,
             Diagnostics = diagnostics,
             Overlay = overlay,

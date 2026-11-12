@@ -1,7 +1,6 @@
-﻿using MNVTEngine.Platform;
-using MNVTEngine.UI;
+using MNVTEngine.Platform;
 
-namespace MNVTEngine.Runtime;
+namespace MNVTEngine.UI;
 
 /// <summary>The window's system clipboard for UI text fields.</summary>
 public sealed class WindowClipboard(GameWindow window) : IClipboard

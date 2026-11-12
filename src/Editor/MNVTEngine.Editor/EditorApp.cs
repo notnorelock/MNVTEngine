@@ -5,6 +5,7 @@ using MNVTEngine.Core.Logging;
 using MNVTEngine.Core.Timing;
 using MNVTEngine.DebugUI.ImGuiBackend;
 using MNVTEngine.Editor.Panels;
+using MNVTEngine.Build;
 using MNVTEngine.Editor.Services;
 using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Vulkan;
@@ -88,11 +89,11 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             Device = device,
             Renderer = renderer,
             Resources = resources,
-            SceneRenderer = new SceneRenderer(renderer, resources, _logger),
+            SceneRenderer = new SceneRenderer(renderer, resources, _logger, ModuleIntegration.CreatePasses(EngineModuleSet.ForProfile(project.Profile!.Value), renderer, resources, loggerFactory)),
             ImGui = new ImGuiRenderer(device, renderer.DefaultMaterial, font, 17f, iconFont: Icons.Font),
             GameUI = new UI.UIRenderer(device, renderer.DefaultMaterial),
             Session = session,
-            PlayMode = new PlayModeController(session, loggerFactory) { Audio = AudioDevices.CreateOrSilent(Audio.OpenAL.OpenALAudioDevice.Create, loggerFactory.CreateLogger("Audio")) },
+            PlayMode = new PlayModeController(session, loggerFactory) { Audio = Audio.AudioDevices.CreateOrSilent(Audio.OpenAL.OpenALAudioDevice.Create, loggerFactory.CreateLogger("Audio")) },
             Logs = logs,
             DiagnosticsSettings = project.Diagnostics.Clone(),
             LogHub = logHub,
@@ -104,12 +105,14 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         {
             var diagnostics = new RuntimeDiagnostics(_context.DiagnosticsSettings.Clone(), loggerFactory.CreateLogger("Diagnostics"),
                 Path.Combine(project.RootDirectory, "Library", "Diagnostics", "Profiles"), _profiler, ownsProfilerFrames: false);
-            diagnostics.Attach(new DiagnosticsTarget(device, () => _context.PlayMode.PlayScene, resources, session.Assets, _context.SceneRenderer, _context.GameUI));
+            var modules = EngineModuleSet.ForProfile(project.Profile!.Value);
+            diagnostics.Attach(new DiagnosticsTarget(device, () => _context.PlayMode.PlayScene, resources, session.Assets, _context.SceneRenderer, modules));
+            ModuleIntegration.AddDiagnostics(modules, diagnostics.Collector, diagnostics.Commands, () => _context.PlayMode.PlayScene);
             return diagnostics;
         };
 
         _gameUIFont = Graphics.Text.Font.LoadDefault();
-        var gameUIServices = new UI.UIServices(_gameUIFont, new WindowClipboard(window), asset => session.Assets.ReadAllBytes(asset.Guid), asset => resources.GetTexture(asset));
+        var gameUIServices = new UI.UIServices(_gameUIFont, new UI.WindowClipboard(window), asset => session.Assets.ReadAllBytes(asset.Guid), asset => resources.GetTexture(asset));
         _context.PlayMode.UIServices = gameUIServices;
 
         Gui.ApplyDarkTheme();

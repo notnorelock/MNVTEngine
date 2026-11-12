@@ -72,9 +72,9 @@ public sealed class ModelRuntimeTests : IDisposable
         Assert.Equal(model.Nodes.Count(n => n.Mesh >= 0), renderers.Count);
         Assert.All(renderers, r => Assert.Equal(PrimitiveMesh.None, r.Primitive));
         Assert.All(renderers, r => Assert.Equal(guid, r.Mesh.Guid));
-        Assert.All(renderers, r => Assert.NotNull(model.FindMesh(r.Mesh.SubAsset![ResourceCache.MeshSubAssetPrefix.Length..])));
+        Assert.All(renderers, r => Assert.NotNull(model.FindMesh(r.Mesh.SubAsset![ModelCache.MeshSubAssetPrefix.Length..])));
 
-        var serializer = new SceneSerializer(EngineComponents.CreateRegistry());
+        var serializer = new SceneSerializer(Build.EngineModuleSet.CreateRegistry());
         var copy = serializer.Deserialize(serializer.Serialize(scene)).Scene;
         Assert.Equal(renderers.Select(r => r.Mesh.ToString()).Order().ToList(), copy.FindObjectsOfType<MeshRenderer>().Select(r => r.Mesh.ToString()).Order().ToList());
     }
@@ -114,7 +114,7 @@ public sealed class ModelRuntimeTests : IDisposable
         (view.Projection, view.FieldOfView, view.BackgroundColor) = (CameraProjection.Perspective, 60f, new Mathematics.Color(0f, 0f, 0f, 1f));
         ModelInstantiation.Instantiate(scene, guid, model, "Crate");
         var meshCount = model.Nodes.Count(n => n.Mesh >= 0);
-        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt"), new SceneSerializer(EngineComponents.CreateRegistry()).Serialize(scene));
+        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt"), new SceneSerializer(Build.EngineModuleSet.CreateRegistry()).Serialize(scene));
         File.WriteAllText(Path.Combine(_root, "Test.mnvtproj"), """{ "schemaVersion": 1, "name": "Test", "startupScene": "Scenes/First.mnvt", "loadingScreen": { "enabled": false } }""");
         File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt.meta"), $$"""{ "schemaVersion": 1, "guid": "{{Guid.NewGuid()}}", "settings": {} }""");
 
@@ -191,7 +191,7 @@ public sealed class ModelRuntimeTests : IDisposable
             var renderer = scene.FindObjectsOfType<MeshRenderer>().Single();
             renderer.SetBlendShapeWeight(0, weight);
             renderer.SetBlendShapeWeight(1, 0f);
-            File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt"), new SceneSerializer(EngineComponents.CreateRegistry()).Serialize(scene));
+            File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt"), new SceneSerializer(Build.EngineModuleSet.CreateRegistry()).Serialize(scene));
             File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt.meta"), """{ "schemaVersion": 1, "guid": "e9000000-0000-4000-8000-000000000001", "settings": {} }""");
             File.WriteAllText(Path.Combine(_root, "Test.mnvtproj"), """{ "schemaVersion": 1, "name": "Test", "startupScene": "Scenes/First.mnvt", "loadingScreen": { "enabled": false } }""");
             var screenshot = Path.Combine(_root, $"morph{weight}.png");
@@ -231,7 +231,7 @@ public sealed class ModelRuntimeTests : IDisposable
         var view = camera.AddComponent<Camera>();
         (view.Projection, view.BackgroundColor) = (CameraProjection.Perspective, new Mathematics.Color(0f, 0f, 0f, 1f));
         ModelInstantiation.Instantiate(scene, guid, model, "Cesium Man").GetComponent<ModelAnimator>()!.Speed = 0f; // the walk's first pose, the same in every run
-        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt"), new SceneSerializer(EngineComponents.CreateRegistry()).Serialize(scene));
+        File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt"), new SceneSerializer(Build.EngineModuleSet.CreateRegistry()).Serialize(scene));
         File.WriteAllText(Path.Combine(_root, "Assets", "Scenes", "First.mnvt.meta"), $$"""{ "schemaVersion": 1, "guid": "{{Guid.NewGuid()}}", "settings": {} }""");
         File.WriteAllText(Path.Combine(_root, "Test.mnvtproj"), """{ "schemaVersion": 1, "name": "Test", "startupScene": "Scenes/First.mnvt", "loadingScreen": { "enabled": false } }""");
 
@@ -285,6 +285,7 @@ public sealed class ModelRuntimeTests : IDisposable
         {
             var assets = AssetDatabase.OpenForEditing(Path.Combine(_root, "Assets"), Path.Combine(_root, "Library"), ModelImporters.WithDefaults());
             using var resources = new ResourceCache(device, assets, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+            new World3D.Rendering.World3DModule().RegisterResources(resources);
             Assert.Same(resources.GetMaterial(new AssetRef(red)), resources.GetModelMaterial(guid, 0));
             var fallback = resources.GetModelMaterial(guid, 1)!; // the remap target does not exist: the imported material draws
             Assert.Contains("#", fallback.Name, StringComparison.Ordinal);
@@ -304,9 +305,9 @@ public sealed class ModelRuntimeTests : IDisposable
             throw;
         }
 
-        var runtime = new GameRuntime(project, EngineComponents.CreateRegistry(),
+        var runtime = new GameRuntime(project, Build.EngineModuleSet.CreateRegistry(),
             (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }),
-            factory, new GameRuntimeOptions { ExitAfterFrames = 3, ScreenshotPath = screenshot, GpuSkinning = gpuSkinning });
+            factory, new GameRuntimeOptions { ExitAfterFrames = 3, ScreenshotPath = screenshot, GpuSkinning = gpuSkinning, Modules = Build.EngineModuleSet.All() });
         using (window)
         {
             try

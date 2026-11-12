@@ -14,8 +14,56 @@ namespace MNVTEngine.Runtime;
 /// camera, drawn with depth before sprites. Primitive meshes are generated once and uploaded once per renderer; model
 /// meshes are uploaded on first use and released when their model is reimported.
 /// </summary>
-public sealed partial class SceneRenderer
+public sealed partial class MeshScenePass : IScenePass
 {
+    private readonly Renderer2D renderer;
+    private readonly ResourceCache resources;
+    private readonly ILogger logger;
+    private readonly IReadOnlyList<IMeshItemSource> _itemSources;
+    private SceneViewOptions _options = SceneViewOptions.Default;
+    private ScenePassContext? _context;
+
+    /// <param name="itemSources">Other modules' meshes drawn in this pass (terrain).</param>
+    public MeshScenePass(RenderServices services, IEnumerable<IMeshItemSource> itemSources)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        (renderer, resources, logger) = (services.Renderer, services.Resources, services.LoggerFactory.CreateLogger("Render3D"));
+        (GpuSkinning, GpuInstancing) = (services.Settings.GpuSkinning, services.Settings.GpuInstancing);
+        _itemSources = [.. itemSources];
+    }
+
+    public int Order => 100;
+
+    public void Draw(ScenePassContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (context.Camera3D is not { } camera)
+        {
+            return;
+        }
+
+        (_context, _options) = (context, context.Options);
+        Render3D(context.Scene, camera, context.Target);
+        context.Count(RenderStatistics.MeshesDrawn, MeshesDrawn);
+        context.Count(RenderStatistics.MeshesCulled, MeshesCulled);
+        context.Count(RenderStatistics.MeshTriangles, MeshTriangles);
+        context.Count(RenderStatistics.GpuSkinnedMeshes, GpuSkinnedMeshes);
+        context.Count(RenderStatistics.InstancedMeshes, InstancedMeshes);
+        context.Count(RenderStatistics.MeshDrawCalls, MeshDrawCalls);
+    }
+
+    public void Dispose()
+    {
+        foreach (var source in _itemSources)
+        {
+            source.Dispose();
+        }
+
+        Dispose3D();
+    }
+
+    private bool Hidden(GameObject gameObject) => _context?.IsHidden(gameObject) ?? false;
+
     private static readonly Lock PrimitivesLock = new();
     private static readonly Dictionary<PrimitiveMesh, Mesh> Primitives = [];
     private readonly List<MeshDrawItem> _items = [];
@@ -128,7 +176,10 @@ public sealed partial class SceneRenderer
             }
         }
 
-        AddTerrainItems(scene);
+        foreach (var source in _itemSources)
+        {
+            source.AddItems(new MeshItemContext(scene, _frame, Meshes(), _items, Hidden));
+        }
 
         if (_items.Count == 0)
         {
@@ -459,7 +510,7 @@ public sealed partial class SceneRenderer
         if (_meshes is null)
         {
             _meshes = new GpuMeshCache(renderer.Device);
-            resources.MeshesEvicted += OnMeshesEvicted;
+            resources.Models.MeshesEvicted += OnMeshesEvicted;
         }
 
         return _meshes;
@@ -537,7 +588,7 @@ public sealed partial class SceneRenderer
         material.DepthWrite = !transparent;
         material.SetColor("_BaseColor", meshRenderer.Color);
         material.SetTexture("_BaseColorMap", meshRenderer.Texture.IsNone ? white : resources.GetTexture(meshRenderer.Texture));
-        MaterialShaders.ApplyDefaults(material, MaterialShaders.StandardProperties, resources.GetDefaultTexture);
+        MaterialProperties.ApplyDefaults(material, MaterialShaders.StandardProperties, resources.GetDefaultTexture);
         return material;
     }
 
@@ -690,7 +741,6 @@ public sealed partial class SceneRenderer
 
     private void Dispose3D()
     {
-        DisposeTerrains();
         foreach (var state in _skins.Values)
         {
             state.Dispose();
@@ -709,7 +759,7 @@ public sealed partial class SceneRenderer
         _pointShadowMap = null;
         if (_meshes is not null)
         {
-            resources.MeshesEvicted -= OnMeshesEvicted;
+            resources.Models.MeshesEvicted -= OnMeshesEvicted;
         }
 
         _meshes?.Dispose();

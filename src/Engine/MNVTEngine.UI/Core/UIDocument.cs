@@ -96,10 +96,86 @@ public static class UIComponents
     }
 }
 
-/// <summary>The "ui" engine module. Screen-space UI: registers UI documents.</summary>
-public sealed class UIModule : Scenes.IEngineModule
+/// <summary>
+/// The "ui" engine module: registers UI documents, and draws each scene's UI over it in screen space (a screen layer of
+/// the host), with the window's clipboard and the project's fonts and textures.
+/// </summary>
+public sealed class UIModule : IEngineModule, Runtime.IScreenIntegration, IDiagnosticsIntegration
 {
+    private Func<UIRenderer?> _renderer = () => null; // the host owns the layer and its renderer
+
     public string Id => "ui";
 
-    public void Register(Scenes.ComponentRegistry components) => UIComponents.Register(components);
+    public void Register(ComponentRegistry components) => UIComponents.Register(components);
+
+    /// <summary>The renderer of the host's UI layer (glyph atlas inspection); null before the layer exists.</summary>
+    public UIRenderer? Renderer => _renderer();
+
+    public Runtime.IScreenLayer CreateScreenLayer(Runtime.ScreenServices services)
+    {
+        var layer = new UIScreenLayer(services);
+        _renderer = () => layer.Renderer;
+        return layer;
+    }
+
+    public IEnumerable<Diagnostics.IMetricsProvider> CreateMetricsProviders(Func<Scene?> scene) => [new UIMetrics(scene, () => _renderer())];
+
+    private sealed class UIScreenLayer(Runtime.ScreenServices services) : Runtime.IScreenLayer
+    {
+        public UIRenderer Renderer { get; } = new(services.Renderer.Device, services.Renderer.DefaultMaterial);
+
+        public void SceneLoaded(Scene scene) => UISystem.Attach(scene, new UIServices(services.DefaultFont, new WindowClipboard(services.Window),
+            asset => services.Assets.ReadAllBytes(asset.Guid), asset => services.Resources.GetTexture(asset)));
+
+        public void Update(Scene scene, float deltaSeconds)
+        {
+            if (UISystem.For(scene) is { } ui)
+            {
+                using var sample = Core.Diagnostics.Profiler.Sample("UI");
+                var window = services.Window;
+                var framebufferScale = window.WindowWidth > 0 ? (float)window.FramebufferWidth / window.WindowWidth : 1f;
+                ui.Update(window.Input, new Mathematics.Vector2(window.WindowWidth, window.WindowHeight), framebufferScale, deltaSeconds);
+            }
+        }
+
+        public void Render(Scene scene, int framebufferWidth, int framebufferHeight)
+        {
+            if (UISystem.For(scene) is { } ui)
+            {
+                using var sample = Core.Diagnostics.Profiler.Sample("UI");
+                services.Renderer.Device.SetRenderTarget(null);
+                ui.Render(Renderer, framebufferWidth, framebufferHeight);
+            }
+        }
+
+        public void Dispose() => Renderer.Dispose();
+    }
+
+    /// <summary>Game UI of the current scene: element counts, draws, cache behaviour and the glyph atlas.</summary>
+    private sealed class UIMetrics(Func<Scene?> scene, Func<UIRenderer?> renderer) : Diagnostics.IMetricsProvider
+    {
+        public string Name => "UI";
+
+        public void Collect(Diagnostics.MetricsSnapshot metrics)
+        {
+            if (scene() is not { } current || UISystem.For(current) is not { } ui)
+            {
+                return;
+            }
+
+            var totals = ui.Totals();
+            metrics.Set(Diagnostics.Metrics.UIElements, totals.Elements);
+            metrics.Set(Diagnostics.Metrics.UIVisibleElements, totals.Visible);
+            metrics.Set(Diagnostics.Metrics.UIDrawCalls, totals.DrawCalls);
+            metrics.Set(Diagnostics.Metrics.UIQuads, totals.Quads);
+            metrics.Set(Diagnostics.Metrics.UILayoutPasses, totals.LayoutPasses);
+            metrics.Set(Diagnostics.Metrics.UIGeometryRebuilds, totals.Rebuilds);
+            metrics.Set(Diagnostics.Metrics.UITextLayouts, TextBlock.Builds);
+            if (renderer() is { } atlas)
+            {
+                metrics.Set(Diagnostics.Metrics.UIGlyphs, atlas.Atlas.GlyphCount);
+                metrics.Set(Diagnostics.Metrics.UIAtlasPages, atlas.Atlas.PageCount);
+            }
+        }
+    }
 }

@@ -1,9 +1,6 @@
 using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Text;
 using MNVTEngine.Mathematics;
-using MNVTEngine.UI;
-using MNVTEngine.UI.Widgets;
-using Image = MNVTEngine.UI.Widgets.Image;
 
 namespace MNVTEngine.Runtime.Loading;
 
@@ -11,25 +8,107 @@ namespace MNVTEngine.Runtime.Loading;
 /// <param name="EngineLogo">The MNVTEngine wordmark (white), for "Made with MNVTEngine"; null shows the words.</param>
 public sealed record StartupAssets(Font DefaultFont, Func<AssetRef, Texture2D?> Texture, Func<AssetRef, Font?> Font, Texture2D? EngineLogo = null);
 
-/// <summary>Splash and loading screens take no input: an input state nothing writes to.</summary>
-internal static class NoInputSource
+/// <summary>
+/// Draws the startup screens with the sprite batch and the text renderer: they appear before any scene exists, and
+/// need no UI module. Coordinates are framebuffer pixels from the top-left.
+/// </summary>
+public sealed class StartupCanvas(Renderer2D renderer) : IDisposable
 {
-    public static readonly InputState State = new();
+    private readonly GlyphAtlas _atlas = new(renderer.Device);
+    private readonly Texture2D _white = renderer.Device.CreateTexture(1, 1, [255, 255, 255, 255], SamplerState.PointClamp, "Startup.White");
+    private SpriteBatch? _batch;
+    private int _width;
+    private int _height;
+
+    public GlyphAtlas Atlas => _atlas;
+
+    /// <summary>Starts drawing a screen of the given size on the back buffer.</summary>
+    public void Begin(int width, int height)
+    {
+        (_width, _height) = (width, height);
+        renderer.Device.SetRenderTarget(null);
+        var camera = new Camera2D(width, height) { Position = new Vector2(width * 0.5f, height * 0.5f) };
+        camera.UsePixelUnits();
+        _batch = renderer.Begin(camera, SpriteSortMode.Deferred);
+    }
+
+    public void End()
+    {
+        renderer.End();
+        _batch = null;
+    }
+
+    public void Rect(float x, float y, float width, float height, Color color) => Image(_white, x, y, width, height, color);
+
+    // The batch places quads by their center (pivot 0.5, 0.5); the canvas works with top-left corners.
+    public void Image(Texture2D texture, float x, float y, float width, float height, Color color) =>
+        Batch.Draw(texture, new Vector2(x + (width * 0.5f), _height - y - (height * 0.5f)), new Vector2(width, height), color);
+
+    /// <summary>Text with its top edge at <paramref name="y"/>, centered on <paramref name="centerX"/>; wraps at <paramref name="maxWidth"/>.</summary>
+    /// <returns>The height the text took.</returns>
+    public float Text(string text, Font font, float size, float centerX, float y, Color color, float maxWidth = float.PositiveInfinity)
+    {
+        if (text.Length == 0)
+        {
+            return 0f;
+        }
+
+        var layout = TextLayout.Create(text, new TextStyle(font, size, TextAlign.Center, Wrap: !float.IsPositiveInfinity(maxWidth)), maxWidth);
+        Batch.DrawText(_atlas, layout, new Vector2(centerX - (layout.Size.X * 0.5f), _height - y), color);
+        return layout.Size.Y;
+    }
+
+    /// <summary>Height a text would take.</summary>
+    public static float Measure(string text, Font font, float size, float maxWidth = float.PositiveInfinity) =>
+        text.Length == 0 ? 0f : TextLayout.Create(text, new TextStyle(font, size, TextAlign.Center, Wrap: !float.IsPositiveInfinity(maxWidth)), maxWidth).Size.Y;
+
+    /// <summary>A progress bar; with no value, a segment sweeps across it (work of unknown size).</summary>
+    public void Bar(float x, float y, float width, float height, float? value, float time, Color track, Color fill)
+    {
+        Rect(x, y, width, height, track);
+        if (value is { } v)
+        {
+            Rect(x, y, width * Math.Clamp(v, 0f, 1f), height, fill);
+        }
+        else
+        {
+            var segment = width * 0.3f;
+            var start = ((time * 0.8f) % 1.3f - 0.3f) * width;
+            var left = Math.Max(x, x + start);
+            var right = Math.Min(x + width, x + start + segment);
+            if (right > left)
+            {
+                Rect(left, y, right - left, height, fill);
+            }
+        }
+    }
+
+    public int Width => _width;
+
+    public int Height => _height;
+
+    public void Dispose()
+    {
+        _atlas.Dispose();
+        _white.Dispose();
+    }
+
+    private SpriteBatch Batch => _batch ?? throw new InvalidOperationException("Call Begin before drawing.");
 }
 
 /// <summary>
-/// A loading screen drawn with the game UI, from a standalone context: it works before any scene exists. Shows real
-/// progress (or an indeterminate bar while the amount of work is unknown), the current task and rotating tips. It
-/// appears at full opacity (the game must not show through while loading) and fades out when closed.
+/// A loading screen: works before any scene exists. Shows real progress (or an indeterminate bar while the amount of
+/// work is unknown), the current task and rotating tips. It appears at full opacity (the game must not show through
+/// while loading) and fades out when closed.
 /// </summary>
 public sealed class LoadingScreenView : IDisposable
 {
-    private readonly UIContext _ui;
     private readonly LoadingScreenOptions _options;
-    private readonly ProgressBar? _bar;
-    private readonly Label? _task;
-    private readonly Label? _tip;
-    private readonly Panel _root;
+    private readonly Font _font;
+    private readonly Texture2D? _logo;
+    private float? _progress;
+    private string _task = "";
+    private float _time;
     private float _tipTime;
     private int _tipIndex;
     private float _alpha = 1f;
@@ -39,40 +118,8 @@ public sealed class LoadingScreenView : IDisposable
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(assets);
         _options = options;
-        _ui = new UIContext(assets.DefaultFont);
-        var font = options.Font.IsNone ? null : assets.Font(options.Font);
-        _root = _ui.Root.AddChild(new Panel
-        {
-            Width = UIUnit.Percent(100),
-            Height = UIUnit.Percent(100),
-            BackgroundColor = options.Background,
-            Layout = LayoutMode.Column,
-            Justify = Justify.Center,
-            AlignItems = Align.Center,
-            Gap = 14,
-        });
-        if (!options.Logo.IsNone && assets.Texture(options.Logo) is { } logo)
-        {
-            _root.AddChild(new Image { Texture = logo, Width = 160, Height = 160 });
-        }
-
-        _root.AddChild(new Label { Text = options.Title, FontSize = 30, TextColor = options.Foreground, Font = font });
-        if (options.ShowProgress)
-        {
-            _bar = _root.AddChild(new ProgressBar { Width = UIUnit.Percent(40), MinWidth = 240, Height = 10, ShowText = false, Indeterminate = true });
-            _bar.Style.Accent = options.Accent;
-            _bar.Style.Background = new Color(options.Foreground.R, options.Foreground.G, options.Foreground.B, 0.15f);
-        }
-
-        if (options.ShowTask || options.ShowPercentage)
-        {
-            _task = _root.AddChild(new Label { TextColor = options.Foreground with { A = 0.65f }, FontSize = 15, Font = font });
-        }
-
-        if (options.Tips.Count > 0)
-        {
-            _tip = _root.AddChild(new Label { Text = options.Tips[0], TextColor = options.Foreground with { A = 0.8f }, Wrap = true, Alignment = TextAlign.Center, Width = UIUnit.Percent(60), Font = font, Margin = new Thickness(0, 24, 0, 0) });
-        }
+        _font = (options.Font.IsNone ? null : assets.Font(options.Font)) ?? assets.DefaultFont;
+        _logo = options.Logo.IsNone ? null : assets.Texture(options.Logo);
     }
 
     /// <summary>Current opacity: 1 while open, falling to 0 while closing.</summary>
@@ -89,33 +136,83 @@ public sealed class LoadingScreenView : IDisposable
     {
         var fade = _options.FadeSeconds <= 0f ? 1f : deltaSeconds / _options.FadeSeconds;
         _alpha = Closing ? Math.Max(0f, _alpha - fade) : 1f; // reopened while fading out: opaque again at once
-        _root.Opacity = _alpha;
-        if (_bar is not null)
-        {
-            _bar.Indeterminate = progress is null;
-            _bar.Value = progress ?? 0f;
-        }
-
-        if (_task is not null)
-        {
-            var percent = _options.ShowPercentage && progress is { } p ? $"{p * 100f:0}%" : null;
-            var text = _options.ShowTask ? task : null;
-            _task.Text = string.Join("  ·  ", new[] { percent, text }.Where(s => !string.IsNullOrEmpty(s)));
-        }
-
-        if (_tip is not null && (_tipTime += deltaSeconds) >= _options.TipSeconds)
+        _progress = progress;
+        _time += deltaSeconds;
+        var percent = _options.ShowPercentage && progress is { } p ? $"{p * 100f:0}%" : null;
+        _task = string.Join("  ·  ", new[] { percent, _options.ShowTask ? task : null }.Where(s => !string.IsNullOrEmpty(s)));
+        if (_options.Tips.Count > 0 && (_tipTime += deltaSeconds) >= _options.TipSeconds)
         {
             _tipTime = 0f;
             _tipIndex = (_tipIndex + 1) % _options.Tips.Count;
-            _tip.Text = _options.Tips[_tipIndex];
         }
-
-        _ui.Update(NoInputSource.State.ForUI, windowSize, framebufferScale, deltaSeconds);
     }
 
-    public void Render(UIRenderer renderer, int framebufferWidth, int framebufferHeight) => renderer.Render(_ui, framebufferWidth, framebufferHeight);
+    public void Render(StartupCanvas canvas, int framebufferWidth, int framebufferHeight)
+    {
+        ArgumentNullException.ThrowIfNull(canvas);
+        Color Fade(Color c) => c with { A = c.A * _alpha };
+        var foreground = _options.Foreground;
+        var (w, h) = ((float)framebufferWidth, (float)framebufferHeight);
+        var tip = _options.Tips.Count > 0 ? _options.Tips[_tipIndex] : "";
+        var tipWidth = w * 0.6f;
+        var barWidth = Math.Max(240f, w * 0.4f);
 
-    public void Dispose() => _ui.Dispose();
+        // A centered column: logo, title, bar, task, tip, 14 px apart (24 above the tip).
+        const float Gap = 14f;
+        var heights = new List<float>();
+        if (_logo is not null)
+        {
+            heights.Add(160f);
+        }
+
+        heights.Add(StartupCanvas.Measure(_options.Title, _font, 30f));
+        if (_options.ShowProgress)
+        {
+            heights.Add(10f);
+        }
+
+        var showTask = _options.ShowTask || _options.ShowPercentage;
+        if (showTask)
+        {
+            heights.Add(StartupCanvas.Measure(_task.Length > 0 ? _task : " ", _font, 15f));
+        }
+
+        var tipHeight = tip.Length > 0 ? StartupCanvas.Measure(tip, _font, 16f, tipWidth) : 0f;
+        var total = heights.Sum() + (Gap * (heights.Count - 1)) + (tip.Length > 0 ? 24f + tipHeight : 0f);
+        var y = (h - total) * 0.5f;
+
+        canvas.Begin(framebufferWidth, framebufferHeight);
+        canvas.Rect(0f, 0f, w, h, Fade(_options.Background));
+        if (_logo is not null)
+        {
+            canvas.Image(_logo, (w - 160f) * 0.5f, y, 160f, 160f, Fade(Color.White));
+            y += 160f + Gap;
+        }
+
+        y += canvas.Text(_options.Title, _font, 30f, w * 0.5f, y, Fade(foreground)) + Gap;
+        if (_options.ShowProgress)
+        {
+            canvas.Bar((w - barWidth) * 0.5f, y, barWidth, 10f, _progress, _time, Fade(foreground with { A = 0.15f }), Fade(_options.Accent));
+            y += 10f + Gap;
+        }
+
+        if (showTask)
+        {
+            y += canvas.Text(_task, _font, 15f, w * 0.5f, y, Fade(foreground with { A = 0.65f })) + Gap;
+        }
+
+        if (tip.Length > 0)
+        {
+            canvas.Text(tip, _font, 16f, w * 0.5f, y - Gap + 24f, Fade(foreground with { A = 0.8f }), tipWidth);
+        }
+
+        canvas.End();
+    }
+
+    public void Dispose()
+    {
+        // Textures and fonts belong to the startup assets' owner.
+    }
 }
 
 /// <summary>
@@ -125,10 +222,12 @@ public sealed class LoadingScreenView : IDisposable
 /// </summary>
 public sealed class SplashScreenView : IDisposable
 {
-    private readonly UIContext _ui;
     private readonly SplashScreenSettings _settings;
-    private readonly Panel _root;
-    private readonly ProgressBar? _bar;
+    private readonly StartupAssets _assets;
+    private readonly Texture2D? _logo;
+    private readonly Texture2D? _background;
+    private float? _progress;
+    private float _alpha;
     private float _time;
     private float _fadeOutTime = -1f;
 
@@ -137,53 +236,9 @@ public sealed class SplashScreenView : IDisposable
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(assets);
         _settings = settings;
-        _ui = new UIContext(assets.DefaultFont);
-        _root = _ui.Root.AddChild(new Panel { Width = UIUnit.Percent(100), Height = UIUnit.Percent(100), BackgroundColor = settings.Background, Opacity = 0f });
-        if (!background.IsNone && assets.Texture(background) is { } image)
-        {
-            _root.AddChild(new Image { Texture = image, Width = UIUnit.Percent(100), Height = UIUnit.Percent(100), ScaleMode = ImageScaleMode.Fill });
-        }
-
-        var column = _root.AddChild(new Panel
-        {
-            Width = UIUnit.Percent(100),
-            Height = UIUnit.Percent(100),
-            Layout = LayoutMode.Column,
-            Justify = Justify.Center,
-            AlignItems = Align.Center,
-            Gap = 12,
-        });
-        if (!logo.IsNone && assets.Texture(logo) is { } logoTexture)
-        {
-            column.AddChild(new Image { Texture = logoTexture, Width = 240, Height = 240 });
-        }
-
-        if (settings.Title is { Length: > 0 } title)
-        {
-            column.AddChild(new Label { Text = title, FontSize = 44, TextColor = settings.Foreground });
-        }
-
-        if (settings.Subtitle is { Length: > 0 } subtitle)
-        {
-            column.AddChild(new Label { Text = subtitle, FontSize = 18, TextColor = settings.Foreground with { A = 0.7f } });
-        }
-
-        if (settings.ShowProgress)
-        {
-            _bar = column.AddChild(new ProgressBar { Width = 260, Height = 6, Indeterminate = true, Margin = new Thickness(0, 20, 0, 0) });
-        }
-
-        if (settings.ShowEngineBranding && assets.EngineLogo is { } engineLogo)
-        {
-            // "Made with" over the wordmark, tinted like the rest of the splash's text.
-            var branding = _root.AddChild(new Panel { Layout = LayoutMode.Column, AlignItems = Align.Center, Gap = 4, Anchor = new Vector2(0.5f, 1f), Pivot = new Vector2(0.5f, 1f), Top = -24 });
-            branding.AddChild(new Label { Text = "Made with", FontSize = 13, TextColor = settings.Foreground with { A = 0.5f } });
-            branding.AddChild(new Image { Texture = engineLogo, Width = 140, Height = 140f * engineLogo.Height / engineLogo.Width, Tint = settings.Foreground with { A = 0.6f } });
-        }
-        else if (settings.ShowEngineBranding)
-        {
-            _root.AddChild(new Label { Text = "Made with MNVTEngine", FontSize = 14, TextColor = settings.Foreground with { A = 0.5f }, Anchor = new Vector2(0.5f, 1f), Pivot = new Vector2(0.5f, 1f), Top = -24 });
-        }
+        _assets = assets;
+        _logo = logo.IsNone ? null : assets.Texture(logo);
+        _background = background.IsNone ? null : assets.Texture(background);
     }
 
     /// <summary>True until the fade-out has finished.</summary>
@@ -197,34 +252,106 @@ public sealed class SplashScreenView : IDisposable
     public void Update(bool loaded, float? progress, bool skip, Vector2 windowSize, float framebufferScale, float deltaSeconds)
     {
         _time += deltaSeconds;
+        _progress = progress;
         if (_fadeOutTime < 0f && loaded && (_time >= _settings.MinimumDuration || (skip && _settings.Skippable && _time >= _settings.FadeIn)))
         {
             _fadeOutTime = 0f;
         }
 
-        float alpha;
         if (_fadeOutTime >= 0f)
         {
             _fadeOutTime += deltaSeconds;
-            alpha = _settings.FadeOut <= 0f ? 0f : 1f - Math.Clamp(_fadeOutTime / _settings.FadeOut, 0f, 1f);
-            IsVisible = alpha > 0f;
+            _alpha = _settings.FadeOut <= 0f ? 0f : 1f - Math.Clamp(_fadeOutTime / _settings.FadeOut, 0f, 1f);
+            IsVisible = _alpha > 0f;
         }
         else
         {
-            alpha = _settings.FadeIn <= 0f ? 1f : Math.Clamp(_time / _settings.FadeIn, 0f, 1f);
+            _alpha = _settings.FadeIn <= 0f ? 1f : Math.Clamp(_time / _settings.FadeIn, 0f, 1f);
         }
-
-        _root.Opacity = alpha;
-        if (_bar is not null)
-        {
-            _bar.Indeterminate = progress is null;
-            _bar.Value = progress ?? 0f;
-        }
-
-        _ui.Update(NoInputSource.State.ForUI, windowSize, framebufferScale, deltaSeconds);
     }
 
-    public void Render(UIRenderer renderer, int framebufferWidth, int framebufferHeight) => renderer.Render(_ui, framebufferWidth, framebufferHeight);
+    public void Render(StartupCanvas canvas, int framebufferWidth, int framebufferHeight)
+    {
+        ArgumentNullException.ThrowIfNull(canvas);
+        Color Fade(Color c) => c with { A = c.A * _alpha };
+        var font = _assets.DefaultFont;
+        var foreground = _settings.Foreground;
+        var (w, h) = ((float)framebufferWidth, (float)framebufferHeight);
+        canvas.Begin(framebufferWidth, framebufferHeight);
+        canvas.Rect(0f, 0f, w, h, Fade(_settings.Background));
+        if (_background is not null)
+        {
+            canvas.Image(_background, 0f, 0f, w, h, Fade(Color.White));
+        }
 
-    public void Dispose() => _ui.Dispose();
+        // A centered column: logo, title, subtitle, bar, 12 px apart (20 more above the bar).
+        const float Gap = 12f;
+        var title = _settings.Title ?? "";
+        var subtitle = _settings.Subtitle ?? "";
+        var heights = new List<float>();
+        if (_logo is not null)
+        {
+            heights.Add(240f);
+        }
+
+        if (title.Length > 0)
+        {
+            heights.Add(StartupCanvas.Measure(title, font, 44f));
+        }
+
+        if (subtitle.Length > 0)
+        {
+            heights.Add(StartupCanvas.Measure(subtitle, font, 18f));
+        }
+
+        if (_settings.ShowProgress)
+        {
+            heights.Add(26f);
+        }
+
+        var y = (h - (heights.Sum() + (Gap * Math.Max(0, heights.Count - 1)))) * 0.5f;
+        if (_logo is not null)
+        {
+            canvas.Image(_logo, (w - 240f) * 0.5f, y, 240f, 240f, Fade(Color.White));
+            y += 240f + Gap;
+        }
+
+        if (title.Length > 0)
+        {
+            y += canvas.Text(title, font, 44f, w * 0.5f, y, Fade(foreground)) + Gap;
+        }
+
+        if (subtitle.Length > 0)
+        {
+            y += canvas.Text(subtitle, font, 18f, w * 0.5f, y, Fade(foreground with { A = 0.7f })) + Gap;
+        }
+
+        if (_settings.ShowProgress)
+        {
+            canvas.Bar((w - 260f) * 0.5f, y + 20f, 260f, 6f, _progress, _time, Fade(foreground with { A = 0.15f }), Fade(foreground));
+        }
+
+        if (_settings.ShowEngineBranding)
+        {
+            // "Made with" over the wordmark, 24 px above the bottom, tinted like the rest of the splash's text.
+            if (_assets.EngineLogo is { } engineLogo)
+            {
+                var logoHeight = 140f * engineLogo.Height / engineLogo.Width;
+                var top = h - 24f - logoHeight;
+                canvas.Image(engineLogo, (w - 140f) * 0.5f, top, 140f, logoHeight, Fade(foreground with { A = 0.6f }));
+                canvas.Text("Made with", font, 13f, w * 0.5f, top - 4f - StartupCanvas.Measure("Made with", font, 13f), Fade(foreground with { A = 0.5f }));
+            }
+            else
+            {
+                canvas.Text("Made with MNVTEngine", font, 14f, w * 0.5f, h - 24f - StartupCanvas.Measure("Made with MNVTEngine", font, 14f), Fade(foreground with { A = 0.5f }));
+            }
+        }
+
+        canvas.End();
+    }
+
+    public void Dispose()
+    {
+        // Textures belong to the startup assets' owner.
+    }
 }

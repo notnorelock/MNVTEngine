@@ -33,14 +33,14 @@ The engine is a set of **modules**. A project has a module or does not. Which on
 | `core` | 2D, 3D | always | | | Core, Mathematics, ECS, Serialization, Modules, Scenes, Input, Diagnostics, Newtonsoft.Json, Silk.NET.Core/Maths |
 | `platform` | 2D, 3D | always | core | | Platform, Silk.NET GLFW/windowing/input; `glfw3.dll` |
 | `graphics` | 2D, 3D | always | core | | Graphics, Graphics.Vulkan, Silk.NET Vulkan/Shaderc, Vortice VMA, Stb image/font; `shaderc_shared.dll`, `vma.dll`; the sprite shader |
-| `assets` | 2D, 3D | always | core, graphics | scripting | Assets |
+| `assets` | 2D, 3D | always | core, graphics | | Assets (database, archives, core importers) |
 | `runtime` | 2D, 3D | always | core, platform, graphics, assets | | Runtime, GameAssemblies, CrashReporting, logging |
 | `audio` | 2D, 3D | default | core | | Audio, Audio.OpenAL, NVorbis; `soft_oal.dll` |
-| `scripting` | 2D, 3D | default | core, audio | | Scripting, Missions, Bindings |
-| `ui` | 2D, 3D | default | core, graphics | | UI (screen-space, the same in both profiles) |
+| `scripting` | 2D, 3D | default | core | | Scripting, Missions, Bindings |
+| `ui` | 2D, 3D | default | core, graphics, runtime | | UI (screen-space, the same in both profiles) |
 | `devtools` | 2D, 3D | opt-in | runtime | | DebugUI, ImGui.NET; `cimgui.dll` |
-| `world.2d` | 2D | default | core, graphics | | sprites, sprite animation, tilemaps, 2D lights |
-| `world.3d` | 3D | default | core, graphics, assets | | meshes, models, model animation, 3D lights, environment; the mesh, shadow and sky shaders |
+| `world.2d` | 2D | default | core, graphics, runtime | | World2D (sprites, sprite animation, tilemaps, 2D lights), World2D.Rendering (the sprite pass, 2D lighting) |
+| `world.3d` | 3D | default | core, graphics, assets, runtime | | World3D (meshes, models, model animation, 3D lights, environment), World3D.Rendering (3D renderer, meshes, skinning, lighting and shadows, the mesh, shadow and sky shaders, model artifacts and cache, the 3D pass) |
 | `physics.2d` | 2D | default | world.2d | | Physics2D, Box2D.NET |
 | `physics.3d` | 3D | default | world.3d | | Physics3D, BepuPhysics, BepuUtilities |
 | `terrain` | 3D | default | world.3d, physics.3d | | Terrain, Terrain.Components, Clipper2; the terrain shader |
@@ -93,6 +93,21 @@ public interface IEngineModule
 
 Implementations are created by id in `EngineModules.Create` (Runtime), a plain switch: `audio`, `scripting`, `ui`, `physics.2d`, `physics.3d`, `terrain`. `GameApplication` resolves the project's modules, starts a `ModuleHost` with the enabled ones, runs the game, and shuts the modules down. Scenes load against a registry with only those modules' components.
 
+## Integration points
+
+Runtime references no optional module. Modules plug into the host through explicit interfaces that the host checks on the module instances it was given (no scanning, no service locator):
+
+| Interface | Assembly | Used for | Implemented by |
+|---|---|---|---|
+| `ISceneIntegration` | Scenes | Prepare every activated scene (attach a scene system, set a scene service) | audio, world.3d |
+| `IDiagnosticsIntegration` | Scenes | Metric providers and console commands; without the module its metrics read as unavailable | audio, ui, scripting, physics.2d |
+| `IResourceIntegration` | Runtime | Built-in shaders and caches (`IResourceExtension`) in the `ResourceCache` | world.3d, terrain |
+| `IRenderIntegration` | Runtime | A scene pass (`IScenePass`) per renderer: 3D pass (100), sprite pass (200) | world.3d, world.2d |
+| `IMeshItemIntegration` | World3D.Rendering | Meshes drawn inside the 3D pass, with its lights and shadows | terrain |
+| `IScreenIntegration` | Runtime | A screen-space layer over the scene (input before gameplay, drawing after the scene) | ui |
+
+Scene host services that modules define are typed, per scene, and set by the host or a module: `Scene.AssetReader` (asset bytes), `Scene.GetService<T>()` / `SetService<T>()` with module extension members such as world.3d's `scene.ModelAnimations` and `scene.MeshData`, and the audio module's `ISceneAudio`, which mission scripts' `audio.*` natives use (a script error without audio). The splash and loading screens are drawn by Runtime with the sprite batch and text, without the UI module. Importers of module asset types (`.mnvts`, `.mnvtterrain`, models) are build tooling (`EngineImporters` in MNVTEngine.Build); a game reads imported content and never imports.
+
 ## `mnvt modules`
 
 ```text
@@ -136,7 +151,7 @@ References that still cross module boundaries are listed as `KnownCouplings`. Th
 
 ## Limitations
 
-- **Exports still ship every module.** Runtime references Audio, UI, Scripting.Bindings, Physics2D, Physics3D and Terrain.Components directly. Assets references Scripting.Missions and Terrain (the terrain importer). These are the known couplings; phase 3 makes them conditional and strips the packages.
-- **`world.2d` and `world.3d` have no assemblies yet.** Their components are registered by `ComponentRegistry.CreateDefault` in Scenes, and their rendering is in Runtime and Graphics. A 2D game therefore can still load a `MeshRenderer`; validation reports it (`MNVB608`).
-- **The editor still registers every module's components.** It follows the profile for the Scene view only.
+- **Exports still ship every module.** GameHost references every module's assemblies until the build generates its bootstrap and references from the resolved modules (phase B3).
+- **The in-game debug UI (devtools) reads Physics2D, Audio, mission and UI state directly**, so a devtools build ships those assemblies. They are the remaining known couplings.
+- **The editor registers the components of the project's profile**, and draws with that profile's passes; its 2D and 3D tools are not yet in separate assemblies.
 - **`devtools` is still added by build configuration** (`MnvtDevTools`), not by the project's switches.

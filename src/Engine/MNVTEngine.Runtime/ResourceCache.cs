@@ -21,6 +21,12 @@ public sealed partial class ResourceCache : IDisposable
     private readonly Dictionary<Guid, LoadedMaterial?> _materials = [];
     private readonly Dictionary<string, Shader> _builtinShaders = new(StringComparer.Ordinal);
     private readonly Dictionary<Graphics.Materials.DefaultTexture, Texture2D> _defaultTextures = [];
+    private readonly Dictionary<string, (ShaderSource Source, IReadOnlyList<Graphics.Materials.MaterialPropertyInfo> Properties)> _builtinSources = new(StringComparer.Ordinal)
+    {
+        [MaterialDefinition.BuiltinSprite] = (BuiltinShaders.Sprite, []),
+    };
+
+    private readonly Dictionary<Type, IResourceExtension> _extensions = [];
     private Texture2D? _missing;
 
     public ResourceCache(IGraphicsDevice device, AssetDatabase assets, ILogger logger)
@@ -87,29 +93,6 @@ public sealed partial class ResourceCache : IDisposable
 
         var path = _assets.Get(guid)?.Path ?? guid.ToString();
         _textures.Add(guid, _device.CreateTexture(image, _assets.GetTextureSettings(guid).ToSampler(), path));
-    }
-
-    /// <summary>
-    /// An asset a terrain world references: an <c>asset:</c> reference as is, else a path next to the terrain file, else
-    /// from the Assets root (TerrainHeaven's project-relative paths). None when nothing matches.
-    /// </summary>
-    public AssetRef ResolveTerrainReference(AssetRef terrain, string reference)
-    {
-        if (AssetRef.TryParse(reference, out var direct))
-        {
-            return direct;
-        }
-
-        var terrainPath = terrain.IsNone ? "" : _assets.Get(terrain.Guid)?.Path ?? "";
-        foreach (var candidate in Terrain.Project.TerrainProject.ResolveCandidates(terrainPath, reference))
-        {
-            if (_assets.TryGetGuid(candidate, out var guid))
-            {
-                return new AssetRef(guid);
-            }
-        }
-
-        return AssetRef.None;
     }
 
     /// <summary>Texture by path relative to Assets (editor thumbnails); the placeholder if the path is not an indexed asset.</summary>
@@ -205,35 +188,81 @@ public sealed partial class ResourceCache : IDisposable
             }
         }
 
-        Graphics.Materials.MaterialShaders.ApplyDefaults(material, Graphics.Materials.MaterialShaders.PropertiesOf(definition.Builtin), GetDefaultTexture);
+        var properties = definition.Builtin is { } builtin && _builtinSources.TryGetValue(builtin, out var registered) ? registered.Properties : [];
+        Graphics.Materials.MaterialProperties.ApplyDefaults(material, properties, GetDefaultTexture);
         return material;
     }
 
-    /// <summary>A built-in shader by id (<c>builtin:standard</c>, <c>builtin:unlit</c>, <c>builtin:sprite</c>), compiled once.</summary>
-    /// <exception cref="ArgumentException">Unknown id.</exception>
+    /// <summary>
+    /// A built-in shader by id, compiled once: <c>builtin:sprite</c>, and the ids the project's modules registered
+    /// (world.3d: <c>builtin:standard</c>, <c>builtin:unlit</c>, ...).
+    /// </summary>
+    /// <exception cref="ArgumentException">Unknown id, or one of a module the project does not have.</exception>
     public Shader GetBuiltinShader(string id)
     {
         if (!_builtinShaders.TryGetValue(id, out var shader))
         {
-            shader = _device.CreateShader(id switch
+            if (!_builtinSources.TryGetValue(id, out var source))
             {
-                MaterialDefinition.BuiltinStandard => Graphics.Materials.MaterialShaders.Standard,
-                MaterialDefinition.BuiltinUnlit => Graphics.Materials.MaterialShaders.Unlit,
-                MaterialDefinition.BuiltinSprite => BuiltinShaders.Sprite,
-                Graphics.Materials.MaterialShaders.ShadowCasterId => Graphics.Materials.MaterialShaders.ShadowCaster,
-                Graphics.Materials.MaterialShaders.StandardSkinnedId => Graphics.Materials.MaterialShaders.StandardSkinned,
-                Graphics.Materials.MaterialShaders.UnlitSkinnedId => Graphics.Materials.MaterialShaders.UnlitSkinned,
-                Graphics.Materials.MaterialShaders.ShadowCasterSkinnedId => Graphics.Materials.MaterialShaders.ShadowCasterSkinned,
-                Graphics.Materials.MaterialShaders.StandardInstancedId => Graphics.Materials.MaterialShaders.StandardInstanced,
-                Graphics.Materials.MaterialShaders.UnlitInstancedId => Graphics.Materials.MaterialShaders.UnlitInstanced,
-                Graphics.Materials.MaterialShaders.SkyId => Graphics.Materials.MaterialShaders.Sky,
-                Graphics.Materials.MaterialShaders.TerrainSplatId => Graphics.Materials.MaterialShaders.TerrainSplat,
-                _ => throw new ArgumentException($"Unknown built-in shader '{id}'.", nameof(id)),
-            });
+                throw new ArgumentException($"Unknown built-in shader '{id}', or its module is not part of this project.", nameof(id));
+            }
+
+            shader = _device.CreateShader(source.Source);
             _builtinShaders.Add(id, shader);
         }
 
         return shader;
+    }
+
+    /// <summary>Makes a module's built-in shader available by id, with the documented properties its materials default to.</summary>
+    /// <exception cref="ArgumentException">The id is already registered.</exception>
+    public void RegisterBuiltinShader(string id, ShaderSource source, IReadOnlyList<Graphics.Materials.MaterialPropertyInfo>? properties = null)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (!_builtinSources.TryAdd(id, (source, properties ?? [])))
+        {
+            throw new ArgumentException($"Built-in shader '{id}' is already registered.", nameof(id));
+        }
+    }
+
+    public bool HasBuiltinShader(string id) => _builtinSources.ContainsKey(id);
+
+    /// <summary>The graphics device resources are created on.</summary>
+    public IGraphicsDevice Device => _device;
+
+    /// <summary>The asset database resources are loaded from.</summary>
+    public AssetDatabase Assets => _assets;
+
+    /// <summary>The cache's logger, for extensions.</summary>
+    public ILogger Logger => _logger;
+
+    /// <summary>
+    /// Adds a module's cache (world.3d: models and environments). The cache owns it from then on: evicts it when assets
+    /// change and disposes it with itself.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">An extension of this type is already added.</exception>
+    public void AddExtension<T>(T extension)
+        where T : class, IResourceExtension
+    {
+        ArgumentNullException.ThrowIfNull(extension);
+        if (!_extensions.TryAdd(typeof(T), extension))
+        {
+            throw new InvalidOperationException($"{typeof(T).Name} is already added to the resource cache.");
+        }
+    }
+
+    /// <exception cref="InvalidOperationException">The module that adds it is not part of the project.</exception>
+    public T GetExtension<T>()
+        where T : class, IResourceExtension =>
+        _extensions.TryGetValue(typeof(T), out var extension) ? (T)extension
+            : throw new InvalidOperationException($"No {typeof(T).Name} in the resource cache: the module that provides it is not part of this project.");
+
+    public bool TryGetExtension<T>(out T extension)
+        where T : class, IResourceExtension
+    {
+        var found = _extensions.TryGetValue(typeof(T), out var value);
+        extension = found ? (T)value! : null!;
+        return found;
     }
 
     /// <summary>The 1×1 texture an unassigned material slot uses.</summary>
@@ -272,8 +301,12 @@ public sealed partial class ResourceCache : IDisposable
     public void Dispose()
     {
         _assets.AssetsChanged -= Evict;
-        DisposeModels();
-        DisposeEnvironments();
+        foreach (var extension in _extensions.Values)
+        {
+            extension.Dispose();
+        }
+
+        _extensions.Clear();
         foreach (var texture in _textures.Values.Distinct())
         {
             texture.Dispose();
@@ -324,8 +357,10 @@ public sealed partial class ResourceCache : IDisposable
             _materials.Remove(guid);
         }
 
-        EvictModels(changed);
-        EvictEnvironments(changed);
+        foreach (var extension in _extensions.Values)
+        {
+            extension.Evict(changed);
+        }
         if (evicted.Count > 0)
         {
             TexturesEvicted?.Invoke(evicted);
@@ -461,26 +496,22 @@ public sealed record SceneViewOptions
 }
 
 /// <summary>
-/// Draws a scene's sprites and tilemaps through its main camera, with their materials. Scenes with an enabled
-/// <see cref="Light2D"/> are lit: a light buffer is cleared to the ambient color (<see cref="GlobalLight2D"/>), each
-/// light adds a soft disc, and the buffer is multiplied over the rendered scene.
+/// Draws a scene through a view: clears, then runs the passes of the project's modules (<see cref="IScenePass"/>: 2D
+/// sprites, 3D meshes, terrain, ...) in order. With no passes, a view is just cleared to its background.
 /// </summary>
-public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache resources, ILogger logger) : IDisposable
+public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache resources, ILogger logger, IEnumerable<IScenePass>? passes = null) : IDisposable
 {
-    private static readonly Color DefaultAmbient = new(0.15f, 0.15f, 0.2f);
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+    private readonly IReadOnlyList<IScenePass> _passes = [.. (passes ?? []).OrderBy(p => p.Order)];
+    private readonly Dictionary<string, int> _statistics = new(StringComparer.Ordinal);
     private bool _warnedNoCamera;
-    private readonly Dictionary<(int Width, int Height), RenderTarget2D> _lightBuffers = []; // one per view size (editor: scene + game view)
-    private Texture2D? _lightDisc;
-    private Material? _additive;
-    private Material? _multiply;
     private SceneViewOptions _options = SceneViewOptions.Default;
 
-    private bool Hidden(GameObject gameObject) => _options.IsVisible is { } visible && !visible(gameObject);
+    /// <summary>The passes, in drawing order.</summary>
+    public IReadOnlyList<IScenePass> Passes => _passes;
 
-    public int SpritesDrawn { get; private set; }
-
-    public int SpritesCulled { get; private set; }
+    /// <summary>Statistics of the last <see cref="RenderView"/> (<see cref="RenderStatistics"/>); a pass that is not there reports nothing.</summary>
+    public IReadOnlyDictionary<string, int> Statistics => _statistics;
 
     /// <summary>Sprite batch flushes (draw calls) of the last <see cref="RenderView"/>.</summary>
     public int BatchesDrawn { get; private set; }
@@ -489,7 +520,7 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
     public void Render(Scene scene, int width, int height, RenderTarget2D? target = null)
     {
         ArgumentNullException.ThrowIfNull(scene);
-        SpritesDrawn = SpritesCulled = 0;
+        _statistics.Clear();
 
         if (scene.MainCamera is not { } camera)
         {
@@ -520,8 +551,8 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
     }
 
     /// <summary>
-    /// Renders the scene through an arbitrary 2D view (e.g. the editor's scene camera): with <paramref name="camera3D"/>,
-    /// first its meshes (3D pass, with depth), then sprites, tilemaps and 2D lighting on top.
+    /// Renders the scene through an arbitrary 2D view (e.g. the editor's scene camera) and, for 3D passes,
+    /// <paramref name="camera3D"/>: the passes draw in their order (3D meshes first, sprites on top).
     /// </summary>
     /// <param name="options">Scene view toggles; null renders as games do.</param>
     public void RenderView(Scene scene, Camera2D view, Color background, RenderTarget2D? target = null, Camera? camera3D = null, SceneViewOptions? options = null)
@@ -529,192 +560,40 @@ public sealed partial class SceneRenderer(Renderer2D renderer, ResourceCache res
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(view);
         _options = options ?? SceneViewOptions.Default;
-        SpritesDrawn = SpritesCulled = 0;
-        var visible = view.VisibleWorldBounds;
+        _statistics.Clear();
 
         resources.SetTime(_options.AnimatedMaterials ? (float)_clock.Elapsed.TotalSeconds : 0f);
         var drawCalls = renderer.Batch.DrawCallCount;
-        var sprites = Core.Diagnostics.Profiler.Sample("Render.Sprites");
         var batch = renderer.Begin(view, SpriteSortMode.BackToFront, target: target);
         renderer.Device.Clear(background);
-        if (camera3D is not null)
+        var context = new ScenePassContext(scene, view, camera3D, target, batch, _options, _statistics);
+        foreach (var pass in _passes)
         {
-            Render3D(scene, camera3D, target); // sprites are drawn when the batch ends, on top
-        }
-        foreach (var sprite in scene.World.Pool<SpriteRenderer>().Components)
-        {
-            if (sprite.Texture.IsNone || !sprite.IsActiveAndEnabled || Hidden(sprite.GameObject))
-            {
-                continue;
-            }
-
-            var transform = sprite.Transform;
-            var scale = transform.LossyScale;
-            var size = Vector2.Scale(sprite.Size, Vector2.Abs((Vector2)scale));
-            var position = (Vector2)transform.Position;
-
-            // Conservative bounding circle: covers any pivot and rotation.
-            var radius = size.Magnitude;
-            if (position.X + radius < visible.Min.X || position.X - radius > visible.Max.X
-                || position.Y + radius < visible.Min.Y || position.Y - radius > visible.Max.Y)
-            {
-                SpritesCulled++;
-                continue;
-            }
-
-            var flip = SpriteFlip.None;
-            if (sprite.FlipX ^ (scale.X < 0f))
-            {
-                flip |= SpriteFlip.Horizontal;
-            }
-
-            if (sprite.FlipY ^ (scale.Y < 0f))
-            {
-                flip |= SpriteFlip.Vertical;
-            }
-
-            var source = sprite.SourceRect is { Width: > 0f, Height: > 0f } rect ? rect : (Rect?)null;
-            batch.Draw(resources.GetTexture(sprite.Texture), position, size, sprite.Color, transform.Rotation2D, sprite.Pivot, source, flip, -sprite.SortingOrder, resources.GetMaterial(sprite.Material));
-            SpritesDrawn++;
-        }
-
-        foreach (var tilemap in scene.World.Pool<Tilemap>().Components)
-        {
-            if (!tilemap.Texture.IsNone && tilemap.IsActiveAndEnabled && tilemap.Count > 0 && !Hidden(tilemap.GameObject))
-            {
-                DrawTilemap(batch, tilemap, visible);
-            }
+            pass.Draw(context);
         }
 
         renderer.End();
-        sprites.Dispose();
-        using (Core.Diagnostics.Profiler.Sample("Render.Lighting"))
+        foreach (var pass in _passes)
         {
-            ApplyLighting(scene, view, target);
+            pass.Composite(context);
         }
 
-        Core.Diagnostics.Profiler.Count("Sprites drawn", SpritesDrawn);
-        Core.Diagnostics.Profiler.Count("Sprites culled", SpritesCulled);
-        Core.Diagnostics.Profiler.Count("Lights", LightsDrawn);
+        foreach (var (name, value) in _statistics)
+        {
+            Core.Diagnostics.Profiler.Count(name, value);
+        }
+
         BatchesDrawn = renderer.Batch.DrawCallCount - drawCalls;
         Core.Diagnostics.Profiler.Count("Draw calls", BatchesDrawn);
     }
 
-    public int LightsDrawn { get; private set; }
-
     public void Dispose()
     {
-        foreach (var buffer in _lightBuffers.Values)
+        foreach (var pass in _passes)
         {
-            buffer.Dispose();
+            pass.Dispose();
         }
 
-        _lightBuffers.Clear();
-        _lightDisc?.Dispose();
-        _lightDisc = null;
-        Dispose3D();
-    }
-
-    private void ApplyLighting(Scene scene, Camera2D view, RenderTarget2D? target)
-    {
-        LightsDrawn = 0;
-        var lights = new List<Light2D>();
-        foreach (var light in scene.World.Pool<Light2D>().Components)
-        {
-            if (light.IsActiveAndEnabled)
-            {
-                lights.Add(light);
-            }
-        }
-
-        if (lights.Count == 0)
-        {
-            return;
-        }
-
-        var device = renderer.Device;
-        var width = target?.Width ?? device.BackBufferWidth;
-        var height = target?.Height ?? device.BackBufferHeight;
-        if (!_lightBuffers.TryGetValue((width, height), out var lightBuffer))
-        {
-            if (_lightBuffers.Count >= 4)
-            {
-                Dispose(); // views were resized: start over rather than keep stale sizes
-            }
-
-            lightBuffer = device.CreateRenderTarget(width, height, SamplerState.LinearClamp, "Lighting.Buffer");
-            _lightBuffers[(width, height)] = lightBuffer;
-        }
-
-        _lightDisc ??= CreateLightDisc(device);
-        _additive ??= new Material(renderer.DefaultMaterial.Shader, BlendMode.Additive, "Lighting/Additive");
-        _multiply ??= new Material(renderer.DefaultMaterial.Shader, BlendMode.Multiply, "Lighting/Multiply");
-
-        var global = scene.FindObjectsOfType<GlobalLight2D>().FirstOrDefault(g => g.IsActiveAndEnabled);
-        var ambient = global is null ? DefaultAmbient : global.Color * global.Intensity;
-        var lightsBatch = renderer.Begin(view, SpriteSortMode.Deferred, _additive, lightBuffer);
-        device.Clear(new Color(ambient.R, ambient.G, ambient.B, 1f));
-        foreach (var light in lights)
-        {
-            var scale = light.Transform.LossyScale;
-            var diameter = 2f * light.Radius * MathF.Max(MathF.Abs(scale.X), MathF.Abs(scale.Y));
-            var color = light.Color * light.Intensity;
-            lightsBatch.Draw(_lightDisc, (Vector2)light.Transform.Position, new Vector2(diameter, diameter), new Color(color.R, color.G, color.B, 1f));
-            LightsDrawn++;
-        }
-
-        renderer.End();
-
-        var screen = new Camera2D(width, height) { Position = new Vector2(width * 0.5f, height * 0.5f) };
-        screen.UsePixelUnits();
-        var composite = renderer.Begin(screen, SpriteSortMode.Deferred, _multiply, target);
-        composite.Draw(lightBuffer, new Vector2(width * 0.5f, height * 0.5f), new Vector2(width, height), Color.White);
-        renderer.End();
-    }
-
-    /// <summary>White disc fading to black at the edge with a smooth (squared) falloff.</summary>
-    private static Texture2D CreateLightDisc(IGraphicsDevice device)
-    {
-        const int Size = 128;
-        var pixels = new byte[Size * Size * 4];
-        for (var y = 0; y < Size; y++)
-        {
-            for (var x = 0; x < Size; x++)
-            {
-                var dx = ((x + 0.5f) / Size * 2f) - 1f;
-                var dy = ((y + 0.5f) / Size * 2f) - 1f;
-                var falloff = MathF.Max(0f, 1f - MathF.Sqrt((dx * dx) + (dy * dy)));
-                var value = (byte)(falloff * falloff * 255f);
-                var i = ((y * Size) + x) * 4;
-                (pixels[i], pixels[i + 1], pixels[i + 2], pixels[i + 3]) = (value, value, value, 255);
-            }
-        }
-
-        return device.CreateTexture(Size, Size, pixels, SamplerState.LinearClamp, "Lighting.Disc");
-    }
-
-    /// <summary>Draws the painted cells that overlap the view; each cell is culled by a bounding circle like sprites.</summary>
-    private void DrawTilemap(SpriteBatch batch, Tilemap tilemap, Rect visible)
-    {
-        var texture = resources.GetTexture(tilemap.Texture);
-        var material = resources.GetMaterial(tilemap.Material);
-        var transform = tilemap.Transform;
-        var scale = transform.LossyScale;
-        var size = Vector2.Scale(tilemap.CellSize, Vector2.Abs((Vector2)scale));
-        var radius = size.Magnitude;
-        var flip = (scale.X < 0f ? SpriteFlip.Horizontal : SpriteFlip.None) | (scale.Y < 0f ? SpriteFlip.Vertical : SpriteFlip.None);
-        foreach (var cell in tilemap.EnumerateTiles())
-        {
-            var corner = tilemap.CellToWorld(cell.X, cell.Y);
-            if (corner.X + radius < visible.Min.X || corner.X - radius > visible.Max.X || corner.Y + radius < visible.Min.Y || corner.Y - radius > visible.Max.Y)
-            {
-                SpritesCulled++;
-                continue;
-            }
-
-            batch.Draw(texture, corner, size, tilemap.Color, transform.Rotation2D, Vector2.Zero, tilemap.SourceRect(cell.Tile), flip, -tilemap.SortingOrder, material);
-            SpritesDrawn++;
-        }
     }
 
     [LoggerMessage(EventId = 3001, Level = LogLevel.Warning, Message = "Scene '{Scene}' has no active Camera; nothing is rendered")]

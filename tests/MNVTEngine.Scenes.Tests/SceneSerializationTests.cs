@@ -6,7 +6,7 @@ namespace MNVTEngine.Scenes.Tests;
 
 public class SceneSerializationTests
 {
-    private static readonly ComponentRegistry Registry = ComponentRegistry.CreateDefault()
+    private static readonly ComponentRegistry Registry = TestRegistry.Create()
         .Register<PlayerController>()
         .Register<Inspector>();
 
@@ -103,7 +103,7 @@ public class SceneSerializationTests
             { "schemaVersion": 2, "name": "Old", "gameObjects": [ { "id": "22222222-2222-2222-2222-222222222222", "name": "A", "active": true, "parent": null,
               "transform": { "localPosition": { "x": 1.5, "y": -2.0 }, "localRotation": 90.0, "localScale": { "x": 2.0, "y": 3.0 } }, "components": [] } ] }
             """;
-        var result = new SceneSerializer(ComponentRegistry.CreateDefault()).Deserialize(json);
+        var result = new SceneSerializer(TestRegistry.Create()).Deserialize(json);
         var transform = result.Scene.Find("A")!.Transform;
         Assert.Equal(new Vector3(1.5f, -2f, 0f), transform.LocalPosition);
         Assert.Equal(90f, transform.LocalRotation2D, 3);
@@ -134,7 +134,7 @@ public class SceneSerializationTests
     public void UnknownComponent_IsPreservedAcrossSave()
     {
         var json = Serializer.Serialize(BuildScene());
-        var limited = new SceneSerializer(ComponentRegistry.CreateDefault().Register<Inspector>());
+        var limited = new SceneSerializer(TestRegistry.Create().Register<Inspector>());
 
         var result = limited.Deserialize(json);
         var missing = Assert.Single(result.Scene.Find("Player")!.GetComponents<MissingComponent>());

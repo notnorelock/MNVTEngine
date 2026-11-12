@@ -87,7 +87,7 @@ public sealed class DontDestroyOnLoadTests : IDisposable
         var first = NewScene("Menu");
         var manager = first.CreateGameObject("Manager");
         var id = manager.Id;
-        var serializer = new SceneSerializer(ComponentRegistry.CreateDefault());
+        var serializer = new SceneSerializer(TestRegistry.Create());
         var again = serializer.Deserialize(serializer.Serialize(first)).Scene; // the scene file contains it too
         var copy = again.FindById(id)!;
         manager.DontDestroyOnLoad();

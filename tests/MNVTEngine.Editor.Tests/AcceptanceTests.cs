@@ -153,7 +153,7 @@ public sealed class AcceptanceTests : IDisposable
         var camera = scene.CreateGameObject("Camera").AddComponent<Camera>();
         camera.Projection = CameraProjection.Perspective;
         scene.CreateGameObject("Sun").AddComponent<Light>().Shadows = true;
-        var serializer = new SceneSerializer(EngineComponents.CreateRegistry());
+        var serializer = new SceneSerializer(Build.EngineModuleSet.CreateRegistry());
         db.WriteText("Scenes/Main.mnvt", serializer.Serialize(scene));
         var references = scene.FindObjectsOfType<MeshRenderer>().Select(r => r.Mesh).ToList();
         Assert.Equal(crate.Meshes.Count + walker.Meshes.Count + Model(db, propGuid).Meshes.Count, references.Count);
@@ -172,7 +172,7 @@ public sealed class AcceptanceTests : IDisposable
         var reloaded = serializer.Deserialize(File.ReadAllText(db.FullPath(db.TryGetGuid("Scenes/Main.mnvt", out var sceneGuid) ? sceneGuid : default))).Scene;
         foreach (var reference in reloaded.FindObjectsOfType<MeshRenderer>().Select(r => r.Mesh))
         {
-            var name = reference.SubAsset![ResourceCache.MeshSubAssetPrefix.Length..];
+            var name = reference.SubAsset![ModelCache.MeshSubAssetPrefix.Length..];
             Assert.True(Model(db, reference.Guid).FindMesh(name) is not null, $"{reference} still resolves after the reimport");
         }
 
@@ -189,7 +189,7 @@ public sealed class AcceptanceTests : IDisposable
         IReadOnlyList<PackagedArchive> archives;
         using (var writer = new ContentArchiveWriter(output, key))
         {
-            result = ContentCompiler.Compile(project, EngineComponents.CreateRegistry(), writer);
+            result = ContentCompiler.Compile(project, Build.EngineModuleSet.CreateRegistry(), writer);
             archives = writer.Archives;
         }
 

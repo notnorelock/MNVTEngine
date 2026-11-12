@@ -41,7 +41,8 @@ public sealed class EmptySceneDepthTests : IDisposable
             var assets = AssetDatabase.OpenForEditing(Path.Combine(_root, "Assets"), Path.Combine(_root, "Library"));
             using var resources = new ResourceCache(device, assets, NullLogger.Instance);
             using var renderer2D = new Renderer2D(device);
-            using var sceneRenderer = new SceneRenderer(renderer2D, resources, NullLogger.Instance);
+            using var sceneRenderer = new SceneRenderer(renderer2D, resources, NullLogger.Instance,
+                ModuleIntegration.CreatePasses([new World3D.Rendering.World3DModule()], renderer2D, resources, NullLoggerFactory.Instance)); // the real 3D pass
             using var target = device.CreateRenderTarget(Size, Size, SamplerState.LinearClamp, "depth test", depth: true);
 
             // Frame 1: a cube right in front of the camera fills the depth buffer with near values.
@@ -89,7 +90,7 @@ public sealed class EmptySceneDepthTests : IDisposable
         using var meshes = new GpuMeshCache(device);
         var material = new Material(resources.GetBuiltinShader(Serialization.MaterialDefinition.BuiltinUnlit), BlendMode.Opaque, "overlay");
         material.SetColor("_BaseColor", new Color(0f, 1f, 0f, 1f));
-        MaterialShaders.ApplyDefaults(material, MaterialShaders.UnlitProperties, resources.GetDefaultTexture);
+        MaterialProperties.ApplyDefaults(material, MaterialShaders.UnlitProperties, resources.GetDefaultTexture);
         var cube = MeshPrimitives.Cube();
         device.SetRenderTarget(target);
         renderer.Render(new View3D(camera.ViewMatrix, camera.ProjectionMatrix, camera.Transform.Position),

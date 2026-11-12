@@ -94,7 +94,7 @@ public sealed class RuntimeTests : IDisposable
             registry,
             (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }),
             factory,
-            new GameRuntimeOptions { ExitAfterFrames = 10 });
+            new GameRuntimeOptions { ExitAfterFrames = 10, Modules = Build.EngineModuleSet.All() });
         using (window)
         {
             try
@@ -192,7 +192,7 @@ public sealed class RuntimeTests : IDisposable
         var project = GameProject.Load(WriteProject());
         using var logs = new InMemoryLoggerProvider(minimumLevel: LogLevel.Debug);
         using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
-        var runtime = RunHidden(project, EngineComponents.CreateRegistry(), factory, frames: 3, screenshot);
+        var runtime = RunHidden(project, Build.EngineModuleSet.CreateRegistry(), factory, frames: 3, screenshot);
 
         Assert.Equal(0, runtime.ExitCode); // no GPU resources leaked
         Assert.Single(logs.Snapshot(), e => e.Level >= LogLevel.Error && e.Message.Contains("Broken.mnvtmat", StringComparison.Ordinal));
@@ -225,7 +225,7 @@ public sealed class RuntimeTests : IDisposable
         var screenshot = Path.Combine(_root, "3d.png");
         using var logs = new InMemoryLoggerProvider(minimumLevel: LogLevel.Debug);
         using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
-        var runtime = RunHidden(GameProject.Load(WriteProject()), EngineComponents.CreateRegistry(), factory, frames: 3, screenshot);
+        var runtime = RunHidden(GameProject.Load(WriteProject()), Build.EngineModuleSet.CreateRegistry(), factory, frames: 3, screenshot);
 
         Assert.Equal(0, runtime.ExitCode); // no GPU resources leaked
         Assert.Contains(logs.Snapshot(), e => e.Message.Contains("2 meshes drawn, 1 culled", StringComparison.Ordinal));
@@ -254,11 +254,11 @@ public sealed class RuntimeTests : IDisposable
         using var logs = new InMemoryLoggerProvider(minimumLevel: LogLevel.Debug);
         using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
         var instancedShot = Path.Combine(_root, "instanced.png");
-        Assert.Equal(0, RunHidden(GameProject.Load(WriteProject()), EngineComponents.CreateRegistry(), factory, frames: 3, instancedShot).ExitCode);
+        Assert.Equal(0, RunHidden(GameProject.Load(WriteProject()), Build.EngineModuleSet.CreateRegistry(), factory, frames: 3, instancedShot).ExitCode);
         Assert.Contains(logs.Snapshot(), e => e.Message.Contains("16 meshes drawn", StringComparison.Ordinal) && e.Message.Contains("16 instanced in 1 draws", StringComparison.Ordinal));
 
         var separateShot = Path.Combine(_root, "separate.png");
-        Assert.Equal(0, RunHidden(GameProject.Load(_root), EngineComponents.CreateRegistry(), factory, frames: 3, separateShot, instancing: false).ExitCode);
+        Assert.Equal(0, RunHidden(GameProject.Load(_root), Build.EngineModuleSet.CreateRegistry(), factory, frames: 3, separateShot, instancing: false).ExitCode);
         var (a, b) = (Graphics.Image.Load(instancedShot), Graphics.Image.Load(separateShot));
         var different = Enumerable.Range(0, a.Pixels.Length).Count(i => Math.Abs(a.Pixels[i] - b.Pixels[i]) > 4);
         Assert.True(different <= a.Pixels.Length / 500, $"{different} of {a.Pixels.Length} channels differ");
@@ -294,7 +294,7 @@ public sealed class RuntimeTests : IDisposable
         var screenshot = Path.Combine(_root, "tints.png");
         using var logs = new InMemoryLoggerProvider(minimumLevel: LogLevel.Debug);
         using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
-        var runtime = RunHidden(GameProject.Load(WriteProject()), EngineComponents.CreateRegistry().Register<Tint>(), factory, frames: 3, screenshot);
+        var runtime = RunHidden(GameProject.Load(WriteProject()), Build.EngineModuleSet.CreateRegistry().Register<Tint>(), factory, frames: 3, screenshot);
 
         Assert.Equal(0, runtime.ExitCode);
         var image = Graphics.Image.Load(screenshot);
@@ -322,7 +322,7 @@ public sealed class RuntimeTests : IDisposable
         var screenshot = Path.Combine(_root, "lit.png");
         using var logs = new InMemoryLoggerProvider(minimumLevel: LogLevel.Debug);
         using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
-        var runtime = RunHidden(GameProject.Load(WriteProject()), EngineComponents.CreateRegistry(), factory, frames: 3, screenshot);
+        var runtime = RunHidden(GameProject.Load(WriteProject()), Build.EngineModuleSet.CreateRegistry(), factory, frames: 3, screenshot);
 
         Assert.Equal(0, runtime.ExitCode); // the shadow map is released
         Assert.Single(logs.Snapshot(), e => e.Message.Contains("has 10 lights; only the 8", StringComparison.Ordinal)); // warned once
@@ -339,7 +339,7 @@ public sealed class RuntimeTests : IDisposable
         Core.Diagnostics.Profiler.Current = profiler;
         try
         {
-            RunHidden(GameProject.Load(WriteProject()), EngineComponents.CreateRegistry(), NullLoggerFactory.Instance, frames: 5, profiler: profiler);
+            RunHidden(GameProject.Load(WriteProject()), Build.EngineModuleSet.CreateRegistry(), NullLoggerFactory.Instance, frames: 5, profiler: profiler);
         }
         finally
         {
@@ -368,7 +368,7 @@ public sealed class RuntimeTests : IDisposable
 
         var runtime = new GameRuntime(project, registry,
             (w, l) => VulkanGraphicsDevice.Create(w.VulkanSurface, w.FramebufferWidth, w.FramebufferHeight, l, new VulkanDeviceOptions { VSync = false }),
-            factory, new GameRuntimeOptions { ExitAfterFrames = frames, ScreenshotPath = screenshot, Profiler = profiler, GpuInstancing = instancing });
+            factory, new GameRuntimeOptions { ExitAfterFrames = frames, ScreenshotPath = screenshot, Profiler = profiler, GpuInstancing = instancing, Modules = Build.EngineModuleSet.All() });
         using (window)
         {
             try

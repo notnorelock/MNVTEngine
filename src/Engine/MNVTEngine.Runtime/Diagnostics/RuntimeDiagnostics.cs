@@ -14,7 +14,8 @@ using DiagnosticMetrics = MNVTEngine.Diagnostics.Metrics;
 namespace MNVTEngine.Runtime;
 
 /// <summary>What diagnostics observe: the device, the running scene and its resources. Any part may be missing.</summary>
-public sealed record DiagnosticsTarget(IGraphicsDevice Device, Func<Scene?> Scene, ResourceCache? Resources = null, AssetDatabase? Assets = null, SceneRenderer? SceneRenderer = null, UI.UIRenderer? UI = null);
+/// <param name="Modules">The running project's engine modules (inspection panels look up the ones they show).</param>
+public sealed record DiagnosticsTarget(IGraphicsDevice Device, Func<Scene?> Scene, ResourceCache? Resources = null, AssetDatabase? Assets = null, SceneRenderer? SceneRenderer = null, IReadOnlyList<IEngineModule>? Modules = null);
 
 /// <summary>
 /// The diagnostics of one running game (standalone runtime, Player or editor Play Mode): profiler, GPU timer, metrics,
@@ -65,7 +66,6 @@ public sealed partial class RuntimeDiagnostics
             .Add(new TimeProvider(this))
             .Add(new MemoryProvider(this))
             .Add(new RendererProvider(this))
-            .Add(new UIProvider(this))
             .Add(new SceneProvider(this))
             .Add(new AssetProvider(this));
         foreach (var name in settings.DisabledProviders)
@@ -367,43 +367,9 @@ public sealed partial class RuntimeDiagnostics
                 metrics.Set(DiagnosticMetrics.CollectionsPerMinute, (gen0 - oldCount) * 60.0 / (now - oldest));
             }
 
-            var audio = owner._target?.Scene() is { } scene ? AudioSystem.For(scene) : null;
-            if (audio is not null)
-            {
-                metrics.Set(DiagnosticMetrics.AudioMemory, audio.BufferBytes);
-            }
-
             if (_textures.HasValue)
             {
-                metrics.Set(DiagnosticMetrics.AssetMemory, new MetricValue(_textures.Status, _textures.Value + (audio?.BufferBytes ?? 0)));
-            }
-        }
-    }
-
-    /// <summary>Game UI of the current scene: element counts, draws, cache behaviour and the glyph atlas.</summary>
-    private sealed class UIProvider(RuntimeDiagnostics owner) : IMetricsProvider
-    {
-        public string Name => "UI";
-
-        public void Collect(MetricsSnapshot metrics)
-        {
-            if (owner._target is not { } target || target.Scene() is not { } scene || UI.UISystem.For(scene) is not { } ui)
-            {
-                return;
-            }
-
-            var totals = ui.Totals();
-            metrics.Set(DiagnosticMetrics.UIElements, totals.Elements);
-            metrics.Set(DiagnosticMetrics.UIVisibleElements, totals.Visible);
-            metrics.Set(DiagnosticMetrics.UIDrawCalls, totals.DrawCalls);
-            metrics.Set(DiagnosticMetrics.UIQuads, totals.Quads);
-            metrics.Set(DiagnosticMetrics.UILayoutPasses, totals.LayoutPasses);
-            metrics.Set(DiagnosticMetrics.UIGeometryRebuilds, totals.Rebuilds);
-            metrics.Set(DiagnosticMetrics.UITextLayouts, UI.TextBlock.Builds);
-            if (target.UI is { } renderer)
-            {
-                metrics.Set(DiagnosticMetrics.UIGlyphs, renderer.Atlas.GlyphCount);
-                metrics.Set(DiagnosticMetrics.UIAtlasPages, renderer.Atlas.PageCount);
+                metrics.Set(DiagnosticMetrics.AssetMemory, new MetricValue(_textures.Status, _textures.Value)); // textures; audio buffers are AudioMemory
             }
         }
     }
@@ -444,8 +410,19 @@ public sealed partial class RuntimeDiagnostics
             metrics.Set(DiagnosticMetrics.Shaders, _counts.Shaders);
             if (target.SceneRenderer is { } renderer)
             {
-                metrics.Set(DiagnosticMetrics.Sprites, renderer.SpritesDrawn);
-                metrics.Set(DiagnosticMetrics.SpritesCulled, renderer.SpritesCulled);
+                // Without a sprite pass (a project without world.2d) there are no sprite counts: unsupported, not zero.
+                foreach (var (metric, statistic) in new[] { (DiagnosticMetrics.Sprites, RenderStatistics.SpritesDrawn), (DiagnosticMetrics.SpritesCulled, RenderStatistics.SpritesCulled) })
+                {
+                    if (renderer.Statistics.TryGetValue(statistic, out var value))
+                    {
+                        metrics.Set(metric, value);
+                    }
+                    else
+                    {
+                        metrics.SetUnsupported(metric);
+                    }
+                }
+
                 metrics.Set(DiagnosticMetrics.SpriteBatches, renderer.BatchesDrawn);
             }
 
@@ -454,11 +431,10 @@ public sealed partial class RuntimeDiagnostics
         }
     }
 
-    /// <summary>Walks the scene every 10 frames (object, component, physics, audio and script counts).</summary>
     private sealed class SceneProvider(RuntimeDiagnostics owner) : IMetricsProvider
     {
         private int _frame;
-        private (int Entities, int Components, int Colliders, int CSharp, int Vms, int Fibers, int Systems, int Bodies) _counts;
+        private (int Entities, int Components, int CSharp, int Systems) _counts;
         private Scene? _scene;
 
         public string Name => "Runtime";
@@ -479,32 +455,19 @@ public sealed partial class RuntimeDiagnostics
             metrics.Set(DiagnosticMetrics.Entities, _counts.Entities);
             metrics.Set(DiagnosticMetrics.Components, _counts.Components);
             metrics.Set(DiagnosticMetrics.Systems, _counts.Systems);
-            metrics.Set(DiagnosticMetrics.PhysicsBodies, _counts.Bodies);
-            metrics.Set(DiagnosticMetrics.PhysicsColliders, _counts.Colliders);
             metrics.Set(DiagnosticMetrics.CSharpScripts, _counts.CSharp);
-            metrics.Set(DiagnosticMetrics.ScriptVms, _counts.Vms);
-            metrics.Set(DiagnosticMetrics.ScriptFibers, _counts.Fibers);
-            metrics.Set(DiagnosticMetrics.AudioSources, AudioSystem.For(scene)?.VoiceCount ?? 0);
         }
 
-        private static (int, int, int, int, int, int, int, int) Count(Scene scene)
+        private static (int, int, int, int) Count(Scene scene)
         {
-            int components = 0, colliders = 0, csharp = 0, vms = 0, fibers = 0;
+            int components = 0, csharp = 0;
             foreach (var gameObject in scene.GameObjects)
             {
                 foreach (var component in gameObject.Components)
                 {
-                    switch (component)
+                    if (component is Transform)
                     {
-                        case Transform:
-                            continue;
-                        case Collider2D:
-                            colliders++;
-                            break;
-                        case MissionRunner { Vm: { } vm }:
-                            vms++;
-                            fibers += vm.Fibers.Count;
-                            break;
+                        continue;
                     }
 
                     components++;
@@ -515,8 +478,7 @@ public sealed partial class RuntimeDiagnostics
                 }
             }
 
-            var bodies = scene.Systems.Get<PhysicsWorld2D>()?.BodyCount ?? 0;
-            return (scene.GameObjects.Count, components, colliders, csharp, vms, fibers, scene.Systems.Count, bodies);
+            return (scene.GameObjects.Count, components, csharp, scene.Systems.Count);
         }
     }
 
@@ -536,10 +498,8 @@ public sealed partial class RuntimeDiagnostics
 
             if (_frame++ % 30 == 0)
             {
-                var audio = target.Scene() is { } scene ? AudioSystem.For(scene) : null;
                 var importErrors = target.Assets?.Diagnostics.Count(d => d.Severity == Serialization.DiagnosticSeverity.Error) ?? 0;
-                _counts = (target.Resources.LoadedTextureCount + (audio?.ClipCount - audio?.FailedClipCount ?? 0),
-                    target.Resources.FailedTextureCount + (audio?.FailedClipCount ?? 0) + importErrors);
+                _counts = (target.Resources.LoadedTextureCount, target.Resources.FailedTextureCount + importErrors); // textures; clips are the audio module's
             }
 
             metrics.Set(DiagnosticMetrics.AssetsLoaded, _counts.Loaded);
@@ -574,8 +534,7 @@ public sealed partial class RuntimeDiagnostics
                 ? Ok($"Scene '{scene.Name}': {scene.GameObjects.Count} objects, {scene.Systems.Count} systems, camera {(scene.MainCamera?.GameObject.Name ?? "none")}, {scene.ScriptExceptionCount} script exceptions")
                 : DebugCommandResult.Fail("No scene is running."))
             .Register("entities", "Lists objects (up to 50), optionally filtered by name.", "[filter]", Entities)
-            .Register("scripts", "C# script components and .mnvts VMs.", _ => Scripts())
-            .Register("missions", "Mission and objective states of every MissionRunner.", _ => Missions())
+            .Register("scripts", "C# script components (mission VMs: the scripting module's 'missions').", _ => Scripts())
             .Register("budgets", "Lists budgets, or sets a limit for this session.", "[set <id> <limit>]", BudgetsCommand)
             .Register("profiler", "Summary, or 'capture' (report file), 'reset', 'detail frame|systems|scripts'.", "[capture|reset|detail <level>]", ProfilerCommand)
             .Register("gc", "Runs a full garbage collection and reports the heap before and after.", _ =>
@@ -659,45 +618,14 @@ public sealed partial class RuntimeDiagnostics
 
         var game = scene.GameObjects.SelectMany(g => g.Components).Where(c => IsGameCode(c.GetType()))
             .GroupBy(c => c.GetType()).Select(g => $"{g.Key.FullName} x{g.Count()} ({g.Key.Assembly.GetName().Name})").ToList();
-        var runners = scene.FindObjectsOfType<MissionRunner>().ToList();
         var text = new StringBuilder(string.Create(CultureInfo.InvariantCulture, $"C# script types: {game.Count}"));
         foreach (var line in game)
         {
             text.Append("\n  ").Append(line);
         }
 
-        text.Append(CultureInfo.InvariantCulture, $"\nMission VMs: {runners.Count(r => r.Vm is not null)} running of {runners.Count}");
-        foreach (var runner in runners)
-        {
-            text.Append(CultureInfo.InvariantCulture, $"\n  {runner.GameObject.Name}: {(runner.Vm is { } vm ? $"{vm.Fibers.Count} coroutines" : "not running")}");
-        }
-
         text.Append(CultureInfo.InvariantCulture, $"\nScript exceptions: {scene.ScriptExceptionCount}");
         return Ok(text.ToString());
-    }
-
-    private DebugCommandResult Missions()
-    {
-        var runners = _target?.Scene()?.FindObjectsOfType<MissionRunner>().Where(r => r.Missions is not null).ToList() ?? [];
-        if (runners.Count == 0)
-        {
-            return Ok("No mission scripts are running.");
-        }
-
-        var text = new StringBuilder();
-        foreach (var runner in runners)
-        {
-            foreach (var mission in runner.Missions!.Missions.Values)
-            {
-                text.Append(CultureInfo.InvariantCulture, $"{runner.GameObject.Name}/{mission.Info.Id}: {mission.State}\n");
-                foreach (var objective in mission.Objectives.Values)
-                {
-                    text.Append(CultureInfo.InvariantCulture, $"    {objective.Info.Id}: {objective.State}\n");
-                }
-            }
-        }
-
-        return Ok(text.ToString().TrimEnd());
     }
 
     private DebugCommandResult BudgetsCommand(IReadOnlyList<string> args)
