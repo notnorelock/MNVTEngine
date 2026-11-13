@@ -159,6 +159,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Browser.World3D"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Browser.Tests", "tests\MNVTEngine.Browser.Tests\MNVTEngine.Browser.Tests.csproj", "{303641A9-D858-41CD-8E93-16FD1336B6C3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Browser.Audio", "src\Engine\MNVTEngine.Browser.Audio\MNVTEngine.Browser.Audio.csproj", "{C949E174-199E-426B-98D1-F44CC396C875}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1105,6 +1107,18 @@ Global
 		{303641A9-D858-41CD-8E93-16FD1336B6C3}.Release|x64.Build.0 = Release|Any CPU
 		{303641A9-D858-41CD-8E93-16FD1336B6C3}.Release|x86.ActiveCfg = Release|Any CPU
 		{303641A9-D858-41CD-8E93-16FD1336B6C3}.Release|x86.Build.0 = Release|Any CPU
+		{C949E174-199E-426B-98D1-F44CC396C875}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C949E174-199E-426B-98D1-F44CC396C875}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C949E174-199E-426B-98D1-F44CC396C875}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C949E174-199E-426B-98D1-F44CC396C875}.Debug|x64.Build.0 = Debug|Any CPU
+		{C949E174-199E-426B-98D1-F44CC396C875}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C949E174-199E-426B-98D1-F44CC396C875}.Debug|x86.Build.0 = Debug|Any CPU
+		{C949E174-199E-426B-98D1-F44CC396C875}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C949E174-199E-426B-98D1-F44CC396C875}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C949E174-199E-426B-98D1-F44CC396C875}.Release|x64.ActiveCfg = Release|Any CPU
+		{C949E174-199E-426B-98D1-F44CC396C875}.Release|x64.Build.0 = Release|Any CPU
+		{C949E174-199E-426B-98D1-F44CC396C875}.Release|x86.ActiveCfg = Release|Any CPU
+		{C949E174-199E-426B-98D1-F44CC396C875}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

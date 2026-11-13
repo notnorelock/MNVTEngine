@@ -103,7 +103,7 @@ public sealed partial class DebugOverlay : IRuntimeOverlay
 
             _draw = new DebugDrawRenderer();
             HudVisible = settings.ShowOverlayByDefault;
-            foreach (var panel in (DebugPanel[])[new WindowsPanel(), new ProfilerPanel(), new ConsolePanel(), new BudgetsPanel(), new RendererPanel(), new EcsPanel(), new MemoryPanel(), new ScriptingPanel(), new PhysicsPanel(), new AssetsPanel(), new UIPanel()])
+            foreach (var panel in (DebugPanel[])[new WindowsPanel(), new ProfilerPanel(), new ConsolePanel(), new BudgetsPanel(), new RendererPanel(), new EcsPanel(), new MemoryPanel(), new ScriptingPanel(), new PhysicsPanel(), new AssetsPanel(), new UIPanel(), new MixerPanel()])
             {
                 if (!settings.DisabledPanels.Contains(panel.Name, StringComparer.OrdinalIgnoreCase))
                 {

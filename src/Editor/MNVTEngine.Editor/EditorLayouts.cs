@@ -25,7 +25,7 @@ internal static class EditorLayouts
         (EditorLayout.Wide, "Wide"),
     ];
 
-    private static readonly string[] BottomTabs = ["Project", "Console", "Profiler", "Script Debugger"];
+    private static readonly string[] BottomTabs = ["Project", "Console", "Profiler", "Mixer", "Script Debugger"];
     private static readonly string[] CenterTabs = ["Game", "Script Editor", "UI Editor", "Scene"];
 
     public static void Build(EditorLayout layout, uint dockId, SysVector2 size)

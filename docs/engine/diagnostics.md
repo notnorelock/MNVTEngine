@@ -68,6 +68,7 @@ Corner, opacity, scale, theme (`dark`, `light`, `classic`) and title are set in 
 | **Scripting** | Loaded game assemblies (reloadable or not); C# script components per type with time; `.mnvts` VMs with coroutines per state and mission and objective states; recent script exceptions with stack traces. |
 | **Physics** | Bodies, colliders, contacts, trigger overlaps and step time. **Show colliders** draws outlines: green dynamic, blue kinematic, gray static, yellow trigger. |
 | **Assets** | Loaded textures sorted by memory, audio clips, the asset database by type, and import or load failures. |
+| **Mixer** | The scene's AudioMixer as a mixing console: faders, mutes, insert effects and live stereo meters with peak hold and clip lights ([audio mixer](audio.md#meters-and-the-mixing-console)). Changes last for the run. |
 
 **Custom windows:** subclass `MNVTEngine.DebugUI.Panels.DebugPanel` and call `overlay.AddPanel(...)`.
 

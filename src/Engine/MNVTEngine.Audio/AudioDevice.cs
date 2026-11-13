@@ -205,6 +205,9 @@ public interface IAudioVoice : IDisposable
     /// <summary>No further attenuation beyond this distance.</summary>
     float MaxDistance { get; set; }
 
+    /// <summary>The mixer bus (an <c>AudioMixer</c> group) it plays through; empty or unknown means Master.</summary>
+    string Bus { get; set; }
+
     void Play(IAudioBuffer buffer);
 
     void Pause();
@@ -225,6 +228,9 @@ public interface IStreamingVoice : IDisposable
     int SampleRate { get; }
 
     float Volume { get; set; }
+
+    /// <summary>The mixer bus it plays through; empty or unknown means Master.</summary>
+    string Bus { get; set; }
 
     /// <summary>Seconds of audio queued and not played yet.</summary>
     float QueuedSeconds { get; }
@@ -250,175 +256,25 @@ public interface IAudioDevice : IDisposable
     /// <param name="channels">1 or 2.</param>
     IStreamingVoice CreateStreamingVoice(int channels, int sampleRate);
 
+    /// <summary>The mixer buses: faders, mutes, parents and insert effects (see <see cref="MixingAudioDevice"/>).</summary>
+    void SetBuses(IReadOnlyList<AudioBusSettings> buses);
+
+    /// <summary>A bus's level after its fader; false for a bus that does not exist.</summary>
+    bool TryGetMeter(string bus, out AudioMeter meter);
+
+    /// <summary>Clears a bus's peak hold and clip indicator.</summary>
+    void ResetMeter(string bus);
+
     /// <summary>Called once per frame (devices that need housekeeping or simulated time).</summary>
     void Update(float deltaTime);
 }
 
 /// <summary>
-/// Silent device: tracks playback state and simulated time exactly like a real one, but produces no sound. Used for
-/// tests, headless runs, and when no audio hardware is available.
+/// The mixer without an output: everything is mixed, metered and timed exactly as it would be heard, but nothing is
+/// played; <see cref="IAudioDevice.Update"/> renders the time that passed. Used for tests, headless runs, and when no
+/// audio hardware is available.
 /// </summary>
-public sealed class NullAudioDevice : IAudioDevice
+public sealed class NullAudioDevice() : MixingAudioDevice(null)
 {
-    private readonly List<Voice> _voices = [];
-
-    public string Name => "Null (silent)";
-
-    public float MasterVolume { get; set; } = 1f;
-
-    public Vector2 ListenerPosition { get; set; }
-
-    public int LiveBuffers { get; private set; }
-
-    public int LiveVoices => _voices.Count;
-
-    /// <summary>Live voices, for inspecting what would be heard (volume, position).</summary>
-    public IReadOnlyList<IAudioVoice> Voices => _voices;
-
-    public IAudioBuffer CreateBuffer(AudioClipData clip)
-    {
-        ArgumentNullException.ThrowIfNull(clip);
-        LiveBuffers++;
-        return new Buffer(this, clip.Duration);
-    }
-
-    public IAudioVoice CreateVoice()
-    {
-        var voice = new Voice(this);
-        _voices.Add(voice);
-        return voice;
-    }
-
-    /// <summary>Live streams, for inspecting what would be heard.</summary>
-    public List<IStreamingVoice> StreamingVoices { get; } = [];
-
-    public IStreamingVoice CreateStreamingVoice(int channels, int sampleRate)
-    {
-        ArgumentOutOfRangeException.ThrowIfLessThan(channels, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(channels, 2);
-        ArgumentOutOfRangeException.ThrowIfLessThan(sampleRate, 1);
-        var stream = new StreamingVoice(this, channels, sampleRate);
-        StreamingVoices.Add(stream);
-        return stream;
-    }
-
-    public void Update(float deltaTime)
-    {
-        foreach (var voice in _voices)
-        {
-            voice.Advance(deltaTime);
-        }
-
-        foreach (var stream in StreamingVoices.OfType<StreamingVoice>())
-        {
-            stream.Advance(deltaTime);
-        }
-    }
-
-    public void Dispose()
-    {
-    }
-
-    private sealed class Buffer(NullAudioDevice device, float duration) : IAudioBuffer
-    {
-        private bool _disposed;
-
-        public float Duration => duration;
-
-        public void Dispose()
-        {
-            if (!_disposed)
-            {
-                _disposed = true;
-                device.LiveBuffers--;
-            }
-        }
-    }
-
-    private sealed class StreamingVoice(NullAudioDevice device, int channels, int sampleRate) : IStreamingVoice
-    {
-        public int Channels => channels;
-
-        public int SampleRate => sampleRate;
-
-        public float Volume { get; set; } = 1f;
-
-        public float QueuedSeconds { get; private set; }
-
-        /// <summary>Samples queued since creation (what a test checks arrived).</summary>
-        public long QueuedSamples { get; private set; }
-
-        public void Queue(ReadOnlySpan<short> interleaved)
-        {
-            QueuedSamples += interleaved.Length;
-            QueuedSeconds += interleaved.Length / (float)(channels * sampleRate);
-        }
-
-        public void Advance(float seconds) => QueuedSeconds = Math.Max(0f, QueuedSeconds - seconds);
-
-        public void Dispose() => device.StreamingVoices.Remove(this);
-    }
-
-    private sealed class Voice(NullAudioDevice device) : IAudioVoice
-    {
-        private float _duration;
-        private float _time;
-
-        public VoiceState State { get; private set; }
-
-        public float Volume { get; set; } = 1f;
-
-        public float Pitch { get; set; } = 1f;
-
-        public bool Loop { get; set; }
-
-        public bool Spatial { get; set; }
-
-        public Vector2 Position { get; set; }
-
-        public float ReferenceDistance { get; set; } = 1f;
-
-        public float MaxDistance { get; set; } = 20f;
-
-        public void Play(IAudioBuffer buffer)
-        {
-            _duration = buffer.Duration;
-            _time = 0f;
-            State = VoiceState.Playing;
-        }
-
-        public void Pause()
-        {
-            if (State == VoiceState.Playing)
-            {
-                State = VoiceState.Paused;
-            }
-        }
-
-        public void Resume()
-        {
-            if (State == VoiceState.Paused)
-            {
-                State = VoiceState.Playing;
-            }
-        }
-
-        public void Stop() => State = VoiceState.Stopped;
-
-        public void Advance(float deltaTime)
-        {
-            if (State != VoiceState.Playing)
-            {
-                return;
-            }
-
-            _time += deltaTime * Pitch;
-            if (_time >= _duration && !Loop)
-            {
-                State = VoiceState.Stopped;
-            }
-        }
-
-        public void Dispose() => device._voices.Remove(this);
-    }
+    public override string Name => "Null (silent)";
 }

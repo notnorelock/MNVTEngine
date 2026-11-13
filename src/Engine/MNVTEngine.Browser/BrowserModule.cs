@@ -32,7 +32,7 @@ public sealed class BrowserModule : IEngineModule, ISceneIntegration, IRenderInt
         scene.SetService(_service);
         if (scene.Systems.Get<BrowserSystem>() is null)
         {
-            scene.Systems.Add(new BrowserSystem(_service, scene));
+            scene.Systems.Add(new BrowserSystem(_service));
         }
     }
 
@@ -95,18 +95,10 @@ public sealed class BrowserModule : IEngineModule, ISceneIntegration, IRenderInt
         return assets.TryGetGuid(path, out var guid) ? assets.ReadAllBytes(guid) : null;
     }
 
-    /// <summary>Delivers the browsers' events, then their page audio to the scene's audio output through its mixer.</summary>
-    private sealed class BrowserSystem(BrowserService service, Scene scene) : GameSystem
+    /// <summary>Delivers the browsers' events (page audio: the browser.audio module's system, after this one).</summary>
+    private sealed class BrowserSystem(BrowserService service) : GameSystem
     {
-        public override void Update(World world, FrameTime time)
-        {
-            service.Update();
-            var audio = AudioSystem.For(scene);
-            foreach (var browser in service.Browsers)
-            {
-                browser.PumpAudio(audio?.Device, audio?.Mix(browser.AudioGroup) ?? 1f);
-            }
-        }
+        public override void Update(World world, FrameTime time) => service.Update();
     }
 
     private sealed class BrowserMetrics(Func<BrowserService?> service) : Diagnostics.IMetricsProvider

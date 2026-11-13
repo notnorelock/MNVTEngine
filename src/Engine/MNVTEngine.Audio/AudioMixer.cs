@@ -15,6 +15,10 @@ public sealed class AudioMixerGroup
     public float Volume { get; set; } = 1f;
 
     public bool Muted { get; set; }
+
+    /// <summary>Insert effects, in order, before the group's fader.</summary>
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public List<Audio.AudioEffectSettings> Effects { get; set; } = [];
 }
 
 /// <summary>
@@ -33,6 +37,12 @@ public sealed class AudioMixer : Component
 
     [SerializeField]
     public bool MasterMuted { get; set; }
+
+    /// <summary>Insert effects on Master, before its fader (a limiter or compressor on the whole mix).</summary>
+    [SerializeField]
+    [HideInInspector] // edited by the mixer's own inspector UI
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public List<Audio.AudioEffectSettings> MasterEffects { get; set => field = value ?? []; } = [];
 
     /// <summary>Groups besides Master. Names are unique; a missing or cyclic parent counts as Master.</summary>
     [SerializeField]
@@ -81,6 +91,44 @@ public sealed class AudioMixer : Component
         }
 
         return volume;
+    }
+
+    /// <summary>The mixer as the audio device's buses (Master included).</summary>
+    public IReadOnlyList<Audio.AudioBusSettings> BusLayout() =>
+        [new(MasterGroup, "", MasterVolume, MasterMuted, MasterEffects), .. _groups.Where(g => !IsMaster(g.Name)).Select(g => new Audio.AudioBusSettings(g.Name, g.Parent, g.Volume, g.Muted, g.Effects))];
+
+    /// <summary>Changes whenever anything <see cref="BusLayout"/> reports changes (no allocation: checked every frame).</summary>
+    public int LayoutFingerprint()
+    {
+        var hash = new HashCode();
+        hash.Add(MasterVolume);
+        hash.Add(MasterMuted);
+        AddEffects(ref hash, MasterEffects);
+        foreach (var group in _groups)
+        {
+            hash.Add(group.Name, StringComparer.OrdinalIgnoreCase);
+            hash.Add(group.Parent, StringComparer.OrdinalIgnoreCase);
+            hash.Add(group.Volume);
+            hash.Add(group.Muted);
+            AddEffects(ref hash, group.Effects);
+        }
+
+        return hash.ToHashCode();
+
+        static void AddEffects(ref HashCode hash, List<Audio.AudioEffectSettings> effects)
+        {
+            hash.Add(effects.Count);
+            foreach (var effect in effects)
+            {
+                hash.Add(effect.Type);
+                hash.Add(effect.Enabled);
+                foreach (var (name, value) in effect.Parameters)
+                {
+                    hash.Add(name);
+                    hash.Add(value);
+                }
+            }
+        }
     }
 
     private static bool IsMaster(string group) => string.IsNullOrEmpty(group) || string.Equals(group, MasterGroup, StringComparison.OrdinalIgnoreCase);

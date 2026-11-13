@@ -18,6 +18,7 @@ namespace MNVTEngine.Editor.Panels;
 internal sealed partial class InspectorPanel(EditorContext context) : IDisposable
 {
     private readonly ParticleSystemInspector _particles = new(context);
+    private readonly DebugUI.Panels.AudioMixerView _mixerView = new();
 
     private readonly Dictionary<Type, IReadOnlyList<InspectableMember>> _members = [];
     private readonly AssetInspector _assetInspector = new(context);
@@ -439,23 +440,6 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
                 remove = group;
             }
 
-            ImGui.SetNextItemWidth(width - 80f);
-            var volume = group.Volume;
-            if (ImGui.SliderFloat("##volume", ref volume, 0f, 1f, "%.2f"))
-            {
-                group.Volume = volume;
-                context.Changed("Edit Mixer");
-            }
-
-            ImGui.SameLine();
-            var muted = group.Muted;
-            if (ImGui.Checkbox("Mute", ref muted))
-            {
-                group.Muted = muted;
-                context.Changed("Edit Mixer");
-            }
-
-            ImGui.Spacing();
             ImGui.PopID();
         }
 
@@ -477,7 +461,18 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
             context.Changed("Add Mixer Group");
         }
 
-        Gui.Muted("AudioSource.Group picks the group; a group's volume multiplies its parents' up to Master.");
+        Gui.Muted("AudioSource.Group picks the group; each group runs its effects and fader, then feeds its parent, up to Master.");
+        ImGui.SeparatorText("Console");
+        var device = AudioSystem.For(mixer.GameObject.Scene)?.Device;
+        if (device is null)
+        {
+            Gui.Muted("Meters run in Play mode. The Mixer window shows the same console.");
+        }
+
+        if (_mixerView.Draw(mixer, device, 330f) && !context.PlayMode.IsPlaying)
+        {
+            context.Changed("Edit Mixer");
+        }
     }
 
     /// <summary>Paint toggle, eraser and the sheet's tiles as buttons; the Scene view paints with the chosen tile.</summary>

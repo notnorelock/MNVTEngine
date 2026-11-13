@@ -233,23 +233,25 @@ public sealed class BrowserHostTests : IDisposable
     }
 
     [Fact]
-    public void PageAudio_ReachesTheGamesVoice_AtBrowserTimesGroupVolume()
+    public void PageAudio_ReachesTheGamesVoice_OnItsMixerBus()
     {
         const string Page = "<script>const c = new AudioContext(); const o = c.createOscillator(); o.connect(c.destination); o.start();</script>";
-        var device = new Audio.NullAudioDevice();
-        using var browser = Open(Page);
+        using var device = new Audio.NullAudioDevice();
+        var audio = new BrowserAudio();
+        var browser = Open(Page);
         browser.Volume = 0.5f;
         Assert.True(Pump(() =>
         {
-            browser.PumpAudio(device, groupVolume: 0.8f);
-            return browser.QueuedAudioSeconds > 0.05f;
+            audio.Pump([browser], device);
+            return audio.QueuedSeconds(browser) > 0.05f;
         }), "no page audio arrived");
         var voice = Assert.Single(device.StreamingVoices);
         Assert.Equal((2, 48000), (voice.Channels, voice.SampleRate));
-        Assert.Equal(0.4f, voice.Volume, 3);
+        Assert.Equal((0.5f, "Browser"), (voice.Volume, voice.Bus));
 
         browser.Dispose();
-        Assert.Empty(device.StreamingVoices); // closing the browser releases its voice
+        audio.Pump([], device);
+        Assert.Empty(device.StreamingVoices); // a closed browser's voice is released
     }
 
     [Fact]

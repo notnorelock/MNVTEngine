@@ -3,6 +3,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Browser.Audio\MNVTEngine.Browser.Audio.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Browser.World2D\MNVTEngine.Browser.World2D.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Browser.World3D\MNVTEngine.Browser.World3D.csproj" />
     <!-- Built first so the host tests find MNVTBrowserHost.exe in its build output (BrowserService.FindHost); not copied here. -->

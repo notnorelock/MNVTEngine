@@ -25,6 +25,7 @@ public static class EngineModuleSet
         ["particles.2d"] = (_, _) => new Particles2D.Particles2DModule(),
         ["particles.3d"] = (_, _) => new Particles3D.Particles3DModule(),
         ["browser"] = (_, _) => new Browser.BrowserModule(),
+        ["browser.audio"] = (_, _) => new Browser.BrowserAudioModule(),
         ["browser.2d"] = (_, _) => new Browser2DModule(),
         ["browser.3d"] = (_, _) => new Browser3DModule(),
     };

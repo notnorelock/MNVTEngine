@@ -179,9 +179,16 @@ public static class BuiltinModules
 
     public static ModuleDefinition Browser { get; } = new("browser", "Embedded browser", "Chromium web pages rendered into textures, with a C# API and a JavaScript bridge. Ships MNVTBrowserHost.exe, CefSharp and CEF (about 360 MB).")
     {
-        Requires = ["core", "runtime", "audio"], // page audio plays through the mixer
+        Requires = ["core", "runtime"],
         RuntimeAssemblies = ["MNVTEngine.Browser", "MNVTEngine.Browser.Protocol"],
         Components = [],
+    };
+
+    public static ModuleDefinition BrowserAudio { get; } = new("browser.audio", "Browser page audio", "Plays page audio through the scene's AudioMixer (the Browser group by default).")
+    {
+        Requires = ["browser", "audio"],
+        Accompanies = "browser", // left out, not an error, when the project has no audio
+        RuntimeAssemblies = ["MNVTEngine.Browser.Audio"],
     };
 
     public static ModuleDefinition Browser2D { get; } = new("browser.2d", "2D browser surfaces", "Web pages on sprites, with mouse and keyboard input.")
@@ -201,5 +208,5 @@ public static class BuiltinModules
     };
 
     public static IReadOnlyList<ModuleDefinition> All { get; } =
-        [Core, Platform, Graphics, Assets, Runtime, Audio, Scripting, UI, DevTools, World2D, World3D, Physics2D, Physics3D, Terrain, Particles, Particles2D, Particles3D, Browser, Browser2D, Browser3D];
+        [Core, Platform, Graphics, Assets, Runtime, Audio, Scripting, UI, DevTools, World2D, World3D, Physics2D, Physics3D, Terrain, Particles, Particles2D, Particles3D, Browser, BrowserAudio, Browser2D, Browser3D];
 }

@@ -45,6 +45,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private ProjectPanel _projectPanel = null!;
     private ConsolePanel _console = null!;
     private ProfilerPanel _profilerPanel = null!;
+    private MixerPanel _mixerPanel = null!;
     private ScriptDebuggerPanel _scriptDebugger = null!;
     private BuildController _build = null!;
     private ScriptEditorPanel _scriptEditor = null!;
@@ -137,6 +138,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _projectPanel = new ProjectPanel(_context);
         _console = new ConsolePanel(_context);
         _profilerPanel = new ProfilerPanel(_context, _profiler);
+        _mixerPanel = new MixerPanel(_context);
         _scriptDebugger = new ScriptDebuggerPanel(_context);
         _build = new BuildController(project, loggerFactory);
         _showBuildSettings = options.FocusWindow == "Build Settings";
@@ -263,6 +265,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _projectPanel.Draw();
         _console.Draw();
         _profilerPanel.Draw();
+        _mixerPanel.Draw();
         _build.Update();
         DrawBuildSettings();
         _diagnosticsWindow.Draw();

@@ -201,7 +201,7 @@ public class AudioTests
     [Fact]
     public void OpenAL_PlaysAClipToTheEnd()
     {
-        OpenALAudioDevice device;
+        IAudioDevice device;
         try
         {
             device = OpenALAudioDevice.Create(NullLogger.Instance);
@@ -281,16 +281,32 @@ public class AudioMixerTests
 
         music.Play();
         sfx.PlayOneShot(Beep);
-        Frame(scene);
-        Assert.Equal(0.4f, device.Voices[0].Volume, 5);  // 0.8 × Music 0.5
-        Assert.Equal(0.4f, device.Voices[1].Volume, 5);  // 1 × Footsteps 0.5 × Effects 0.8
+        for (var i = 0; i < 5; i++)
+        {
+            Frame(scene); // the first frame renders before the mixer's layout reaches the device; 80 ms clears the meters' window
+        }
+        Assert.Equal((0.8f, "Music"), (device.Voices[0].Volume, device.Voices[0].Bus)); // voices carry their own volume and bus
+        Assert.Equal((1f, "Footsteps"), (device.Voices[1].Volume, device.Voices[1].Bus));
+
+        // A mono sine of peak 12000/32768, centered (equal power: x0.7071), after each fader on the way to Master.
+        const float Peak = 12000f / 32768f * 0.70710677f;
+        Assert.Equal(Peak * 0.8f * 0.5f, Meter(device, "Music"), 2);
+        Assert.Equal(Peak * 0.5f, Meter(device, "Footsteps"), 2);
+        Assert.Equal(Peak * 0.5f * 0.8f, Meter(device, "Effects"), 2);
+        Assert.Equal(Peak * 0.8f * 0.5f * 2f, Meter(device, "Master"), 2); // both started together: the sines add in phase
 
         mixer.SetVolume("Music", 1f);
         mixer.SetMuted("Effects", true);
-        Frame(scene);
-        Assert.Equal(0.8f, device.Voices[0].Volume, 5);
-        Assert.Equal(0f, device.Voices[1].Volume);
+        for (var i = 0; i < 5; i++)
+        {
+            Frame(scene); // past the meters' 50 ms window
+        }
+        Assert.Equal(Peak * 0.8f, Meter(device, "Music"), 2);
+        Assert.Equal(0f, Meter(device, "Effects"));
     }
+
+    private static float Meter(NullAudioDevice device, string bus) =>
+        device.TryGetMeter(bus, out var meter) ? Math.Max(meter.PeakLeft, meter.PeakRight) : float.NaN;
 
     [Fact]
     public void Groups_SurviveSerialization()

@@ -42,7 +42,7 @@ public sealed class AudioSource : Component
     [SerializeField]
     public string Group { get; set; } = "";
 
-    /// <summary>Attenuate by distance to the listener. OpenAL only spatialises mono clips; stereo plays unattenuated.</summary>
+    /// <summary>Pan and attenuate by position relative to the listener. Only mono clips are spatialised; stereo plays as recorded.</summary>
     [SerializeField]
     public bool Spatial { get; set; }
 
@@ -127,7 +127,8 @@ public sealed class AudioSource : Component
             return;
         }
 
-        _voice.Volume = _volume * system.Mix(Group);
+        _voice.Volume = _volume;
+        _voice.Bus = Group;
         if (Spatial)
         {
             _voice.Position = (Vector2)Transform.Position;
@@ -143,7 +144,8 @@ public sealed class AudioSource : Component
             return;
         }
 
-        _voice.Volume = _volume * (System?.Mix(Group) ?? 1f);
+        _voice.Volume = _volume;
+        _voice.Bus = Group;
         _voice.Pitch = _pitch;
         _voice.Loop = _loop;
         _voice.Spatial = Spatial;
@@ -176,9 +178,10 @@ public sealed partial class AudioSystem : GameSystem
     private readonly Func<AssetRef, byte[]> _readClip;
     private readonly Dictionary<Guid, IAudioBuffer?> _buffers = [];
     private readonly List<IAudioVoice> _voices = [];
-    private readonly List<(IAudioVoice Voice, float Volume, string Group)> _oneShots = [];
+    private readonly List<IAudioVoice> _oneShots = [];
     private readonly List<IAudioBuffer> _adoptedBuffers = [];
     private AudioMixer? _mixer;
+    private int? _layout;
 
     private AudioSystem(Scene scene, IAudioDevice device, Func<AssetRef, byte[]> readClip)
     {
@@ -223,12 +226,13 @@ public sealed partial class AudioSystem : GameSystem
 
     public override void Update(World world, FrameTime time)
     {
+        _mixer = _scene.FindObjectsOfType<AudioMixer>().FirstOrDefault(m => m.IsActiveAndEnabled);
+        ApplyMixer(); // before rendering: this frame's sound already uses this frame's faders
         Device.Update(time.UnscaledDeltaTime);
         Core.Diagnostics.Profiler.Count("Audio voices", _voices.Count);
         var listener = _scene.FindObjectsOfType<AudioListener>().FirstOrDefault(l => l.IsActiveAndEnabled)?.Transform
             ?? _scene.MainCamera?.Transform;
         Device.ListenerPosition = listener is null ? Vector2.Zero : (Vector2)listener.Position;
-        _mixer = _scene.FindObjectsOfType<AudioMixer>().FirstOrDefault(m => m.IsActiveAndEnabled);
         foreach (var source in world.Pool<AudioSource>().Components)
         {
             source.Follow(this);
@@ -236,17 +240,25 @@ public sealed partial class AudioSystem : GameSystem
 
         for (var i = _oneShots.Count - 1; i >= 0; i--)
         {
-            var (voice, volume, group) = _oneShots[i];
-            if (voice.State == VoiceState.Stopped)
+            if (_oneShots[i].State == VoiceState.Stopped)
             {
-                Release(voice);
+                Release(_oneShots[i]);
                 _oneShots.RemoveAt(i);
             }
-            else
-            {
-                voice.Volume = volume * Mix(group);
-            }
         }
+    }
+
+    /// <summary>Hands the scene mixer's groups and effects to the device as buses, when they changed (or the mixer did).</summary>
+    private void ApplyMixer()
+    {
+        var fingerprint = _mixer is { } mixer ? HashCode.Combine(mixer, mixer.LayoutFingerprint()) : 0;
+        if (_layout == fingerprint)
+        {
+            return;
+        }
+
+        _layout = fingerprint;
+        Device.SetBuses(_mixer?.BusLayout() ?? []);
     }
 
     /// <summary>The scene mixer used this frame, if any.</summary>
@@ -328,11 +340,11 @@ public sealed partial class AudioSystem : GameSystem
         }
 
         var voice = CreateVoice();
-        (voice.Volume, voice.Pitch, voice.Loop, voice.Spatial) = (volume * Mix(group), pitch, false, position is not null);
+        (voice.Volume, voice.Bus, voice.Pitch, voice.Loop, voice.Spatial) = (volume, group, pitch, false, position is not null);
         (voice.ReferenceDistance, voice.MaxDistance) = (referenceDistance, maxDistance);
         voice.Position = position ?? Vector2.Zero;
         voice.Play(buffer);
-        _oneShots.Add((voice, volume, group));
+        _oneShots.Add(voice);
     }
 
     private void OnUnloaded(Scene scene)

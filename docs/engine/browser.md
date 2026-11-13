@@ -9,6 +9,7 @@ explicit, capability-checked bridge. Windows x64 only. How it works and why: [Em
 | Module | Profiles | Brings | Included when |
 |---|---|---|---|
 | `browser` | 2D, 3D | `MNVTEngine.Browser` (C# API), `MNVTBrowserHost.exe`, CefSharp and CEF (about 360 MB) | a surface below is used, or C# uses `MNVTEngine.Browser` types |
+| `browser.audio` | 2D, 3D | page audio into the mixer | with `browser` when the project has `audio` |
 | `browser.2d` | 2D | `BrowserSurface2D` | a scene or prefab has the component |
 | `browser.3d` | 3D | `BrowserSurface3D` | a scene or prefab has the component |
 
@@ -138,8 +139,8 @@ an unknown group plays through Master). Pages may play without a click first.
 | **Muted**, `SetMuted` | Chromium stops producing audio for the browser (saves the work) |
 
 Page audio is not positional (no 3D attenuation). When the game runs slower than the page, more than a quarter second
-of queued audio is dropped so sound stays in sync with the page. Requires the `audio` module (the `browser` module
-brings it).
+of queued audio is dropped so sound stays in sync with the page. The `browser.audio` module does this; it comes
+with `browser` in projects that have the `audio` module, and is left out (pages play silently) without it.
 
 ## Diagnostics
 

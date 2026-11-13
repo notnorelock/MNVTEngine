@@ -191,6 +191,7 @@ Selecting a `.mnvtmat` in the Project panel shows it in the Inspector ([format](
 ## Diagnostics panels
 
 - **Profiler:** frame time and the cost of each engine region; see [profiling](../engine/profiling.md).
+- **Mixer:** the active scene's AudioMixer as a mixing console with insert effects and live meters in Play Mode; see [audio](../engine/audio.md#meters-and-the-mixing-console).
 - **Script Debugger:** breakpoints and stepping for `.mnvts` scripts in Play Mode; see the [language reference](../scripting/language.md#debugging).
 - Automation flags: `--focus <panel>` brings a panel forward, and `--break <script>:<line>` sets a breakpoint at startup. Combine them with `--play --frames N --screenshot file.png`.
 

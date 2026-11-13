@@ -8,9 +8,9 @@
   <ItemGroup>
     <ProjectReference Include="..\MNVTEngine.Browser.Protocol\MNVTEngine.Browser.Protocol.csproj" />
     <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" />
-    <ProjectReference Include="..\MNVTEngine.Audio\MNVTEngine.Audio.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.Browser.Audio" />
     <InternalsVisibleTo Include="MNVTEngine.Browser.World2D" />
     <InternalsVisibleTo Include="MNVTEngine.Browser.World3D" />
     <InternalsVisibleTo Include="MNVTEngine.Browser.Tests" />

@@ -13,7 +13,7 @@ namespace MNVTEngine.Editor.Panels;
 internal sealed class DiagnosticsSettingsWindow(EditorContext context)
 {
     private static readonly string[] Themes = ["dark", "light", "classic"];
-    private static readonly string[] Panels = ["Profiler", "Console", "Budgets", "Renderer", "ECS", "Memory", "Scripting", "Physics", "Assets"];
+    private static readonly string[] Panels = ["Profiler", "Console", "Budgets", "Renderer", "ECS", "Memory", "Scripting", "Physics", "Assets", "Mixer"];
     private static readonly string[] Providers = ["Time", "Memory", "Renderer", "Runtime", "Assets"];
     private string? _status;
 

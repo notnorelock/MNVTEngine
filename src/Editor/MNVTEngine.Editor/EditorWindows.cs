@@ -17,6 +17,7 @@ internal static partial class EditorWindows
         ["Project"] = Icons.FolderOpen,
         ["Console"] = Icons.Terminal,
         ["Profiler"] = Icons.Activity,
+        ["Mixer"] = Icons.AudioLines,
         ["Script Debugger"] = Icons.Bug,
         ["Script Editor"] = Icons.FileCode,
         ["UI Editor"] = Icons.LayoutTemplate,

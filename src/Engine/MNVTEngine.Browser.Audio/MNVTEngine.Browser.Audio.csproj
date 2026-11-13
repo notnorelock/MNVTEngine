@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Browser page audio (module browser.audio): pages' sound into the engine mixer. Comes with "browser" in projects with audio. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Browser\MNVTEngine.Browser.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Audio\MNVTEngine.Audio.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.Browser.Tests" />
+  </ItemGroup>
+</Project>

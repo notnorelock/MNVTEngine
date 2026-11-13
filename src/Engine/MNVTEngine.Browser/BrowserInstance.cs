@@ -83,8 +83,6 @@ public sealed class BrowserInstance : IDisposable
     private readonly Lock _frameLock = new();
     private SharedFrame? _frame;
     private SharedAudio? _audio;
-    private Audio.IStreamingVoice? _voice;
-    private readonly short[] _audioBuffer = new short[48000 * 2]; // a second of stereo: more than one frame ever brings
     private (string Name, int Width, int Height)? _pendingSurface;
     private int _nextEvaluation;
 
@@ -113,9 +111,6 @@ public sealed class BrowserInstance : IDisposable
 
     /// <summary>The <c>AudioMixer</c> group page audio plays through.</summary>
     public string AudioGroup { get; set; } = DefaultAudioGroup;
-
-    /// <summary>Seconds of page audio queued in the game's audio output (0 without audio or an audio output).</summary>
-    public float QueuedAudioSeconds => _voice?.QueuedSeconds ?? 0f;
 
     /// <summary>Why the browser failed or crashed.</summary>
     public string? Error { get; private set; }
@@ -357,41 +352,23 @@ public sealed class BrowserInstance : IDisposable
         FailPending("The browser was closed.");
         CloseFrame();
         CloseAudio();
-        _voice?.Dispose();
-        _voice = null;
     }
 
     /// <summary>
-    /// Moves the page audio Chromium produced since the last frame into this browser's voice of <paramref name="device"/>,
-    /// at <see cref="Volume"/> times <paramref name="groupVolume"/>. Game thread, once a frame. Without a device the
-    /// audio is read and dropped (the ring never backs up).
+    /// The page audio Chromium produced since the last call (interleaved 16-bit PCM), and its format. Game thread. The
+    /// browser.audio module moves it into the mixer; without that module nobody reads it and the ring just wraps.
     /// </summary>
-    internal void PumpAudio(Audio.IAudioDevice? device, float groupVolume)
+    /// <returns>Frames copied (0 when the page plays nothing).</returns>
+    internal int ReadAudio(Span<short> interleaved, out int channels, out int sampleRate)
     {
+        (channels, sampleRate) = (0, 0);
         if (_audio is not { } ring || !OperatingSystem.IsWindows())
         {
-            return;
+            return 0;
         }
 
-        var frames = ring.Read(_audioBuffer);
-        if (device is null)
-        {
-            return;
-        }
-
-        if (_voice is null || _voice.Channels != ring.Channels || _voice.SampleRate != ring.SampleRate)
-        {
-            _voice?.Dispose();
-            _voice = device.CreateStreamingVoice(ring.Channels, ring.SampleRate);
-        }
-
-        _voice.Volume = Math.Max(0f, Volume) * groupVolume;
-
-        // More than a quarter second queued means the game ran slower than the page: drop, so the sound stays in sync.
-        if (frames > 0 && _voice.QueuedSeconds < 0.25f)
-        {
-            _voice.Queue(_audioBuffer.AsSpan(0, frames * ring.Channels));
-        }
+        (channels, sampleRate) = (ring.Channels, ring.SampleRate);
+        return ring.Read(interleaved);
     }
 
     private void OpenAudio(string name)

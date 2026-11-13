@@ -2,6 +2,7 @@
   <!-- Development-time tooling: compiles game code with the .NET SDK. Never referenced by shipped game hosts. -->
   <ItemGroup>
     <ProjectReference Include="..\..\Engine\MNVTEngine.Particles3D\MNVTEngine.Particles3D.csproj" />
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Browser.Audio\MNVTEngine.Browser.Audio.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Browser.World2D\MNVTEngine.Browser.World2D.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Browser.World3D\MNVTEngine.Browser.World3D.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Particles2D\MNVTEngine.Particles2D.csproj" />
