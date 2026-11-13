@@ -48,6 +48,19 @@ public abstract class Texture2D : GraphicsResource
     public SamplerState Sampler { get; }
 
     /// <summary>
+    /// The device frame (<see cref="IGraphicsDevice.FrameNumber"/>) in which the texture was last bound for drawing; 0 when
+    /// never, or when the backend does not track it. Used to stream and evict textures by use.
+    /// </summary>
+    public long LastDrawnFrame { get; protected set; }
+
+    /// <summary>
+    /// Size of the image the texture holds now. Equals <see cref="Width"/> x <see cref="Height"/>, except for a streamed
+    /// texture showing its low-resolution proxy (<see cref="IGraphicsDevice.CreateStreamingTexture"/>), which keeps
+    /// reporting its full size so sprite sizes and source rectangles stay right.
+    /// </summary>
+    public virtual (int Width, int Height) ResidentSize => (Width, Height);
+
+    /// <summary>
     /// True when texel row 0 is the bottom of the image (render targets). Uploaded images store row 0 at the top.
     /// Sprite rendering uses this to pick texture coordinates so both appear upright.
     /// </summary>

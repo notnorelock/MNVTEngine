@@ -536,6 +536,16 @@ public sealed partial class RuntimeDiagnostics
 
             metrics.Set(DiagnosticMetrics.AssetsLoaded, _counts.Loaded);
             metrics.Set(DiagnosticMetrics.AssetsFailed, _counts.Failed);
+            var loads = target.Resources.LoadStatistics;
+            metrics.Set(DiagnosticMetrics.AssetLoadTime, loads.AverageLoad is { } average ? MetricValue.Measured(average.TotalMilliseconds) : MetricValue.Unavailable);
+            metrics.Set(DiagnosticMetrics.AssetLoadTimeMax, loads.MaxLoad is { } max ? MetricValue.Measured(max.TotalMilliseconds) : MetricValue.Unavailable);
+            metrics.Set(DiagnosticMetrics.SceneLoadTime, loads.LastSceneLoad is { } scene ? MetricValue.Measured(scene.TotalMilliseconds) : MetricValue.Unavailable);
+            metrics.Set(DiagnosticMetrics.AssetsUnloaded, loads.Unloaded);
+            metrics.Set(DiagnosticMetrics.TextureProxies, loads.Proxies);
+            metrics.Set(DiagnosticMetrics.TexturesStreamedIn, loads.FullResolution);
+            metrics.Set(DiagnosticMetrics.TexturesPending, loads.Pending);
+            metrics.Set(DiagnosticMetrics.TextureDowngrades, loads.Downgrades);
+            metrics.Set(DiagnosticMetrics.StreamedTextureMemory, MetricValue.Estimated(loads.FullBytes));
         }
     }
 

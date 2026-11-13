@@ -87,6 +87,29 @@ public interface IGraphicsDevice : IDisposable
     void UpdateTexture(Texture2D texture, int x, int y, int width, int height, ReadOnlySpan<byte> rgba) =>
         throw new NotSupportedException("This graphics backend cannot update textures.");
 
+    /// <summary>True when <see cref="CreateStreamingTexture"/> and <see cref="ReplaceTexture"/> work.</summary>
+    bool SupportsTextureStreaming => false;
+
+    /// <summary>Frames presented so far (the clock of <see cref="Texture2D.LastDrawnFrame"/>); 0 when the backend does not count.</summary>
+    long FrameNumber => 0;
+
+    /// <summary>
+    /// A texture that reports <paramref name="logicalWidth"/> x <paramref name="logicalHeight"/> while holding a smaller image
+    /// (a low-resolution proxy): texture coordinates are normalized, so it draws the same, only blurrier, until
+    /// <see cref="ReplaceTexture"/> uploads the full image.
+    /// </summary>
+    /// <exception cref="NotSupportedException">The backend cannot stream textures.</exception>
+    Texture2D CreateStreamingTexture(int logicalWidth, int logicalHeight, int width, int height, ReadOnlySpan<byte> rgba, SamplerState sampler, string debugName) =>
+        throw new NotSupportedException("This graphics backend cannot stream textures.");
+
+    /// <summary>
+    /// Replaces the whole image of a texture (not a render target) with one of any size, keeping the texture object, so
+    /// materials and caches that hold it draw the new image. The old image is released once frames using it finished.
+    /// </summary>
+    /// <exception cref="NotSupportedException">The backend cannot stream textures.</exception>
+    void ReplaceTexture(Texture2D texture, int width, int height, ReadOnlySpan<byte> rgba) =>
+        throw new NotSupportedException("This graphics backend cannot stream textures.");
+
     /// <exception cref="ShaderCompilationException">Compilation or linking failed.</exception>
     Shader CreateShader(ShaderSource source);
 

@@ -102,6 +102,19 @@ public sealed partial class GameRuntime(
         _uiFont = Graphics.Text.Font.LoadDefault();
         Application.QuitRequested += OnQuitRequested;
         _startup = new StartupCanvas(_renderer);
+        var waiting = new List<string>();
+        if (_options.Content is { } extra)
+        {
+            foreach (var result in extra.MountExtraContent(project.Content, Path.GetDirectoryName(Path.GetFullPath(extra.Directory))!))
+            {
+                LogExtraContent(_logger, result.Status == ExtraContentStatus.Failed ? LogLevel.Warning : LogLevel.Information, result.Name, result.Status, result.Detail ?? "");
+                if (result.Status == ExtraContentStatus.WaitingForKey)
+                {
+                    waiting.Add(Path.GetFileName(result.Name));
+                }
+            }
+        }
+
         _assets = _options.Content is { } content ? AssetDatabase.OpenPackaged(content.Files)
             : AssetDatabase.OpenReadOnly(project.AssetsDirectory, _options.Importers, artifactsLibrary: Path.Combine(project.RootDirectory, "Library"));
         foreach (var diagnostic in _assets.Diagnostics)
@@ -111,7 +124,16 @@ public sealed partial class GameRuntime(
 
         _serializer = new SceneSerializer(registry, _assets);
         _prefabs = new PrefabProvider(_serializer, _assets, loggerFactory.CreateLogger("Prefabs"));
+        if (_options.Content is { } packaged)
+        {
+            DownloadableContent.SetHost(new DownloadableContentHost(packaged, _assets, waiting, _logger));
+        }
+
         _resources = new ResourceCache(_device, _assets, loggerFactory.CreateLogger("Resources"));
+        if (_options.Content is not null && project.Streaming.Textures)
+        {
+            _resources.EnableTextureStreaming(new TextureStreamingOptions(project.Streaming.TextureBudgetMB * 1024L * 1024L, UnusedFrames));
+        }
         _sceneRenderer = new SceneRenderer(_renderer, _resources, _logger,
             ModuleIntegration.CreatePasses(_options.Modules, _renderer, _resources, loggerFactory, new RenderSettings(_options.GpuSkinning, _options.GpuInstancing)));
         _screenLayers = ModuleIntegration.CreateScreenLayers(_options.Modules, new ScreenServices(window, _renderer, _resources, _assets, _uiFont));
@@ -153,10 +175,20 @@ public sealed partial class GameRuntime(
         CurrentScene?.FixedUpdate(fixedDeltaTime);
     }
 
+    /// <summary>streaming.unusedSeconds in frames (at 60 frames per second: frames are what the device counts).</summary>
+    private long UnusedFrames => (long)(project.Streaming.UnusedSeconds * 60);
+
     public void Update(FrameTime time)
     {
         StartFrame();
         using var sample = Core.Diagnostics.Profiler.Sample("Update");
+        _resources.Update();
+        if (_unloadUnusedAt is { } at && _device.FrameNumber >= at)
+        {
+            _unloadUnusedAt = null;
+            _resources.UnloadUnused(UnusedFrames); // what the previous scene used and this one does not
+        }
+
         _window.Clock.TimeScale = CurrentScene?.TimeScale ?? 1f; // the window's loop scales the next frame and its fixed steps
         if (UpdateLoading(time))
         {
@@ -261,6 +293,7 @@ public sealed partial class GameRuntime(
         StopPresentation();
         Application.QuitRequested -= OnQuitRequested;
         Application.SetHostWindow(null);
+        DownloadableContent.SetHost(null);
 
         _options.Overlay?.Dispose();
         _options.Diagnostics?.Uninstall();
@@ -322,7 +355,7 @@ public sealed partial class GameRuntime(
         next.Loader = this;
         next.Prefabs = _prefabs;
         next.TextAssets = _prefabs;
-        next.AssetReader = new AssetBytesReader(_assets);
+        next.AssetReader = new AssetDatabaseReader(_assets);
         ModuleIntegration.SceneLoaded(_options.Modules, next);
         foreach (var layer in _screenLayers)
         {
@@ -367,12 +400,65 @@ public sealed partial class GameRuntime(
     [LoggerMessage(EventId = 3104, Level = LogLevel.Information, Message = "Exiting after {Frames} frames ({Drawn} sprites drawn, {Culled} culled; {Meshes} meshes drawn, {MeshesCulled} culled, {GpuSkinned} GPU-skinned, {Instanced} instanced in {DrawCalls} draws)")]
     private static partial void LogAutoExit(ILogger logger, int frames, int drawn, int culled, int meshes, int meshesCulled, int gpuSkinned, int instanced, int drawCalls);
 
+    [LoggerMessage(EventId = 3109, Message = "Extra content {Name}: {Status} {Detail}")]
+    private static partial void LogExtraContent(ILogger logger, LogLevel level, string name, ExtraContentStatus status, string detail);
+
     [LoggerMessage(EventId = 3105, Level = LogLevel.Error, Message = "{Count} GPU resources leaked")]
     private static partial void LogLeaks(ILogger logger, int count);
 }
 
-/// <summary>Asset bytes for scene services (audio clips).</summary>
-internal sealed class AssetBytesReader(AssetDatabase assets) : IAssetReader
+/// <summary>Mounts DLC with server-provided keys for <see cref="DownloadableContent"/>, and merges its asset index.</summary>
+internal sealed partial class DownloadableContentHost(GameContent content, AssetDatabase assets, List<string> waiting, ILogger logger) : IDownloadableContentHost
+{
+    public IReadOnlyList<string> WaitingForKey => [.. waiting];
+
+    public bool Mount(string fileName, ReadOnlySpan<byte> key, out string? problem)
+    {
+        IO.Packages.PackageEncryptionKey packageKey;
+        try
+        {
+            packageKey = IO.Packages.PackageEncryptionKey.FromBytes(key);
+        }
+        catch (ArgumentException ex)
+        {
+            problem = ex.Message;
+            return false;
+        }
+
+        var result = content.MountDlc(fileName, packageKey);
+        if (result.Status != ExtraContentStatus.Mounted)
+        {
+            problem = result.Detail;
+            return false;
+        }
+
+        try
+        {
+            assets.MergeExtraIndexes();
+        }
+        catch (InvalidDataException ex)
+        {
+            problem = ex.Message;
+            return false;
+        }
+
+        waiting.RemoveAll(w => string.Equals(w, fileName, StringComparison.OrdinalIgnoreCase));
+        LogMounted(logger, fileName);
+        problem = null;
+        return true;
+    }
+
+    [LoggerMessage(EventId = 3110, Level = LogLevel.Information, Message = "DLC {File} mounted with a provided key")]
+    private static partial void LogMounted(ILogger logger, string file);
+}
+
+/// <summary>Assets for scene services (audio clips), through the asset database and its virtual file system.</summary>
+public sealed class AssetDatabaseReader(AssetDatabase assets) : IAssetReader
 {
     public byte[] ReadAllBytes(AssetRef asset) => assets.ReadAllBytes(asset.Guid);
+
+    public Stream OpenRead(AssetRef asset) => assets.OpenRead(asset.Guid);
+
+    public string? GetImportSetting(AssetRef asset, string name) =>
+        assets.GetSettings(asset.Guid)[name] is { Type: not Newtonsoft.Json.Linq.JTokenType.Null } value ? value.ToString() : null;
 }

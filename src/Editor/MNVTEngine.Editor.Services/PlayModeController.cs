@@ -275,7 +275,7 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         session.AttachWorldServices(scene);
         if (Audio is { } audio)
         {
-            AudioSystem.Attach(scene, audio, clip => session.Assets.ReadAllBytes(clip.Guid));
+            AudioSystem.Attach(scene, audio, new Runtime.AssetDatabaseReader(session.Assets));
         }
 
         if (UIServices is { } ui)

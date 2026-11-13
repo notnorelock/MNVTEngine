@@ -86,8 +86,19 @@ public sealed partial class ResourceCache : IDisposable
                 throw new InvalidDataException($"{asset} is not a texture asset in this project.");
             }
 
-            var settings = _assets.GetTextureSettings(asset.Guid);
-            texture = _device.CreateTexture(Image.Decode(_assets.ReadAllBytes(asset.Guid), _assets.Get(asset.Guid)!.Path, settings.SvgScale), settings.ToSampler(), _assets.Get(asset.Guid)!.Path);
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (TryStartStreaming(asset.Guid) is { } streamed)
+            {
+                texture = streamed; // the proxy now, the full image when it is decoded (Update)
+            }
+            else
+            {
+                var settings = _assets.GetTextureSettings(asset.Guid);
+                texture = _device.CreateTexture(Image.Decode(_assets.ReadAllBytes(asset.Guid), _assets.Get(asset.Guid)!.Path, settings.SvgScale), settings.ToSampler(), _assets.Get(asset.Guid)!.Path);
+                RecordLoad(System.Diagnostics.Stopwatch.GetElapsedTime(started));
+            }
+
+            _loadedFrame[asset.Guid] = _device.FrameNumber;
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or KeyNotFoundException)
         {
@@ -116,6 +127,7 @@ public sealed partial class ResourceCache : IDisposable
 
         var path = _assets.Get(guid)?.Path ?? guid.ToString();
         _textures.Add(guid, _device.CreateTexture(image, _assets.GetTextureSettings(guid).ToSampler(), path));
+        _loadedFrame[guid] = _device.FrameNumber;
     }
 
     /// <summary>Texture by path relative to Assets (editor thumbnails); the placeholder if the path is not an indexed asset.</summary>
@@ -369,6 +381,7 @@ public sealed partial class ResourceCache : IDisposable
                     texture.Dispose();
                 }
 
+                ForgetStream(guid);
                 evicted.Add(guid);
             }
         }

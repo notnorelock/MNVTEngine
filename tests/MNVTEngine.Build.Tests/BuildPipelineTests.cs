@@ -139,6 +139,33 @@ public sealed class BuildPipelineTests : IDisposable
     }
 
     [Fact]
+    public void Dlc_PackagesOneFolder_WithItsIndex_SignedAndWithItsOwnKey()
+    {
+        var project = NewProject();
+        var folder = Path.Combine(project.AssetsDirectory, "DLC", "Forest");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "Intro.mnvts"), "on start { log(\"forest\") }");
+        File.WriteAllText(Path.Combine(folder, "Intro.mnvts.meta"), """{ "schemaVersion": 1, "guid": "d1000000-0000-4000-8000-000000000001", "settings": {} }""");
+        var signingKey = Path.Combine(_root, "keys", "release.pem");
+        SigningKeys.Create(signingKey);
+        using var signer = IO.Packages.PackageSigningKey.FromPem(File.ReadAllText(signingKey));
+
+        var result = DlcBuilder.Build(project, project.EffectiveBuildProfiles[1], "Assets/DLC/Forest", "Forest", Path.Combine(_root, "dlc"), signingKey, separateKey: true);
+        Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
+        Assert.Equal(1, result.Assets);
+        Assert.Contains(result.Diagnostics, d => d.Code == "MNVB116"); // the key file is for the server
+        var key = IO.Packages.PackageEncryptionKey.FromHex(File.ReadAllText(result.KeyFile!));
+        Assert.NotEqual(ContentKeys.LoadOrCreate(project, [])!.Id, key.Id);
+
+        using var package = IO.Packages.MnvtPackage.Open(result.PackageFile!, new IO.Packages.PackageOpenOptions(new IO.Packages.PackageKeyRing(key), [signer.PublicKey], RequireSignature: true));
+        Assert.True(package.Contains("Index/Forest.json"));
+        Assert.True(package.Contains("Assets/DLC/Forest/Intro.mnvts"));
+        Assert.True(package.Contains(Assets.AssetDatabase.CompiledEntry(Guid.Parse("d1000000-0000-4000-8000-000000000001"))));
+        Assert.Equal(Guid.Parse("d1000000-0000-4000-8000-000000000001"), package.Entries.Single(e => e.Path.EndsWith(".mnvts", StringComparison.Ordinal)).AssetGuid);
+        Assert.Contains(DlcBuilder.Build(project, project.EffectiveBuildProfiles[1], "Assets/Nothing", "Empty", null, signingKey, false).Diagnostics, d => d.Code == "MNVB115");
+    }
+
+    [Fact]
     public void MissingMetas_AreCreatedOnce_WithAWarningToCommitThem()
     {
         var project = NewProject();

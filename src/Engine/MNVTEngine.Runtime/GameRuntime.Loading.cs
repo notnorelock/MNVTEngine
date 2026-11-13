@@ -20,6 +20,8 @@ public sealed partial class GameRuntime : ILoadingScreenHost
     private bool _loadIsStartup;
     private SplashScreenView? _splash;
     private LoadingScreenView? _loadingView;
+    private long _loadStarted;
+    private long? _unloadUnusedAt;
     private StartupAssets _startupAssets = null!;
 
     /// <summary>True while a scene is loading (the current scene is frozen).</summary>
@@ -70,6 +72,7 @@ public sealed partial class GameRuntime : ILoadingScreenHost
         _load?.Dispose();
         _load = new SceneLoadOperation(path, _assets, _resources, DeserializeScene);
         _loadIsStartup = startup;
+        _loadStarted = System.Diagnostics.Stopwatch.GetTimestamp();
         if (_loadingView is null && _splash is null && LoadingScreen.Options is { } options)
         {
             _loadingView = new LoadingScreenView(options.Clone(), _startupAssets);
@@ -99,6 +102,8 @@ public sealed partial class GameRuntime : ILoadingScreenHost
                 if (op.Result is { } scene)
                 {
                     SwitchTo(scene);
+                    _resources.RecordSceneLoad(System.Diagnostics.Stopwatch.GetElapsedTime(_loadStarted));
+                    _unloadUnusedAt = _loadIsStartup ? null : _device.FrameNumber + UnusedFrames;
                 }
                 else if (op.Error is { } error && _loadIsStartup)
                 {

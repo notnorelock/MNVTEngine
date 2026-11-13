@@ -88,6 +88,13 @@ public interface IAssetReader
 {
     /// <exception cref="InvalidOperationException">The asset is missing or unreadable.</exception>
     byte[] ReadAllBytes(AssetRef asset);
+
+    /// <summary>A read-only, seekable stream over the asset, for content read a part at a time (streamed audio). Owned by the caller.</summary>
+    /// <exception cref="InvalidOperationException">The asset is missing or unreadable.</exception>
+    Stream OpenRead(AssetRef asset) => new MemoryStream(ReadAllBytes(asset), writable: false);
+
+    /// <summary>An import setting of the asset (from its .meta, or the packaged asset index) as text; null when not set.</summary>
+    string? GetImportSetting(AssetRef asset, string name) => null;
 }
 
 public interface ITextAssetReader

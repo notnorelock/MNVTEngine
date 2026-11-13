@@ -112,10 +112,11 @@ UI's **Mixer** panel (changes there last for the run). Meters are live in Play m
 
 ## Resource lifetime
 
-- **Clips.** Each clip is decoded to 16-bit PCM and uploaded once per scene on first use, then cached. A missing or undecodable clip logs one error and never plays; it never throws into game code.
+- **Clips.** Each clip is loaded once per scene on first use, then cached: decoded to 16-bit PCM in memory, or streamed (below). A missing or undecodable clip logs one error and never plays; it never throws into game code.
+- **Streaming.** Long clips (music, ambience, dialogue) are decoded while they play: each playing voice opens its own decoder over the asset's stream (`IAssetReader.OpenRead`, through the virtual file system), and a streaming thread keeps about 0.75 s decoded ahead in a ring buffer, outside the mixer's lock, so the audio thread never waits for reading or decoding. The first block is decoded when `Play` is called, so playback starts without a gap. The import setting `"loadType"` decides: `"auto"` (default: streamed when the decoded clip would exceed `AudioSystem.StreamingThreshold`, 4 MiB, about 24 s of 44.1 kHz stereo), `"decompressOnLoad"` or `"streaming"`. Looping streams rewind the decoder, so the loop point is seamless. A read or decoding error stops that voice and is logged (`IAudioDevice.TakeStreamError`); if decoding ever falls behind, the voice plays silence until it catches up and the `audio.underruns` metric counts it. Metrics: `audio.streams`, `audio.underruns`.
 - **Unload.** `Scene.Unloaded` releases every voice and buffer of the scene.
 - **The device** belongs to the host and is disposed at exit. If voices or buffers are still alive then, a warning is logged.
-- **Packaged games.** Exported games read clips from the content packages (through the virtual file system; clips are read whole, not streamed). Build validation requires `soft_oal.dll` in `Dependencies/Native`.
+- **Packaged games.** Exported games read clips from the content packages through the virtual file system; streamed clips read only the chunks they reach. Build validation requires `soft_oal.dll` in `Dependencies/Native`.
 
 ## Decoding
 
@@ -123,15 +124,17 @@ UI's **Mixer** panel (changes there last for the run). Meters are live in Play m
 - **Ogg Vorbis:** through NVorbis.
 - **Channels:** mono and stereo only.
 - **Errors:** damaged or unsupported files raise `InvalidDataException` with the asset name.
+- **Streams:** `AudioDecoder.Open(stream, name)` gives an `IAudioSampleSource` (block reads, rewind); `AudioDecoder.Decode` drains one.
 
 ## Tests
 
 - `NullAudioDevice` renders the mix in simulated time, so component behaviour (pause, finish, loops, one-shots, unload), bus levels, meters, panning and effects are tested deterministically (`MixerAndEffectTests`).
 - `OpenAL_PlaysAClipToTheEnd` plays a quiet beep on the real device, and skips on machines without audio output.
+- `AudioStreamingTests`: streamed decoding equals whole decoding, playback to the end without underruns, seamless looping, read errors stopping the voice, and the `loadType` / size rule.
 
 ## Limitations
 
-- Clips are fully decoded into memory; there is no streaming for long music.
+- Streamed clips cannot seek to a position (only play from the start and loop).
 - Effects are inserts on groups: no send/return buses, no sidechain (ducking), no Doppler effect, and no 3D listener orientation. The mixer is per scene, not a shared asset.
 - Output is 48 kHz stereo; surround layouts are not supported.
 - `PlayOneShot` voices cannot be stopped individually.

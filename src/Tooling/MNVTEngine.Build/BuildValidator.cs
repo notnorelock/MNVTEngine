@@ -330,7 +330,8 @@ public static class BuildValidator
         foreach (var file in Directory.EnumerateFiles(gameDirectory, "*", SearchOption.AllDirectories))
         {
             var relative = Path.GetRelativePath(gameDirectory, file).Replace('\\', '/');
-            if (!listed.Contains(relative) && !manifest.Contains(relative, StringComparer.OrdinalIgnoreCase) && !relative.StartsWith("Logs/", StringComparison.OrdinalIgnoreCase))
+            if (!listed.Contains(relative) && !manifest.Contains(relative, StringComparer.OrdinalIgnoreCase) && !relative.StartsWith("Logs/", StringComparison.OrdinalIgnoreCase)
+                && !relative.StartsWith($"{data}/{GameContent.DlcFolder}/", StringComparison.OrdinalIgnoreCase) && !relative.StartsWith(GameContent.ModsFolder + "/", StringComparison.OrdinalIgnoreCase)) // extra content, added after the build
             {
                 diagnostics.Add(BuildDiagnostic.Warning("MNVB509", "File is not part of the build.", relative));
             }

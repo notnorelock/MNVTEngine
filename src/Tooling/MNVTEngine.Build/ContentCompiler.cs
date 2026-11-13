@@ -104,7 +104,7 @@ public static class ContentCompiler
         return diagnostics;
     }
 
-    private static string LibraryOf(GameProject project) => Path.Combine(project.RootDirectory, "Library");
+    internal static string LibraryOf(GameProject project) => Path.Combine(project.RootDirectory, "Library");
 
     /// <param name="registry">Built-in and game components, used to load scenes and prefabs.</param>
     /// <param name="output">Content packages to write; null to validate only.</param>
@@ -204,6 +204,11 @@ public static class ContentCompiler
                 {
                     package.Add(AssetDatabase.CompiledEntry(record.Guid), bytecode);
                 }
+
+                if (record.Type == AssetTypes.Texture && project.Streaming.Textures && Proxy(assets, record, diagnostics) is { } proxy)
+                {
+                    package.Add(AssetDatabase.ArtifactEntry(record.Guid, TextureProxy.ArtifactName), proxy); // streamed: shown while the full image loads
+                }
             }
         }
 
@@ -273,6 +278,21 @@ public static class ContentCompiler
         return precompiler.Entries.Count;
     }
 
+    /// <summary>The streaming proxy of a texture large enough to stream; null for small ones (or, with a warning, undecodable ones).</summary>
+    internal static byte[]? Proxy(AssetDatabase assets, AssetRecord record, List<BuildDiagnostic> diagnostics)
+    {
+        try
+        {
+            var image = Image.Decode(assets.ReadAllBytes(record.Guid), record.Path, assets.GetTextureSettings(record.Guid).SvgScale);
+            return TextureProxy.ShouldStream(image.Width, image.Height) ? TextureProxy.Create(image) : null;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException)
+        {
+            diagnostics.Add(BuildDiagnostic.Warning("MNVB224", $"No streaming proxy (the texture loads whole): {ex.Message}", record.Path));
+            return null;
+        }
+    }
+
     /// <returns>The assets this one references.</returns>
     /// <summary>A model's artifact and the project textures it uses; an error when it was never imported or is unreadable.</summary>
     private static (byte[] Artifact, IReadOnlyCollection<Guid> Dependencies)? ModelDependencies(AssetDatabase assets, AssetRecord record, List<BuildDiagnostic> diagnostics)
@@ -327,7 +347,7 @@ public static class ContentCompiler
     }
 
     /// <summary>Strict compile: unlike the editor's import check, unknown API functions are errors because the game would fail to link.</summary>
-    private static byte[]? CompileScript(string path, byte[] data, List<BuildDiagnostic> diagnostics)
+    internal static byte[]? CompileScript(string path, byte[] data, List<BuildDiagnostic> diagnostics)
     {
         string source;
         try

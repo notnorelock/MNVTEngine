@@ -175,7 +175,7 @@ public static class AudioComponents
 public sealed partial class AudioSystem : GameSystem
 {
     private readonly Scene _scene;
-    private readonly Func<AssetRef, byte[]> _readClip;
+    private readonly IAssetReader _assets;
     private readonly Dictionary<Guid, IAudioBuffer?> _buffers = [];
     private readonly List<IAudioVoice> _voices = [];
     private readonly List<IAudioVoice> _oneShots = [];
@@ -183,13 +183,25 @@ public sealed partial class AudioSystem : GameSystem
     private AudioMixer? _mixer;
     private int? _layout;
 
-    private AudioSystem(Scene scene, IAudioDevice device, Func<AssetRef, byte[]> readClip)
+    private AudioSystem(Scene scene, IAudioDevice device, IAssetReader assets)
     {
         _scene = scene;
         Device = device;
-        _readClip = readClip;
+        _assets = assets;
         scene.Unloaded += OnUnloaded;
     }
+
+    /// <summary>Import setting <c>"loadType"</c> of audio assets: <c>"auto"</c> (default), <c>"decompressOnLoad"</c> or <c>"streaming"</c>.</summary>
+    public const string LoadTypeSetting = "loadType";
+
+    /// <summary>
+    /// With <c>"loadType": "auto"</c>, clips whose decoded PCM would be larger than this are streamed (decoded while they
+    /// play) instead of decoded into memory. 4 MiB is about 24 s of 44.1 kHz stereo.
+    /// </summary>
+    public long StreamingThreshold { get; set; } = 4 * 1024 * 1024;
+
+    /// <summary>Clips this scene plays streamed.</summary>
+    public int StreamedClipCount { get; private set; }
 
     public IAudioDevice Device { get; }
 
@@ -205,21 +217,34 @@ public sealed partial class AudioSystem : GameSystem
     /// <summary>Clips that could not be loaded (they never play).</summary>
     public int FailedClipCount => _buffers.Values.Count(b => b is null);
 
-    /// <param name="readClip">Bytes of an audio asset (from the project folder or the game's content archive).</param>
+    /// <param name="readClip">Bytes of an audio asset. Clips are then always decoded into memory (no streams, no import settings).</param>
     /// <exception cref="InvalidOperationException">The scene already has an audio system.</exception>
     public static AudioSystem Attach(Scene scene, IAudioDevice device, Func<AssetRef, byte[]> readClip)
     {
+        ArgumentNullException.ThrowIfNull(readClip);
+        return Attach(scene, device, new BytesReader(readClip));
+    }
+
+    /// <param name="assets">Audio assets (the project folder, or the game's packages through the virtual file system) and their import settings.</param>
+    /// <exception cref="InvalidOperationException">The scene already has an audio system.</exception>
+    public static AudioSystem Attach(Scene scene, IAudioDevice device, IAssetReader assets)
+    {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(device);
-        ArgumentNullException.ThrowIfNull(readClip);
+        ArgumentNullException.ThrowIfNull(assets);
         if (For(scene) is not null)
         {
             throw new InvalidOperationException("The scene already has an audio system.");
         }
 
-        var system = new AudioSystem(scene, device, readClip);
+        var system = new AudioSystem(scene, device, assets);
         scene.Systems.Add(system);
         return system;
+    }
+
+    private sealed class BytesReader(Func<AssetRef, byte[]> read) : IAssetReader
+    {
+        public byte[] ReadAllBytes(AssetRef asset) => read(asset);
     }
 
     public static AudioSystem? For(Scene scene) => scene?.Systems.Get<AudioSystem>();
@@ -229,6 +254,11 @@ public sealed partial class AudioSystem : GameSystem
         _mixer = _scene.FindObjectsOfType<AudioMixer>().FirstOrDefault(m => m.IsActiveAndEnabled);
         ApplyMixer(); // before rendering: this frame's sound already uses this frame's faders
         Device.Update(time.UnscaledDeltaTime);
+        while (Device.TakeStreamError() is { } error)
+        {
+            LogStreamFailed(_scene.Logger, error);
+        }
+
         Core.Diagnostics.Profiler.Count("Audio voices", _voices.Count);
         var listener = _scene.FindObjectsOfType<AudioListener>().FirstOrDefault(l => l.IsActiveAndEnabled)?.Transform
             ?? _scene.MainCamera?.Transform;
@@ -319,9 +349,21 @@ public sealed partial class AudioSystem : GameSystem
         IAudioBuffer? buffer = null;
         try
         {
-            var data = AudioDecoder.Decode(_readClip(clip), clip.ToString());
-            buffer = Device.CreateBuffer(data);
-            BufferBytes += data.Samples.Length * (long)sizeof(short);
+            var name = clip.ToString();
+            var loadType = _assets.GetImportSetting(clip, LoadTypeSetting) ?? "auto";
+            using var source = AudioDecoder.Open(_assets.OpenRead(clip), name);
+            var decodedBytes = source.Frames is { } frames ? frames * source.Channels * sizeof(short) : (long?)null;
+            if (loadType == "streaming" || (loadType == "auto" && decodedBytes > StreamingThreshold))
+            {
+                buffer = Device.CreateStreamedBuffer(() => AudioDecoder.Open(_assets.OpenRead(clip), name));
+                StreamedClipCount++;
+            }
+            else
+            {
+                var data = AudioDecoder.ReadAll(source, name);
+                buffer = Device.CreateBuffer(data);
+                BufferBytes += data.Samples.Length * (long)sizeof(short);
+            }
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or InvalidOperationException or KeyNotFoundException or ArgumentException)
         {
@@ -374,6 +416,9 @@ public sealed partial class AudioSystem : GameSystem
 
     [LoggerMessage(EventId = 2400, Level = LogLevel.Error, Message = "Audio clip {Clip} could not be loaded; it will not play")]
     private static partial void LogClipFailed(ILogger logger, Exception exception, string clip);
+
+    [LoggerMessage(EventId = 2401, Level = LogLevel.Error, Message = "A streamed audio clip stopped: it could not be read or decoded")]
+    private static partial void LogStreamFailed(ILogger logger, Exception exception);
 }
 
 /// <summary>
@@ -405,7 +450,7 @@ public sealed class AudioModule(Audio.AudioDeviceFactory? createDevice = null, M
         ArgumentNullException.ThrowIfNull(scene);
         if (_device is { } device && scene.AssetReader is { } assets)
         {
-            AudioSystem.Attach(scene, device, clip => assets.ReadAllBytes(clip));
+            AudioSystem.Attach(scene, device, assets);
         }
 
         scene.SetService<ISceneAudio>(new SceneAudio(scene));
@@ -424,6 +469,16 @@ public sealed class AudioModule(Audio.AudioDeviceFactory? createDevice = null, M
             {
                 metrics.Set(Diagnostics.Metrics.AudioSources, audio.VoiceCount);
                 metrics.Set(Diagnostics.Metrics.AudioMemory, audio.BufferBytes);
+                if (audio.Device is MixingAudioDevice mixer)
+                {
+                    metrics.Set(Diagnostics.Metrics.AudioStreams, mixer.ActiveStreams);
+                    metrics.Set(Diagnostics.Metrics.AudioUnderruns, mixer.StreamUnderruns);
+                }
+                else
+                {
+                    metrics.SetUnsupported(Diagnostics.Metrics.AudioStreams);
+                    metrics.SetUnsupported(Diagnostics.Metrics.AudioUnderruns);
+                }
             }
         }
     }

@@ -95,6 +95,36 @@ public class MixingAudioDevice : IAudioDevice
         return new ClipBuffer(this, clip);
     }
 
+    public IAudioBuffer CreateStreamedBuffer(Func<IAudioSampleSource> open)
+    {
+        ArgumentNullException.ThrowIfNull(open);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        int channels, rate;
+        long? frames;
+        using (var probe = open())
+        {
+            (channels, rate, frames) = (probe.Channels, probe.SampleRate, probe.Frames);
+        }
+
+        LiveBuffers++;
+        return new StreamedBuffer(this, open, channels, rate, frames is { } f ? f / (float)rate : 0f);
+    }
+
+    /// <summary>Voices playing a streamed clip now.</summary>
+    public int ActiveStreams
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _clipStreams.Count(s => !s.Closed);
+            }
+        }
+    }
+
+    /// <summary>Blocks of streamed audio that played silent because decoding fell behind, since start.</summary>
+    public long StreamUnderruns => Interlocked.Read(ref _underruns);
+
     public IAudioVoice CreateVoice()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -260,7 +290,164 @@ public class MixingAudioDevice : IAudioDevice
 
         _disposed = true;
         _output?.Dispose(); // stops the render thread first
+        _streamerStop.Cancel();
+        _streamer?.Join();
+        _streamerStop.Dispose();
+        _streamerWake.Dispose();
+        foreach (var stream in _clipStreams)
+        {
+            stream.Source?.Dispose();
+        }
+
+        _clipStreams.Clear();
         GC.SuppressFinalize(this);
+    }
+
+    // ------------------------------------------------------------------ streamed clips
+
+    private readonly List<ClipStream> _clipStreams = [];
+    private readonly CancellationTokenSource _streamerStop = new();
+    private readonly AutoResetEvent _streamerWake = new(false);
+    private Thread? _streamer;
+    private long _underruns;
+
+    /// <summary>Seconds of decoded audio kept ahead of each streamed voice.</summary>
+    internal const float StreamAheadSeconds = 0.75f;
+
+    private const int StreamBlockFrames = 4096;
+
+    private readonly System.Collections.Concurrent.ConcurrentQueue<Exception> _streamErrors = new();
+
+    /// <summary>A decoding or read error of a streamed clip (its voice stopped early); null when there is none.</summary>
+    public Exception? TakeStreamError() => _streamErrors.TryDequeue(out var error) ? error : null;
+
+    /// <summary>A stream for a voice about to play, with its decoder open and the first block decoded (on the caller's thread, outside the lock).</summary>
+    private ClipStream PrepareStream(StreamedBuffer buffer, bool loop)
+    {
+        var stream = new ClipStream(buffer, Math.Max(StreamBlockFrames * 2, (int)(buffer.SampleRate * StreamAheadSeconds) + StreamBlockFrames)) { Loop = loop };
+        var block = Array.Empty<short>();
+        Fill(stream, ref block, maxBlocks: 1);
+        return stream;
+    }
+
+    private ClipStream StartStream(ClipStream stream)
+    {
+        _clipStreams.Add(stream); // under the lock (from ClipVoice.Play)
+        if (_streamer is null)
+        {
+            _streamer = new Thread(StreamLoop) { IsBackground = true, Name = "MNVT audio streaming", Priority = ThreadPriority.AboveNormal };
+            _streamer.Start();
+        }
+
+        _streamerWake.Set();
+        return stream;
+    }
+
+    /// <summary>
+    /// The streaming thread: keeps every playing streamed voice's ring buffer filled, decoding (and reading content) outside
+    /// the mixer's lock, so the render thread never waits for I/O. Closed streams' decoders are disposed here, their only user.
+    /// </summary>
+    private void StreamLoop()
+    {
+        var block = Array.Empty<short>();
+        var token = _streamerStop.Token;
+        while (!token.IsCancellationRequested)
+        {
+            ClipStream[] work;
+            lock (_lock)
+            {
+                work = [.. _clipStreams];
+            }
+
+            foreach (var stream in work)
+            {
+                if (stream.Closed)
+                {
+                    stream.Source?.Dispose();
+                    lock (_lock)
+                    {
+                        _clipStreams.Remove(stream);
+                    }
+
+                    continue;
+                }
+
+                Fill(stream, ref block);
+            }
+
+            WaitHandle.WaitAny([_streamerWake, token.WaitHandle], 10);
+        }
+    }
+
+    private void Fill(ClipStream stream, ref short[] block, int maxBlocks = int.MaxValue)
+    {
+        try
+        {
+            stream.Source ??= stream.Buffer.Open();
+            var channels = stream.Buffer.Channels;
+            if (block.Length < StreamBlockFrames * channels)
+            {
+                block = new short[StreamBlockFrames * channels];
+            }
+
+            var emptyRewinds = 0;
+            while (true)
+            {
+                bool loop;
+                long free;
+                lock (_lock)
+                {
+                    if (stream.Ended || stream.Closed)
+                    {
+                        return;
+                    }
+
+                    free = stream.Capacity - (stream.Written - (long)stream.ReadPosition);
+                    loop = stream.Loop;
+                }
+
+                if (free < StreamBlockFrames || maxBlocks-- == 0)
+                {
+                    return;
+                }
+
+                var frames = stream.Source.Read(block.AsSpan(0, StreamBlockFrames * channels));
+                if (frames == 0)
+                {
+                    if (loop && emptyRewinds++ == 0)
+                    {
+                        stream.Source.Rewind();
+                        continue;
+                    }
+
+                    lock (_lock)
+                    {
+                        stream.Ended = true; // an empty clip that loops ends too
+                    }
+
+                    return;
+                }
+
+                emptyRewinds = 0;
+                lock (_lock)
+                {
+                    for (var f = 0; f < frames; f++)
+                    {
+                        var at = (int)((stream.Written + f) % stream.Capacity) * channels;
+                        block.AsSpan(f * channels, channels).CopyTo(stream.Ring.AsSpan(at, channels));
+                    }
+
+                    stream.Written += frames;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or ObjectDisposedException or UnauthorizedAccessException)
+        {
+            lock (_lock)
+            {
+                (stream.Ended, stream.Error) = (true, ex); // the voice plays what it has, then stops
+            }
+        }
     }
 
     private static bool IsMaster(string name) => string.IsNullOrEmpty(name) || string.Equals(name, MasterBus, StringComparison.OrdinalIgnoreCase);
@@ -429,9 +616,72 @@ public class MixingAudioDevice : IAudioDevice
         }
     }
 
+    private sealed class StreamedBuffer(MixingAudioDevice device, Func<IAudioSampleSource> open, int channels, int sampleRate, float duration) : IAudioBuffer
+    {
+        private bool _disposed;
+
+        public int Channels => channels;
+
+        public int SampleRate => sampleRate;
+
+        public float Duration => duration;
+
+        public bool IsStreamed => true;
+
+        public IAudioSampleSource Open()
+        {
+            var source = open();
+            if (source.Channels != channels || source.SampleRate != sampleRate)
+            {
+                source.Dispose();
+                throw new InvalidDataException("The streamed clip changed its format.");
+            }
+
+            return source;
+        }
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                _disposed = true;
+                device.LiveBuffers--;
+            }
+        }
+    }
+
+    /// <summary>One playback of a streamed clip: a ring of decoded frames, filled by the streaming thread, read by the mixer. Fields under the device lock, except <see cref="Source"/> (streaming thread only).</summary>
+    private sealed class ClipStream(StreamedBuffer buffer, int capacity)
+    {
+        public StreamedBuffer Buffer { get; } = buffer;
+
+        public int Capacity { get; } = capacity;
+
+        public short[] Ring { get; } = new short[capacity * buffer.Channels];
+
+        public IAudioSampleSource? Source { get; set; }
+
+        /// <summary>Frames decoded into the ring since the start (looping continues counting).</summary>
+        public long Written { get; set; }
+
+        /// <summary>Frames played (fractional with pitch).</summary>
+        public double ReadPosition { get; set; }
+
+        public bool Loop { get; set; }
+
+        public bool Ended { get; set; }
+
+        public bool Closed { get; set; }
+
+        public Exception? Error { get; set; }
+
+        public short At(long frame, int channel) => Ring[((int)(frame % Capacity) * Buffer.Channels) + channel];
+    }
+
     private sealed class ClipVoice(MixingAudioDevice device) : IAudioVoice
     {
         private AudioClipData? _clip;
+        private ClipStream? _stream;
         private double _position;
         private float _lastLeft, _lastRight;
 
@@ -455,11 +705,29 @@ public class MixingAudioDevice : IAudioDevice
 
         public void Play(IAudioBuffer buffer)
         {
+            var prepared = buffer is StreamedBuffer streamed ? device.PrepareStream(streamed, Loop) : null;
             lock (device._lock)
             {
-                _clip = ((ClipBuffer)buffer).Clip;
+                CloseStream();
+                _clip = prepared is null ? ((ClipBuffer)buffer).Clip : null;
+                _stream = prepared is null ? null : device.StartStream(prepared);
                 (_position, _lastLeft, _lastRight) = (0, 0f, 0f);
                 State = VoiceState.Playing;
+            }
+        }
+
+        private void CloseStream()
+        {
+            if (_stream is { } stream)
+            {
+                stream.Closed = true; // the streaming thread disposes its decoder
+                if (stream.Error is { } error)
+                {
+                    device._streamErrors.Enqueue(error);
+                }
+
+                _stream = null;
+                device._streamerWake.Set();
             }
         }
 
@@ -490,6 +758,7 @@ public class MixingAudioDevice : IAudioDevice
             lock (device._lock)
             {
                 State = VoiceState.Stopped;
+                CloseStream();
             }
         }
 
@@ -498,12 +767,19 @@ public class MixingAudioDevice : IAudioDevice
             lock (device._lock)
             {
                 State = VoiceState.Stopped;
+                CloseStream();
                 device._voices.Remove(this);
             }
         }
 
         public void Mix(Span<float> bus, Vector2 listener, int outputRate)
         {
+            if (State == VoiceState.Playing && _stream is { } stream)
+            {
+                MixStream(bus, listener, outputRate, stream);
+                return;
+            }
+
             if (State != VoiceState.Playing || _clip is not { } clip)
             {
                 return;
@@ -550,6 +826,60 @@ public class MixingAudioDevice : IAudioDevice
             }
 
             (_lastLeft, _lastRight) = (left, right);
+        }
+
+        /// <summary>Plays from the stream's ring; looping happens in the decoder, so frames are continuous across the loop point.</summary>
+        private void MixStream(Span<float> bus, Vector2 listener, int outputRate, ClipStream stream)
+        {
+            stream.Loop = Loop;
+            var channels = stream.Buffer.Channels;
+            var (left, right) = channels == 1 ? MonoGains(Spatial, Position, listener, ReferenceDistance, MaxDistance) : (1f, 1f);
+            (left, right) = (left * Volume, right * Volume);
+            var step = stream.Buffer.SampleRate / (double)outputRate * Pitch;
+            var frames = bus.Length / 2;
+            for (var i = 0; i < frames; i++)
+            {
+                var index = (long)stream.ReadPosition;
+                if (index >= stream.Written)
+                {
+                    if (stream.Ended)
+                    {
+                        State = VoiceState.Stopped;
+                        CloseStream();
+                    }
+                    else
+                    {
+                        Interlocked.Increment(ref device._underruns); // decoding fell behind: silence until it catches up
+                        device._streamerWake.Set();
+                    }
+
+                    break;
+                }
+
+                var next = index + 1 < stream.Written ? index + 1 : index;
+                var fraction = (float)(stream.ReadPosition - index);
+                var t = (i + 1f) / frames;
+                var (gl, gr) = (_lastLeft + ((left - _lastLeft) * t), _lastRight + ((right - _lastRight) * t));
+                if (channels == 1)
+                {
+                    var s = Sample(stream.At(index, 0), stream.At(next, 0), fraction);
+                    bus[i * 2] += s * gl;
+                    bus[(i * 2) + 1] += s * gr;
+                }
+                else
+                {
+                    bus[i * 2] += Sample(stream.At(index, 0), stream.At(next, 0), fraction) * gl;
+                    bus[(i * 2) + 1] += Sample(stream.At(index, 1), stream.At(next, 1), fraction) * gr;
+                }
+
+                stream.ReadPosition += step;
+            }
+
+            (_lastLeft, _lastRight) = (left, right);
+            if (stream.Written - (long)stream.ReadPosition < stream.Capacity / 2)
+            {
+                device._streamerWake.Set();
+            }
         }
     }
 

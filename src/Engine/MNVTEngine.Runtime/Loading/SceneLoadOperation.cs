@@ -143,7 +143,7 @@ public sealed partial class SceneLoadOperation : IDisposable
 
         var textures = AssetReference().Matches(json)
             .Select(m => Guid.TryParse(m.Groups[1].Value, out var g) ? g : Guid.Empty)
-            .Where(g => g != Guid.Empty && _assets.GetAssetType(g) == AssetTypes.Texture && !_resources.HasTexture(g))
+            .Where(g => g != Guid.Empty && _assets.GetAssetType(g) == AssetTypes.Texture && !_resources.HasTexture(g) && !_resources.CanStream(g)) // streamed: proxy first, full image later
             .Distinct()
             .ToList();
         Volatile.Write(ref _textures, textures.Count);

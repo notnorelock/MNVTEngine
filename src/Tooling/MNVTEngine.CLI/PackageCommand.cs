@@ -9,8 +9,8 @@ internal static class PackageCommand
 {
     public static async Task<int> RunAsync(CommandLine command, TextWriter output, ILoggerFactory loggerFactory, CancellationToken cancellationToken)
     {
-        var verb = command.Positional.Count > 0 ? command.Positional[0] : throw new FormatException("Use: mnvt package build|inspect|verify|analyze|extract|keys|benchmark ...");
-        var target = command.Positional.Count == 2 ? command.Positional[1] : throw new FormatException($"Use: mnvt package {verb} <{(verb is "build" or "analyze" or "keys" ? "project" : "file.mnvtpack")}>.");
+        var verb = command.Positional.Count > 0 ? command.Positional[0] : throw new FormatException("Use: mnvt package build|inspect|verify|analyze|extract|keys|dlc|benchmark ...");
+        var target = command.Positional.Count == 2 ? command.Positional[1] : throw new FormatException($"Use: mnvt package {verb} <{(verb is "build" or "analyze" or "keys" or "dlc" ? "project" : "file.mnvtpack")}>.");
         var project = command.Value("--project") is { } projectPath ? GameProject.Load(projectPath) : null;
         switch (verb)
         {
@@ -78,6 +78,18 @@ internal static class PackageCommand
             case "keys":
                 return Keys(GameProject.Load(target), command, output);
 
+            case "dlc":
+            {
+                var loadedProject = GameProject.Load(target);
+                var diagnostics = new List<BuildDiagnostic>();
+                var profile = GameBuilder.ResolveProfile(loadedProject, Options(command), diagnostics) ?? throw new FormatException(string.Join(" ", diagnostics.Select(d => d.Message)));
+                var result = DlcBuilder.Build(loadedProject, profile, command.Value("--folder") ?? throw new FormatException("Use: mnvt package dlc <project> --folder <Assets/...> --name <Name>."),
+                    command.Value("--name") ?? throw new FormatException("Use: mnvt package dlc <project> --folder <Assets/...> --name <Name>."), command.Value("--output"), command.Value("--signing-key"), command.Has("--separate-key"));
+                Cli.Report(output, result.Diagnostics);
+                output.WriteLine(result.PackageFile is null ? "DLC packaging FAILED." : $"{result.Assets} assets in {result.PackageFile}; copy it into <Game>_Data/{GameContent.DlcFolder}.");
+                return result.PackageFile is null ? Cli.Failed : Cli.Ok;
+            }
+
             case "benchmark":
             {
                 var data = GamePackage.FindDataDirectory(target) ?? target;
@@ -86,7 +98,7 @@ internal static class PackageCommand
             }
 
             default:
-                throw new FormatException($"Unknown package command '{verb}'; use build, inspect, verify, analyze, extract, keys or benchmark.");
+                throw new FormatException($"Unknown package command '{verb}'; use build, inspect, verify, analyze, extract, keys, dlc or benchmark.");
         }
     }
 

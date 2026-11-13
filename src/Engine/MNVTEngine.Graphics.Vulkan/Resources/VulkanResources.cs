@@ -15,17 +15,31 @@ internal sealed class VulkanTexture : Texture2D, IVulkanTexture
 {
     private readonly VulkanGraphicsDevice _device;
 
-    public VulkanTexture(VulkanGraphicsDevice device, string debugName, VulkanImage image, Sampler sampler, SamplerState state)
-        : base(device.Resources, debugName, image.Width, image.Height, state)
+    /// <param name="logicalWidth">Reported width; larger than the image for a streamed texture showing its proxy.</param>
+    public VulkanTexture(VulkanGraphicsDevice device, string debugName, VulkanImage image, Sampler sampler, SamplerState state, int logicalWidth = 0, int logicalHeight = 0)
+        : base(device.Resources, debugName, logicalWidth > 0 ? logicalWidth : image.Width, logicalHeight > 0 ? logicalHeight : image.Height, state)
     {
         _device = device;
         Image = image;
         VkSampler = sampler;
     }
 
-    public VulkanImage Image { get; }
+    /// <summary>The image drawn; replaced by <see cref="VulkanGraphicsDevice.ReplaceTexture"/> (streaming).</summary>
+    public VulkanImage Image { get; private set; }
 
     public Sampler VkSampler { get; }
+
+    public override (int Width, int Height) ResidentSize => (Image.Width, Image.Height);
+
+    /// <summary>Swaps in a new image; the caller destroys the old one later.</summary>
+    public VulkanImage Swap(VulkanImage image)
+    {
+        var old = Image;
+        Image = image;
+        return old;
+    }
+
+    public void MarkDrawn(long frame) => LastDrawnFrame = frame;
 
     protected override void ReleaseCore() => _device.DestroyLater(Image);
 }

@@ -156,28 +156,86 @@ public sealed class AssetDatabase : IAssetLookup
             throw new InvalidDataException($"The game's asset index is unreadable: {ex.Message}", ex);
         }
 
-        if (index.Value<int?>("schemaVersion") != MetaSchemaVersion || index["assets"] is not JArray assets)
+        database.MergeIndex(index, "the game's asset index");
+        database.MergeExtraIndexes();
+        return database;
+    }
+
+    /// <summary>Virtual folder of the asset indexes of extra content (DLC, mods): <c>Index/&lt;name&gt;.json</c>, merged over the game's own.</summary>
+    public const string ExtraIndexFolder = "Index";
+
+    private readonly HashSet<string> _mergedIndexes = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Merges the indexes of extra content mounted since (DLC mounted at run time): every <c>Index/*.json</c> not merged
+    /// yet, in name order. An asset an index lists again (same GUID) takes the new path, type and settings.
+    /// </summary>
+    /// <returns>Indexes merged.</returns>
+    /// <exception cref="InvalidDataException">An index is unreadable or malformed.</exception>
+    public int MergeExtraIndexes()
+    {
+        if (!_packaged)
         {
-            throw new InvalidDataException("The game's asset index has an unsupported format.");
+            return 0;
         }
 
+        var merged = 0;
+        foreach (var entry in _content.EnumerateFiles(ExtraIndexFolder, recursive: false).Where(e => e.EndsWith(".json", StringComparison.OrdinalIgnoreCase) && !_mergedIndexes.Contains(e)).ToList())
+        {
+            JObject index;
+            try
+            {
+                index = JObject.Parse(System.Text.Encoding.UTF8.GetString(ReadContent(entry)));
+            }
+            catch (Exception ex) when (ex is JsonException or IOException)
+            {
+                throw new InvalidDataException($"The asset index {entry} is unreadable: {ex.Message}", ex);
+            }
+
+            MergeIndex(index, entry);
+            _mergedIndexes.Add(entry);
+            merged++;
+        }
+
+        return merged;
+    }
+
+    /// <summary>Adds an exported index's assets; the dictionaries are replaced, not modified, so readers on other threads see either state.</summary>
+    private void MergeIndex(JObject index, string source)
+    {
+        if (index.Value<int?>("schemaVersion") != MetaSchemaVersion || index["assets"] is not JArray assets)
+        {
+            throw new InvalidDataException($"{source} has an unsupported format.");
+        }
+
+        var records = new Dictionary<Guid, AssetRecord>(_records);
+        var settings = new Dictionary<Guid, JObject>(_settings);
         foreach (var item in assets.OfType<JObject>())
         {
+            if (!Guid.TryParse(item.Value<string>("guid"), out var guid) || item.Value<string>("path") is not { } path)
+            {
+                throw new InvalidDataException($"{source} lists an asset without a GUID or path.");
+            }
+
             var record = new AssetRecord
             {
-                Guid = Guid.Parse(item.Value<string>("guid")!),
-                Path = item.Value<string>("path")!,
+                Guid = guid,
+                Path = AssetPaths.Canonical(path), // refuses absolute or escaping paths
                 Type = item.Value<string>("type") ?? AssetTypes.Unknown,
                 Importer = item.Value<string>("importer"),
                 Status = AssetImportStatus.Imported,
             };
-            record.Path = AssetPaths.Canonical(record.Path); // refuses absolute or escaping paths
-            database._records[record.Guid] = record;
-            database._settings[record.Guid] = item["settings"] as JObject ?? [];
+            records[record.Guid] = record;
+            settings[record.Guid] = item["settings"] as JObject ?? [];
         }
 
-        database._byPath = database._records.Values.ToDictionary(r => r.Path, r => r.Guid, AssetPaths.Comparer);
-        return database;
+        var byPath = new Dictionary<string, Guid>(AssetPaths.Comparer);
+        foreach (var record in records.Values)
+        {
+            byPath[record.Path] = record.Guid; // the latest index wins a path, as the latest mount wins the file
+        }
+
+        (_records, _settings, _byPath) = (records, settings, byPath);
     }
 
     /// <summary>The index an exported game opens with <see cref="OpenPackaged"/>: GUID, path, type and settings of every asset.</summary>

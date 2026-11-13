@@ -154,6 +154,71 @@ public sealed class PackagedContentTests : IDisposable
         Assert.Contains("not an exported game's runtime configuration", Assert.Throws<Serialization.SerializationException>(() => GameProject.LoadPackaged(content)).Message, StringComparison.Ordinal);
     }
 
+    /// <summary>An extra content package with a few files and its own asset index (as <c>mnvt package dlc</c> writes them).</summary>
+    private static void WriteExtra(string file, string indexName, PackageEncryptionKey? key, PackageSigningKey? signer, params (string Path, string Text, Guid Guid)[] files)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        using var writer = new PackageWriter(file, new PackageWriterOptions(Guid.NewGuid(), Guid.NewGuid(), EncryptionKey: key, SigningKey: signer));
+        var assets = new Newtonsoft.Json.Linq.JArray();
+        foreach (var (path, text, guid) in files)
+        {
+            writer.Add(path, Encoding.UTF8.GetBytes(text), guid);
+            if (guid != Guid.Empty)
+            {
+                assets.Add(new Newtonsoft.Json.Linq.JObject { ["guid"] = guid.ToString(), ["path"] = path["Assets/".Length..], ["type"] = "Text" });
+            }
+        }
+
+        writer.Add($"{AssetDatabase.ExtraIndexFolder}/{indexName}.json", Encoding.UTF8.GetBytes(new Newtonsoft.Json.Linq.JObject { ["schemaVersion"] = 1, ["assets"] = assets }.ToString()));
+        writer.Complete();
+    }
+
+    [Fact]
+    public void ExtraContent_DlcAndMods_MountWithTheirTrust_AndExtendTheAssetIndex()
+    {
+        WriteGame();
+        var dlcAsset = Guid.NewGuid();
+        var modAsset = Guid.NewGuid();
+        WriteExtra(Path.Combine(Data, "DLC", "forest.mnvtpack"), "forest", _key, _signer, ("Assets/DLC/tree.txt", "a tree", dlcAsset));
+        WriteExtra(Path.Combine(_root, "Mods", "hat.mnvtpack"), "hat", null, null, ("Assets/Mods/hat.txt", "a hat", modAsset), ("Scripts/Game.Scripts.dll", "MZ evil", Guid.Empty), ("Assets/Web/logo.png", "modded logo", Guid.Empty));
+        using var stranger = PackageSigningKey.Create();
+        WriteExtra(Path.Combine(Data, "DLC", "fake.mnvtpack"), "fake", _key, stranger, ("Assets/DLC/fake.txt", "not official", Guid.NewGuid()));
+        var paid = PackageEncryptionKey.Create(); // the server's key for a DLC the game did not ship with
+        var paidAsset = Guid.NewGuid();
+        WriteExtra(Path.Combine(Data, "DLC", "paid.mnvtpack"), "paid", paid, _signer, ("Assets/DLC/gold.txt", "gold", paidAsset));
+
+        using var content = GamePackage.Load(Data, _signer.PublicKey).OpenContent(Data, Options);
+        var results = content.MountExtraContent(new ContentSettings { Dlc = true, Mods = true }, _root).ToDictionary(r => r.Name, r => r.Status);
+        Assert.Equal(ExtraContentStatus.Mounted, results["DLC/forest.mnvtpack"]);
+        Assert.Equal(ExtraContentStatus.Failed, results["DLC/fake.mnvtpack"]); // DLC must be signed by the game's key
+        Assert.Equal(ExtraContentStatus.WaitingForKey, results["DLC/paid.mnvtpack"]);
+        Assert.Equal(ExtraContentStatus.Mounted, results["Mods/hat.mnvtpack"]);
+
+        Assert.Equal("modded logo", Encoding.UTF8.GetString(content.Read("Assets/Web/logo.png"))); // mods override content
+        Assert.Null(content.TryRead("Scripts/Game.Scripts.dll")); // ...never code
+        var assets = AssetDatabase.OpenPackaged(content.Files);
+        Assert.Equal("a tree", Encoding.UTF8.GetString(assets.ReadAllBytes(dlcAsset)));
+        Assert.Equal("a hat", Encoding.UTF8.GetString(assets.ReadAllBytes(modAsset)));
+        Assert.Null(assets.Get(paidAsset));
+
+        // The server hands the key over: mounted, and its assets join the index.
+        Assert.Equal(ExtraContentStatus.Failed, content.MountDlc("paid.mnvtpack", PackageEncryptionKey.Create()).Status);
+        Assert.Equal(ExtraContentStatus.Mounted, content.MountDlc("paid.mnvtpack", paid).Status);
+        Assert.Equal(1, assets.MergeExtraIndexes());
+        Assert.Equal("gold", Encoding.UTF8.GetString(assets.ReadAllBytes(paidAsset)));
+        Assert.Equal(ExtraContentStatus.Failed, content.MountDlc("../escape.mnvtpack", paid).Status);
+    }
+
+    [Fact]
+    public void ExtraContent_IsOnlyMountedWhenAllowed()
+    {
+        WriteGame();
+        WriteExtra(Path.Combine(_root, "Mods", "hat.mnvtpack"), "hat", null, null, ("Assets/Mods/hat.txt", "a hat", Guid.NewGuid()));
+        using var content = GamePackage.Load(Data).OpenContent(Data, Options);
+        Assert.Empty(content.MountExtraContent(new ContentSettings(), _root)); // mods are opt-in; no DLC folder
+        Assert.False(content.Contains("Assets/Mods/hat.txt"));
+    }
+
     [Fact]
     public void EmbeddedKey_RoundTrips_AndIsNotThePlainKey()
     {

@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using MNVTEngine.Mathematics;
 
 namespace MNVTEngine.Audio;
@@ -33,143 +32,6 @@ public sealed class AudioClipData
     public float Duration => Samples.Length / (float)(Channels * SampleRate);
 }
 
-/// <summary>Decodes WAV (PCM 8/16/24/32-bit, IEEE float) and Ogg Vorbis to 16-bit PCM.</summary>
-public static class AudioDecoder
-{
-    /// <exception cref="InvalidDataException">Unknown, unsupported or damaged audio.</exception>
-    public static AudioClipData Decode(byte[] data, string sourceName)
-    {
-        ArgumentNullException.ThrowIfNull(data);
-        try
-        {
-            if (data.Length >= 12 && data.AsSpan(0, 4).SequenceEqual("RIFF"u8) && data.AsSpan(8, 4).SequenceEqual("WAVE"u8))
-            {
-                return DecodeWav(data);
-            }
-
-            if (data.Length >= 4 && data.AsSpan(0, 4).SequenceEqual("OggS"u8))
-            {
-                return DecodeOgg(data);
-            }
-        }
-        catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException or EndOfStreamException or InvalidOperationException)
-        {
-            throw new InvalidDataException($"'{sourceName}' is damaged: {ex.Message}", ex);
-        }
-
-        throw new InvalidDataException($"'{sourceName}' is not a WAV or Ogg Vorbis file.");
-    }
-
-    private static AudioClipData DecodeWav(byte[] data)
-    {
-        int channels = 0, rate = 0, bits = 0, format = 0;
-        var offset = 12;
-        while (offset + 8 <= data.Length)
-        {
-            var id = data.AsSpan(offset, 4);
-            var size = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(offset + 4));
-            var body = offset + 8;
-            if (size < 0 || body + size > data.Length)
-            {
-                size = data.Length - body; // tolerate a truncated last chunk
-            }
-
-            if (id.SequenceEqual("fmt "u8))
-            {
-                format = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(body));
-                channels = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(body + 2));
-                rate = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(body + 4));
-                bits = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(body + 14));
-                if (format == 0xFFFE && size >= 26)
-                {
-                    format = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(body + 24)); // WAVE_FORMAT_EXTENSIBLE sub-format
-                }
-            }
-            else if (id.SequenceEqual("data"u8))
-            {
-                if (channels == 0)
-                {
-                    throw new InvalidDataException("WAV 'data' chunk before 'fmt '.");
-                }
-
-                return new AudioClipData(ConvertWav(data.AsSpan(body, size), format, bits), channels, rate);
-            }
-
-            offset = body + size + (size & 1);
-        }
-
-        throw new InvalidDataException("WAV file has no 'data' chunk.");
-    }
-
-    private static short[] ConvertWav(ReadOnlySpan<byte> pcm, int format, int bits)
-    {
-        switch (format, bits)
-        {
-            case (1, 8):
-                var u8 = new short[pcm.Length];
-                for (var i = 0; i < u8.Length; i++)
-                {
-                    u8[i] = (short)((pcm[i] - 128) << 8);
-                }
-
-                return u8;
-            case (1, 16):
-                var s16 = new short[pcm.Length / 2];
-                for (var i = 0; i < s16.Length; i++)
-                {
-                    s16[i] = BinaryPrimitives.ReadInt16LittleEndian(pcm[(i * 2)..]);
-                }
-
-                return s16;
-            case (1, 24):
-                var s24 = new short[pcm.Length / 3];
-                for (var i = 0; i < s24.Length; i++)
-                {
-                    s24[i] = (short)(pcm[(i * 3) + 1] | (pcm[(i * 3) + 2] << 8));
-                }
-
-                return s24;
-            case (1, 32):
-                var s32 = new short[pcm.Length / 4];
-                for (var i = 0; i < s32.Length; i++)
-                {
-                    s32[i] = (short)(BinaryPrimitives.ReadInt32LittleEndian(pcm[(i * 4)..]) >> 16);
-                }
-
-                return s32;
-            case (3, 32):
-                var f32 = new short[pcm.Length / 4];
-                for (var i = 0; i < f32.Length; i++)
-                {
-                    f32[i] = ToShort(BinaryPrimitives.ReadSingleLittleEndian(pcm[(i * 4)..]));
-                }
-
-                return f32;
-            default:
-                throw new InvalidDataException($"Unsupported WAV encoding (format {format}, {bits} bits).");
-        }
-    }
-
-    private static AudioClipData DecodeOgg(byte[] data)
-    {
-        using var reader = new NVorbis.VorbisReader(new MemoryStream(data), closeOnDispose: true);
-        var samples = new List<short>((int)Math.Min(reader.TotalSamples * reader.Channels, 1 << 26));
-        var buffer = new float[4096 * reader.Channels];
-        int read;
-        while ((read = reader.ReadSamples(buffer, 0, buffer.Length)) > 0)
-        {
-            for (var i = 0; i < read; i++)
-            {
-                samples.Add(ToShort(buffer[i]));
-            }
-        }
-
-        return new AudioClipData([.. samples], reader.Channels, reader.SampleRate);
-    }
-
-    private static short ToShort(float sample) => (short)(Math.Clamp(sample, -1f, 1f) * short.MaxValue);
-}
-
 public enum VoiceState
 {
     Stopped,
@@ -181,6 +43,9 @@ public enum VoiceState
 public interface IAudioBuffer : IDisposable
 {
     float Duration { get; }
+
+    /// <summary>Decoded while it plays (<see cref="IAudioDevice.CreateStreamedBuffer"/>) rather than held in memory.</summary>
+    bool IsStreamed => false;
 }
 
 /// <summary>One playing sound (an OpenAL source). Positions are world units; non-spatial voices ignore position and distance.</summary>
@@ -250,6 +115,18 @@ public interface IAudioDevice : IDisposable
 
     /// <exception cref="ObjectDisposedException">The device was disposed.</exception>
     IAudioBuffer CreateBuffer(AudioClipData clip);
+
+    /// <summary>
+    /// A clip decoded while it plays (music, ambience, dialogue): only a short buffer per playing voice is in memory.
+    /// Every voice that plays it opens its own decoder with <paramref name="open"/>, on the device's streaming thread.
+    /// </summary>
+    /// <param name="open">Opens a decoder at the clip's start; called once now (for the format) and once per playback.</param>
+    /// <exception cref="InvalidDataException">The clip cannot be decoded.</exception>
+    /// <exception cref="ObjectDisposedException">The device was disposed.</exception>
+    IAudioBuffer CreateStreamedBuffer(Func<IAudioSampleSource> open);
+
+    /// <summary>The next read or decoding error of a streamed clip (its voice stopped early), for the caller to log; null when none.</summary>
+    Exception? TakeStreamError();
 
     IAudioVoice CreateVoice();
 

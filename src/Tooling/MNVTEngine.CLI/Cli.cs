@@ -49,6 +49,8 @@ public static class Cli
                                 Developer tool: write a package's files to a folder (not an editable project)
           package keys <project> [--rotate] [--new-signing-key key.pem]
                                 Show the project's encryption key and signing keys; rotate the key; create a release signing key
+          package dlc <project> --folder <Assets/...> --name <Name> [--output dir] [--signing-key key.pem] [--separate-key]
+                                Package one folder's assets as DLC for <Game>_Data/DLC (own key with --separate-key, for a server)
           package benchmark <exported game> [--project <project>] [--no-repack]
                                 Read times from the packages against the same files on disk, and each compression profile
           validate <project | exported game folder> [--run [frames]]
@@ -85,7 +87,7 @@ public static class Cli
                 "run" => CommandLine.Parse(args, ["--frames", "--screenshot", "--profile"], ["--gpu-validation"]),
                 "build" when args.Length > 1 && args[1] == "analyze" => CommandLine.Parse(["analyze", .. args[2..]], ["--profile", "--configuration", "--target", "--scripting-backend", "--json"], []),
                 "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--scripting-backend", "--signing-key"], [], optionalValues: ["--run"]),
-                "package" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--signing-key", "--project", "--trust", "--new-signing-key"], ["--entries", "--rotate", "--no-repack"]),
+                "package" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--signing-key", "--project", "--trust", "--new-signing-key", "--folder", "--name"], ["--entries", "--rotate", "--no-repack", "--separate-key"]),
                 "validate" => CommandLine.Parse(args, [], [], optionalValues: ["--run"]),
                 _ => throw new FormatException($"Unknown command '{args[0]}'."),
             };

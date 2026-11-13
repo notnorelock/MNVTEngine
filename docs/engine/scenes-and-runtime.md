@@ -96,7 +96,7 @@ Schema 2 files (2D transforms: `{x, y}` positions and scales, rotation in degree
 
 ```text
 MyGame/
-├── MyGame.mnvtproj   { "schemaVersion": 2, "name", "profile": "2d" | "3d", "startupScene", "window": {...}, "fixedTimestep" }
+├── MyGame.mnvtproj   { "schemaVersion": 2, "name", "profile": "2d" | "3d", "startupScene", "window": {...}, "fixedTimestep", "streaming": { "textures", "textureBudgetMB", "unusedSeconds" }, "content": { "dlc", "mods" } }
 └── Assets/
     ├── Scenes/Main.mnvt
     └── Textures/player.png

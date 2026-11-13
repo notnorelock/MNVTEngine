@@ -102,11 +102,7 @@ public static class AssetImporters
         new TextImporter("Shader", AssetTypes.Shader, ".glsl", ".vert", ".frag"),
         new TextImporter("Text", AssetTypes.Text, ".txt", ".md"),
         new TextImporter("Web", AssetTypes.Web, ".html", ".htm", ".css", ".js", ".mjs"),
-        new MagicImporter("Audio", AssetTypes.Audio, new Dictionary<string, Func<byte[], string?>>
-        {
-            [".wav"] = d => d.Length >= 12 && Ascii(d, 0, 4) == "RIFF" && Ascii(d, 8, 4) == "WAVE" ? "wav" : null,
-            [".ogg"] = d => d.Length >= 4 && Ascii(d, 0, 4) == "OggS" ? "ogg" : null,
-        }),
+        new AudioImporter(),
         new MagicImporter("Font", AssetTypes.Font, new Dictionary<string, Func<byte[], string?>>
         {
             [".ttf"] = FontFormat,
@@ -443,6 +439,56 @@ public sealed class TextImporter(string name, string assetType, params string[] 
             context.Errors.Add($"Not valid UTF-8 text: {ex.Message}");
         }
     }
+}
+
+/// <summary>
+/// WAV and Ogg Vorbis, validated by their signature. Setting <c>"loadType"</c>: <c>"auto"</c> (default: long clips stream),
+/// <c>"decompressOnLoad"</c> (decoded into memory when first played) or <c>"streaming"</c> (decoded while playing).
+/// </summary>
+public sealed class AudioImporter : IAssetImporter
+{
+    public static IReadOnlyList<string> LoadTypes { get; } = ["auto", "decompressOnLoad", "streaming"];
+
+    private readonly MagicImporter _formats = new("Audio", AssetTypes.Audio, new Dictionary<string, Func<byte[], string?>>
+    {
+        [".wav"] = d => d.Length >= 12 && Encoding.ASCII.GetString(d, 0, 4) == "RIFF" && Encoding.ASCII.GetString(d, 8, 4) == "WAVE" ? "wav" : null,
+        [".ogg"] = d => d.Length >= 4 && Encoding.ASCII.GetString(d, 0, 4) == "OggS" ? "ogg" : null,
+    });
+
+    public string Name => "Audio";
+
+    /// <summary>2: the loadType setting.</summary>
+    public int Version => 2;
+
+    public string AssetType => AssetTypes.Audio;
+
+    public IReadOnlyList<string> Extensions => _formats.Extensions;
+
+    public JObject NormalizeSettings(JObject settings, ICollection<string> problems)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(problems);
+        var result = new JObject();
+        foreach (var property in settings.Properties())
+        {
+            if (property.Name != "loadType")
+            {
+                problems.Add($"Unknown import setting '{property.Name}' removed.");
+            }
+            else if (property.Value.Type == JTokenType.String && LoadTypes.Contains((string)property.Value!))
+            {
+                result["loadType"] = property.Value.DeepClone();
+            }
+            else
+            {
+                problems.Add($"loadType must be one of {string.Join(", ", LoadTypes)}; using auto.");
+            }
+        }
+
+        return result;
+    }
+
+    public void Import(AssetImportContext context) => _formats.Import(context);
 }
 
 /// <summary>Binary formats validated by their file signature (decoding arrives with the subsystem that plays or renders them).</summary>

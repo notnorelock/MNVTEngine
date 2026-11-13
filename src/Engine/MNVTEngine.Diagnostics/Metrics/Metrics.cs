@@ -132,11 +132,22 @@ public static class Metrics
     public const string BrowserHostMemory = "browser.hostMemory";
     public const string BrowserGpuZeroCopy = "browser.gpuZeroCopy";
     public const string AudioSources = "audio.voices";
+    public const string AudioStreams = "audio.streams";
+    public const string AudioUnderruns = "audio.underruns";
     public const string CSharpScripts = "scripts.csharp";
     public const string ScriptVms = "scripts.vms";
     public const string ScriptFibers = "scripts.fibers";
     public const string AssetsLoaded = "assets.loaded";
     public const string AssetsFailed = "assets.failed";
+    public const string AssetLoadTime = "assets.loadTime";
+    public const string AssetLoadTimeMax = "assets.loadTimeMax";
+    public const string AssetsUnloaded = "assets.unloaded";
+    public const string SceneLoadTime = "scene.loadTime";
+    public const string TextureProxies = "textures.proxies";
+    public const string TexturesStreamedIn = "textures.fullResolution";
+    public const string TexturesPending = "textures.pending";
+    public const string TextureDowngrades = "textures.downgrades";
+    public const string StreamedTextureMemory = "memory.streamedTextures";
     public const string DebugDrawCommands = "debug.drawCommands";
     public const string DebugDrawDropped = "debug.drawDropped";
     public const string ContentMounts = "content.mounts";
@@ -235,11 +246,22 @@ public static class Metrics
         new(BrowserHostMemory, "Browser host memory", "Browser", MetricUnit.Bytes, "Working set of MNVTBrowserHost.exe (Chromium's renderer and GPU processes are not counted)."),
         new(BrowserGpuZeroCopy, "Browser GPU zero-copy", "Browser", MetricUnit.Count, "Unsupported: pages reach the GPU through CPU pixel buffers."),
         new(AudioSources, "Audio voices", "Audio", MetricUnit.Count, "Voices playing or paused."),
+        new(AudioStreams, "Streamed voices", "Audio", MetricUnit.Count, "Voices playing a streamed clip (decoded while playing)."),
+        new(AudioUnderruns, "Stream underruns", "Audio", MetricUnit.Count, "Blocks of streamed audio played silent because decoding fell behind, since start."),
         new(CSharpScripts, "C# scripts", "Scripting", MetricUnit.Count, "Components from game assemblies."),
         new(ScriptVms, "Script VMs", "Scripting", MetricUnit.Count, "Running .mnvts VMs (MissionRunners)."),
         new(ScriptFibers, "Script coroutines", "Scripting", MetricUnit.Count, "Live .mnvts coroutines (running or waiting)."),
         new(AssetsLoaded, "Assets loaded", "Assets", MetricUnit.Count, "Textures and clips loaded by the scene."),
         new(AssetsFailed, "Asset problems", "Assets", MetricUnit.Count, "Assets with import or load errors."),
+        new(AssetLoadTime, "Texture load time", "Assets", MetricUnit.Milliseconds, "Mean of the last 32 texture loads: read, decode and upload (streamed ones from request to swap-in)."),
+        new(AssetLoadTimeMax, "Texture load time (max)", "Assets", MetricUnit.Milliseconds, "Longest of the last 32 texture loads."),
+        new(AssetsUnloaded, "Textures unloaded", "Assets", MetricUnit.Count, "Textures unloaded as unused after scene changes, since start."),
+        new(SceneLoadTime, "Scene load time", "Assets", MetricUnit.Milliseconds, "Duration of the last scene load, from request to start."),
+        new(TextureProxies, "Texture proxies", "Assets", MetricUnit.Count, "Streamed textures showing their low-resolution proxy now."),
+        new(TexturesStreamedIn, "Full-resolution textures", "Assets", MetricUnit.Count, "Streamed textures showing their full image."),
+        new(TexturesPending, "Textures streaming in", "Assets", MetricUnit.Count, "Full images being read and decoded in the background."),
+        new(TextureDowngrades, "Texture downgrades", "Assets", MetricUnit.Count, "Full images released for budget or memory pressure, since start."),
+        new(StreamedTextureMemory, "Streamed texture memory", "Memory", MetricUnit.Bytes, "GPU memory of full-resolution streamed textures (estimated from sizes, with mipmaps)."),
         new(DebugDrawCommands, "Debug draws", "Diagnostics", MetricUnit.Count, "Debug draw commands queued this frame."),
         new(DebugDrawDropped, "Debug draws dropped", "Diagnostics", MetricUnit.Count, "Debug draw commands rejected because the buffer was full."),
         new(ContentMounts, "Mounted sources", "Content", MetricUnit.Count, "Sources mounted in the content file system (packages, or the project's folders in development)."),

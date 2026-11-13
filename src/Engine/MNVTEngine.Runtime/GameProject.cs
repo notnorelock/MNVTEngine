@@ -116,6 +116,41 @@ public sealed class LoadingScreenSettings
     public float TipSeconds { get; set; } = 5f;
 }
 
+/// <summary>Texture streaming and asset memory (<c>"streaming"</c> in the project file).</summary>
+public sealed class StreamingSettings
+{
+    /// <summary>
+    /// Exported games show large textures as a 64-pixel proxy first and load the full image in the background, and drop
+    /// full images back to their proxy when memory runs short. Development always loads full textures.
+    /// </summary>
+    public bool Textures { get; set; } = true;
+
+    /// <summary>Full-resolution streamed textures beyond this many megabytes are released (least recently drawn first); 0 = only under memory pressure.</summary>
+    public int TextureBudgetMB { get; set; }
+
+    /// <summary>A texture not drawn for this long may lose its full image (budget, memory pressure), and is unloaded after a scene change.</summary>
+    public float UnusedSeconds { get; set; } = 10f;
+}
+
+/// <summary>
+/// Content mounted after the game's own packages (<c>"content"</c> in the project file); see
+/// docs/architecture/virtual-filesystem.md#mods-and-extra-content.
+/// </summary>
+public sealed class ContentSettings
+{
+    /// <summary>
+    /// Mount <c>&lt;Game&gt;_Data/DLC/*.mnvtpack</c>: official extra content, which must be signed with the game's key and
+    /// may hold code and encrypted content. On by default (an empty or missing folder mounts nothing).
+    /// </summary>
+    public bool Dlc { get; set; } = true;
+
+    /// <summary>
+    /// Mount <c>Mods/*.mnvtpack</c> next to the executable: user content, unencrypted, signed or not, never trusted with
+    /// code (no C# assemblies are served from it). Off unless the game opts in.
+    /// </summary>
+    public bool Mods { get; set; }
+}
+
 /// <summary>A named export configuration (<c>"buildProfiles"</c> in the .mnvtproj), used by <c>mnvt build</c>.</summary>
 public sealed class BuildProfile
 {
@@ -225,6 +260,12 @@ public sealed class GameProject
     public LoadingScreenSettings LoadingScreen { get; set; } = new();
 
     public float FixedTimestep { get; set; } = 1f / 60f;
+
+    /// <summary>Texture streaming and asset memory (<c>"streaming"</c>).</summary>
+    public StreamingSettings Streaming { get; set; } = new();
+
+    /// <summary>Extra content mounted at startup (<c>"content"</c>): DLC and mods.</summary>
+    public ContentSettings Content { get; set; } = new();
 
     /// <summary>Optional C# game code; null when the game uses only built-in components.</summary>
     public ScriptSettings? Scripts { get; set; }
@@ -538,6 +579,13 @@ public sealed class GameProject
         if (string.IsNullOrWhiteSpace(Name))
         {
             Error("name", "Project name is required.");
+        }
+
+        Streaming ??= new StreamingSettings();
+        Content ??= new ContentSettings();
+        if (Streaming.TextureBudgetMB < 0 || !(Streaming.UnusedSeconds >= 0f))
+        {
+            Error("streaming", "streaming.textureBudgetMB and streaming.unusedSeconds must not be negative.");
         }
 
         if (!(FixedTimestep > 0f && FixedTimestep <= 1f))

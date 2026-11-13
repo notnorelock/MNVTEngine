@@ -313,6 +313,35 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
     public Texture2D CreateTexture(int width, int height, ReadOnlySpan<byte> rgba, SamplerState sampler, string debugName = "Texture")
     {
         ThrowIfDisposed();
+        return new VulkanTexture(this, debugName, UploadImage(width, height, rgba, sampler, debugName), Sampler(sampler), sampler);
+    }
+
+    public bool SupportsTextureStreaming => true;
+
+    public Texture2D CreateStreamingTexture(int logicalWidth, int logicalHeight, int width, int height, ReadOnlySpan<byte> rgba, SamplerState sampler, string debugName)
+    {
+        ThrowIfDisposed();
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(logicalWidth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(logicalHeight);
+        return new VulkanTexture(this, debugName, UploadImage(width, height, rgba, sampler, debugName), Sampler(sampler), sampler, logicalWidth, logicalHeight);
+    }
+
+    public void ReplaceTexture(Texture2D texture, int width, int height, ReadOnlySpan<byte> rgba)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(texture);
+        ObjectDisposedException.ThrowIf(texture.IsDisposed, texture);
+        if (texture is not VulkanTexture vulkan)
+        {
+            throw new ArgumentException(texture is VulkanRenderTarget ? "Render targets cannot be replaced; draw into them." : "Texture was not created by this device.", nameof(texture));
+        }
+
+        DestroyLater(vulkan.Swap(UploadImage(width, height, rgba, texture.Sampler, texture.DebugName)));
+    }
+
+    /// <summary>A sampled image with the pixels uploaded (and mipmaps generated when the sampler wants them), recorded with the frame's uploads.</summary>
+    private VulkanImage UploadImage(int width, int height, ReadOnlySpan<byte> rgba, SamplerState sampler, string debugName)
+    {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
         var bytes = (long)width * height * 4;
@@ -348,7 +377,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
                 Barriers.Transition(Context.Vk, cmd, image, ImageLayout.ShaderReadOnlyOptimal);
             }
 
-            return new VulkanTexture(this, debugName, image, Sampler(sampler), sampler);
+            return image;
         }
         catch
         {
@@ -377,6 +406,11 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         if (vulkan.Image.MipLevels > 1)
         {
             throw new NotSupportedException($"Texture '{texture.DebugName}' has mipmaps; updating a region would leave the smaller levels stale.");
+        }
+
+        if (texture.ResidentSize != (texture.Width, texture.Height))
+        {
+            throw new NotSupportedException($"Texture '{texture.DebugName}' shows a streaming proxy; replace it whole instead.");
         }
 
         var staging = _allocator.CreateBuffer((ulong)bytes, BufferUsageFlags.TransferSrcBit, MemoryUsage.Upload);
@@ -1247,6 +1281,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
             }
 
             _drawTextures.Add((sampler.Binding, sampled));
+            (sampled as VulkanTexture)?.MarkDrawn(FrameNumber);
         }
     }
 

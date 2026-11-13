@@ -341,17 +341,51 @@ where `GameSchemeHandlerFactory` serves them. CEF never receives a file path, a 
 
 ## Mods and extra content
 
-The design leaves room for official packages, DLC, content packs and mods without exposing it yet:
+At startup, after the official packages, the game mounts extra content the runtime configuration allows
+(`"content"` in the project file):
 
-- Packages mount independently with priorities; the official set is mounted by `GameContent` with duplicate checks,
-  and more can be mounted on `GameContent.Files` with a higher priority.
-- `MountTrust.Untrusted` mounts never serve executable code (`Scripts/`, the game's C# assemblies), and the game host
-  loads code only from its manifest's packages. `.mnvts` bytecode runs in the sandboxed VM (no file, process or network
-  access) and is verified when loaded.
-- Signed trusted packages and unsigned or third-party ones are distinguished by `PackageOpenOptions` (trusted signers,
-  `RequireSignature`).
-- Not implemented: discovering and mounting DLC or mod packages at startup, per-mount capability restrictions beyond
-  code, a mod manifest format.
+| | DLC | Mods |
+|---|---|---|
+| Where | `<Game>_Data/DLC/*.mnvtpack` | `Mods/*.mnvtpack` next to the executable |
+| Switch | `"content": { "dlc": true }` (default on) | `"content": { "mods": true }` (default off) |
+| Trust | Trusted: must be signed with the game's key | Untrusted: any or no signature, never serves `Scripts/` |
+| Encryption | The project key, or a key of its own (below) | None (the game has no key for it) |
+| Priority | 10 (over the game) | 100 (over everything) |
+
+- **Asset indexes.** Extra packages carry `Index/<name>.json`; `AssetDatabase` merges every one over the game's own
+  index (a GUID listed again takes the new path and settings; a path overridden by a higher mount serves the new
+  bytes), so new assets load by GUID and path like the game's. Mods can therefore replace game assets, but never code.
+- **Failures** are logged and skip that package; the game still starts.
+- **Authoring.** `mnvt package dlc <project> --folder Assets/DLC/Forest --name Forest` packages one folder's assets
+  (models as artifacts, scripts with bytecode, textures with proxies) and its index, signed and encrypted. The main
+  build strips those assets when nothing in the game references them. C# code is not packaged in DLC.
+- **Server-provided keys.** `--separate-key` encrypts the DLC with a key of its own, written next to the package for
+  the game's server, never shipped. The game finds the package, reports it as waiting for its key
+  (`DownloadableContent.WaitingForKey`), and mounts it when game code passes the key it got from the server:
+  `DownloadableContent.Mount("Forest.mnvtpack", key, out var problem)`. A wrong key or a package not signed with the
+  game's key is refused. Offline games never need this.
+- `.mnvts` bytecode in any package runs in the sandboxed VM (no file, process or network access) and is verified when loaded.
+- Not implemented: a mod manifest (name, version, load order beyond file names), per-mod capability restrictions beyond
+  code, and DLC that ships C# code.
+
+## Streaming and memory
+
+- **Audio.** Long clips are decoded while they play from a stream over the package (see [audio](../engine/audio.md#resource-lifetime)).
+- **Textures.** Builds write a 64-pixel proxy (`Artifacts/<guid>/proxy`, raw RGBA) for every texture larger than 128
+  pixels. Exported games show the proxy at once and decode the full image on a worker; the full image replaces the
+  proxy inside the same `Texture2D` (`IGraphicsDevice.ReplaceTexture`), which keeps reporting its full size, so sprite
+  sizes, source rectangles, materials and models that hold it stay valid. Scene loading no longer waits for those
+  textures. Development loads textures whole.
+- **Use tracking.** The Vulkan device stamps `Texture2D.LastDrawnFrame` whenever a texture is bound for drawing.
+- **Memory pressure.** Every 15 frames the resource cache checks its budget (`"streaming": { "textureBudgetMB": N }`,
+  0 = none), the system's memory load (the GC's high-load threshold) and the GPU's remaining budget
+  (`VK_EXT_memory_budget`, under 128 MB). Over it, full images not drawn for `"unusedSeconds"` (default 10) return to
+  their proxy, least recently drawn first; drawing one again streams it back in. Textures in use are never downgraded,
+  so a budget smaller than one frame's textures is exceeded rather than thrashed.
+- **Unloading.** After a scene change (once `unusedSeconds` passed), textures not drawn since are unloaded with the
+  materials and models that use them (`ResourceCache.UnloadUnused`); they load again on use.
+- **Lifetime.** Textures, materials and models are cached per runtime and released by these rules or when their asset
+  changes; audio clips per scene. There is no explicit reference counting: drawing is the reference.
 
 ## 9. Measurements
 
@@ -402,6 +436,9 @@ package content size, files (unsupported when a folder is mounted: counting woul
 asynchronous reads, bytes read and chunks decoded per frame, chunk cache hits, verification, decryption and
 decompression time per frame (from every thread), total package opening time, failed reads and corrupted chunks.
 Cached assets and their memory are the existing `assets.loaded` and `memory.assets` metrics of the resource cache.
+Loading and streaming: `assets.loadTime` and `assets.loadTimeMax` (last 32 texture loads), `scene.loadTime`,
+`textures.proxies`, `textures.fullResolution`, `textures.pending`, `textures.downgrades`, `assets.unloaded`,
+`memory.streamedTextures`; audio: `audio.streams`, `audio.underruns`.
 
 ## 11. What this protects, and what it does not
 
@@ -417,9 +454,8 @@ Cached assets and their memory are the existing `assets.loaded` and `memory.asse
 
 ## 12. Remaining work
 
-- Audio streaming: clips are read whole (through the VFS); a streaming decoder over `AssetDatabase.OpenRead` is not
-  written. Texture streaming (mip levels on demand) is not implemented either.
-- No memory-pressure eviction or reference counting beyond the resource cache's per-scene lifetime.
-- No asset load duration metric (only the per-frame package costs).
-- Mounting DLC and mods at startup, and server-provisioned keys, are designed for but not exposed.
-- Linux and macOS targets do not exist yet; the VFS and package format are platform-independent.
+- Texture streaming has two levels (proxy, full image), not per-mip streaming by screen size; meshes are not streamed.
+- Streamed audio cannot seek.
+- DLC cannot ship C# code; mods have no manifest or load-order control beyond file names.
+- Linux and macOS targets do not exist yet (no GLFW/OpenAL/Vulkan-loader packaging or runtime packs for them); the VFS
+  and package format are platform-independent.
