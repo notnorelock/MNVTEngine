@@ -119,7 +119,7 @@ An alias whose old name is a mesh of the model again, or whose target is not a m
 - Each artifact file is written next to its target and moved over it.
 - An import that fails keeps the **last good artifact**. Scenes keep drawing it while the error shows in the asset inspector.
 - Deleting the model deletes its artifacts. `.gltf` buffers (`.bin`) are dependencies too.
-- `AssetDatabase.ReadArtifact(guid, name)` reads an artifact: from the archive in exported games, from `Library/` in development.
+- `AssetDatabase.ReadArtifact(guid, name)` reads an artifact: through the virtual file system: from the packages in exported games, from `Library/Artifacts` in development.
 
 Who imports:
 

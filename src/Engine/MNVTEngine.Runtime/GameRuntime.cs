@@ -24,8 +24,8 @@ public sealed record GameRuntimeOptions
     public Core.Diagnostics.FrameProfiler? Profiler { get; init; }
 
 
-    /// <summary>Content of an exported game: assets, index and compiled scripts come from it instead of the project folder.</summary>
-    public ContentArchiveSet? Archive { get; init; }
+    /// <summary>Content of an exported game: assets, index and compiled scripts come from its packages instead of the project folder.</summary>
+    public GameContent? Content { get; init; }
 
     /// <summary>Metrics, budgets, debug drawing and console commands; null in Release builds without diagnostics.</summary>
     public RuntimeDiagnostics? Diagnostics { get; init; }
@@ -102,7 +102,7 @@ public sealed partial class GameRuntime(
         _uiFont = Graphics.Text.Font.LoadDefault();
         Application.QuitRequested += OnQuitRequested;
         _startup = new StartupCanvas(_renderer);
-        _assets = _options.Archive is { } archive ? AssetDatabase.OpenPackaged(archive)
+        _assets = _options.Content is { } content ? AssetDatabase.OpenPackaged(content.Files)
             : AssetDatabase.OpenReadOnly(project.AssetsDirectory, _options.Importers, artifactsLibrary: Path.Combine(project.RootDirectory, "Library"));
         foreach (var diagnostic in _assets.Diagnostics)
         {

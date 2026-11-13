@@ -182,20 +182,20 @@ public sealed class AcceptanceTests : IDisposable
         // 20. The exported game's content holds the processed models, their textures and materials (not the sources).
         var project = GameProject.Load(_root);
         Assert.DoesNotContain(ContentCompiler.ImportModels(project), d => d.Severity == BuildSeverity.Error);
-        var key = ContentArchive.CreateKey();
+        var key = IO.Packages.PackageEncryptionKey.Create();
         var output = Path.Combine(_root, "Export");
         Directory.CreateDirectory(output);
         ContentResult result;
-        IReadOnlyList<PackagedArchive> archives;
-        using (var writer = new ContentArchiveWriter(output, key))
+        IReadOnlyList<ContentPackage> archives;
+        using (var writer = new ContentPackageWriter(output, new ContentPackageOptions(System.Guid.NewGuid(), key, Signer: null)))
         {
             result = ContentCompiler.Compile(project, Build.EngineModuleSet.CreateRegistry(), writer);
-            archives = writer.Archives;
+            archives = writer.Complete();
         }
 
         Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
-        using var archive = ContentArchiveSet.Open(output, archives.Select(a => a.File), key);
-        var packaged = AssetDatabase.OpenPackaged(archive);
+        using var archive = GameContent.Open(output, archives.Select(a => a.File), new IO.Packages.PackageOpenOptions(new IO.Packages.PackageKeyRing(key)));
+        var packaged = AssetDatabase.OpenPackaged(archive.Files);
         foreach (var model in new[] { crateGuid, characterGuid, propGuid })
         {
             Assert.NotNull(packaged.ReadArtifact(model, ModelArtifact.Name));

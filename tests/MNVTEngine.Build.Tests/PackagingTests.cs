@@ -89,38 +89,62 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
         Assert.Equal(Directory.EnumerateFiles(Output, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length), (long)report["sizes"]!["total"]!);
         Assert.True((long)report["framework"]!["removedBytes"]! > 5_000_000);
         Assert.Equal(
-            ["defaultresources.mnvtpak", "globals.mnvtpak", "level0.mnvtpak", "package.json"],
-            Directory.EnumerateFiles(data).Select(Path.GetFileName).Where(f => f is not "resources.mnvtpak" and not "sharedassets.mnvtpak").Order(StringComparer.Ordinal));
-        Assert.Equal(package.ArchiveFiles.Append("package.json").Order(StringComparer.Ordinal), Directory.EnumerateFiles(data).Select(Path.GetFileName).Order(StringComparer.Ordinal)); // nothing unlisted
-        Assert.Equal(("globals.mnvtpak", "Scenes/Main.mnvt"), (package.Archives[0].File, package.Archives.Single(a => a.File == "level0.mnvtpak").Scene));
+            ["defaultresources.mnvtpack", "globals.mnvtpack", "level0.mnvtpack", "package.json", "package.sig"],
+            Directory.EnumerateFiles(data).Select(Path.GetFileName).Where(f => f is not "resources.mnvtpack" and not "sharedassets.mnvtpack").Order(StringComparer.Ordinal));
+        Assert.Equal(package.PackageFiles.Append("package.json").Append("package.sig").Order(StringComparer.Ordinal), Directory.EnumerateFiles(data).Select(Path.GetFileName).Order(StringComparer.Ordinal)); // nothing unlisted
+        Assert.Equal(("globals.mnvtpack", "level"), (package.Packages[0].File, package.Packages.Single(a => a.File == "level0.mnvtpack").Kind));
+        Assert.DoesNotContain("Scenes/", File.ReadAllText(Path.Combine(data, GamePackage.ManifestFile)), StringComparison.Ordinal); // no project structure in plain text
         Assert.Empty(Directory.GetFiles(Output, "*.pdb", SearchOption.AllDirectories)); // release builds ship no symbols
         Assert.Empty(BuildValidator.Validate(Output));
 
-        // Assets, bytecode and C# game code are only in the encrypted archives: code in globals, the scene in level0,
-        // engine-generated SPIR-V in the default resources.
-        var key = Convert.FromHexString(File.ReadAllText(Path.Combine(game.ProjectDirectory, ContentKeys.RelativePath)).Trim());
-        Assert.Equal(key, ContentKeys.ReadFromHost(Path.Combine(Output, "PackTest.dll")));
-        using (var content = package.OpenContent(data, key))
+        // No development project: no project file, source asset folders, metas, keys or editor/importer assemblies.
+        Assert.Empty(Directory.GetFiles(Output, "*" + GameProject.Extension, SearchOption.AllDirectories));
+        Assert.Empty(Directory.GetFiles(Output, "*.meta", SearchOption.AllDirectories));
+        Assert.Empty(Directory.GetFiles(Output, "*.key", SearchOption.AllDirectories));
+        Assert.Empty(Directory.GetFiles(Output, "*.pem", SearchOption.AllDirectories));
+        Assert.DoesNotContain(Directory.EnumerateDirectories(Output, "*", SearchOption.AllDirectories), d => Path.GetFileName(d) is "Assets" or "Library" or "Settings" or "Scripts");
+        Assert.DoesNotContain(Directory.EnumerateFiles(Output, "*.dll", SearchOption.AllDirectories), f => Path.GetFileName(f).StartsWith("MNVTEngine.Editor", StringComparison.Ordinal)
+            || Path.GetFileName(f).StartsWith("MNVTEngine.Assets.Models", StringComparison.Ordinal) || Path.GetFileName(f).StartsWith("MNVTEngine.Build", StringComparison.Ordinal));
+
+        // ...and the build cannot be opened as one, by folder or by any file in it.
+        Assert.Equal(ProjectFolderKind.ExportedGame, GameProject.Classify(Output));
+        Assert.Equal(ProjectFolderKind.GamePackages, GameProject.Classify(data));
+        Assert.Equal(ProjectFolderKind.ExportedGame, GameProject.Classify(Path.Combine(Output, "PackTest.exe")));
+        Assert.Equal(ProjectFolderKind.ExportedGame, Assert.Throws<NotAProjectException>(() => GameProject.Load(Output)).Kind);
+        Assert.Throws<NotAProjectException>(() => GameProject.Load(data));
+
+        // Assets, bytecode and C# game code are only in the signed, encrypted packages: code in globals, the scene in
+        // level0, engine-generated SPIR-V in the default resources.
+        var key = IO.Packages.PackageEncryptionKey.FromHex(File.ReadAllText(Path.Combine(game.ProjectDirectory, ContentKeys.RelativePath)));
+        Assert.Equal(key.Id, ContentKeys.ReadFromHost(Path.Combine(Output, "PackTest.dll"))!.Id);
+        Assert.DoesNotContain(key.ToHex(), File.ReadAllText(Path.Combine(Output, "PackTest.dll"), System.Text.Encoding.Latin1), StringComparison.OrdinalIgnoreCase); // masked, not a plain string
+        var signer = ContentKeys.ReadVerificationKeyFromHost(Path.Combine(Output, "PackTest.dll"))!;
+        Assert.Equal(package.SigningKeyId, signer.Id);
+        using (var content = package.OpenContent(data, new IO.Packages.PackageOpenOptions(new IO.Packages.PackageKeyRing(key), [signer], RequireSignature: true)))
         {
-            Assert.Equal("globals.mnvtpak", content.ArchiveOf("Scripts/PackTest.Scripts.dll"));
+            Assert.All(content.Packages, p => Assert.Equal((IO.Packages.PackageSignatureStatus.Trusted, true, package.BuildId), (p.Signature, p.Info.IsEncrypted, p.Info.BuildId)));
+            Assert.Equal("globals.mnvtpack", content.PackageOf("Scripts/PackTest.Scripts.dll"));
+            Assert.Equal("globals.mnvtpack", content.PackageOf(GameProject.RuntimeConfigEntry));
             Assert.DoesNotContain("Scripts/MNVTEngine.Scenes.dll", content.Entries); // the host's copy is used
-            Assert.Equal("level0.mnvtpak", content.ArchiveOf("Assets/Scenes/Main.mnvt"));
+            Assert.Equal("level0.mnvtpack", content.PackageOf("Assets/Scenes/Main.mnvt"));
             Assert.Single(content.Entries, e => e.StartsWith("Bytecode/", StringComparison.Ordinal));
-            Assert.All(content.Entries.Where(e => e.StartsWith("Shaders/", StringComparison.Ordinal)), e => Assert.Equal("defaultresources.mnvtpak", content.ArchiveOf(e)));
+            Assert.All(content.Entries.Where(e => e.StartsWith("Shaders/", StringComparison.Ordinal)), e => Assert.Equal("defaultresources.mnvtpack", content.PackageOf(e)));
             Assert.True(content.Entries.Count(e => e.StartsWith("Shaders/", StringComparison.Ordinal)) >= 2);
+            Assert.DoesNotContain(content.Entries, e => e.EndsWith(".meta", StringComparison.Ordinal) || e.EndsWith(GameProject.Extension, StringComparison.Ordinal));
         }
 
-        foreach (var archiveFile in package.ArchiveFiles)
+        foreach (var packageFile in package.PackageFiles)
         {
-            var raw = System.Text.Encoding.Latin1.GetString(File.ReadAllBytes(Path.Combine(data, archiveFile)));
+            var raw = System.Text.Encoding.Latin1.GetString(File.ReadAllBytes(Path.Combine(data, packageFile)));
             Assert.DoesNotContain("reach_goal", raw, StringComparison.Ordinal);
             Assert.DoesNotContain("PlayerController", raw, StringComparison.Ordinal);
+            Assert.DoesNotContain("Scenes/Main", raw, StringComparison.Ordinal); // file names are in the encrypted index
         }
 
         var run = await BuildValidator.RunAsync(Output, 20, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken);
         Assert.Empty(run);
         var log = File.ReadAllText(Path.Combine(Output, "Logs", "game.log"));
-        Assert.Contains("[script] Move to the goal with WASD", log, StringComparison.Ordinal); // C# component, scene and bytecode all loaded from the archives
+        Assert.Contains("[script] Move to the goal with WASD", log, StringComparison.Ordinal); // C# component, scene and bytecode all loaded from the packages
         Assert.Contains(", 0 compiled at run time", log, StringComparison.Ordinal); // every shader came precompiled from the default resources
     }
 
@@ -181,9 +205,9 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
             File.Copy(file, target);
         }
 
-        var pak = Path.Combine(copy, "PackTest_Data", "level0.mnvtpak");
+        var pak = Path.Combine(copy, "PackTest_Data", "level0.mnvtpack");
         var bytes = File.ReadAllBytes(pak);
-        bytes[100] ^= 1;
+        bytes[400] ^= 1; // chunk data
         File.WriteAllBytes(pak, bytes);
         File.Delete(Path.Combine(copy, "Dependencies", "Native", "glfw3.dll"));
         File.Delete(Path.Combine(copy, "Dependencies", "Managed", "Newtonsoft.Json.dll"));
@@ -194,6 +218,55 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
         var codes = BuildValidator.Validate(copy).Where(d => d.Severity == BuildSeverity.Error).Select(d => d.Code).ToHashSet();
         Assert.Superset(new HashSet<string> { "MNVB504", "MNVB505", "MNVB506", "MNVB507", "MNVB508", "MNVB515", "MNVB517" }, codes);
 
-        Assert.Contains(BuildValidator.Validate(Output, Assets.ContentArchive.CreateKey()), d => d.Code == "MNVB514"); // wrong key
+        Assert.Contains(BuildValidator.Validate(Output, new IO.Packages.PackageKeyRing(IO.Packages.PackageEncryptionKey.Create())), d => d.Code == "MNVB514"); // wrong key
+    }
+
+    [Fact]
+    public async Task TamperedManifest_OrSwappedPackages_StopTheGame()
+    {
+        var copy = Path.Combine(game.Root, "Tampered");
+        foreach (var file in Directory.EnumerateFiles(Output, "*", SearchOption.AllDirectories))
+        {
+            var target = Path.Combine(copy, Path.GetRelativePath(Output, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target);
+        }
+
+        // An edited manifest no longer matches its signature.
+        var manifest = Path.Combine(copy, "PackTest_Data", GamePackage.ManifestFile);
+        var original = File.ReadAllText(manifest);
+        File.WriteAllText(manifest, original.Replace("\"name\": \"PackTest\"", "\"name\": \"PackTest2\"", StringComparison.Ordinal));
+        Assert.NotEqual(original, File.ReadAllText(manifest));
+        Assert.Contains(BuildValidator.Validate(copy), d => d.Code == "MNVB519");
+        var run = await BuildValidator.RunAsync(copy, 5, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken);
+        Assert.Contains("missing, damaged or cannot be decrypted", Assert.Single(run).Message, StringComparison.Ordinal);
+
+        // A validly signed package from another build in place of this one's is refused by identity.
+        File.WriteAllText(manifest, original);
+        var other = await game.Build(new BuildOptions { Profile = "debug", OutputDirectory = Path.Combine(game.Root, "OtherBuild") });
+        Assert.True(other.Succeeded, string.Join("\n", other.Diagnostics));
+        File.Copy(Path.Combine(other.OutputDirectory!, "PackTest_Data", "level0.mnvtpack"), Path.Combine(copy, "PackTest_Data", "level0.mnvtpack"), overwrite: true);
+        Assert.Contains(BuildValidator.Validate(copy), d => d.Code == "MNVB514" && d.Message.Contains("not the package this build shipped", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void PackageTools_InspectVerifyAndExtract_WithTheGamesKeys()
+    {
+        var level = Path.Combine(Output, "PackTest_Data", "level0.mnvtpack");
+        var options = PackageTools.OptionsFor(level);
+        var inspection = PackageTools.Inspect(level, options, listEntries: true);
+        Assert.Contains("Signature    Trusted", inspection, StringComparison.Ordinal);
+        Assert.Contains("Assets/Scenes/Main.mnvt", inspection, StringComparison.Ordinal);
+        Assert.Contains("Contents     not shown", PackageTools.Inspect(level, new IO.Packages.PackageOpenOptions()), StringComparison.Ordinal); // no key: public header only
+        Assert.Empty(PackageTools.Verify(level, options, requireTrustedSignature: true));
+
+        var extracted = Path.Combine(game.Root, "Extracted");
+        Assert.True(PackageTools.Extract(Path.Combine(Output, "PackTest_Data", "globals.mnvtpack"), extracted, options) > 0);
+        Assert.True(File.Exists(Path.Combine(extracted, GameProject.RuntimeConfigEntry)));
+        Assert.Equal(ProjectFolderKind.ExportedGame, Assert.Throws<NotAProjectException>(() => GameProject.Load(extracted)).Kind);
+
+        // Renaming the runtime configuration to a project file does not make a project either.
+        File.Move(Path.Combine(extracted, GameProject.RuntimeConfigEntry), Path.Combine(extracted, "PackTest" + GameProject.Extension));
+        Assert.Throws<NotAProjectException>(() => GameProject.Load(Path.Combine(extracted, "PackTest" + GameProject.Extension)));
     }
 }

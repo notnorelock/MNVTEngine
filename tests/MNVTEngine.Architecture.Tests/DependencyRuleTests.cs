@@ -60,6 +60,14 @@ public class DependencyRuleTests
     }
 
     [Fact]
+    public void VirtualFileSystem_HasNoEngineDependencies_AndOnlyManagedCodecs()
+    {
+        // The VFS and package format sit below everything that reads content; codecs must stay pure managed (AOT, any platform).
+        Assert.Empty(Graph["MNVTEngine.IO"].ProjectReferences);
+        Assert.Equal(["K4os.Compression.LZ4", "ZstdSharp.Port"], Graph["MNVTEngine.IO"].Packages.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
     public void EngineProjects_NeverDependOnEditorOrTooling()
     {
         var violations = Graph.Projects

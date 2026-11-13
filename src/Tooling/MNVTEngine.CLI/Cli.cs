@@ -35,8 +35,22 @@ public static class Cli
           run <project> [--frames N] [--screenshot file.png] [--profile report.txt]
                                 Play the project from its sources
           build <project> [--profile name] [--configuration debug|release] [--target win-x64]
-                          [--output folder] [--run [frames]]
+                          [--output folder] [--signing-key key.pem] [--run [frames]]
                                 Export a standalone game (default: the "release" profile into Builds/<profile>)
+          package build <project> [--profile name] [--configuration ...] [--output folder] [--signing-key key.pem]
+                                Build only the content packages (.mnvtpack) and their signed manifest
+          package inspect <file.mnvtpack> [--project <project>] [--entries]
+                                Header, signature, encryption and contents of a package
+          package verify <file.mnvtpack | exported game> [--project <project>] [--trust key.pem]
+                                Check signatures and every chunk of a package (or validate a whole game)
+          package analyze <project> [--profile name]
+                                What each package of a build would hold: sizes, duplicates, stripped assets
+          package extract <file.mnvtpack> --output <folder> [--project <project>]
+                                Developer tool: write a package's files to a folder (not an editable project)
+          package keys <project> [--rotate] [--new-signing-key key.pem]
+                                Show the project's encryption key and signing keys; rotate the key; create a release signing key
+          package benchmark <exported game> [--project <project>] [--no-repack]
+                                Read times from the packages against the same files on disk, and each compression profile
           validate <project | exported game folder> [--run [frames]]
                                 Check a project, or an exported game, without building
 
@@ -70,7 +84,8 @@ public static class Cli
                 "editor" => CommandLine.Parse(args, ["--frames"], []),
                 "run" => CommandLine.Parse(args, ["--frames", "--screenshot", "--profile"], ["--gpu-validation"]),
                 "build" when args.Length > 1 && args[1] == "analyze" => CommandLine.Parse(["analyze", .. args[2..]], ["--profile", "--configuration", "--target", "--scripting-backend", "--json"], []),
-                "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--scripting-backend"], [], optionalValues: ["--run"]),
+                "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--scripting-backend", "--signing-key"], [], optionalValues: ["--run"]),
+                "package" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--signing-key", "--project", "--trust", "--new-signing-key"], ["--entries", "--rotate", "--no-repack"]),
                 "validate" => CommandLine.Parse(args, [], [], optionalValues: ["--run"]),
                 _ => throw new FormatException($"Unknown command '{args[0]}'."),
             };
@@ -92,6 +107,7 @@ public static class Cli
                 "run" => Run(command, loggerFactory),
                 "build" => await BuildAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
                 "analyze" => await AnalyzeAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
+                "package" => await PackageCommand.RunAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
                 _ => await ValidateAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
             };
         }
@@ -246,6 +262,7 @@ public static class Cli
             OutputDirectory = command.Value("--output"),
             ScriptingBackend = command.Value("--scripting-backend"),
             TestRunFrames = command.Has("--run") ? command.Int("--run", 120) : null,
+            SigningKey = command.Value("--signing-key"),
         };
         var result = await new GameBuilder(loggerFactory.CreateLogger("Build")).BuildAsync(command.Single("project"), options, cancellationToken).ConfigureAwait(false);
         Report(output, result.Diagnostics);
@@ -306,7 +323,7 @@ public static class Cli
         return errors == 0 ? Ok : Failed;
     }
 
-    private static void Report(TextWriter output, IEnumerable<BuildDiagnostic> diagnostics)
+    internal static void Report(TextWriter output, IEnumerable<BuildDiagnostic> diagnostics)
     {
         foreach (var diagnostic in diagnostics.Where(d => d.Severity != BuildSeverity.Info))
         {

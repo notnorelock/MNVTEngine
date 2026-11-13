@@ -22,7 +22,14 @@ Exit codes are 0 for success, 1 when there are errors, 64 for usage errors and 1
 | `editor <project> [--frames N]` | Starts the editor from the engine sources and waits for it to close. |
 | `validate <project>` | Runs every check a build runs (project, profiles, C# scripts, imports, strict `.mnvts` compile, scenes, prefabs, references) and writes nothing. |
 | `validate <exported game> [--run [N]]` | Checks an exported game (see [Validation](#validation)). `--run` also starts it for N frames (default 120). This needs a GPU. |
-| `build <project> [--profile p] [--configuration c] [--target t] [--output dir] [--run [N]]` | Exports a standalone game. |
+| `build <project> [--profile p] [--configuration c] [--target t] [--output dir] [--signing-key key.pem] [--run [N]]` | Exports a standalone game. |
+| `package build <project> [--profile p] [--output dir]` | Builds only the content packages and their signed manifest (`Builds/<profile>-packages`). |
+| `package inspect <file.mnvtpack> [--project p] [--entries]` | Header, signature, encryption, contents and sizes of a package. Contents need the key: the project's (`--project`) or that of the game the package sits in. |
+| `package verify <file.mnvtpack \| exported game> [--project p] [--trust key.pem]` | Checks signatures and every chunk; for a game folder, runs the full validation. |
+| `package analyze <project> [--profile p]` | What each package of a build would hold: sizes before compression, duplicate content, stripped assets. |
+| `package extract <file.mnvtpack> --output dir [--project p]` | Developer tool: writes a package's files to a folder. The result is not a project and cannot be opened as one. |
+| `package keys <project> [--rotate] [--new-signing-key file.pem]` | Shows the encryption key id and signing keys; rotates the encryption key; creates a release signing key (outside the project). |
+| `package benchmark <exported game> [--project p] [--no-repack]` | Read times from the packages against the same files on disk, per asset type, and each compression profile. |
 
 ## Templates
 
@@ -59,6 +66,9 @@ Profiles live in the `.mnvtproj` file. A project without profiles gets `debug` a
 | `outputDirectory` | `Builds/<name>` | Relative to the project. It may not escape the project folder. |
 | `executableName` | the project name without spaces or symbols | It must differ from the C# scripts assembly name. |
 | `console` | true for Debug, false for Release | Shows a console window with the log. |
+| `compression` | `balanced` | Package compression: `none`, `fast` (LZ4), `balanced` (Zstandard 9), `small` (Zstandard 19). See [compression](../architecture/virtual-filesystem.md#4-compression). |
+| `compressionByExtension` | none | Per file type, e.g. `{ ".wav": "fast" }`. Already-compressed types (PNG, Ogg, ...) are stored as is. |
+| `encrypt` | true | Encrypt the packages. Off writes plain packages (still signed and verified), e.g. to inspect a debug build. |
 
 How the profile is chosen:
 
@@ -74,7 +84,7 @@ The steps run in this order. Every step reports diagnostics as `file(line,col): 
 
 1. **Project.** Loads and validates the project file and its profiles, then checks the output folder.
    The build refuses output folders that overlap the project, `Assets` or `Library`. It also refuses non-empty folders that do not contain a previous build, so a typo in `--output` cannot delete your files.
-   It also loads the content key from `Settings/content.key` (see [Content encryption](#content-encryption)).
+   It also loads the content key from `Settings/content.key` and the signing key (see [Packages, encryption and signing](#packages-encryption-and-signing)).
 2. **C# scripts.** `dotnet build -c <configuration>` into `Library/Build/<profile>/Scripts`. The compiled components are loaded so that scenes can be checked against them, then unloaded.
 3. **Content** (`ContentCompiler`). Asset files that have no `.meta` yet (for example, added with the file explorer) get one, as they would in the editor, with warning `MNVB209`: commit it. 3D models are imported into `Library/Artifacts` (`MNVB220` import errors, `MNVB221` warnings); the game ships each model's artifact instead of its source file (`MNVB222` when a model has none). Then assets are opened **read-only**:
    - Every importer runs: images are decoded, JSON is parsed, and so on.
@@ -82,9 +92,9 @@ The steps run in this order. Every step reports diagnostics as `file(line,col): 
    - Every scene and prefab is loaded with the game's components.
    - Every asset reference must point to an asset in the project.
    - [Usage analysis](../engine/modules.md#usage-analysis) decides which assets ship (reachable from the startup scene, project settings, names in code, and `"alwaysInclude"`) and which Auto modules the game needs. Unused assets are left out and counted in the log; unreferenced scenes, prefabs and audio are reported as warning `MNVB223`.
-   - The shipped assets are written into the encrypted content archives: the asset index (GUID, path, type and import settings of every shipped asset, so GUID references stay valid), the assets, bytecode per script GUID, and the project file without its development-only settings (`scripts`, `buildProfiles`) and with every optional module listed as on or off, as the build resolved them.
+   - The shipped assets are written into signed, encrypted `.mnvtpack` packages: the asset index (GUID, path, type and import settings of every shipped asset, so GUID references stay valid), the assets (each with its GUID and dependencies), bytecode per script GUID, and `RuntimeConfig.json`: the project's settings without development-only ones (`scripts`, `buildProfiles`), with every optional module listed as on or off as the build resolved them, marked as a runtime configuration so it is never taken for a project.
 4. **Host** (`GamePackager`). Runs `dotnet publish` on `src/Engine/MNVTEngine.GameHost` for the profile's RID with `--artifacts-path Library/Build/<profile>/artifacts`, which keeps builds separate from each other and from the engine's own `bin`/`obj`.
-   - The host is renamed to the game (`-p:MnvtGameName`) and carries the content key (`-p:MnvtContentKey`). Release builds ship no `.pdb` files.
+   - The host is renamed to the game (`-p:MnvtGameName`) and carries the package key, masked (`-p:MnvtPackageKey`), and the public key packages and manifest must be signed with (`-p:MnvtVerificationKey`). Release builds ship no `.pdb` files.
    - The in-game debug UI is the `devtools` module (`-p:MnvtDevTools=true`: `MNVTEngine.DebugUI`, ImGui.NET, `cimgui.dll`). The project switch `"modules": { "devtools": true | false }` decides; without one, Debug builds include it and Release builds do not. `diagnostics.includeInRelease` from older projects is read as `"devtools": true` and saved as the switch. The manifest records `devTools`, and validation fails with MNVB508 if debug UI files appear in a build without it. See [Runtime diagnostics](../engine/diagnostics.md#build-modes).
    - The host is built with the game's modules only: the build generates `ModuleBootstrap.g.cs` and `.g.props` from the resolved modules and passes them as `-p:MnvtBootstrap` (see [Generated bootstrap](../engine/modules.md#generated-bootstrap)).
    - Publishing also copies a private .NET runtime from the runtime pack into `Dependencies/Runtime`.
@@ -92,8 +102,9 @@ The steps run in this order. Every step reports diagnostics as `file(line,col): 
    - With the `browser` module, `MNVTBrowserHost.exe` is published next to the game on its private runtime (AOT games get a `Dependencies/Runtime` for it: CefSharp needs CoreCLR), CefSharp into `Dependencies/Managed` and CEF with CefSharp's C++/CLI assemblies into `Dependencies/Native/Chromium`, with the `en-US` locale only and the CEF and CefSharp licenses; `build-report.json` gets a `browser` section with the bytes it added. `MNVB406` when that fails. See [Embedded browser](../engine/browser.md#exports).
    - The packager then moves every other managed assembly to `Dependencies/Managed` and every native library to `Dependencies/Native`, and removes `deps.json`.
    - **Framework pruning** (`FrameworkPruner`, on unless the build profile sets `"pruneFramework": false`): a runtime-pack assembly stays when the host, a shipped dependency or the game's C# code references it, directly or through other assemblies. Through a type-forwarding facade (`netstandard`, `mscorlib`) only the assemblies of the forwarded types actually named count. Whole files only, no IL trimming. The runtime itself, `createdump` and the DAC (crash dumps) and the assemblies CoreLib loads by name stay; the alternative GCs and natives whose assembly went are removed. The framework `deps.json` is rewritten to list exactly what remains. Games that load framework assemblies by name at run time turn it off.
-   - The game's C# assemblies go into the archive under `Scripts/`, except assemblies the host already ships, because the host's copy is always used at run time.
-5. **Manifest.** Writes `<Game>_Data/package.json`: name, profile, configuration, target, engine version, the game's modules, the scripts assembly, and the size and SHA-256 of every file.
+   - The game's C# assemblies go into the globals package under `Scripts/`, except assemblies the host already ships, because the host's copy is always used at run time.
+   - The packages are completed: index, signature, header.
+5. **Manifest.** Writes `<Game>_Data/package.json`: name, profile, configuration, target, engine version, build id, the game's modules, the scripts assembly, each package's GUID and header hash, and the size and SHA-256 of every other file; and its signature, `package.sig`.
 6. **Validation** (`BuildValidator`). Validates the staged game (see [Validation](#validation)).
 7. **Output.** The previous build is first moved aside in one step, which fails cleanly if a file in it is in use (the game is running, or a terminal is open in the folder). Then the staged game is moved in, and the previous build is deleted. If anything fails, the previous build is put back.
 8. **Report.** Writes `<output>.build-report.json` next to the game folder (see [Build report](#build-report)).
@@ -104,7 +115,7 @@ The steps run in this order. Every step reports diagnostics as `file(line,col): 
 ```text
 Builds/release/
 ├── MyGame.exe                   apphost; double-click to play
-├── MyGame.dll                   the game host (MNVTEngine.GameHost renamed); carries the content key
+├── MyGame.dll                   the game host (MNVTEngine.GameHost renamed); carries the masked package key and the public signing key
 ├── MyGame.runtimeconfig.json
 ├── Dependencies/
 │   ├── Managed/                 MNVTEngine.*.dll, Newtonsoft.Json, Silk.NET.*, StbImage*, Microsoft.Extensions.*
@@ -113,13 +124,14 @@ Builds/release/
 │       ├── host/fxr/<version>/hostfxr.dll
 │       └── shared/Microsoft.NETCore.App/<version>/   coreclr.dll, System.*.dll, ...
 ├── MyGame_Data/
-│   ├── globals.mnvtpak          project file, asset index, C# game code (+ .pdb in Debug)
-│   ├── defaultresources.mnvtpak engine-generated: precompiled SPIR-V of every shader the game uses
-│   ├── level0.mnvtpak           the startup scene and the assets only it uses
-│   ├── level1.mnvtpak ...       one per further scene, in path order
-│   ├── sharedassets.mnvtpak     assets used by two or more scenes (only when there are any)
-│   ├── resources.mnvtpak        assets no scene references: loaded by path/GUID at run time (only when there are any)
-│   └── package.json             manifest: archive list (file, kind, scene, entry count) and the hash of every file
+│   ├── globals.mnvtpack          runtime configuration, asset index, C# game code (+ .pdb in Debug)
+│   ├── defaultresources.mnvtpack engine-generated: precompiled SPIR-V of every shader the game uses
+│   ├── level0.mnvtpack           the startup scene and the assets only it uses
+│   ├── level1.mnvtpack ...       one per further scene, in path order
+│   ├── sharedassets.mnvtpack     assets used by two or more scenes (only when there are any)
+│   ├── resources.mnvtpack        assets no scene references: loaded by path/GUID at run time (only when there are any)
+│   ├── package.json              build manifest: build id, packages (file, kind, entries, GUID, header hash), hash of every other file
+│   └── package.sig               signature of package.json
 └── Logs/game.log                written at run time
 ```
 
@@ -128,7 +140,8 @@ How each part is found at run time:
 - **Runtime.** The apphost is built with `AppHostDotNetSearch=AppRelative` and `AppHostRelativeDotNet=Dependencies/Runtime`, so it only looks for .NET in `Dependencies/Runtime` and never uses a .NET installed on the machine. If that folder is removed, the game refuses to start. It does not fall back to an installed .NET.
 - **Managed and native dependencies.** `Program.Main` in the host uses only the base class library. It first installs resolvers for `Dependencies/Managed` and `Dependencies/Native` (`HostLayout`), then calls into engine code.
   Native libraries in `Dependencies/Native` are loaded up front, because Silk.NET's GLFW loader probes fixed paths next to the executable and reuses an already loaded library.
-- **Content.** The host reads `<its assembly name>_Data/package.json` and opens every archive it lists. Renaming the `.exe` does not break the game. Reads go to whichever archive holds the entry, so engine code never needs to know the layout.
+- **Content.** The host reads `<its assembly name>_Data/package.json`, verifies its signature, and mounts every package it lists in its [virtual file system](../architecture/virtual-filesystem.md), refusing any package that is not the one listed. Renaming the `.exe` does not break the game. Reads go to whichever package holds the file, so engine code never needs to know the layout.
+- **Not a project.** A build has no project file, `.meta` files or sources, and the editor and `mnvt` refuse to open it as a project ("... is an exported game (a game build), not an editable MNVTEngine project").
 
 Size is about 89 MB, mostly the .NET runtime. Trimming is not enabled because component discovery and serialization use reflection.
 
@@ -163,36 +176,35 @@ Every build writes `<output>.build-report.json` beside the game folder (it does 
 
 ## Content layout
 
-Content is split over several archives, like the data folder of other engines, instead of one file holding everything. The build decides where each asset goes from the references its importer finds:
+Content is split over several packages, like the data folder of other engines, instead of one file holding everything. The build decides where each asset goes from the references its importer finds:
 
-| Archive | Contents | Rule |
+| Package | Contents | Rule |
 |---|---|---|
-| `globals` | Project file (without development settings), asset index, C# game code | Always; read first |
+| `globals` | Runtime configuration (`RuntimeConfig.json`), asset index, C# game code | Always; read first |
 | `defaultresources` | SPIR-V of the built-in sprite shader and of every material's shader, compiled at build time | Generated by the engine, not authored. The game compiles no shaders at run time, logged as `Shader stages: N precompiled, 0 compiled at run time`. shaderc is only loaded if a shader is missing (for example one built by game code) |
 | `levelN` | A scene plus every asset only that scene references, with the bytecode of its scripts | `level0` is the startup scene, then the other scenes in path order. References are followed transitively but stop at other scenes, so a door to the next level does not pull that level's assets in |
 | `sharedassets` | Assets referenced by two or more scenes | Only when there are any |
 | `resources` | Shipped assets no scene references: prefabs and scenes named in code or scripts, `alwaysInclude` assets | Only when there are any |
 
-- **Index.** The asset index records each asset's archive (`"archive"`), and `mnvt validate` checks it against where the asset really is (MNVB516).
-- **Unique entries.** Every entry lives in exactly one archive, and opening fails if two archives hold the same entry.
+- **Index.** The asset index records each asset's package (`"package"`), and `mnvt validate` checks it against where the asset really is, and that each level holds exactly one scene (MNVB516). Scene and file names are only in the encrypted index, never in the plain-text manifest or package headers.
+- **Unique entries.** Every file lives in exactly one package, and opening fails if two packages hold the same file.
 - **Shader errors fail the build.** Every material's shader is compiled and linked as the device would (MNVB210). The engine's built-in shaders are precompiled too; one failing is reported as MNVB212 (a toolchain problem) instead of stopping the build tooling.
-- **Older builds** that have a single `content.mnvtpak` and no archive list in `package.json` still open: that one archive is the whole content.
+- **Older builds** (`.mnvtpak` archives, manifest schema 1) are refused with "built with an older MNVTEngine; rebuild it".
 
-## Content encryption
+## Packages, encryption and signing
 
-Each archive has one AES-256-GCM encrypted, authenticated entry per file. The entry list (index) is encrypted too. All archives of a game use the same key.
+The format, keys and limits are described in [Virtual file system and packages](../architecture/virtual-filesystem.md). In short:
 
-- **Compression.** Entries are deflated when that makes them smaller.
-- **Nothing on disk.** Reading is random-access, in memory only. Nothing is extracted to disk, and C# game code is loaded from bytes into its collectible load context.
-- **Integrity.** A modified byte anywhere is detected. A damaged index or wrong key stops the game with exit code 2. A damaged entry fails only when it is read, with an error naming the entry. `mnvt validate` reads and authenticates every entry.
-- **Reproducibility.** Nonces are derived from the key, the entry path and a hash of the entry's content. Identical input gives an identical archive, and a nonce is never reused for different data.
-- **Key.** The key is `Settings/content.key` (32 random bytes, hex). It is created by `mnvt new`, or by the first build with warning `MNVB107`. **Commit it**: then every machine builds identical content, and patches stay compatible. Delete it to rotate the key.
+- **Chunks.** Files are split into 64 KiB chunks, each compressed (profile `compression`), encrypted with AES-256-GCM and hashed on its own. Reading a file decodes only the chunks it touches; nothing is extracted to disk, and C# game code is loaded from bytes into its collectible load context. Identical files are stored once.
+- **Integrity.** Every chunk hash is checked before decryption and decompression. Any modified byte is detected; a damaged header, index or wrong key stops the game with exit code 2, a damaged chunk fails when it is read, naming the files that use it. `mnvt validate` and `mnvt package verify` read every chunk.
+- **Encryption key.** `Settings/content.key` (32 random bytes, hex), created by `mnvt new` or by the first build with warning `MNVB107`. **Commit it.** Each package derives its own data key from it, the package GUID and the build id. `mnvt package keys <project> --rotate` rotates it (the old key is kept as `.retired` for tools; shipped games are unaffected).
+- **Signing key.** Packages and the manifest are signed with ECDSA P-256. Release builds should use your release key: `--signing-key key.pem` or `MNVT_SIGNING_KEY`; create one with `mnvt package keys <project> --new-signing-key <path outside the project>` and keep it private, backed up and out of version control. Without it, builds are signed with this machine's development key (`%LOCALAPPDATA%\MNVTEngine\Keys`), and Release builds warn (MNVB114). The game carries only the public key and refuses anything not signed with it.
 
 **What this protects, and what it does not:**
 
-- **It does:** assets, scripts and C# game code cannot be browsed, copied or swapped with normal tools, and modified content is rejected.
-- **It does not:** the key must ship inside the game, so the game can decrypt its own content. Anyone willing to reverse-engineer `MyGame.dll` can recover the key and decrypt everything.
-- **No real fix exists.** This is true of every game engine's asset encryption, Unity's included, and no client-side scheme can avoid it.
+- **It does:** assets, scripts and C# game code, and their names, cannot be browsed, copied or swapped with normal tools; modified or replaced content is rejected; a build cannot be opened as a project.
+- **It does not:** the key must ship inside the game, so the game can decrypt its own content. Anyone willing to reverse-engineer `MyGame.dll` can recover the key and decrypt everything, or capture assets from memory or the GPU. Signatures stop tampering only by people who cannot also patch the executable.
+- **No real fix exists.** This is true of every game engine's asset encryption, and no client-side scheme can avoid it.
 - **Keep secrets out of the game.** Never put secrets such as server credentials or API keys in game content or game code.
 
 ## Running an exported game
@@ -224,21 +236,23 @@ Each archive has one AES-256-GCM encrypted, authenticated entry per file. The en
 
 | Code | Check |
 |---|---|
-| MNVB501/502 | `<Game>_Data/package.json` exists and loads (schema version 1; newer versions are rejected) |
+| MNVB501/502 | `<Game>_Data/package.json` exists and loads (schema version 2; older and newer versions are rejected) |
 | MNVB503 | `<exe>.exe`, `.dll` and `.runtimeconfig.json` are in the root |
 | MNVB504 | The private runtime is complete: `hostfxr`, `hostpolicy`, `coreclr`, `System.Private.CoreLib` and the framework `deps.json` for the version in the runtime config |
 | MNVB505 | Every assembly reference of the host and of `Dependencies/Managed` resolves to the private runtime or `Dependencies/Managed`; every shipped assembly is valid |
 | MNVB506 | The native libraries of the game's modules are in `Dependencies/Native` (`glfw3.dll` and `vma.dll`; `soft_oal.dll` with audio; `cimgui.dll` with dev tools). Builds without a module list need all of them |
 | MNVB507 | No development-only assemblies (editor, build tooling, ImGui, MSBuild, Roslyn) |
-| MNVB508 | Every file matches its manifest size and SHA-256 |
+| MNVB508 | Every file matches its manifest size and SHA-256 (packages are checked by identity, MNVB514) |
 | MNVB509 | Warning for files that are not part of the build (`Logs/` is ignored) |
-| MNVB514 | Every archive listed in the manifest opens with the key embedded in the executable (or the given key), and no entry is in two archives |
-| MNVB515 | Every archive entry decrypts and authenticates |
-| MNVB510 | The packaged project loads, and its startup scene exists |
+| MNVB519 | The executable carries a verification key, and `package.sig` is a valid signature of the manifest by it |
+| MNVB514 | Every package listed opens with the executable's key (or the given keys), is signed by the executable's key, is exactly the package listed (GUID, header hash, build id), and no file is in two packages |
+| MNVB515 | Every file of every package reads back: chunk hashes, authentication tags, decompression |
+| MNVB518 | No shipped content contains a private key |
+| MNVB510 | The runtime configuration loads, and its startup scene exists |
 | MNVB511 | Every script asset has bytecode that passes the verifier |
-| MNVB512 | The asset index loads, and every indexed asset is in the archive |
+| MNVB512 | The asset index loads, and every indexed asset is in the packages |
 | MNVB513 | The C# scripts assembly named in the manifest is in the content |
-| MNVB516 | Layout: globals first and only once, the index in globals, each level holds its scene, each asset is in the archive the index names |
+| MNVB516 | Layout: globals first and only once, the index and runtime configuration in globals, each level holds one scene, each asset is in the package the index names |
 | MNVB517 | No assembly or native library of a module the game does not have (with dev tools, what the debug UI references is allowed) |
 | MNVB520 | `--run`: the game started, rendered N frames and exited with code 0 |
 
@@ -246,7 +260,7 @@ Each archive has one AES-256-GCM encrypted, authenticated entry per file. The en
 
 | Range | Stage |
 |---|---|
-| MNVB1xx | Project, profile, output folder and key (`100` load, `101` unknown profile, `102` configuration, `103` target, `104` output folder, `105` name clash, `106` engine not found, `107` key created, `108` invalid key file, `109` a project from before [project profiles](../engine/project-profiles.md) mixes 2D and 3D content, `110` warning: building a project from before profiles with its inferred profile, `111` unknown or unavailable scripting backend) |
+| MNVB1xx | Project, profile, output folder and key (`100` load, `101` unknown profile, `102` configuration, `103` target, `104` output folder, `105` name clash, `106` engine not found, `107` key created, `108` invalid key file, `109` a project from before [project profiles](../engine/project-profiles.md) mixes 2D and 3D content, `110` warning: building a project from before profiles with its inferred profile, `111` unknown or unavailable scripting backend, `112` signing key unreadable, `113` signing key inside `Assets/`, `114` warning: Release build signed with the development key) |
 | MNVB2xx | Content (`209` created a missing `.meta`, `201` asset index, `202` unreadable, `203` import settings, `204`/`205` import errors and warnings, `206` missing referenced asset, `207`/`208` scene and prefab loading, `220`/`221` model import errors and warnings, `222` model without an artifact, `223` warning: an unreferenced scene, prefab or audio clip is not shipped) |
 | MNVB3xx, CSxxxx | C# scripts (`301` scripts project missing; compiler errors keep their `CS` codes and source positions) |
 | MNV1xxx–3xxx | `.mnvts` errors from the compiler; see the [language reference](../scripting/language.md) |
@@ -256,7 +270,7 @@ Each archive has one AES-256-GCM encrypted, authenticated entry per file. The en
 
 ## Reproducible builds
 
-The build uses deterministic compilation (`Deterministic`, `ContinuousIntegrationBuild`), a fixed file order, content-derived archive nonces and a committed key. The manifest contains no timestamps or machine paths. As a result, building the same sources twice gives an identical manifest, including the hash of every file and of the archive. This holds for an incremental rebuild and for a rebuild after deleting `Library/Build`, and `PackagingTests.Rebuild_IsByteForByteIdentical` checks it.
+The build uses deterministic compilation (`Deterministic`, `ContinuousIntegrationBuild`), a fixed file order, a build id hashed from the inputs (package GUIDs, key salts and synthetic nonces derive from it) and a committed key. The manifest contains no timestamps or machine paths. As a result, building the same sources twice gives an identical manifest, including the hash of every file and each package's header hash. The 64 ECDSA signature bytes of each package and of `package.sig` differ between builds (ECDSA signing is randomized); everything else in a package is identical. This holds for an incremental rebuild and for a rebuild after deleting `Library/Build`, and `PackagingTests.Rebuild_IsByteForByteIdentical` checks it.
 
 ## Engine location
 
@@ -271,6 +285,5 @@ The first build of each project and profile compiles the engine into `Library/Bu
 
 - Only `win-x64` is supported. Other runtime identifiers are rejected (`MNVB103`).
 - If the game's C# scripts use NuGet packages with native libraries, those libraries are not packaged. The build warns with `MNVB404`.
-- The archive is read into memory entry by entry, and the build holds each asset in memory while writing it. This suits 2D games; streaming very large assets would need chunked entries.
 - `.mnvts` sources are stored (encrypted) next to their bytecode, so the asset index stays complete. The runtime never reads them.
-- There is no installer, icon or version resource, and no code signing.
+- There is no installer, icon or version resource, and no Authenticode signing of the executable (packages and the manifest are signed; see above).

@@ -139,6 +139,21 @@ public static class Metrics
     public const string AssetsFailed = "assets.failed";
     public const string DebugDrawCommands = "debug.drawCommands";
     public const string DebugDrawDropped = "debug.drawDropped";
+    public const string ContentMounts = "content.mounts";
+    public const string ContentPackages = "content.packages";
+    public const string ContentPackageBytes = "content.packageBytes";
+    public const string ContentFiles = "content.files";
+    public const string ContentActiveStreams = "content.activeStreams";
+    public const string ContentPendingReads = "content.pendingReads";
+    public const string ContentBytesRead = "content.bytesRead";
+    public const string ContentChunksDecoded = "content.chunksDecoded";
+    public const string ContentChunkCacheHits = "content.chunkCacheHits";
+    public const string ContentVerifyTime = "content.verifyTime";
+    public const string ContentDecryptTime = "content.decryptTime";
+    public const string ContentDecompressTime = "content.decompressTime";
+    public const string ContentPackageOpenTime = "content.packageOpenTime";
+    public const string ContentFailedReads = "content.failedReads";
+    public const string ContentCorruptedChunks = "content.corruptedChunks";
 
     public static IReadOnlyList<MetricDefinition> Definitions { get; } =
     [
@@ -227,6 +242,21 @@ public static class Metrics
         new(AssetsFailed, "Asset problems", "Assets", MetricUnit.Count, "Assets with import or load errors."),
         new(DebugDrawCommands, "Debug draws", "Diagnostics", MetricUnit.Count, "Debug draw commands queued this frame."),
         new(DebugDrawDropped, "Debug draws dropped", "Diagnostics", MetricUnit.Count, "Debug draw commands rejected because the buffer was full."),
+        new(ContentMounts, "Mounted sources", "Content", MetricUnit.Count, "Sources mounted in the content file system (packages, or the project's folders in development)."),
+        new(ContentPackages, "Packages", "Content", MetricUnit.Count, "Mounted .mnvtpack packages."),
+        new(ContentPackageBytes, "Package content", "Content", MetricUnit.Bytes, "Uncompressed size of the files in the mounted packages."),
+        new(ContentFiles, "Content files", "Content", MetricUnit.Count, "Files in the mounted sources; unsupported when a folder is mounted (counting would scan it)."),
+        new(ContentActiveStreams, "Open streams", "Content", MetricUnit.Count, "Content streams open now."),
+        new(ContentPendingReads, "Pending reads", "Content", MetricUnit.Count, "Asynchronous content reads in flight."),
+        new(ContentBytesRead, "Content read", "Content", MetricUnit.Bytes, "Bytes read from the content since the last frame (any thread)."),
+        new(ContentChunksDecoded, "Chunks decoded", "Content", MetricUnit.Count, "Package chunks verified and decoded since the last frame."),
+        new(ContentChunkCacheHits, "Chunk cache hits", "Content", MetricUnit.Count, "Reads served from a stream's decoded chunk, since start."),
+        new(ContentVerifyTime, "Verification", "Content", MetricUnit.Milliseconds, "Time hashing chunks and checking signatures since the last frame (any thread)."),
+        new(ContentDecryptTime, "Decryption", "Content", MetricUnit.Milliseconds, "AES-256-GCM time since the last frame (any thread)."),
+        new(ContentDecompressTime, "Decompression", "Content", MetricUnit.Milliseconds, "Decompression time since the last frame (any thread)."),
+        new(ContentPackageOpenTime, "Package opening", "Content", MetricUnit.Milliseconds, "Total time opening packages (header, index, signature)."),
+        new(ContentFailedReads, "Failed reads", "Content", MetricUnit.Count, "Content reads that failed (missing, damaged or tampered files) since start."),
+        new(ContentCorruptedChunks, "Corrupted chunks", "Content", MetricUnit.Count, "Package chunks that failed their hash or authentication since start."),
     ];
 
     private static readonly Dictionary<string, MetricDefinition> ById = Definitions.ToDictionary(d => d.Id, StringComparer.Ordinal);

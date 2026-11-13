@@ -27,6 +27,9 @@ public sealed record BuildOptions
 
     /// <summary>Launch the exported game for this many frames after packaging; null to skip (needs a GPU).</summary>
     public int? TestRunFrames { get; init; }
+
+    /// <summary>PEM file of the release signing key; null for <see cref="SigningKeys.EnvironmentVariable"/> or the development key.</summary>
+    public string? SigningKey { get; init; }
 }
 
 public sealed record BuildResult(bool Succeeded, BuildProfile? Profile, string? OutputDirectory, string? Executable, IReadOnlyList<BuildDiagnostic> Diagnostics, TimeSpan Duration);
@@ -84,7 +87,8 @@ public sealed partial class GameBuilder(ILogger logger)
         }
 
         var key = ContentKeys.LoadOrCreate(project, diagnostics);
-        if (output is null || key is null || diagnostics.HasErrors())
+        using var signer = SigningKeys.Resolve(project, profile, options.SigningKey, diagnostics);
+        if (output is null || key is null || signer is null || diagnostics.HasErrors())
         {
             return Fail(profile);
         }
@@ -117,8 +121,9 @@ public sealed partial class GameBuilder(ILogger logger)
             }
         }
 
-        // 2. Content, encrypted into archives: globals (index, project, game code), default resources (precompiled
-        //    shaders), one archive per level, shared assets and resources. See ContentLayout.
+        // 2. Content, into signed (and encrypted) packages: globals (index, runtime configuration, game code), default
+        //    resources (precompiled shaders), one package per level, shared assets and resources. See ContentLayout.
+        var buildId = BuildIdentity.Compute(project, profile, scriptsOutput, profile.Encrypt ? key.IdText : "plain", signer.PublicKey.Id);
         var contentDirectory = Path.Combine(work, "Content");
         DeleteDirectory(contentDirectory);
         Directory.CreateDirectory(contentDirectory);
@@ -129,7 +134,10 @@ public sealed partial class GameBuilder(ILogger logger)
         string? aotSource = null;
         ContentResult? compiled = null;
         FrameworkPruning? pruning = null;
-        var archive = new ContentArchiveWriter(contentDirectory, key);
+        var archive = new ContentPackageWriter(contentDirectory, new ContentPackageOptions(
+            buildId, profile.Encrypt ? key : null, signer, profile.Compression, profile.CompressionByExtension,
+            new Dictionary<string, string> { ["game"] = project.Name, ["target"] = profile.Target, ["profile"] = profile.Name, ["engine"] = GamePackager.EngineVersion }));
+        IReadOnlyList<ContentPackage> packages;
         using (archive)
         {
             ContentResult content;
@@ -167,7 +175,8 @@ public sealed partial class GameBuilder(ILogger logger)
             var bootstrap = ModuleBootstrap.Write(content.Modules!, Path.Combine(work, "Bootstrap"),
                 aot ? new AotInput(aotSource!, scriptsAssemblyPath, AotBootstrap.Roots(content.Modules!, scripts?.AssemblyName)) : null);
             modules = [.. content.Modules!.Modules.Select(m => m.Id)];
-            diagnostics.AddRange(await GamePackager.PublishHostAsync(engineRoot, profile, executableName, key, work, stage, modules.Contains("devtools"), bootstrap, cancellationToken).ConfigureAwait(false));
+            var embeddedKey = profile.Encrypt ? EmbeddedPackageKey.Encode(key, buildId.ToByteArray()) : null;
+            diagnostics.AddRange(await GamePackager.PublishHostAsync(engineRoot, profile, executableName, embeddedKey, signer.PublicKey, work, stage, modules.Contains("devtools"), bootstrap, cancellationToken).ConfigureAwait(false));
             if (diagnostics.HasErrors())
             {
                 return Fail(profile);
@@ -207,6 +216,13 @@ public sealed partial class GameBuilder(ILogger logger)
                 var prunedSize = GamePackager.FormatSize(pruned.RemovedBytes);
                 LogPruned(logger, pruned.Removed.Count, prunedSize, pruned.Kept);
             }
+
+            packages = archive.Complete();
+            foreach (var (package, result) in packages.Zip(archive.Results))
+            {
+                var ratio = result.OriginalBytes == 0 ? 1.0 : (double)result.StoredBytes / result.OriginalBytes;
+                LogPackage(logger, package.File, result.Files, result.OriginalBytes / (1024.0 * 1024.0), result.FileLength / (1024.0 * 1024.0), ratio, result.DuplicateFiles);
+            }
         }
 
         var data = Path.Combine(stage, GamePackage.DataFolder(executableName));
@@ -216,27 +232,27 @@ public sealed partial class GameBuilder(ILogger logger)
             File.Move(file, Path.Combine(data, Path.GetFileName(file)));
         }
 
-        var archives = archive.Archives;
-        var archiveList = string.Join(", ", archives.Select(a => $"{a.File} ({a.Entries})"));
-        LogArchives(logger, archives.Count, archiveList);
+        var packageList = string.Join(", ", packages.Select(a => $"{a.File} ({a.Entries})"));
+        LogPackages(logger, packages.Count, packageList, signer.PublicKey.Id, profile.Encrypt);
         GamePackager.WriteManifest(stage, new GamePackage
         {
             Name = project.Name,
             ExecutableName = executableName,
             Profile = profile.Name,
             Configuration = profile.Configuration,
+            BuildId = buildId,
             DevTools = modules.Contains("devtools"),
             Modules = modules,
             ScriptingBackend = profile.ScriptingBackend,
             Target = profile.Target,
             EngineVersion = GamePackager.EngineVersion,
             ScriptsAssembly = scriptsAssembly,
-            Archives = archives,
-        });
+            Packages = [.. packages],
+        }, signer);
 
         // 4. Validate before touching the output folder.
         LogValidating(logger);
-        diagnostics.AddRange(BuildValidator.Validate(stage, key));
+        diagnostics.AddRange(BuildValidator.Validate(stage, ContentKeys.KeyRingFor(project).Add(key)));
         if (diagnostics.HasErrors())
         {
             return Fail(profile);
@@ -269,17 +285,131 @@ public sealed partial class GameBuilder(ILogger logger)
     }
 
     /// <summary>
+    /// Builds only the content packages of <paramref name="options"/>' profile (<c>mnvt package build</c>): C# scripts and
+    /// content compiled exactly as <see cref="BuildAsync"/> does, written as signed (and encrypted) packages with a signed
+    /// manifest into <see cref="BuildOptions.OutputDirectory"/> (default <c>Builds/&lt;profile&gt;-packages</c>), without
+    /// the game host. For inspecting what a build ships and for content-only workflows.
+    /// </summary>
+    public async Task<(string? Directory, IReadOnlyList<ContentPackage> Packages, IReadOnlyList<BuildDiagnostic> Diagnostics)> PackageAsync(string projectPath, BuildOptions options, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var diagnostics = new List<BuildDiagnostic>();
+        if (LoadProject(projectPath, diagnostics) is not { } project || ResolveProfile(project, options, diagnostics) is not { } profile)
+        {
+            return (null, [], diagnostics);
+        }
+
+        var key = ContentKeys.LoadOrCreate(project, diagnostics);
+        using var signer = SigningKeys.Resolve(project, profile, options.SigningKey, diagnostics);
+        if (key is null || signer is null)
+        {
+            return (null, [], diagnostics);
+        }
+
+        var output = Path.GetFullPath(options.OutputDirectory ?? Path.Combine(project.RootDirectory, "Builds", profile.Name + "-packages"));
+        var work = Path.Combine(project.RootDirectory, "Library", "Build", profile.Name + "-packages");
+        DeleteDirectory(work);
+        Directory.CreateDirectory(work);
+        diagnostics.AddRange(ContentCompiler.CreateMissingMetas(project));
+        diagnostics.AddRange(ContentCompiler.ImportModels(project));
+
+        var registry = EngineModuleSet.CreateRegistry();
+        GameCode? code = null;
+        string? scriptsOutput = null;
+        string? scriptsAssemblyPath = null;
+        ScriptProject? scripts = project.Scripts?.Project is { Length: > 0 } ? ScriptProject.For(project) : null;
+        if (scripts is not null)
+        {
+            scriptsOutput = Path.Combine(work, "Scripts");
+            LogCompilingScripts(logger, scripts.AssemblyName, profile.Configuration);
+            var build = await ScriptCompiler.BuildAsync(scripts, profile.Configuration, scriptsOutput, cancellationToken).ConfigureAwait(false);
+            scriptsAssemblyPath = build.AssemblyPath;
+            diagnostics.AddRange(build.Diagnostics.Select(BuildDiagnostic.FromScript));
+            if (!build.Succeeded || (code = DevelopmentScripts.LoadAndRegister(build.AssemblyPath!, registry, diagnostics)) is null || diagnostics.HasErrors())
+            {
+                return (null, [], diagnostics);
+            }
+        }
+
+        var buildId = BuildIdentity.Compute(project, profile, scriptsOutput, profile.Encrypt ? key.IdText : "plain", signer.PublicKey.Id);
+        var staged = Path.Combine(work, "Packages");
+        Directory.CreateDirectory(staged);
+        IReadOnlyList<ContentPackage> packages;
+        string? scriptsAssembly = null;
+        using (var writer = new ContentPackageWriter(staged, new ContentPackageOptions(
+            buildId, profile.Encrypt ? key : null, signer, profile.Compression, profile.CompressionByExtension,
+            new Dictionary<string, string> { ["game"] = project.Name, ["target"] = profile.Target, ["profile"] = profile.Name, ["engine"] = GamePackager.EngineVersion })))
+        {
+            try
+            {
+                ApplyDevToolsDefault(project, profile);
+                diagnostics.AddRange(ContentCompiler.Compile(project, registry, writer, scriptsAssemblyPath).Diagnostics);
+            }
+            finally
+            {
+                if (code is not null)
+                {
+                    DevelopmentScripts.Unload(code, registry);
+                }
+            }
+
+            if (diagnostics.HasErrors())
+            {
+                return (null, [], diagnostics);
+            }
+
+            if (scripts is not null)
+            {
+                scriptsAssembly = GamePackager.AddGameCode(writer.Globals, scriptsOutput!, scripts.AssemblyName, staged, profile.Configuration == "Debug", diagnostics);
+            }
+
+            packages = writer.Complete();
+        }
+
+        DeleteDirectory(output);
+        Directory.CreateDirectory(output);
+        foreach (var file in Directory.EnumerateFiles(staged))
+        {
+            File.Move(file, Path.Combine(output, Path.GetFileName(file)));
+        }
+
+        new GamePackage
+        {
+            Name = project.Name,
+            ExecutableName = profile.ExecutableName ?? GamePackage.ExecutableNameFor(project.Name),
+            Profile = profile.Name,
+            Configuration = profile.Configuration,
+            BuildId = buildId,
+            SigningKeyId = signer.PublicKey.Id,
+            Target = profile.Target,
+            EngineVersion = GamePackager.EngineVersion,
+            ScriptingBackend = profile.ScriptingBackend,
+            ScriptsAssembly = scriptsAssembly,
+            Packages = [.. packages],
+        }.Save(output, signer);
+        return (output, packages, diagnostics);
+    }
+
+    /// <summary>
     /// What a build of <paramref name="options"/>' profile would contain and why, without packaging: C# scripts compiled,
     /// content analysed and modules resolved exactly as <see cref="BuildAsync"/> does (<c>mnvt build analyze</c>).
     /// </summary>
     /// <returns>The report (see <see cref="BuildReport"/>; no sizes), or null when the project does not get that far.</returns>
     public async Task<(Newtonsoft.Json.Linq.JObject? Report, IReadOnlyList<BuildDiagnostic> Diagnostics)> AnalyzeAsync(string projectPath, BuildOptions options, CancellationToken cancellationToken = default)
     {
+        var (project, profile, content, diagnostics) = await AnalyzeContentAsync(projectPath, options, cancellationToken).ConfigureAwait(false);
+        return content?.Modules is null ? (null, diagnostics)
+            : (BuildReport.Create(new BuildReportInput(project!, profile!, content, content.Modules.IsEnabled("devtools"), diagnostics) { ScriptingBackend = profile!.ScriptingBackend }), diagnostics);
+    }
+
+    /// <summary>The content a build of the profile would compile, without writing anything (<c>mnvt build analyze</c>, <c>mnvt package analyze</c>).</summary>
+    public async Task<(GameProject? Project, BuildProfile? Profile, ContentResult? Content, List<BuildDiagnostic> Diagnostics)> AnalyzeContentAsync(string projectPath, BuildOptions options, CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(options);
         var diagnostics = new List<BuildDiagnostic>();
         if (LoadProject(projectPath, diagnostics) is not { } project || ResolveProfile(project, options, diagnostics) is not { } profile)
         {
-            return (null, diagnostics);
+            return (null, null, null, diagnostics);
         }
 
         diagnostics.AddRange(ContentCompiler.ImportModels(project));
@@ -288,7 +418,7 @@ public sealed partial class GameBuilder(ILogger logger)
         diagnostics.AddRange(code.Diagnostics);
         if (!code.Succeeded)
         {
-            return (null, diagnostics);
+            return (project, profile, null, diagnostics);
         }
 
         try
@@ -296,7 +426,7 @@ public sealed partial class GameBuilder(ILogger logger)
             ApplyDevToolsDefault(project, profile);
             var content = ContentCompiler.Compile(project, registry, output: null, code.Code?.MainAssembly.Location is { Length: > 0 } location ? location : null);
             diagnostics.AddRange(content.Diagnostics);
-            return content.Modules is null ? (null, diagnostics) : (BuildReport.Create(new BuildReportInput(project, profile, content, content.Modules.IsEnabled("devtools"), diagnostics) { ScriptingBackend = profile.ScriptingBackend }), diagnostics);
+            return (project, profile, content, diagnostics);
         }
         finally
         {
@@ -599,8 +729,11 @@ public sealed partial class GameBuilder(ILogger logger)
     [LoggerMessage(EventId = 8010, Level = LogLevel.Information, Message = "Modules: {Modules}; {Stripped} unused assets not shipped")]
     private static partial void LogModules(ILogger logger, string modules, int stripped);
 
-    [LoggerMessage(EventId = 8007, Level = LogLevel.Information, Message = "Content split into {Count} archives: {Archives}")]
-    private static partial void LogArchives(ILogger logger, int count, string archives);
+    [LoggerMessage(EventId = 8007, Level = LogLevel.Information, Message = "Content split into {Count} packages: {Packages} (signed by {Signer}, encrypted: {Encrypted})")]
+    private static partial void LogPackages(ILogger logger, int count, string packages, string signer, bool encrypted);
+
+    [LoggerMessage(EventId = 8019, Level = LogLevel.Information, Message = "  {Package}: {Files} files, {Original:0.0} MB -> {Stored:0.0} MB ({Ratio:P0}), {Duplicates} duplicates shared")]
+    private static partial void LogPackage(ILogger logger, string package, int files, double original, double stored, double ratio, int duplicates);
 
     [LoggerMessage(EventId = 8003, Level = LogLevel.Information, Message = "Publishing {Executable}.exe ({Target}, private .NET runtime)")]
     private static partial void LogPublishing(ILogger logger, string executable, string target);

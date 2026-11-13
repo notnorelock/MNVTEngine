@@ -27,6 +27,9 @@ public sealed record ContentResult(IReadOnlyList<BuildDiagnostic> Diagnostics, i
 
     /// <summary>What the precompiled shaders were made from: built-in shader names and material paths.</summary>
     public IReadOnlyList<string> ShaderSources { get; init; } = [];
+
+    /// <summary>Which package every shipped asset goes to. Null when the compile stopped early.</summary>
+    public ContentLayout? Layout { get; init; }
 }
 
 /// <summary>
@@ -34,10 +37,11 @@ public sealed record ContentResult(IReadOnlyList<BuildDiagnostic> Diagnostics, i
 /// <see cref="ImportModels"/> first; models are packed as their imported artifact, not as the source file), runs
 /// every importer, compiles <c>.mnvts</c> scripts to verified bytecode against the full runtime API, loads every scene
 /// and prefab with the game's components, checks asset references, and compiles every shader the game uses to SPIR-V
-/// (shader errors fail the build). With an output it writes the game content split over archives
-/// (<see cref="ContentLayout"/>): globals hold the asset index (GUIDs, paths, types, import settings and archive, so
-/// references stay valid) and the project file; default resources hold the precompiled shaders; every asset, with the
-/// bytecode of scripts, goes to its level, shared assets or resources archive.
+/// (shader errors fail the build). With an output it writes the game content split over packages
+/// (<see cref="ContentLayout"/>): globals hold the asset index (GUIDs, paths, types, import settings and package, so
+/// references stay valid) and the runtime configuration; default resources hold the precompiled shaders; every asset
+/// (with its GUID and dependencies), and the bytecode of scripts, goes to its level, shared assets or resources package.
+/// Source files of models, .meta files, importer state and development settings never ship.
 /// </summary>
 public static class ContentCompiler
 {
@@ -103,9 +107,9 @@ public static class ContentCompiler
     private static string LibraryOf(GameProject project) => Path.Combine(project.RootDirectory, "Library");
 
     /// <param name="registry">Built-in and game components, used to load scenes and prefabs.</param>
-    /// <param name="output">Content archives to write; null to validate only.</param>
+    /// <param name="output">Content packages to write; null to validate only.</param>
     /// <param name="scriptsAssembly">The compiled C# scripts, read (not loaded) for usage evidence; null without scripts.</param>
-    public static ContentResult Compile(GameProject project, ComponentRegistry registry, ContentArchiveWriter? output, string? scriptsAssembly = null)
+    public static ContentResult Compile(GameProject project, ComponentRegistry registry, ContentPackageWriter? output, string? scriptsAssembly = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(registry);
@@ -176,24 +180,29 @@ public static class ContentCompiler
             diagnostics.Add(BuildDiagnostic.Warning("MNVB223", note));
         }
 
-        // Pass 2: every shipped asset (and its bytecode) into its level, shared assets or resources archive.
+        // Pass 2: every shipped asset (and its bytecode) into its level, shared assets or resources package.
         var layout = ContentLayout.Plan(assets, project.StartupScene, dependencies, usage.Includes);
         if (output is not null)
         {
             output.DeclareLevels(layout.Levels);
             foreach (var record in readable.Where(r => usage.Includes(r.Guid)))
             {
-                var archive = output.For(layout.ArchiveOf(record.Guid));
+                var package = output.For(layout.PackageOf(record.Guid));
+                var references = dependencies.GetValueOrDefault(record.Guid);
                 if (models.TryGetValue(record.Guid, out var model))
                 {
-                    archive.Add(AssetDatabase.ArtifactEntry(record.Guid, ModelArtifact.Name), model); // the source file is not shipped
+                    package.Add(AssetDatabase.ArtifactEntry(record.Guid, ModelArtifact.Name), model, record.Guid, references); // the source file is not shipped
                     continue;
                 }
 
-                archive.Add(AssetDatabase.AssetsEntryFolder + record.Path, File.ReadAllBytes(assets.FullPath(record.Guid)));
+                using (var source = File.OpenRead(assets.FullPath(record.Guid)))
+                {
+                    package.Add(AssetDatabase.AssetsEntryFolder + record.Path, source, record.Guid, references);
+                }
+
                 if (bytecodes.TryGetValue(record.Guid, out var bytecode))
                 {
-                    archive.Add(AssetDatabase.CompiledEntry(record.Guid), bytecode);
+                    package.Add(AssetDatabase.CompiledEntry(record.Guid), bytecode);
                 }
             }
         }
@@ -202,11 +211,11 @@ public static class ContentCompiler
         var shaders = PrecompileShaders(resolution, assets, usage, diagnostics, output?.DefaultResources, shaderSources);
         if (output is not null)
         {
-            output.Globals.Add(AssetDatabase.IndexEntry, Encoding.UTF8.GetBytes(assets.ExportIndex(layout.ArchiveOf, usage.Includes).ToString(Formatting.None)));
-            output.Globals.Add(Path.GetFileName(project.ProjectFile), PackagedProjectFile(project, resolution));
+            output.Globals.Add(AssetDatabase.IndexEntry, Encoding.UTF8.GetBytes(assets.ExportIndex(layout.PackageOf, usage.Includes).ToString(Formatting.None)));
+            output.Globals.Add(GameProject.RuntimeConfigEntry, RuntimeConfig(project, resolution));
         }
 
-        return new ContentResult(diagnostics, usage.Included.Count, scripts, shaders) { Usage = usage, Modules = resolution, ShaderSources = shaderSources };
+        return new ContentResult(diagnostics, usage.Included.Count, scripts, shaders) { Usage = usage, Modules = resolution, ShaderSources = shaderSources, Layout = layout };
     }
 
     /// <summary>
@@ -215,7 +224,7 @@ public static class ContentCompiler
     /// to SPIR-V, checking them as the device would. Games have no shader compiler: what is not here cannot be drawn.
     /// Returns the number of stages.
     /// </summary>
-    private static int PrecompileShaders(ModuleResolution resolution, AssetDatabase assets, ProjectUsage usage, List<BuildDiagnostic> diagnostics, ContentArchive.Writer? defaultResources, List<string> sources)
+    private static int PrecompileShaders(ModuleResolution resolution, AssetDatabase assets, ProjectUsage usage, List<BuildDiagnostic> diagnostics, IO.Packages.PackageWriter? defaultResources, List<string> sources)
     {
         using var precompiler = new VulkanShaderPrecompiler(new ShadercCompiler());
         var modules = resolution.Modules.Select(m => EngineModuleSet.Create(m.Id)).OfType<IEngineModule>();
@@ -359,16 +368,15 @@ public static class ContentCompiler
     }
 
     /// <summary>
-    /// The project file without development-only settings (C# project path, build profiles), at the current schema
-    /// with the profile it is built with (inferred for a project that predates profiles).
+    /// The runtime configuration the game reads (<see cref="GameProject.RuntimeConfigEntry"/>): the project's settings
+    /// without development-only ones (C# project path, build profiles), at the current schema with the profile it is
+    /// built with, marked as a runtime configuration so it is never mistaken for an editable project. Its "modules" lists
+    /// every optional module of the profile as on or off, as the build resolved them, so the game starts exactly those.
     /// </summary>
-    /// <summary>
-    /// The project file the game reads. Its "modules" lists every optional module of the profile as on or off, as the
-    /// build resolved them, so the game starts exactly the modules it was built with.
-    /// </summary>
-    private static byte[] PackagedProjectFile(GameProject project, ModuleResolution resolution)
+    private static byte[] RuntimeConfig(GameProject project, ModuleResolution resolution)
     {
         var document = JObject.Parse(File.ReadAllText(project.ProjectFile));
+        document.AddFirst(new JProperty("kind", GameProject.RuntimeConfigKind));
         document["schemaVersion"] = GameProject.CurrentSchemaVersion;
         document["profile"] = ProjectProfileMigration.Resolve(project).Profile.Id();
         document["modules"] = new JObject(ModuleCatalog.Builtin.Modules

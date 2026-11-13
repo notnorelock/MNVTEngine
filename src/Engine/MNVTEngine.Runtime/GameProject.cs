@@ -154,6 +154,15 @@ public sealed class BuildProfile
     /// <summary>See <see cref="ScriptingBackends"/>.</summary>
     public string ScriptingBackend { get; set; } = "jit";
 
+    /// <summary>Package compression: "none", "fast" (LZ4), "balanced" (Zstandard 9, default) or "small" (Zstandard 19).</summary>
+    public IO.Packages.PackageCompression Compression { get; set; } = IO.Packages.PackageCompression.Balanced;
+
+    /// <summary>Compression per file type, e.g. <c>{ ".wav": "fast" }</c>; already-compressed types (PNG, Ogg, ...) are stored as is unless listed.</summary>
+    public Dictionary<string, IO.Packages.PackageCompression> CompressionByExtension { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Encrypt the packages (default). Off writes plain packages, e.g. to inspect a debug build with other tools; they are still signed and verified.</summary>
+    public bool Encrypt { get; set; } = true;
+
     [JsonIgnore]
     public bool ShowsConsole => Console ?? Configuration == "Debug";
 
@@ -163,7 +172,12 @@ public sealed class BuildProfile
         new() { Name = "release", Configuration = "Release" },
     ];
 
-    public BuildProfile Clone() => (BuildProfile)MemberwiseClone();
+    public BuildProfile Clone()
+    {
+        var clone = (BuildProfile)MemberwiseClone();
+        clone.CompressionByExtension = new(CompressionByExtension, StringComparer.OrdinalIgnoreCase);
+        return clone;
+    }
 }
 
 /// <summary>
@@ -251,39 +265,55 @@ public sealed class GameProject
         return Parse(text, file, Path.GetDirectoryName(file)!, null);
     }
 
-    /// <summary>The project of an exported game, stored at the root of its globals archive.</summary>
-    /// <param name="dataDirectory">The game's data folder; becomes <see cref="RootDirectory"/> (there are no project files on disk).</param>
-    /// <exception cref="SerializationException">Missing, unreadable or invalid project.</exception>
-    public static GameProject LoadPackaged(ContentArchiveSet archive, string dataDirectory)
-    {
-        ArgumentNullException.ThrowIfNull(archive);
-        var entries = archive.Entries.Where(e => !e.Contains('/', StringComparison.Ordinal) && e.EndsWith(Extension, StringComparison.OrdinalIgnoreCase)).ToList();
-        if (entries.Count != 1)
-        {
-            throw new SerializationException(archive.Directory, $"The game content must contain exactly one {Extension} file, found {entries.Count}.", []);
-        }
+    /// <summary>
+    /// Package entry with an exported game's runtime configuration: the project's settings the game needs, without
+    /// development settings (C# project, build profiles), marked with <c>"kind": "mnvt.runtimeConfig"</c>. It is not a
+    /// project file, and <see cref="Load"/> refuses it even when renamed to one.
+    /// </summary>
+    public const string RuntimeConfigEntry = "RuntimeConfig.json";
 
+    /// <summary>Value of the <c>"kind"</c> property that marks a runtime configuration.</summary>
+    public const string RuntimeConfigKind = "mnvt.runtimeConfig";
+
+    private const string KindProperty = "kind";
+
+    /// <summary>The configuration of an exported game, from its globals package (<see cref="RuntimeConfigEntry"/>).</summary>
+    /// <exception cref="SerializationException">Missing, unreadable or invalid configuration.</exception>
+    public static GameProject LoadPackaged(GameContent content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
         string text;
         try
         {
-            text = System.Text.Encoding.UTF8.GetString(archive.Read(entries[0]));
+            text = System.Text.Encoding.UTF8.GetString(content.Read(RuntimeConfigEntry));
         }
-        catch (InvalidDataException ex)
+        catch (IOException ex)
         {
-            throw new SerializationException(entries[0], ex.Message, [], ex);
+            throw new SerializationException(RuntimeConfigEntry, ex is FileNotFoundException ? $"The game content has no {RuntimeConfigEntry}." : ex.Message, [], ex);
         }
 
-        return Parse(text, entries[0], dataDirectory, path => archive.Contains(AssetDatabase.AssetsEntryFolder + AssetPaths.Canonical(path)));
+        return Parse(text, RuntimeConfigEntry, content.Directory, path => content.Contains(AssetDatabase.AssetsEntryFolder + AssetPaths.Canonical(path)), runtimeConfig: true);
     }
 
     /// <param name="assetExists">Checks a path relative to Assets; null to look on disk. Packaged projects have no scripts project.</param>
-    private static GameProject Parse(string text, string file, string rootDirectory, Func<string, bool>? assetExists)
+    /// <param name="runtimeConfig">Parse an exported game's runtime configuration (which must be marked as one) instead of a project file (which must not).</param>
+    private static GameProject Parse(string text, string file, string rootDirectory, Func<string, bool>? assetExists, bool runtimeConfig = false)
     {
         var diagnostics = new List<SerializationDiagnostic>();
         GameProject project;
         try
         {
             var document = JObject.Parse(text);
+            var isRuntimeConfig = document.Value<string>(KindProperty) == RuntimeConfigKind;
+            if (isRuntimeConfig != runtimeConfig)
+            {
+                throw runtimeConfig
+                    ? new InvalidDataException($"{RuntimeConfigEntry} is not an exported game's runtime configuration.")
+                    : new NotAProjectException(file, ProjectFolderKind.ExportedGame);
+            }
+
+            document.Remove(KindProperty);
+            document.Remove("buildId");
             var original = new JsonMigrationPipeline(CurrentSchemaVersion)
                 .Add(1, _ => { }) // the profile cannot be read from the file; ProjectProfileMigration infers it from the content
                 .Migrate(document, diagnostics);
@@ -389,9 +419,16 @@ public sealed class GameProject
         SchemaVersion = CurrentSchemaVersion;
     }
 
+    /// <exception cref="NotAProjectException">The path is an exported game, its packages or its extracted content.</exception>
     /// <exception cref="FileNotFoundException">No project file, or several in the directory.</exception>
     public static string FindProjectFile(string path)
     {
+        var kind = Classify(path);
+        if (kind is ProjectFolderKind.ExportedGame or ProjectFolderKind.GamePackages)
+        {
+            throw new NotAProjectException(path, kind);
+        }
+
         if (File.Exists(path))
         {
             return path;
@@ -411,6 +448,65 @@ public sealed class GameProject
         }
 
         throw new FileNotFoundException($"Project '{path}' does not exist.");
+    }
+
+    /// <summary>
+    /// What <paramref name="path"/> (a folder or file) is, judged by its content, not by a missing file name: an exported
+    /// game (a <c>*_Data</c> folder with a build manifest, its executable, or a runtime configuration even when renamed
+    /// to <c>.mnvtproj</c>), a folder of game packages, an editable project, or none of these.
+    /// </summary>
+    public static ProjectFolderKind Classify(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (File.Exists(path))
+        {
+            var extension = Path.GetExtension(path);
+            var folder = Path.GetDirectoryName(Path.GetFullPath(path))!;
+            return extension.ToUpperInvariant() switch
+            {
+                ".MNVTPACK" => ProjectFolderKind.GamePackages,
+                ".EXE" when File.Exists(Path.Combine(folder, GamePackage.DataFolder(Path.GetFileNameWithoutExtension(path)), GamePackage.ManifestFile)) => ProjectFolderKind.ExportedGame,
+                _ when IsRuntimeConfig(path) => ProjectFolderKind.ExportedGame,
+                ".MNVTPROJ" => ProjectFolderKind.Project,
+                _ => ProjectFolderKind.None,
+            };
+        }
+
+        if (!Directory.Exists(path))
+        {
+            return ProjectFolderKind.None;
+        }
+
+        if (GamePackage.FindDataDirectory(path) is not null || Directory.EnumerateFiles(path, "*" + Extension).Any(IsRuntimeConfig)
+            || (File.Exists(Path.Combine(path, RuntimeConfigEntry)) && IsRuntimeConfig(Path.Combine(path, RuntimeConfigEntry))))
+        {
+            return ProjectFolderKind.ExportedGame;
+        }
+
+        if (File.Exists(Path.Combine(path, GamePackage.ManifestFile)) || Directory.EnumerateFiles(path, "*" + GamePackage.PackageExtension).Any())
+        {
+            return ProjectFolderKind.GamePackages;
+        }
+
+        return Directory.EnumerateFiles(path, "*" + Extension).Any() ? ProjectFolderKind.Project : ProjectFolderKind.None;
+    }
+
+    /// <summary>A JSON file marked as an exported game's runtime configuration.</summary>
+    private static bool IsRuntimeConfig(string file)
+    {
+        try
+        {
+            if (new FileInfo(file).Length > 4 * 1024 * 1024)
+            {
+                return false;
+            }
+
+            return JObject.Parse(File.ReadAllText(file)).Value<string>(KindProperty) == RuntimeConfigKind;
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or InvalidCastException)
+        {
+            return false; // not JSON or unreadable: not a runtime configuration
+        }
     }
 
     /// <exception cref="ArgumentException">The path is absolute or escapes the Assets folder.</exception>

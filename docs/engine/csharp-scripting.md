@@ -76,7 +76,7 @@ dotnet run --project src/Tooling/MNVTEngine.Player -- samples/SceneDemo
 
 - **Player:** `MNVTEngine.Player` is the development runner. It compiles the scripts if they are out of date, loads them, and runs the project.
 - **Exit codes:** 3 if game code fails to compile or load.
-- **Exported games:** `mnvt build` compiles the scripts with the profile's configuration and stores them in the encrypted content archive under `Scripts/` (without assemblies the host ships). The game host loads them from memory into the same collectible context, without the SDK. See [building](../build-system/building.md).
+- **Exported games:** `mnvt build` compiles the scripts with the profile's configuration and stores them in the globals content package under `Scripts/` (without assemblies the host ships). The game host loads them from memory into the same collectible context, without the SDK. See [building](../build-system/building.md).
 
 ## Tests
 

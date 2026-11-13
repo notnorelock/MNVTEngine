@@ -1,6 +1,7 @@
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using MNVTEngine.Assets;
+using MNVTEngine.IO.Packages;
 using MNVTEngine.Runtime;
 using MNVTEngine.Scripting.Bytecode;
 using MNVTEngine.Serialization;
@@ -12,7 +13,8 @@ namespace MNVTEngine.Build;
 /// <summary>
 /// Checks an exported game without running it: private .NET runtime, every assembly reference resolvable from the
 /// runtime or <c>Dependencies/Managed</c>, required native libraries, no development tooling, every file matching the
-/// manifest hash, and an archive that decrypts and authenticates entry by entry, with a loadable project and asset index
+/// manifest hash, a manifest signed by the key the executable trusts, and packages that verify (signature, identity,
+/// every chunk), decrypt and contain no private keys, with a loadable runtime configuration and asset index
 /// and verified bytecode for every script. <see cref="RunAsync"/> additionally launches the game.
 /// </summary>
 public static class BuildValidator
@@ -47,8 +49,8 @@ public static class BuildValidator
 
     private static readonly string[] RuntimeFiles = ["System.Private.CoreLib.dll", "coreclr.dll", "hostpolicy.dll", "Microsoft.NETCore.App.deps.json"];
 
-    /// <param name="key">Content key; null to read it from the game's executable.</param>
-    public static IReadOnlyList<BuildDiagnostic> Validate(string gameDirectory, byte[]? key = null)
+    /// <param name="keys">Package encryption keys; null to read the key from the game's executable.</param>
+    public static IReadOnlyList<BuildDiagnostic> Validate(string gameDirectory, PackageKeyRing? keys = null)
     {
         var diagnostics = new List<BuildDiagnostic>();
         if (GamePackage.FindDataDirectory(gameDirectory) is not { } data)
@@ -72,7 +74,7 @@ public static class BuildValidator
         var framework = package.ScriptingBackend == "aot" ? ValidateNativeHost(gameDirectory, package, diagnostics) : ValidateRuntime(gameDirectory, package, diagnostics);
         ValidateDependencies(gameDirectory, package, framework, diagnostics);
         ValidateFiles(gameDirectory, package, diagnostics);
-        ValidateContent(gameDirectory, data, package, key, diagnostics);
+        ValidateContent(gameDirectory, data, package, keys, diagnostics);
         return diagnostics;
     }
 
@@ -323,72 +325,108 @@ public static class BuildValidator
             }
         }
 
-        var manifest = $"{GamePackage.DataFolder(package.ExecutableName)}/{GamePackage.ManifestFile}";
+        var data = GamePackage.DataFolder(package.ExecutableName);
+        string[] manifest = [$"{data}/{GamePackage.ManifestFile}", $"{data}/{GamePackage.SignatureFile}", .. package.PackageFiles.Select(p => $"{data}/{p}")]; // packages: checked by identity
         foreach (var file in Directory.EnumerateFiles(gameDirectory, "*", SearchOption.AllDirectories))
         {
             var relative = Path.GetRelativePath(gameDirectory, file).Replace('\\', '/');
-            if (!listed.Contains(relative) && !relative.Equals(manifest, StringComparison.OrdinalIgnoreCase) && !relative.StartsWith("Logs/", StringComparison.OrdinalIgnoreCase))
+            if (!listed.Contains(relative) && !manifest.Contains(relative, StringComparer.OrdinalIgnoreCase) && !relative.StartsWith("Logs/", StringComparison.OrdinalIgnoreCase))
             {
                 diagnostics.Add(BuildDiagnostic.Warning("MNVB509", "File is not part of the build.", relative));
             }
         }
     }
 
-    private static void ValidateContent(string gameDirectory, string data, GamePackage package, byte[]? key, List<BuildDiagnostic> diagnostics)
+    private static readonly byte[] PrivateKeyMarker = "PRIVATE KEY-----"u8.ToArray();
+
+    /// <param name="keys">Encryption keys; null reads the key embedded in the game's host assembly.</param>
+    private static void ValidateContent(string gameDirectory, string data, GamePackage package, PackageKeyRing? keys, List<BuildDiagnostic> diagnostics)
     {
         var dataFolder = GamePackage.DataFolder(package.ExecutableName);
-        var where = $"{dataFolder}/{string.Join(", ", package.ArchiveFiles)}";
-        if (key is null && package.ScriptingBackend == "aot")
+        var where = $"{dataFolder}/{string.Join(", ", package.PackageFiles)}";
+        var host = Path.Combine(gameDirectory, package.ExecutableName + ".dll");
+        PackageVerificationKey? signer = null;
+        try
+        {
+            if (package.ScriptingBackend != "aot")
+            {
+                signer = ContentKeys.ReadVerificationKeyFromHost(host);
+                if (signer is null)
+                {
+                    diagnostics.Add(BuildDiagnostic.Error("MNVB519", "The game executable carries no package verification key; it would refuse to start.", package.ExecutableName + ".dll"));
+                }
+
+                keys ??= ContentKeys.ReadFromHost(host) is { } embedded ? new PackageKeyRing(embedded) : new PackageKeyRing();
+            }
+        }
+        catch (Exception ex) when (ex is IOException or BadImageFormatException or FormatException or ArgumentException)
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB514", $"The game executable's keys cannot be read: {ex.Message}", package.ExecutableName + ".dll"));
+            return;
+        }
+
+        if (signer is not null && !GamePackage.VerifySignature(data, File.ReadAllBytes(Path.Combine(data, GamePackage.ManifestFile)), signer))
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB519", $"The build manifest's signature ({GamePackage.SignatureFile}) is missing or invalid; the game would refuse to start.", $"{dataFolder}/{GamePackage.ManifestFile}"));
+        }
+        else if (signer is null && package.ScriptingBackend == "aot")
+        {
+            // The public key is compiled into the native executable; packages are checked against whichever key signed them.
+            diagnostics.Add(new BuildDiagnostic(BuildSeverity.Info, "MNVB519","Signatures checked for consistency only: an ahead-of-time game's verification key is compiled into its executable; run the game (--run) for the full check.", where));
+        }
+
+        if (keys is null)
         {
             // The key is compiled into the native executable, where it cannot be read back; mnvt build passes it.
             diagnostics.Add(BuildDiagnostic.Warning("MNVB514", "Content not checked: an ahead-of-time game's key is compiled into its executable. Validate with the project's key, or run the game (--run).", where));
             return;
         }
 
-        ContentArchiveSet archive;
+        GameContent content;
         try
         {
-            key ??= ContentKeys.ReadFromHost(Path.Combine(gameDirectory, package.ExecutableName + ".dll"))
-                ?? throw new InvalidDataException("The game executable carries no content key.");
-            archive = package.OpenContent(data, key);
+            content = package.OpenContent(data, new PackageOpenOptions(keys, signer is null ? null : [signer], RequireSignature: signer is not null));
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or BadImageFormatException or FormatException or ArgumentException)
+        catch (IOException ex)
         {
             diagnostics.Add(BuildDiagnostic.Error("MNVB514", $"Game content cannot be opened: {ex.Message}", where));
             return;
         }
 
-        using (archive)
+        using (content)
         {
             var damaged = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entry in archive.Entries)
+            foreach (var entry in content.Entries)
             {
                 try
                 {
-                    archive.Read(entry);
+                    if (content.Read(entry).AsSpan().IndexOf(PrivateKeyMarker) >= 0)
+                    {
+                        diagnostics.Add(BuildDiagnostic.Error("MNVB518", "The game content contains a private key; signing and other private keys must never ship.", $"{content.PackageOf(entry)}: {entry}"));
+                    }
                 }
-                catch (InvalidDataException ex)
+                catch (IOException ex)
                 {
                     damaged.Add(entry);
-                    diagnostics.Add(BuildDiagnostic.Error("MNVB515", ex.Message, $"{dataFolder}/{archive.ArchiveOf(entry)}"));
+                    diagnostics.Add(BuildDiagnostic.Error("MNVB515", ex.Message, $"{dataFolder}/{content.PackageOf(entry)}"));
                 }
             }
 
-            ValidateLayout(package, archive, dataFolder, diagnostics);
+            ValidateLayout(package, content, dataFolder, diagnostics);
 
             try
             {
-                GameProject.LoadPackaged(archive, data);
+                GameProject.LoadPackaged(content);
             }
             catch (SerializationException ex)
             {
-                diagnostics.Add(BuildDiagnostic.Error("MNVB510", $"Packaged project does not load: {ex.Message}", where));
+                diagnostics.Add(BuildDiagnostic.Error("MNVB510", $"Runtime configuration does not load: {ex.Message}", where));
             }
 
             AssetDatabase assets;
             try
             {
-                assets = AssetDatabase.OpenPackaged(archive);
+                assets = AssetDatabase.OpenPackaged(content.Files);
             }
             catch (InvalidDataException ex)
             {
@@ -397,7 +435,7 @@ public static class BuildValidator
             }
 
             // Models ship as their imported artifact, not as the source file.
-            foreach (var record in assets.Assets.Where(r => !archive.Contains(r.Type == AssetTypes.Model
+            foreach (var record in assets.Assets.Where(r => !content.Contains(r.Type == AssetTypes.Model
                 ? AssetDatabase.ArtifactEntry(r.Guid, Assets.Models.ModelArtifact.Name)
                 : AssetDatabase.AssetsEntryFolder + r.Path)))
             {
@@ -416,7 +454,7 @@ public static class BuildValidator
                 }
             }
 
-            if (package.ScriptsAssembly is { } scripts && !archive.Contains(scripts))
+            if (package.ScriptsAssembly is { } scripts && !content.Contains(scripts))
             {
                 diagnostics.Add(BuildDiagnostic.Error("MNVB513", $"The game's C# assembly '{scripts}' is not in the content.", where));
             }
@@ -424,51 +462,51 @@ public static class BuildValidator
     }
 
     /// <summary>
-    /// Split content (MNVB516): every listed archive exists with the kind it claims; globals hold the project and index;
-    /// each level holds its scene; and the index's archive of every asset is where the asset really is.
+    /// Split content (MNVB516): every listed package exists with the kind it claims; globals hold the runtime
+    /// configuration and index; each level holds its scene; and the index's package of every asset is where the asset really is.
     /// </summary>
-    private static void ValidateLayout(GamePackage package, ContentArchiveSet archive, string dataFolder, List<BuildDiagnostic> diagnostics)
+    private static void ValidateLayout(GamePackage package, GameContent content, string dataFolder, List<BuildDiagnostic> diagnostics)
     {
-        if (package.Archives.Count == 0)
+        if (package.Packages.Count(a => a.Kind == ContentPackageKinds.Globals) != 1 || package.Packages[0].File != GamePackage.GlobalsPackage)
         {
-            return; // a single content.mnvtpak from before the split
+            diagnostics.Add(BuildDiagnostic.Error("MNVB516", $"The first package must be the only globals package, {GamePackage.GlobalsPackage}.", dataFolder));
         }
 
-        if (package.Archives.Count(a => a.Kind == ContentArchiveKinds.Globals) != 1 || package.Archives[0].File != GamePackage.GlobalsArchive)
+        foreach (var entry in new[] { AssetDatabase.IndexEntry, GameProject.RuntimeConfigEntry })
         {
-            diagnostics.Add(BuildDiagnostic.Error("MNVB516", $"The first archive must be the only globals archive, {GamePackage.GlobalsArchive}.", dataFolder));
-        }
-
-        foreach (var level in package.Archives.Where(a => a.Kind == ContentArchiveKinds.Level))
-        {
-            if (level.Scene is not { } scene || archive.ArchiveOf(AssetDatabase.AssetsEntryFolder + scene) != level.File)
+            if (content.PackageOf(entry) != GamePackage.GlobalsPackage)
             {
-                diagnostics.Add(BuildDiagnostic.Error("MNVB516", $"Level archive does not hold its scene '{level.Scene}'.", $"{dataFolder}/{level.File}"));
+                diagnostics.Add(BuildDiagnostic.Error("MNVB516", $"'{entry}' must be in {GamePackage.GlobalsPackage}.", dataFolder));
             }
-        }
-
-        if (archive.ArchiveOf(AssetDatabase.IndexEntry) != GamePackage.GlobalsArchive)
-        {
-            diagnostics.Add(BuildDiagnostic.Error("MNVB516", $"'{AssetDatabase.IndexEntry}' must be in {GamePackage.GlobalsArchive}.", dataFolder));
         }
 
         JObject index;
         try
         {
-            index = JObject.Parse(System.Text.Encoding.UTF8.GetString(archive.Read(AssetDatabase.IndexEntry)));
+            index = JObject.Parse(System.Text.Encoding.UTF8.GetString(content.Read(AssetDatabase.IndexEntry)));
         }
-        catch (Exception ex) when (ex is JsonException or IOException or InvalidDataException)
+        catch (Exception ex) when (ex is JsonException or IOException)
         {
             return; // reported by the asset index check
         }
 
-        foreach (var item in index["assets"]?.OfType<JObject>() ?? [])
+        var items = index["assets"]?.OfType<JObject>().ToList() ?? [];
+        foreach (var item in items)
         {
             var path = item.Value<string>("path");
-            var expected = item.Value<string>("archive");
-            if (path is not null && expected is not null && archive.ArchiveOf(AssetDatabase.AssetsEntryFolder + path) is { } actual && actual != expected)
+            var expected = item.Value<string>("package");
+            if (path is not null && expected is not null && content.PackageOf(AssetDatabase.AssetsEntryFolder + path) is { } actual && actual != expected)
             {
                 diagnostics.Add(BuildDiagnostic.Error("MNVB516", $"The asset index places this asset in {expected}, but it is in {actual}.", path));
+            }
+        }
+
+        // Each level holds exactly one scene (its own); scene names are only in the encrypted index, never in the manifest.
+        foreach (var level in package.Packages.Where(a => a.Kind == ContentPackageKinds.Level))
+        {
+            if (items.Count(i => i.Value<string>("type") == AssetTypes.Scene && i.Value<string>("package") == level.File) != 1)
+            {
+                diagnostics.Add(BuildDiagnostic.Error("MNVB516", "A level package must hold exactly one scene.", $"{dataFolder}/{level.File}"));
             }
         }
     }

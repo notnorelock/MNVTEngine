@@ -55,7 +55,7 @@ Other IL-to-C++ work exists, but none of it is a maintained, general .NET 11 opt
 | `World.PoolFor(Type)` (`MakeGenericType`) | Works for component types whose pools are compiled | Components are registered with `Register<T>()`, so their generic code is generated |
 | Game component discovery | Reflection scanning is not allowed | Generated `Register<T>()` list |
 | Hot reload, run-time loading of C# | Impossible | JIT builds and the editor only |
-| `.mnvts` mission scripts | Own bytecode VM, no IL | Unchanged: bytecode ships in the archives |
+| `.mnvts` mission scripts | Own bytecode VM, no IL | Unchanged: bytecode ships in the packages |
 | Crash reporting | No `createdump` (no runtime folder) | The in-process dump path still writes `crash.dmp`, as seen in the proof of concept |
 
 What still needs care is game code that reflects over types the build cannot see, such as types named only in strings. For those, put the type in a rooted assembly (the game's own assembly is rooted whole) or use JIT.

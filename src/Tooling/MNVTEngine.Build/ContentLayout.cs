@@ -5,7 +5,7 @@ using MNVTEngine.Serialization;
 namespace MNVTEngine.Build;
 
 /// <summary>
-/// Decides which content archive every asset goes to (Unity-style data layout):
+/// Decides which content package every asset goes to (Unity-style data layout):
 /// <list type="bullet">
 /// <item><c>levelN</c>: a scene and the assets only that scene uses. Level 0 is the startup scene; the other scenes
 /// follow in path order.</item>
@@ -14,16 +14,16 @@ namespace MNVTEngine.Build;
 /// from code, scenes loaded by name, unused files.</item>
 /// </list>
 /// A scene's dependencies are followed transitively but stop at other scenes: a scene that references the next level
-/// does not pull that level's assets into its own archive.
+/// does not pull that level's assets into its own package.
 /// </summary>
 public sealed class ContentLayout
 {
-    private readonly Dictionary<Guid, string> _archiveOf = [];
+    private readonly Dictionary<Guid, string> _packageOf = [];
 
-    private ContentLayout(IReadOnlyList<PackagedArchive> levels) => Levels = levels;
+    private ContentLayout(IReadOnlyList<ContentPackage> levels) => Levels = levels;
 
     /// <summary>One level per scene, in level order.</summary>
-    public IReadOnlyList<PackagedArchive> Levels { get; }
+    public IReadOnlyList<ContentPackage> Levels { get; }
 
     /// <param name="dependencies">Assets each asset references directly (from its importer).</param>
     /// <param name="include">The assets the game ships (see <see cref="UsageAnalyzer"/>); null for every asset.</param>
@@ -38,11 +38,11 @@ public sealed class ContentLayout
             .ThenBy(a => a.Path, StringComparer.Ordinal)
             .ToList();
 
-        var layout = new ContentLayout([.. scenes.Select((s, i) => new PackagedArchive(GamePackage.LevelArchive(i), ContentArchiveKinds.Level, s.Path))]);
+        var layout = new ContentLayout([.. scenes.Select((s, i) => new ContentPackage(GamePackage.LevelPackage(i), ContentPackageKinds.Level, s.Path))]);
         var users = new Dictionary<Guid, List<int>>();
         for (var level = 0; level < scenes.Count; level++)
         {
-            layout._archiveOf[scenes[level].Guid] = GamePackage.LevelArchive(level);
+            layout._packageOf[scenes[level].Guid] = GamePackage.LevelPackage(level);
             foreach (var guid in SceneDependencies(assets, scenes[level].Guid, dependencies))
             {
                 if (!users.TryGetValue(guid, out var list))
@@ -56,21 +56,21 @@ public sealed class ContentLayout
 
         foreach (var record in assets.Assets.Where(a => include(a.Guid)))
         {
-            if (layout._archiveOf.ContainsKey(record.Guid))
+            if (layout._packageOf.ContainsKey(record.Guid))
             {
                 continue; // a scene: always its own level
             }
 
-            layout._archiveOf[record.Guid] = users.TryGetValue(record.Guid, out var levels)
-                ? levels.Count == 1 ? GamePackage.LevelArchive(levels[0]) : GamePackage.SharedAssetsArchive
-                : GamePackage.ResourcesArchive;
+            layout._packageOf[record.Guid] = users.TryGetValue(record.Guid, out var levels)
+                ? levels.Count == 1 ? GamePackage.LevelPackage(levels[0]) : GamePackage.SharedAssetsPackage
+                : GamePackage.ResourcesPackage;
         }
 
         return layout;
     }
 
-    /// <summary>Archive file the asset is written to.</summary>
-    public string ArchiveOf(Guid guid) => _archiveOf.GetValueOrDefault(guid) ?? throw new KeyNotFoundException($"Asset {guid} is not shipped.");
+    /// <summary>Package file the asset is written to.</summary>
+    public string PackageOf(Guid guid) => _packageOf.GetValueOrDefault(guid) ?? throw new KeyNotFoundException($"Asset {guid} is not shipped.");
 
     /// <summary>Everything a scene references, transitively, without crossing into other scenes; excludes the scene itself.</summary>
     private static HashSet<Guid> SceneDependencies(AssetDatabase assets, Guid scene, IReadOnlyDictionary<Guid, IReadOnlyCollection<Guid>> dependencies)
@@ -91,83 +91,5 @@ public sealed class ContentLayout
         }
 
         return result;
-    }
-}
-
-/// <summary>
-/// Writes a game's content archives into one folder: opens each archive on first use, and always creates the globals,
-/// default resources and level archives (shared assets and resources only when they have content), so the archive list
-/// is stable for a given project.
-/// </summary>
-public sealed class ContentArchiveWriter : IDisposable
-{
-    private readonly string _directory;
-    private readonly byte[] _key;
-    private readonly Dictionary<string, (ContentArchive.Writer Writer, PackagedArchive Archive)> _open = new(StringComparer.Ordinal);
-    private readonly List<string> _order = [];
-
-    public ContentArchiveWriter(string directory, byte[] key)
-    {
-        _directory = directory;
-        _key = key;
-        Open(new PackagedArchive(GamePackage.GlobalsArchive, ContentArchiveKinds.Globals));
-        Open(new PackagedArchive(GamePackage.DefaultResourcesArchive, ContentArchiveKinds.DefaultResources));
-    }
-
-    /// <summary>
-    /// Archives in a fixed order (globals, default resources, levels, shared assets, resources) with their entry counts;
-    /// final after <see cref="Dispose"/>.
-    /// </summary>
-    public List<PackagedArchive> Archives => [.. _order
-        .Select(f => _open[f].Archive with { Entries = _open[f].Writer.Count })
-        .OrderBy(a => Array.IndexOf(KindOrder, a.Kind))];
-
-    private static readonly string[] KindOrder = [ContentArchiveKinds.Globals, ContentArchiveKinds.DefaultResources, ContentArchiveKinds.Level, ContentArchiveKinds.SharedAssets, ContentArchiveKinds.Resources];
-
-    /// <summary>Creates one archive per level (from <see cref="ContentLayout.Levels"/>), even for a scene with no own assets.</summary>
-    public void DeclareLevels(IEnumerable<PackagedArchive> levels)
-    {
-        ArgumentNullException.ThrowIfNull(levels);
-        foreach (var level in levels)
-        {
-            Open(level);
-        }
-    }
-
-    /// <summary>File paths of the archives written so far.</summary>
-    public IEnumerable<string> Files => _order.Select(f => Path.Combine(_directory, f));
-
-    public ContentArchive.Writer Globals => _open[GamePackage.GlobalsArchive].Writer;
-
-    public ContentArchive.Writer DefaultResources => _open[GamePackage.DefaultResourcesArchive].Writer;
-
-    /// <summary>The writer of an archive named by <see cref="ContentLayout.ArchiveOf"/>; shared assets and resources open on demand.</summary>
-    public ContentArchive.Writer For(string file)
-    {
-        if (_open.TryGetValue(file, out var open))
-        {
-            return open.Writer;
-        }
-
-        var kind = file == GamePackage.SharedAssetsArchive ? ContentArchiveKinds.SharedAssets
-            : file == GamePackage.ResourcesArchive ? ContentArchiveKinds.Resources
-            : throw new ArgumentException($"'{file}' is not an archive of this layout.", nameof(file));
-        return Open(new PackagedArchive(file, kind));
-    }
-
-    public void Dispose()
-    {
-        foreach (var file in _order)
-        {
-            _open[file].Writer.Dispose();
-        }
-    }
-
-    private ContentArchive.Writer Open(PackagedArchive archive)
-    {
-        var writer = new ContentArchive.Writer(Path.Combine(_directory, archive.File), _key);
-        _open.Add(archive.File, (writer, archive));
-        _order.Add(archive.File);
-        return writer;
     }
 }

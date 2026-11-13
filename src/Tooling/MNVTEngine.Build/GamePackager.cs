@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
-using MNVTEngine.Assets;
+using MNVTEngine.IO.Packages;
 using MNVTEngine.Runtime;
 
 namespace MNVTEngine.Build;
@@ -11,7 +11,7 @@ namespace MNVTEngine.Build;
 /// Assembles an exported game (layout: <see cref="GamePackage"/>). Publishes the engine's game host for the target with
 /// its private .NET runtime in <c>Dependencies/Runtime</c>, moves engine and package assemblies to
 /// <c>Dependencies/Managed</c> and native libraries to <c>Dependencies/Native</c>, adds the game's C# code to the
-/// encrypted content archive, and writes the manifest with a hash of every file.
+/// globals package, and writes the signed manifest with a hash of every file.
 /// </summary>
 public static class GamePackager
 {
@@ -28,10 +28,13 @@ public static class GamePackager
     /// <param name="workDirectory">Per-profile build cache (<c>Library/Build/&lt;profile&gt;</c>); holds the intermediate output of the engine build.</param>
     /// <param name="devTools">Compile the debug UI into the game host (MnvtDevTools).</param>
     /// <param name="bootstrap">The game's <see cref="ModuleBootstrap"/> props (MnvtBootstrap); null builds the host with every module.</param>
+    /// <param name="packageKey">The packages' encryption key as embedded (<see cref="EmbeddedPackageKey"/>); null for unencrypted packages.</param>
+    /// <param name="verificationKey">The public key the game verifies its packages and manifest with.</param>
     public static async Task<IReadOnlyList<BuildDiagnostic>> PublishHostAsync(
-        string engineRoot, BuildProfile profile, string executableName, byte[] contentKey, string workDirectory, string packageDirectory, bool devTools, string? bootstrap = null, CancellationToken cancellationToken = default)
+        string engineRoot, BuildProfile profile, string executableName, string? packageKey, PackageVerificationKey verificationKey, string workDirectory, string packageDirectory, bool devTools, string? bootstrap = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(verificationKey);
         var hostProject = EngineLocation.GameHostProject(engineRoot);
         if (!File.Exists(hostProject))
         {
@@ -49,7 +52,8 @@ public static class GamePackager
             "-p:GenerateFullPaths=true",
             $"-p:MnvtGameName={executableName}",
             $"-p:MnvtConsole={(profile.ShowsConsole ? "true" : "false")}",
-            $"-p:MnvtContentKey={Convert.ToHexString(contentKey)}",
+            $"-p:MnvtPackageKey={packageKey}",
+            $"-p:MnvtVerificationKey={Convert.ToHexString(Convert.FromBase64String(verificationKey.ToBase64()))}",
             $"-p:MnvtDevTools={(devTools ? "true" : "false")}",
             "-p:Deterministic=true",
             "-p:ContinuousIntegrationBuild=true",
@@ -320,11 +324,11 @@ public static class GamePackager
     }
 
     /// <summary>
-    /// Adds the game's compiled C# code to the content archive under <c>Scripts/</c>. Assemblies the host already ships
+    /// Adds the game's compiled C# code to the globals package under <c>Scripts/</c>. Assemblies the host already ships
     /// (engine, shared packages) are left out: the host's copies are always used at run time.
     /// </summary>
-    /// <returns>Archive entry of the main assembly.</returns>
-    public static string AddGameCode(ContentArchive.Writer archive, string scriptsOutput, string assemblyName, string packageDirectory, bool includeSymbols, List<BuildDiagnostic> diagnostics)
+    /// <returns>Package entry of the main assembly.</returns>
+    public static string AddGameCode(PackageWriter archive, string scriptsOutput, string assemblyName, string packageDirectory, bool includeSymbols, List<BuildDiagnostic> diagnostics)
     {
         ArgumentNullException.ThrowIfNull(archive);
         ArgumentNullException.ThrowIfNull(diagnostics);
@@ -350,16 +354,20 @@ public static class GamePackager
         return GamePackage.ScriptsEntryFolder + assemblyName + ".dll";
     }
 
-    /// <summary>Writes <c>&lt;Game&gt;_Data/package.json</c> listing every file of the game folder with its SHA-256.</summary>
-    public static GamePackage WriteManifest(string packageDirectory, GamePackage package)
+    /// <summary>Writes <c>&lt;Game&gt;_Data/package.json</c> listing every file of the game folder with its SHA-256, and its signature.</summary>
+    public static GamePackage WriteManifest(string packageDirectory, GamePackage package, PackageSigningKey signer)
     {
         ArgumentNullException.ThrowIfNull(package);
+        ArgumentNullException.ThrowIfNull(signer);
         var data = Path.Combine(packageDirectory, GamePackage.DataFolder(package.ExecutableName));
-        var manifest = Path.Combine(data, GamePackage.ManifestFile);
+        string[] excluded = [Path.GetFullPath(Path.Combine(data, GamePackage.ManifestFile)), Path.GetFullPath(Path.Combine(data, GamePackage.SignatureFile))];
+        // Packages are identified by their header hash in Packages (it covers everything but the signature, whose ECDSA
+        // bytes are randomized), so the manifest of identical inputs is identical.
         package.Files = [.. Directory.EnumerateFiles(packageDirectory, "*", SearchOption.AllDirectories)
-            .Where(f => !string.Equals(Path.GetFullPath(f), Path.GetFullPath(manifest), StringComparison.OrdinalIgnoreCase))
+            .Where(f => !excluded.Contains(Path.GetFullPath(f), StringComparer.OrdinalIgnoreCase) && !f.EndsWith(GamePackage.PackageExtension, StringComparison.OrdinalIgnoreCase))
             .Select(f => Describe(packageDirectory, f))];
-        package.Save(data);
+        package.SigningKeyId = signer.PublicKey.Id;
+        package.Save(data, signer);
         return package;
     }
 

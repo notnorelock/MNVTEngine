@@ -33,7 +33,7 @@ The engine is a set of **modules**. A project has a module or does not. Which on
 | `core` | 2D, 3D | always | | | Core, Mathematics, ECS, Serialization, Modules, Scenes, Input, Diagnostics, Newtonsoft.Json, Silk.NET.Core/Maths |
 | `platform` | 2D, 3D | always | core | | Platform, Silk.NET GLFW/windowing/input; `glfw3.dll` |
 | `graphics` | 2D, 3D | always | core | | Graphics, Graphics.Vulkan, Silk.NET Vulkan, Vortice VMA, Stb image/font; `vma.dll`; the sprite shader. Not the shader compiler: games run on precompiled SPIR-V |
-| `assets` | 2D, 3D | always | core, graphics | | Assets (database, archives, core importers) |
+| `assets` | 2D, 3D | always | core, graphics | | Assets, IO (database, virtual file system, packages, core importers) |
 | `runtime` | 2D, 3D | always | core, platform, graphics, assets | | Runtime, GameAssemblies, CrashReporting, logging |
 | `audio` | 2D, 3D | auto | core | | Audio, Audio.OpenAL, NVorbis; `soft_oal.dll` |
 | `scripting` | 2D, 3D | auto | core | | Scripting, Missions, Bindings |

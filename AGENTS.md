@@ -70,6 +70,7 @@ dotnet run --project samples/HelloWorld -- --frames 120 --screenshot shot.png --
 - GPU and native resources implement `IDisposable` and are disposed by their owner; `GraphicsResourceTracker` reports leaks.
 - No fake placeholders or stub implementations presented as working. Unsupported metrics report `Unsupported`/`Unavailable`, never 0.
 - Component state persists only through public fields or `[SerializeField]`; add a serializer round-trip test for new components.
+- Runtime code reads game content only through `AssetDatabase` / its virtual file system (`MNVTEngine.IO`), never with `File.*`: exported games have no asset files, only signed `.mnvtpack` packages. See [virtual file system](docs/architecture/virtual-filesystem.md).
 - Asset references are `"asset:<guid>"` with sidecar `.meta` files. When hand-writing metas, make sure GUIDs are unique: a duplicate is silently reassigned.
 - Gameplay code never sees backend types (Silk.NET, OpenAL, Box2D); use engine types such as `Key`.
 - Developer console commands are an explicit registry; never execute shell or system commands from it.

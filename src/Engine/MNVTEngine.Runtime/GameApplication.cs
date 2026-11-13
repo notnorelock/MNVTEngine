@@ -24,11 +24,11 @@ public static partial class GameApplication
     /// Without a path, the single .mnvtproj next to the executable is used.
     /// </summary>
     /// <param name="prepareComponents">Registers game components (e.g. loads compiled scripts); returning false aborts startup.</param>
-    /// <param name="archive">Content of an exported game; the project is read from it and a path argument is ignored.</param>
+    /// <param name="content">Content of an exported game; its runtime configuration is read from it and a path argument is ignored.</param>
     /// <param name="tools">Development builds: diagnostics and the debug UI.</param>
     /// <returns>Process exit code: 0 ok, 1 resource leaks, 2 project or startup scene could not be loaded, 3 game code failed to load, 4 graphics could not start (no Vulkan 1.4 GPU or driver).</returns>
     /// <param name="available">The engine modules built into this host (an export: the generated bootstrap; development hosts: every module). The project's resolved modules are taken from it.</param>
-    public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, IReadOnlyList<IEngineModule> available, Func<GameProject, ComponentRegistry, bool>? prepareComponents = null, ContentArchiveSet? archive = null, DevelopmentTools? tools = null, IReadOnlyList<IAssetImporter>? importers = null)
+    public static int Run(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, IReadOnlyList<IEngineModule> available, Func<GameProject, ComponentRegistry, bool>? prepareComponents = null, GameContent? content = null, DevelopmentTools? tools = null, IReadOnlyList<IAssetImporter>? importers = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(createDevice);
@@ -38,8 +38,8 @@ public static partial class GameApplication
         GameProject project;
         try
         {
-            project = archive is not null
-                ? GameProject.LoadPackaged(archive, archive.Directory)
+            project = content is not null
+                ? GameProject.LoadPackaged(content)
                 : GameProject.Load(args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal) && !IsOptionValue(args, a)) ?? AppContext.BaseDirectory);
         }
         catch (Exception ex) when (ex is SerializationException or FileNotFoundException)
@@ -69,7 +69,7 @@ public static partial class GameApplication
         ArgumentNullException.ThrowIfNull(available);
         var modules = ProjectModules.Resolve(project);
         var (implementations, missing) = ProjectModules.Implementations(modules, available);
-        IReadOnlyList<Modules.ModuleDiagnostic> problems = [.. archive is null ? ProjectModules.Validate(project).Diagnostics : modules.Diagnostics, .. missing];
+        IReadOnlyList<Modules.ModuleDiagnostic> problems = [.. content is null ? ProjectModules.Validate(project).Diagnostics : modules.Diagnostics, .. missing];
         foreach (var problem in problems.Where(d => d.Severity == Modules.ModuleSeverity.Error))
         {
             LogModuleProblem(logger, problem.Code, problem.Message);
@@ -94,7 +94,7 @@ public static partial class GameApplication
 
         try
         {
-            return RunGame(args, createDevice, loggerFactory, logger, project, registry, implementations, prepareComponents, archive, tools, importers);
+            return RunGame(args, createDevice, loggerFactory, logger, project, registry, implementations, prepareComponents, content, tools, importers);
         }
         finally
         {
@@ -110,7 +110,7 @@ public static partial class GameApplication
     }
 
     private static int RunGame(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, ILogger logger, GameProject project, ComponentRegistry registry, IReadOnlyList<IEngineModule> modules,
-        Func<GameProject, ComponentRegistry, bool>? prepareComponents, ContentArchiveSet? archive, DevelopmentTools? tools, IReadOnlyList<IAssetImporter>? importers)
+        Func<GameProject, ComponentRegistry, bool>? prepareComponents, GameContent? content, DevelopmentTools? tools, IReadOnlyList<IAssetImporter>? importers)
     {
         if (prepareComponents is not null && !prepareComponents(project, registry))
         {
@@ -131,7 +131,7 @@ public static partial class GameApplication
             MaxHeight = project.Window.MaxHeight,
             Position = project.Window.X is { } x && project.Window.Y is { } y ? (x, y) : null,
             TopMost = project.Window.TopMost,
-            Icon = WindowIcons(project, archive, logger),
+            Icon = WindowIcons(project, content, logger),
             FixedTimestep = project.FixedTimestep,
             GraphicsValidation = args.Contains("--gpu-validation"),
         });
@@ -141,7 +141,7 @@ public static partial class GameApplication
         Core.Diagnostics.Profiler.Current = profiler;
 
         // Diagnostics data lives next to the game (exports) or in the project's Library folder (Player).
-        var diagnosticsFolder = archive is not null ? Path.Combine(AppContext.BaseDirectory, "Logs") : Path.Combine(project.RootDirectory, "Library", "Diagnostics");
+        var diagnosticsFolder = content is not null ? Path.Combine(AppContext.BaseDirectory, "Logs") : Path.Combine(project.RootDirectory, "Library", "Diagnostics");
         RuntimeDiagnostics? diagnostics = null;
         IRuntimeOverlay? overlay = null;
         if (tools is not null && project.Diagnostics.Enabled && !args.Contains("--no-diagnostics"))
@@ -156,7 +156,7 @@ public static partial class GameApplication
         {
             ExitAfterFrames = Option(args, "--frames") is { } frames ? int.Parse(frames, CultureInfo.InvariantCulture) : null,
             ScreenshotPath = Option(args, "--screenshot"),
-            Archive = archive,
+            Content = content,
             Modules = modules,
             Importers = importers,
             Profiler = profiler,
@@ -196,7 +196,7 @@ public static partial class GameApplication
     }
 
     /// <summary>The project's window icon at the standard sizes; none (with a warning) when it cannot be read.</summary>
-    private static IReadOnlyList<WindowIcon> WindowIcons(GameProject project, ContentArchiveSet? archive, ILogger logger)
+    private static IReadOnlyList<WindowIcon> WindowIcons(GameProject project, GameContent? content, ILogger logger)
     {
         if (project.Window.Icon is not { Length: > 0 } icon)
         {
@@ -205,8 +205,8 @@ public static partial class GameApplication
 
         try
         {
-            var bytes = archive is not null
-                ? archive.Read(AssetDatabase.AssetsEntryFolder + AssetPaths.Canonical(icon))
+            var bytes = content is not null
+                ? content.Read(AssetDatabase.AssetsEntryFolder + AssetPaths.Canonical(icon))
                 : File.ReadAllBytes(project.ResolveAsset(icon));
             return RuntimeWindow.IconsFrom(Graphics.Image.Decode(bytes, icon));
         }

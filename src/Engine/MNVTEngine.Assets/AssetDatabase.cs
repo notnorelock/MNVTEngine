@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
+using MNVTEngine.IO;
 using MNVTEngine.Serialization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -12,7 +13,12 @@ namespace MNVTEngine.Assets;
 /// import settings; the GUID is the asset's identity, independent of its path. In editing mode the database creates
 /// missing metas, imports changed files (by size/time, then content hash, settings and importer version) and caches
 /// results in <c>Library/AssetDatabase.json</c>. Read-only mode never writes and only reads metas. Packaged mode
-/// (exported games) reads the index and the asset data from the game's encrypted archives (<see cref="ContentArchiveSet"/>).
+/// (exported games) reads the index and the asset data from the game's packages.
+/// <para>
+/// Asset data is always read through a virtual file system (<see cref="Content"/>): the game's mounted <c>.mnvtpack</c>
+/// packages in exported games; in development, the project's Assets folder mounted at <c>Assets/</c> and its imported
+/// artifacts at <c>Artifacts/</c>. Importing, metas and the cache are editing work and use the project folder directly.
+/// </para>
 /// <para>
 /// <see cref="Refresh(bool)"/> with <c>background</c> imports assets of slow importers (<see cref="IAssetImporter.ImportsInBackground"/>,
 /// models) on a worker thread: they show <see cref="AssetImportStatus.Importing"/> and keep their last good artifacts
@@ -24,10 +30,10 @@ public sealed class AssetDatabase : IAssetLookup
 {
     public const string MetaExtension = ".meta";
 
-    /// <summary>Archive entry with the asset index of an exported game.</summary>
+    /// <summary>Package entry with the asset index of an exported game.</summary>
     public const string IndexEntry = "assets.json";
 
-    /// <summary>Archive folder holding the assets of an exported game.</summary>
+    /// <summary>Virtual folder holding the assets (packages and development alike).</summary>
     public const string AssetsEntryFolder = "Assets/";
     private const int MetaSchemaVersion = 1;
     private const int CacheSchemaVersion = 1;
@@ -41,7 +47,8 @@ public sealed class AssetDatabase : IAssetLookup
     private Dictionary<Guid, JObject> _settings = [];
     private Dictionary<string, Guid> _byPath = new(AssetPaths.Comparer);
     private List<SerializationDiagnostic> _diagnostics = [];
-    private ContentArchiveSet? _archive;
+    private readonly IVirtualFileSystem _content;
+    private readonly bool _packaged;
 
     // Background imports: the latest scheduled import per asset; results of older ones are dropped.
     private readonly Lock _backgroundLock = new();
@@ -50,11 +57,15 @@ public sealed class AssetDatabase : IAssetLookup
     private Task _worker = Task.CompletedTask;
     private int _importVersion;
 
-    private AssetDatabase(string assetsDirectory, string? libraryDirectory, IEnumerable<IAssetImporter> importers)
+    /// <param name="artifactsLibrary">Library folder whose artifacts are read (read-only mode); editing mode reads its own.</param>
+    /// <param name="packaged">An exported game's content; null mounts the project folder.</param>
+    private AssetDatabase(string assetsDirectory, string? libraryDirectory, IEnumerable<IAssetImporter> importers, string? artifactsLibrary = null, IVirtualFileSystem? packaged = null)
     {
         _assetsDirectory = assetsDirectory.Length > 0 ? Path.GetFullPath(assetsDirectory) : "";
         _cachePath = libraryDirectory is null ? null : Path.Combine(libraryDirectory, "AssetDatabase.json");
         _libraryDirectory = libraryDirectory is null ? null : Path.GetFullPath(libraryDirectory);
+        _packaged = packaged is not null;
+        _content = packaged ?? DevelopmentContent(_assetsDirectory, _libraryDirectory ?? artifactsLibrary);
         foreach (var importer in importers)
         {
             foreach (var extension in importer.Extensions)
@@ -90,50 +101,57 @@ public sealed class AssetDatabase : IAssetLookup
     /// <param name="artifactsLibrary">A library folder whose artifacts (imported models) may be read; nothing is written.</param>
     public static AssetDatabase OpenReadOnly(string assetsDirectory, IEnumerable<IAssetImporter>? importers = null, string? artifactsLibrary = null)
     {
-        var database = new AssetDatabase(assetsDirectory, null, importers ?? AssetImporters.CreateDefault()) { _readOnlyLibrary = artifactsLibrary is null ? null : Path.GetFullPath(artifactsLibrary) };
+        var database = new AssetDatabase(assetsDirectory, null, importers ?? AssetImporters.CreateDefault(), artifactsLibrary);
         database.Refresh();
         return database;
     }
 
-    private string? _readOnlyLibrary;
+    /// <summary>The project's Assets folder at <c>Assets/</c> and its imported artifacts at <c>Artifacts/</c>.</summary>
+    private static VirtualFileSystem DevelopmentContent(string assetsDirectory, string? library)
+    {
+        var content = new VirtualFileSystem();
+        if (assetsDirectory.Length > 0)
+        {
+            content.Mount(new PhysicalFileSystemProvider(assetsDirectory, "Assets folder"), new MountOptions("Assets"));
+        }
 
-    /// <summary>Archive entry (and library-relative path) of an asset's artifact.</summary>
+        if (library is not null)
+        {
+            content.Mount(new PhysicalFileSystemProvider(Path.Combine(library, "Artifacts"), "Library artifacts"), new MountOptions("Artifacts"));
+        }
+
+        return content;
+    }
+
+    /// <summary>Where asset data is read from: the game's packages, or in development the project folder (see the type's remarks).</summary>
+    public IVirtualFileSystem Content => _content;
+
+    /// <summary>Package entry (and library-relative path) of an asset's artifact.</summary>
     public static string ArtifactEntry(Guid guid, string name) => $"Artifacts/{guid:D}/{name}";
 
     /// <summary>
-    /// An artifact the asset's importer produced (e.g. <c>model</c>): from the archive in exported games, from the library
+    /// An artifact the asset's importer produced (e.g. <c>model</c>): from the packages in exported games, from the library
     /// in development. Null when there is none (not imported yet, or the last import failed before ever succeeding).
     /// </summary>
+    /// <exception cref="IOException">The artifact cannot be read, or its package data is damaged.</exception>
     public byte[]? ReadArtifact(Guid guid, string name)
     {
-        if (_archive is not null)
-        {
-            var entry = ArtifactEntry(guid, name);
-            return _archive.Contains(entry) ? _archive.Read(entry) : null;
-        }
-
-        var library = _libraryDirectory ?? _readOnlyLibrary;
-        if (library is null)
-        {
-            return null;
-        }
-
-        var file = Path.Combine(library, ArtifactEntry(guid, name));
-        return File.Exists(file) ? File.ReadAllBytes(file) : null;
+        var entry = ArtifactEntry(guid, name);
+        return _content.FileExists(entry) ? ReadContent(entry) : null;
     }
 
-    /// <summary>Packaged mode: the asset index and data come from <paramref name="archive"/> (written by <c>mnvt build</c>).</summary>
+    /// <summary>Packaged mode: the asset index and data come from <paramref name="content"/>, the game's mounted packages (written by <c>mnvt build</c>).</summary>
     /// <exception cref="InvalidDataException">The index is missing, damaged or from a newer engine.</exception>
-    public static AssetDatabase OpenPackaged(ContentArchiveSet archive)
+    public static AssetDatabase OpenPackaged(IVirtualFileSystem content)
     {
-        ArgumentNullException.ThrowIfNull(archive);
-        var database = new AssetDatabase("", null, []) { _archive = archive };
+        ArgumentNullException.ThrowIfNull(content);
+        var database = new AssetDatabase("", null, [], packaged: content);
         JObject index;
         try
         {
-            index = JObject.Parse(System.Text.Encoding.UTF8.GetString(archive.Read(IndexEntry)));
+            index = JObject.Parse(System.Text.Encoding.UTF8.GetString(database.ReadContent(IndexEntry)));
         }
-        catch (Exception ex) when (ex is JsonException or FileNotFoundException)
+        catch (Exception ex) when (ex is JsonException or IOException)
         {
             throw new InvalidDataException($"The game's asset index is unreadable: {ex.Message}", ex);
         }
@@ -163,9 +181,9 @@ public sealed class AssetDatabase : IAssetLookup
     }
 
     /// <summary>The index an exported game opens with <see cref="OpenPackaged"/>: GUID, path, type and settings of every asset.</summary>
-    /// <param name="archiveOf">Archive file each asset is written to (informational: reads are routed by entry); null to omit.</param>
+    /// <param name="packageOf">Package file each asset is written to (informational: reads are routed by path); null to omit.</param>
     /// <param name="include">The assets the game ships (a build strips unused ones); null for every asset.</param>
-    public JObject ExportIndex(Func<Guid, string?>? archiveOf = null, Func<Guid, bool>? include = null) => new()
+    public JObject ExportIndex(Func<Guid, string?>? packageOf = null, Func<Guid, bool>? include = null) => new()
     {
         ["schemaVersion"] = MetaSchemaVersion,
         ["assets"] = new JArray(_records.Values.Where(r => include?.Invoke(r.Guid) ?? true).OrderBy(r => r.Path, StringComparer.Ordinal).Select(r => new JObject
@@ -175,41 +193,60 @@ public sealed class AssetDatabase : IAssetLookup
             ["type"] = r.Type,
             ["importer"] = r.Importer,
             ["settings"] = GetSettings(r.Guid),
-            ["archive"] = archiveOf?.Invoke(r.Guid),
+            ["package"] = packageOf?.Invoke(r.Guid),
         })),
     };
 
-    /// <summary>True for exported games, whose assets live in content archives.</summary>
-    public bool IsPackaged => _archive is not null;
+    /// <summary>True for exported games, whose assets live in packages.</summary>
+    public bool IsPackaged => _packaged;
 
     /// <exception cref="KeyNotFoundException">Unknown asset.</exception>
-    /// <exception cref="IOException">The file or archive entry cannot be read.</exception>
-    /// <exception cref="InvalidDataException">The archive entry was modified or is damaged.</exception>
+    /// <exception cref="IOException">The file cannot be read, or its package data is damaged, tampered with or undecryptable.</exception>
     public byte[] ReadAllBytes(Guid guid) => TryGetPath(guid, out var path)
         ? ReadAllBytes(path)
         : throw new KeyNotFoundException($"Asset {guid} is not in the database.");
 
     /// <summary>Reads a file by its path relative to Assets (also files without a GUID, in development).</summary>
     /// <exception cref="ArgumentException">The path is absolute or escapes the Assets folder.</exception>
-    /// <exception cref="IOException">The file or archive entry cannot be read.</exception>
-    /// <exception cref="InvalidDataException">The archive entry was modified or is damaged.</exception>
-    public byte[] ReadAllBytes(string relativePath)
-    {
-        if (_archive is null)
-        {
-            return File.ReadAllBytes(AssetPaths.Resolve(_assetsDirectory, relativePath));
-        }
+    /// <exception cref="IOException">The file cannot be read, or its package data is damaged, tampered with or undecryptable.</exception>
+    public byte[] ReadAllBytes(string relativePath) => ReadContent(AssetsEntryFolder + AssetPaths.Canonical(relativePath));
 
-        return _archive.Read(AssetsEntryFolder + AssetPaths.Canonical(relativePath));
+    /// <summary>A stream over an asset, for large or streamed assets (audio, big models): only what is read is decoded.</summary>
+    /// <exception cref="KeyNotFoundException">Unknown asset.</exception>
+    /// <exception cref="IOException">The file cannot be read.</exception>
+    public Stream OpenRead(Guid guid) => TryGetPath(guid, out var path)
+        ? _content.OpenRead(AssetsEntryFolder + AssetPaths.Canonical(path))
+        : throw new KeyNotFoundException($"Asset {guid} is not in the database.");
+
+    /// <summary>Reads an asset without blocking the caller: I/O is asynchronous, verification and decoding run on the thread pool.</summary>
+    /// <exception cref="KeyNotFoundException">Unknown asset.</exception>
+    /// <exception cref="IOException">The file cannot be read, or its package data is damaged.</exception>
+    public async Task<byte[]> ReadAllBytesAsync(Guid guid, CancellationToken cancellationToken = default)
+    {
+        var stream = OpenRead(guid);
+        await using (stream.ConfigureAwait(false))
+        {
+            var data = new byte[stream.Length];
+            await stream.ReadExactlyAsync(data, cancellationToken).ConfigureAwait(false);
+            return data;
+        }
     }
 
-    /// <summary>Archive entry with the build-time compiled form of an asset (e.g. script bytecode).</summary>
+    /// <summary>Package entry with the build-time compiled form of an asset (e.g. script bytecode).</summary>
     public static string CompiledEntry(Guid guid) => $"Bytecode/{guid:D}.mnvtb";
 
     /// <summary>The asset's build-time compiled form in exported games; null in development (compile the source).</summary>
     /// <exception cref="FileNotFoundException">Packaged game without a compiled form of this asset.</exception>
-    /// <exception cref="InvalidDataException">The archive entry was modified or is damaged.</exception>
-    public byte[]? ReadCompiled(Guid guid) => _archive?.Read(CompiledEntry(guid));
+    /// <exception cref="IOException">The package data was modified or is damaged.</exception>
+    public byte[]? ReadCompiled(Guid guid) => _packaged ? ReadContent(CompiledEntry(guid)) : null;
+
+    private byte[] ReadContent(string path)
+    {
+        using var stream = _content.OpenRead(path);
+        var data = new byte[stream.Length];
+        stream.ReadExactly(data);
+        return data;
+    }
 
     public bool TryGetGuid(string relativePath, out Guid guid)
     {
@@ -217,7 +254,7 @@ public sealed class AssetDatabase : IAssetLookup
         try
         {
             // Packaged games have no Assets folder on disk: their paths are only canonicalized.
-            return _byPath.TryGetValue(_archive is null ? AssetPaths.Normalize(_assetsDirectory, relativePath) : AssetPaths.Canonical(relativePath), out guid);
+            return _byPath.TryGetValue(_packaged ? AssetPaths.Canonical(relativePath) : AssetPaths.Normalize(_assetsDirectory, relativePath), out guid);
         }
         catch (ArgumentException)
         {
@@ -236,7 +273,7 @@ public sealed class AssetDatabase : IAssetLookup
     public AssetRecord? Get(Guid guid) => _records.GetValueOrDefault(guid);
 
     /// <exception cref="InvalidOperationException">Packaged games have no asset files; use <see cref="ReadAllBytes(Guid)"/>.</exception>
-    public string FullPath(Guid guid) => _archive is not null
+    public string FullPath(Guid guid) => _packaged
         ? throw new InvalidOperationException("Exported games have no asset files; read assets with ReadAllBytes.")
         : TryGetPath(guid, out var path)
         ? AssetPaths.Resolve(_assetsDirectory, path)
@@ -287,7 +324,7 @@ public sealed class AssetDatabase : IAssetLookup
     /// <param name="background">Import assets of slow importers on a worker thread; apply them with <see cref="CompleteBackgroundImports"/>.</param>
     public AssetRefreshResult Refresh(bool background = false)
     {
-        if (_archive is not null)
+        if (_packaged)
         {
             return new AssetRefreshResult([], [], [], []); // packaged content never changes
         }
@@ -795,7 +832,7 @@ public sealed class AssetDatabase : IAssetLookup
         }
 
         var (record, artifacts) = RunImporter(guid, relative, importer, data, settings, settingsHash, sourceHash, info, file, resolve,
-            other => _records.TryGetValue(other, out var r) && _archive is null ? Path.Combine(_assetsDirectory, r.Path.Replace('/', Path.DirectorySeparatorChar)) : null);
+            other => _records.TryGetValue(other, out var r) && !_packaged ? Path.Combine(_assetsDirectory, r.Path.Replace('/', Path.DirectorySeparatorChar)) : null);
         if (record.Status == AssetImportStatus.Imported && !IsReadOnly)
         {
             WriteArtifacts(guid, artifacts);

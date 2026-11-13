@@ -116,23 +116,26 @@ public sealed class BuildPipelineTests : IDisposable
     }
 
     [Fact]
-    public void ContentCompiler_WritesIndexAssetsBytecodeAndAProjectWithoutDevelopmentSettings_IntoTheArchives()
+    public void ContentCompiler_WritesIndexAssetsBytecodeAndARuntimeConfigWithoutDevelopmentSettings_IntoThePackages()
     {
         var project = NewProject();
         File.WriteAllText(Path.Combine(project.AssetsDirectory, "Hello.mnvts"), "on start { log(\"hi\") }");
         File.WriteAllText(Path.Combine(project.AssetsDirectory, "Hello.mnvts.meta"), """{ "schemaVersion": 1, "guid": "33333333-3333-4333-8333-333333333333", "settings": {}, "alwaysInclude": true }""");
-        var (result, archives, key) = CompileInto(project);
+        var (result, archives, open) = CompileInto(project);
 
         Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
-        using var archive = Assets.ContentArchiveSet.Open(_root, archives.Select(a => a.File), key);
+        using var archive = GameContent.Open(_root, archives.Select(a => a.File), open);
         Assert.DoesNotContain(archive.Entries, e => e.EndsWith(".meta", StringComparison.Ordinal)); // GUIDs travel in the index
-        var assets = Assets.AssetDatabase.OpenPackaged(archive);
+        var assets = Assets.AssetDatabase.OpenPackaged(archive.Files);
         Assert.Equal("Scenes/Main.mnvt", assets.Get(Guid.Parse("7e000000-0000-4000-8000-000000000001"))!.Path);
         var compiled = Scripting.Bytecode.BytecodeSerializer.Read(assets.ReadCompiled(Guid.Parse("33333333-3333-4333-8333-333333333333"))!);
         Assert.Equal("Hello.mnvts", compiled.SourceName); // runtime errors point at the asset path
         Assert.Contains("log", compiled.NativeNames);
-        Assert.DoesNotContain("buildProfiles", System.Text.Encoding.UTF8.GetString(archive.Read("Game.mnvtproj")), StringComparison.Ordinal);
-        Assert.Equal("Game", GameProject.LoadPackaged(archive, _root).Name);
+        var config = System.Text.Encoding.UTF8.GetString(archive.Read(GameProject.RuntimeConfigEntry));
+        Assert.DoesNotContain("buildProfiles", config, StringComparison.Ordinal);
+        Assert.Contains(GameProject.RuntimeConfigKind, config, StringComparison.Ordinal); // marked: never mistaken for a project
+        Assert.DoesNotContain(archive.Entries, e => e.EndsWith(GameProject.Extension, StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("Game", GameProject.LoadPackaged(archive).Name);
     }
 
     [Fact]
@@ -155,7 +158,11 @@ public sealed class BuildPipelineTests : IDisposable
     public void GamePackage_RefusesScriptsOutsideThePackage_AndNewerSchemas()
     {
         Directory.CreateDirectory(Path.Combine(_root, "C"));
-        File.WriteAllText(Path.Combine(_root, "C", GamePackage.ManifestFile), """{ "schemaVersion": 1, "scriptsAssembly": "../../evil.dll" }""");
+        File.WriteAllText(Path.Combine(_root, "C", GamePackage.ManifestFile), """{ "schemaVersion": 2, "scriptsAssembly": "../../evil.dll" }""");
+        Assert.Throws<SerializationException>(() => GamePackage.Load(Path.Combine(_root, "C")));
+        File.WriteAllText(Path.Combine(_root, "C", GamePackage.ManifestFile), """{ "schemaVersion": 2, "packages": [ { "file": "../x.mnvtpack", "kind": "globals" } ] }""");
+        Assert.Throws<SerializationException>(() => GamePackage.Load(Path.Combine(_root, "C")));
+        File.WriteAllText(Path.Combine(_root, "C", GamePackage.ManifestFile), """{ "schemaVersion": 1 }"""); // a build from before packages
         Assert.Throws<SerializationException>(() => GamePackage.Load(Path.Combine(_root, "C")));
         File.WriteAllText(Path.Combine(_root, "C", GamePackage.ManifestFile), """{ "schemaVersion": 99 }""");
         Assert.Throws<SerializationException>(() => GamePackage.Load(Path.Combine(_root, "C")));
@@ -229,32 +236,32 @@ public sealed class BuildPipelineTests : IDisposable
             $"\"gameObjects\": [ {{ \"id\": \"c0000000-0000-4000-8000-000000000001\", \"name\": \"Prop\", \"parent\": null, \"components\": [ {{ \"type\": \"MNVTEngine.SpriteRenderer\", \"id\": \"b0000000-0000-0000-0000-0000000000fe\", \"enabled\": true, \"data\": {{ \"texture\": \"asset:{OnlySecond}\" }} }} ] }},",
             StringComparison.Ordinal)), "a1000000-0000-4000-8000-000000000006", alwaysInclude: true);
 
-        var (result, archives, key) = CompileInto(project);
+        var (result, archives, open) = CompileInto(project);
         Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
         Assert.Equal(
-            [("globals.mnvtpak", "globals", null), ("defaultresources.mnvtpak", "defaultResources", null), ("level0.mnvtpak", "level", "Scenes/Main.mnvt"),
-             ("level1.mnvtpak", "level", "Scenes/Second.mnvt"), ("sharedassets.mnvtpak", "sharedAssets", null), ("resources.mnvtpak", "resources", null)],
+            [("globals.mnvtpack", "globals", null), ("defaultresources.mnvtpack", "defaultResources", null), ("level0.mnvtpack", "level", "Scenes/Main.mnvt"),
+             ("level1.mnvtpack", "level", "Scenes/Second.mnvt"), ("sharedassets.mnvtpack", "sharedAssets", null), ("resources.mnvtpack", "resources", null)],
             archives.Select(a => (a.File, a.Kind, a.Scene)));
 
-        using var content = Assets.ContentArchiveSet.Open(_root, archives.Select(a => a.File), key);
-        Assert.Equal("level0.mnvtpak", content.ArchiveOf("Assets/Materials/Tint.mnvtmat"));   // only Main uses the material
-        Assert.Equal("level0.mnvtpak", content.ArchiveOf("Assets/Shaders/Tint.frag"));        // ...and, through it, the shader
-        Assert.Equal("level1.mnvtpak", content.ArchiveOf("Assets/Textures/second.png"));
-        Assert.Equal("sharedassets.mnvtpak", content.ArchiveOf("Assets/Textures/shared.png"));
-        Assert.Equal("resources.mnvtpak", content.ArchiveOf("Assets/Missions/Unused.mnvts"));
-        Assert.Equal("resources.mnvtpak", content.ArchiveOf(Assets.AssetDatabase.CompiledEntry(Guid.Parse("a1000000-0000-4000-8000-000000000005")))); // bytecode follows its script
-        Assert.Equal("globals.mnvtpak", content.ArchiveOf("Game.mnvtproj"));
+        using var content = GameContent.Open(_root, archives.Select(a => a.File), open);
+        Assert.Equal("level0.mnvtpack", content.PackageOf("Assets/Materials/Tint.mnvtmat"));   // only Main uses the material
+        Assert.Equal("level0.mnvtpack", content.PackageOf("Assets/Shaders/Tint.frag"));        // ...and, through it, the shader
+        Assert.Equal("level1.mnvtpack", content.PackageOf("Assets/Textures/second.png"));
+        Assert.Equal("sharedassets.mnvtpack", content.PackageOf("Assets/Textures/shared.png"));
+        Assert.Equal("resources.mnvtpack", content.PackageOf("Assets/Missions/Unused.mnvts"));
+        Assert.Equal("resources.mnvtpack", content.PackageOf(Assets.AssetDatabase.CompiledEntry(Guid.Parse("a1000000-0000-4000-8000-000000000005")))); // bytecode follows its script
+        Assert.Equal("globals.mnvtpack", content.PackageOf(GameProject.RuntimeConfigEntry));
 
         // A 2D project: sprite vertex + fragment and the custom fragment. world.3d's mesh, shadow and sky shaders are not
         // part of its modules, so they are neither compiled nor shipped.
         Assert.Equal(3, result.Shaders);
-        Assert.Equal(3, content.Archives[1].Entries.Count(e => e.StartsWith("Shaders/", StringComparison.Ordinal)));
+        Assert.Equal(3, content.Packages[1].Entries.Count(e => e.Path.StartsWith("Shaders/", StringComparison.Ordinal)));
         Assert.Equal(archives.Sum(a => a.Entries), content.Entries.Count());
 
         var index = Newtonsoft.Json.Linq.JObject.Parse(System.Text.Encoding.UTF8.GetString(content.Read(Assets.AssetDatabase.IndexEntry)));
-        Assert.Equal("level1.mnvtpak", index["assets"]!.Single(a => (string?)a["guid"] == OnlySecond)["archive"]!.ToString());
+        Assert.Equal("level1.mnvtpack", index["assets"]!.Single(a => (string?)a["guid"] == OnlySecond)["package"]!.ToString());
 
-        // Stripping: the unreferenced texture is reported and neither in an archive nor in the index.
+        // Stripping: the unreferenced texture is reported and neither in a package nor in the index.
         Assert.DoesNotContain(content.Entries, e => e.EndsWith("stray.png", StringComparison.Ordinal));
         Assert.DoesNotContain(index["assets"]!, a => (string?)a["path"] == "Textures/stray.png");
         Assert.Equal("Textures/stray.png", Assert.Single(result.Usage!.Stripped).Path);
@@ -287,11 +294,11 @@ public sealed class BuildPipelineTests : IDisposable
         Assert.Single(ContentCompiler.Compile(project, Registry, output: null).Diagnostics, d => d.Code == "MNVB222");
 
         Assert.False(ContentCompiler.ImportModels(project).HasErrors());
-        var (result, archives, key) = CompileInto(project);
+        var (result, archives, open) = CompileInto(project);
         Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
-        using var archive = Assets.ContentArchiveSet.Open(_root, archives.Select(a => a.File), key);
+        using var archive = GameContent.Open(_root, archives.Select(a => a.File), open);
         Assert.DoesNotContain(archive.Entries, e => e.EndsWith("Box.glb", StringComparison.Ordinal)); // the source file is not shipped
-        var model = Assets.AssetDatabase.OpenPackaged(archive).ReadArtifact(guid, Assets.Models.ModelArtifact.Name);
+        var model = Assets.AssetDatabase.OpenPackaged(archive.Files).ReadArtifact(guid, Assets.Models.ModelArtifact.Name);
         Assert.NotNull(model);
         Assert.NotEmpty(Assets.Models.ModelArtifact.Read(model).Meshes);
     }
@@ -324,15 +331,15 @@ public sealed class BuildPipelineTests : IDisposable
         File.Copy(Path.Combine(assets, "Scenes", "Main.mnvt"), Path.Combine(assets, "Scenes", "Unloaded.mnvt"));
         File.WriteAllText(Path.Combine(assets, "Scenes", "Unloaded.mnvt.meta"), """{ "schemaVersion": 1, "guid": "a3000000-0000-4000-8000-000000000003", "settings": {} }""");
 
-        var (result, archives, key) = CompileInto(project);
+        var (result, archives, open) = CompileInto(project);
         Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
         Assert.Equal("named in Intro.mnvts", result.Usage!.Included.Single(a => a.Path == "Scenes/Level2.mnvt").Reason);
         Assert.Contains(result.Usage.Stripped, a => a.Path == "Scenes/Unloaded.mnvt");
         Assert.Contains(result.Diagnostics, d => d.Code == "MNVB223" && d.Message.Contains("Scenes/Unloaded.mnvt", StringComparison.Ordinal)); // reported, not silently dropped
         Assert.Contains("used: Script asset Intro.mnvts", result.Modules!.Reasons["scripting"], StringComparison.Ordinal);
 
-        using var archive = Assets.ContentArchiveSet.Open(_root, archives.Select(a => a.File), key);
-        var packaged = GameProject.LoadPackaged(archive, _root);
+        using var archive = GameContent.Open(_root, archives.Select(a => a.File), open);
+        var packaged = GameProject.LoadPackaged(archive);
         Assert.True(packaged.Modules["scripting"]);
         Assert.False(packaged.Modules["audio"]); // nothing plays sound
         Assert.Equal(result.Modules.Modules.Select(m => m.Id), Runtime.ProjectModules.Resolve(packaged).Modules.Select(m => m.Id)); // the game starts what was built
@@ -349,23 +356,25 @@ public sealed class BuildPipelineTests : IDisposable
         project = GameProject.Load(project.ProjectFile);
         Assert.True(project.NeedsProfileMigration);
 
-        var (_, archives, key) = CompileInto(project);
-        using var archive = Assets.ContentArchiveSet.Open(_root, archives.Select(a => a.File), key);
-        var packaged = GameProject.LoadPackaged(archive, _root);
+        var (_, archives, open) = CompileInto(project);
+        using var archive = GameContent.Open(_root, archives.Select(a => a.File), open);
+        var packaged = GameProject.LoadPackaged(archive);
         Assert.Equal(Modules.ProjectProfile.ThreeD, packaged.Profile);
         Assert.Equal(GameProject.CurrentSchemaVersion, packaged.SchemaVersion);
     }
 
-    private (ContentResult Result, List<PackagedArchive> Archives, byte[] Key) CompileInto(GameProject project)
+    private (ContentResult Result, IReadOnlyList<ContentPackage> Archives, IO.Packages.PackageOpenOptions Open) CompileInto(GameProject project)
     {
-        var key = Assets.ContentArchive.CreateKey();
-        var writer = new ContentArchiveWriter(_root, key);
+        var key = IO.Packages.PackageEncryptionKey.Create();
+        using var signer = IO.Packages.PackageSigningKey.Create();
         ContentResult result;
-        using (writer)
+        IReadOnlyList<ContentPackage> packages;
+        using (var writer = new ContentPackageWriter(_root, new ContentPackageOptions(Guid.NewGuid(), key, signer)))
         {
             result = ContentCompiler.Compile(project, Registry, writer);
+            packages = writer.Complete();
         }
 
-        return (result, writer.Archives, key);
+        return (result, packages, new IO.Packages.PackageOpenOptions(new IO.Packages.PackageKeyRing(key), [signer.PublicKey], RequireSignature: true));
     }
 }

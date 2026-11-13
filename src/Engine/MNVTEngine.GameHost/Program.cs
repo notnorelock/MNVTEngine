@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using MNVTEngine.Assets;
 using MNVTEngine.Core.Logging;
 using MNVTEngine.GameAssemblies;
+using MNVTEngine.IO.Packages;
 using MNVTEngine.Graphics.Vulkan;
 using MNVTEngine.Runtime;
 using MNVTEngine.Scenes;
@@ -11,7 +12,7 @@ using MNVTEngine.Serialization;
 
 namespace MNVTEngine.GameHost;
 
-// Exported game: runs the content archives listed in <Game>_Data/package.json next to the executable.
+// Exported game: runs the content packages listed in <Game>_Data/package.json next to the executable.
 // Usage: <Game>.exe [--frames N] [--screenshot out.png] [--gpu-validation] [--no-crash-reporter]
 internal static class Program
 {
@@ -77,44 +78,47 @@ internal static class Game
         }
 
         GamePackage package;
-        ContentArchiveSet archive;
+        GameContent content;
         try
         {
-            package = GamePackage.Load(data);
-            archive = package.OpenContent(data, ContentKey(host));
+            // The manifest must carry a valid signature by the key compiled into this executable, and every package
+            // must be signed by it and be exactly the one the manifest lists.
+            var signer = Metadata(host, GamePackage.VerificationKeyMetadata) is { } spki ? PackageVerificationKey.FromSubjectPublicKeyInfo(Convert.FromHexString(spki))
+                : throw new InvalidDataException("The executable has no package verification key; rebuild the game with mnvt build.");
+            var key = Metadata(host, GamePackage.PackageKeyMetadata) is { } embedded ? EmbeddedPackageKey.Decode(embedded)
+                : throw new InvalidDataException("The executable has no package key; rebuild the game with mnvt build.");
+            package = GamePackage.Load(data, signer);
+            content = package.OpenContent(data, new PackageOpenOptions(new PackageKeyRing(key), [signer], RequireSignature: true));
         }
-        catch (Exception ex) when (ex is SerializationException or IOException or InvalidDataException or FormatException)
+        catch (Exception ex) when (ex is SerializationException or IOException or InvalidDataException or FormatException or ArgumentException)
         {
             HostLog.BadPackage(logger, ex);
             return 2;
         }
 
-        using (archive)
+        using (content)
         {
             HostLog.Starting(logger, package.Name, package.Profile, package.EngineVersion);
             return GameApplication.Run(
                 args,
-                (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication(package.Name, window.Options.VSync, window.Options.GraphicsValidation) with { PrecompiledShaders = archive.TryRead }),
+                (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication(package.Name, window.Options.VSync, window.Options.GraphicsValidation) with { PrecompiledShaders = content.TryRead }),
                 loggerFactory,
                 HostModules.Create(loggerFactory.CreateLogger("Audio")),
-                (_, registry) => LoadScripts(package, archive, registry, logger),
-                archive,
+                (_, registry) => LoadScripts(package, content, registry, logger),
+                content,
                 tools);
         }
     }
 
-    /// <exception cref="InvalidDataException">The executable carries no content key.</exception>
-    private static byte[] ContentKey(Assembly host) =>
-        host.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == GamePackage.ContentKeyMetadata)?.Value is { Length: > 0 } hex
-            ? Convert.FromHexString(hex)
-            : throw new InvalidDataException("The executable has no content key; rebuild the game with mnvt build.");
+    private static string? Metadata(Assembly host, string key) =>
+        host.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == key)?.Value is { Length: > 0 } value ? value : null;
 
-    private static bool LoadScripts(GamePackage package, ContentArchiveSet archive, ComponentRegistry registry, ILogger logger)
+    private static bool LoadScripts(GamePackage package, GameContent content, ComponentRegistry registry, ILogger logger)
     {
 #if MNVT_AOT
         // Ahead-of-time build: the game's C# is compiled into this executable; its components are registered from the
         // list the build generated (GameComponents.g.cs), with no assembly loading and no type scanning.
-        _ = (package, archive, logger);
+        _ = (package, content, logger);
         GameComponents.Register(registry);
         return true;
 #else
@@ -123,8 +127,9 @@ internal static class Game
             return true;
         }
 
+        // Code comes only from trusted mounts: the official packages (untrusted mounts never serve Scripts/).
         var folder = scripts[..(scripts.LastIndexOf('/') + 1)];
-        var load = new GameAssemblyHost().Load(scripts[folder.Length..], file => archive.TryRead(folder + file));
+        var load = new GameAssemblyHost().Load(scripts[folder.Length..], file => content.TryRead(folder + file));
         var diagnostics = load.Diagnostics.Concat(GameAssemblyHost.Register(registry, null, load.Code)).ToList();
         foreach (var diagnostic in diagnostics)
         {

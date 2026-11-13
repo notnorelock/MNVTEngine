@@ -102,7 +102,7 @@ scripts\mnvt.cmd build C:\Games\MyGame --configuration release --run
 C:\Games\MyGame\Builds\release\MyGame.exe
 ```
 
-The output folder contains `MyGame.exe`, the dependency folders (`Dependencies/Managed`, `Dependencies/Native`, `Dependencies/Runtime`) and the encrypted content archives in `MyGame_Data/` (`globals`, `defaultresources`, one `levelN` per scene, and `sharedassets`/`resources` when needed). It needs no .NET installation and no editor, and the build validates it before replacing the previous one. See [building](build-system/building.md).
+The output folder contains `MyGame.exe`, the dependency folders (`Dependencies/Managed`, `Dependencies/Native`, `Dependencies/Runtime`) and the signed, encrypted content packages (`.mnvtpack`) in `MyGame_Data/` (`globals`, `defaultresources`, one `levelN` per scene, and `sharedassets`/`resources` when needed). It needs no .NET installation and no editor, and the build validates it before replacing the previous one. A build cannot be opened as a project. See [building](build-system/building.md) and [packages](architecture/virtual-filesystem.md).
 
 ## Samples
 

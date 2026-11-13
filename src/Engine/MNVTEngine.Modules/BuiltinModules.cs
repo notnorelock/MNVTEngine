@@ -43,11 +43,11 @@ public static class BuiltinModules
         BuildAssets = ["shader:sprite"],
     };
 
-    public static ModuleDefinition Assets { get; } = new("assets", "Assets", "Asset database, content archives and importers.")
+    public static ModuleDefinition Assets { get; } = new("assets", "Assets", "Asset database, virtual file system, .mnvtpack packages and importers.")
     {
         Activation = ModuleActivation.Always,
         Requires = ["core", "graphics"],
-        RuntimeAssemblies = ["MNVTEngine.Assets"],
+        RuntimeAssemblies = ["MNVTEngine.Assets", "MNVTEngine.IO", "ZstdSharp", "K4os.Compression.LZ4"],
     };
 
     public static ModuleDefinition Runtime { get; } = new("runtime", "Runtime", "Game host: project loading, the frame loop, rendering of scenes, crash reporting and game code loading.")

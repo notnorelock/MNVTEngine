@@ -48,7 +48,7 @@ public sealed class HeroAnimation : Component
 
 `Play(clip, restart: true)` restarts a clip. `Pause`, `Resume` and `Stop` (which shows the first frame) control playback.
 
-Clips are read through the scene's text asset reader, so exported games load them from the encrypted content archive. Each animator parses a clip only once. A missing or invalid clip logs one error and leaves the sprite unchanged.
+Clips are read through the scene's text asset reader, so exported games load them from the content packages. Each animator parses a clip only once. A missing or invalid clip logs one error and leaves the sprite unchanged.
 
 ## Limitations
 

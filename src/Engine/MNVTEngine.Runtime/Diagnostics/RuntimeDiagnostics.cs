@@ -67,7 +67,8 @@ public sealed partial class RuntimeDiagnostics
             .Add(new MemoryProvider(this))
             .Add(new RendererProvider(this))
             .Add(new SceneProvider(this))
-            .Add(new AssetProvider(this));
+            .Add(new AssetProvider(this))
+            .Add(new ContentProvider(this));
         foreach (var name in settings.DisabledProviders)
         {
             Collector.SetEnabled(name, false);
@@ -535,6 +536,48 @@ public sealed partial class RuntimeDiagnostics
 
             metrics.Set(DiagnosticMetrics.AssetsLoaded, _counts.Loaded);
             metrics.Set(DiagnosticMetrics.AssetsFailed, _counts.Failed);
+        }
+    }
+
+    /// <summary>The content file system: mounted packages and folders, reads, and the cost of verifying and decoding packages.</summary>
+    private sealed class ContentProvider(RuntimeDiagnostics owner) : IMetricsProvider
+    {
+        private IO.IoStatisticsSnapshot _previous;
+        private IReadOnlyList<IO.MountInfo> _mounts = [];
+        private int _frame;
+
+        public string Name => "Content";
+
+        public void Collect(MetricsSnapshot metrics)
+        {
+            if (owner._target?.Assets?.Content is not IO.VirtualFileSystem content)
+            {
+                return;
+            }
+
+            if (_frame++ % 30 == 0)
+            {
+                _mounts = content.Mounts;
+            }
+
+            var now = content.Statistics.Snapshot();
+            var packages = _mounts.Where(m => m.Kind == "package").ToList();
+            metrics.Set(DiagnosticMetrics.ContentMounts, _mounts.Count);
+            metrics.Set(DiagnosticMetrics.ContentPackages, packages.Count);
+            metrics.Set(DiagnosticMetrics.ContentPackageBytes, packages.Sum(m => m.Bytes ?? 0));
+            metrics.Set(DiagnosticMetrics.ContentFiles, _mounts.All(m => m.FileCount is not null) ? MetricValue.Measured(_mounts.Sum(m => m.FileCount ?? 0)) : MetricValue.Unsupported);
+            metrics.Set(DiagnosticMetrics.ContentActiveStreams, now.ActiveStreams);
+            metrics.Set(DiagnosticMetrics.ContentPendingReads, now.PendingReads);
+            metrics.Set(DiagnosticMetrics.ContentBytesRead, now.BytesRead - _previous.BytesRead);
+            metrics.Set(DiagnosticMetrics.ContentChunksDecoded, now.ChunksDecoded - _previous.ChunksDecoded);
+            metrics.Set(DiagnosticMetrics.ContentChunkCacheHits, now.ChunkCacheHits);
+            metrics.Set(DiagnosticMetrics.ContentVerifyTime, (now.VerifyTime - _previous.VerifyTime).TotalMilliseconds);
+            metrics.Set(DiagnosticMetrics.ContentDecryptTime, (now.DecryptTime - _previous.DecryptTime).TotalMilliseconds);
+            metrics.Set(DiagnosticMetrics.ContentDecompressTime, (now.DecompressTime - _previous.DecompressTime).TotalMilliseconds);
+            metrics.Set(DiagnosticMetrics.ContentPackageOpenTime, now.PackageOpenTime.TotalMilliseconds);
+            metrics.Set(DiagnosticMetrics.ContentFailedReads, now.FailedReads);
+            metrics.Set(DiagnosticMetrics.ContentCorruptedChunks, now.CorruptedChunks);
+            _previous = now;
         }
     }
 

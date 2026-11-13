@@ -121,7 +121,9 @@ per-browser secret only the injected bridge knows; the host and the game both ch
 Always refused: popups and new windows (reported as `Blocked("popup", url)`; navigate yourself if wanted), downloads,
 permission prompts (camera, microphone, location, notifications), `file://`, `javascript:` and other application
 protocols, `alert`/`confirm`/`prompt` dialogs (suppressed, logged as console warnings). `mnvt://game/` paths never
-leave `Assets/Web`: `..`, encoded dots or separators, backslashes and drive letters are rejected. Give remote content
+leave `Assets/Web`: `..`, encoded dots or separators, backslashes and drive letters are rejected. The game reads those
+files through its [virtual file system](../architecture/virtual-filesystem.md#cef) (the content packages in exported
+games) and hands the bytes to the browser host; CEF never gets a file path or file-system access. Give remote content
 the `RemoteWeb` or `Restricted` profile and no capabilities unless you control the site.
 
 ## Audio

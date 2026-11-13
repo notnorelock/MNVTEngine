@@ -115,7 +115,7 @@ UI's **Mixer** panel (changes there last for the run). Meters are live in Play m
 - **Clips.** Each clip is decoded to 16-bit PCM and uploaded once per scene on first use, then cached. A missing or undecodable clip logs one error and never plays; it never throws into game code.
 - **Unload.** `Scene.Unloaded` releases every voice and buffer of the scene.
 - **The device** belongs to the host and is disposed at exit. If voices or buffers are still alive then, a warning is logged.
-- **Packaged games.** Exported games read clips from the encrypted content archive. Build validation requires `soft_oal.dll` in `Dependencies/Native`.
+- **Packaged games.** Exported games read clips from the content packages (through the virtual file system; clips are read whole, not streamed). Build validation requires `soft_oal.dll` in `Dependencies/Native`.
 
 ## Decoding
 

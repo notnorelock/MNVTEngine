@@ -72,7 +72,9 @@ Corner, opacity, scale, theme (`dark`, `light`, `classic`) and title are set in 
 
 **Custom windows:** subclass `MNVTEngine.DebugUI.Panels.DebugPanel` and call `overlay.AddPanel(...)`.
 
-**Turning windows off:** `diagnostics.disabledPanels` removes windows a project does not want, and `diagnostics.disabledProviders` switches off metric providers (`Time`, `Memory`, `Renderer`, `Runtime`, `Assets`).
+**Turning windows off:** `diagnostics.disabledPanels` removes windows a project does not want, and `diagnostics.disabledProviders` switches off metric providers (`Time`, `Memory`, `Renderer`, `Runtime`, `Assets`, `Content`).
+
+**Content metrics** (`content.*`, provider `Content`): mounted sources and packages, package content size, files (unsupported while a folder is mounted), open streams, pending asynchronous reads, bytes read and chunks decoded per frame, chunk cache hits, verification, decryption and decompression time per frame (all threads), total package opening time, failed reads and corrupted chunks. See [virtual file system](../architecture/virtual-filesystem.md#10-diagnostics).
 
 **Window layout** is kept between runs:
 
