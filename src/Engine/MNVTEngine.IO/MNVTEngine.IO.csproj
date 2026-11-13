@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Virtual file system and the .mnvtpack package format (docs/architecture/virtual-filesystem.md). Foundation library:
+    no engine references. Compression codecs are pure managed (AOT-compatible); cryptography is the BCL's.
+  -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ZstdSharp.Port" />
+    <PackageReference Include="K4os.Compression.LZ4" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.IO.Tests" />
+  </ItemGroup>
+</Project>

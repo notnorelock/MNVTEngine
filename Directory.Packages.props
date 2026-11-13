@@ -29,6 +29,10 @@
     <PackageVersion Include="Silk.NET.Windowing.Glfw" Version="2.23.0" />
     <PackageVersion Include="StbImageSharp" Version="2.30.16" />
     <PackageVersion Include="StbTrueTypeSharp" Version="1.26.13" />
+    <!-- .mnvtpack compression (pure managed, MIT): Zstandard for the Balanced/Small profiles, LZ4 for Fast. Chosen by
+         measurement, see docs/architecture/virtual-filesystem.md. -->
+    <PackageVersion Include="ZstdSharp.Port" Version="0.8.6" />
+    <PackageVersion Include="K4os.Compression.LZ4" Version="1.3.8" />
     <!-- Samples and tests -->
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.14" />
     <PackageVersion Include="StbImageWriteSharp" Version="1.16.7" />
