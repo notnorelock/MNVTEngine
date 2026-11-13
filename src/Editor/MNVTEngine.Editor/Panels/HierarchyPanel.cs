@@ -72,9 +72,34 @@ internal sealed class HierarchyPanel(EditorContext context)
             else
             {
                 ImGui.Indent(Gutter);
-                foreach (var root in scene.RootObjects.ToArray())
+                var roots = scene.RootObjects.ToArray();
+                foreach (var root in roots.Where(r => !r.PersistsAcrossLoads))
                 {
                     DrawNode(root, flat: false);
+                }
+
+                // Objects kept with DontDestroyOnLoad (managers, music) under their own header, as Unity shows them:
+                // they belong to no scene file and survive the next scene load.
+                if (roots.Where(r => r.PersistsAcrossLoads).ToArray() is { Length: > 0 } persistent)
+                {
+                    ImGui.Unindent(Gutter);
+                    ImGui.Spacing();
+                    using (Gui.StyleColor(ImGuiCol.Text, new SysVector4(0.85f, 0.86f, 0.9f, 1f)))
+                    {
+                        ImGui.TextUnformatted($"{Icons.Boxes}  DontDestroyOnLoad");
+                    }
+
+                    if (ImGui.IsItemHovered())
+                    {
+                        Gui.Tooltip("Objects kept with DontDestroyOnLoad: they move into every scene the game loads next.");
+                    }
+
+                    ImGui.Separator();
+                    ImGui.Indent(Gutter);
+                    foreach (var root in persistent)
+                    {
+                        DrawNode(root, flat: false);
+                    }
                 }
 
                 ImGui.Unindent(Gutter);
