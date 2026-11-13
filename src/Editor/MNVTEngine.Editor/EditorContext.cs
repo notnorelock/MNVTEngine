@@ -40,6 +40,25 @@ internal sealed class EditorContext
 
     public required ILogger Logger { get; init; }
 
+    /// <summary>The user's editor preferences (Edit > Preferences), shared by every project.</summary>
+    public EditorPreferences Preferences { get; } = EditorPreferences.Load(EditorPreferences.DefaultFile);
+
+    /// <summary>A file to open in the Script Editor whatever the preferences say (the Project panel's context menu).</summary>
+    public string? OpenScriptInternallyRequest { get; set; }
+
+    /// <summary>The last problem opening a file externally, shown by the Script Editor and the Project panel.</summary>
+    public string? ExternalEditorError { get; set; }
+
+    /// <summary>Opens a file in the external editor chosen in the preferences, at a line (1-based).</summary>
+    public void OpenExternally(string file, int line = 1, int column = 1)
+    {
+        ExternalEditorError = ExternalEditor.Open(Preferences, file, line, column, Session.Project.RootDirectory);
+        if (ExternalEditorError is { } error)
+        {
+            EditorLog.ExternalEditorFailed(Logger, file, error);
+        }
+    }
+
     /// <summary>The scene panels show and edit: the Play Mode copy while playing.</summary>
     public Scene ActiveScene => PlayMode.ActiveScene;
 

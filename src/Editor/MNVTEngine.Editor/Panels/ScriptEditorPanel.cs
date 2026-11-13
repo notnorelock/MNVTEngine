@@ -22,6 +22,7 @@ internal sealed unsafe class ScriptEditorPanel(EditorContext context, ScriptRelo
 
     private readonly List<ScriptDocument> _documents = [];
     private readonly ImGuiInputTextCallback _callback = OnTextCallback;
+    private readonly CodeView _code = new();
     private ScriptDocument? _active;
     private ScriptDocument? _selectTab;
     private IReadOnlyList<Diagnostic> _diagnostics = [];
@@ -163,16 +164,10 @@ internal sealed unsafe class ScriptEditorPanel(EditorContext context, ScriptRelo
         }
 
         ImGui.SameLine();
-        if (Gui.IconButton(Icons.ExternalLink, "Open in the external editor") && _active is not null)
+        if (Gui.IconButton(Icons.ExternalLink, "Open in the external editor (Edit > Preferences)") && _active is not null)
         {
-            try
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_active.FullPath) { UseShellExecute = true })?.Dispose();
-            }
-            catch (System.ComponentModel.Win32Exception ex)
-            {
-                _error = ex.Message;
-            }
+            context.OpenExternally(_active.FullPath, _cursorLine, _cursorColumn);
+            _error = context.ExternalEditorError;
         }
 
         ImGui.SameLine();
@@ -227,8 +222,7 @@ internal sealed unsafe class ScriptEditorPanel(EditorContext context, ScriptRelo
         var listHeight = diagnostics.Count == 0 ? 0f : Math.Min(6, diagnostics.Count) * ImGui.GetTextLineHeightWithSpacing() + 8f;
         var size = ImGui.GetContentRegionAvail() - new SysVector2(0, ImGui.GetFrameHeightWithSpacing() + listHeight);
         var text = document.Text;
-        var capacity = (uint)(Encoding.UTF8.GetByteCount(text) + (64 * 1024));
-        if (ImGui.InputTextMultiline("##text", ref text, capacity, size, ImGuiInputTextFlags.AllowTabInput | ImGuiInputTextFlags.CallbackAlways, _callback))
+        if (_code.Edit(document.FullPath, ref text, size, _callback, (_cursorLine, _cursorColumn), ImGui.GetTime()))
         {
             document.Text = text.ReplaceLineEndings("\n");
             _textChangedAt = DateTime.UtcNow;

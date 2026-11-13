@@ -23,6 +23,7 @@ internal sealed class ScriptView
     private string? _path;
     private DateTime _writeTime;
     private string[] _lines = [];
+    private HighlightedText? _highlighted;
     private Dictionary<int, List<Diagnostic>> _diagnostics = [];
     private List<(string Mission, List<string> Objectives)> _outline = [];
 
@@ -92,13 +93,12 @@ internal sealed class ScriptView
                         Gui.Tooltip(string.Join("\n", problems.Select(p => $"{p.Code}: {p.Message}")));
                     }
                 }
-                else if (_lines[i].TrimStart().StartsWith("//", StringComparison.Ordinal))
-                {
-                    Gui.Muted(text);
-                }
                 else
                 {
-                    ImGui.TextUnformatted(text);
+                    Gui.Muted($"{line,4}  ");
+                    ImGui.SameLine(0f, 0f);
+                    _highlighted ??= SyntaxHighlighter.Highlight(string.Join('\n', _lines), ScriptLanguage.Mnvts);
+                    CodeView.Line(_highlighted, i);
                 }
             }
         }
@@ -118,6 +118,7 @@ internal sealed class ScriptView
         _writeTime = writeTime;
         var source = File.ReadAllText(fullPath);
         _lines = source.ReplaceLineEndings("\n").Split('\n');
+        _highlighted = null;
         var result = ScriptCompiler.Compile(source, Path.GetFileName(fullPath), new CompileOptions { Api = StandardApi.All, AllowUnknownFunctions = true });
         _diagnostics = result.Diagnostics.GroupBy(d => d.Location.Line).ToDictionary(g => g.Key, g => g.ToList());
         _outline = result.Script is { } script

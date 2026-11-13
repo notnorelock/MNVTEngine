@@ -25,6 +25,10 @@ internal sealed class ProjectPanel(EditorContext context)
     private Guid? _deleteTarget;
     private bool _openRename;
     private bool _openDelete;
+    private bool _inScripts;
+    private string _scriptsDirectory = "";
+    private string[] _scriptFolders = [];
+    private string[] _scriptFiles = [];
 
     private AssetDatabase Assets => context.Session.Assets;
 
@@ -42,10 +46,25 @@ internal sealed class ProjectPanel(EditorContext context)
                 ImGui.TableNextColumn();
                 ImGui.BeginChild("##folders");
                 DrawFolderTree(Assets.AssetsDirectory, "");
+                if (ScriptsRoot is { } scripts)
+                {
+                    DrawScriptsTree(scripts, "");
+                }
+
                 ImGui.EndChild();
 
                 ImGui.TableNextColumn();
                 ImGui.BeginChild("##files");
+                if (_inScripts && ScriptsRoot is not null)
+                {
+                    DrawScriptEntries();
+                    ImGui.EndChild();
+                    ImGui.EndTable();
+                    DrawPopups();
+                    ImGui.End();
+                    return;
+                }
+
                 DrawEntries();
                 DrawBackgroundDropZone();
                 if (ImGui.BeginPopupContextWindow("##create", ImGuiPopupFlags.MouseButtonRight | ImGuiPopupFlags.NoOpenOverItems))
@@ -90,6 +109,30 @@ internal sealed class ProjectPanel(EditorContext context)
 
     private void DrawBreadcrumb()
     {
+        if (_inScripts)
+        {
+            if (ImGui.SmallButton($"{Icons.FileCode}  Scripts"))
+            {
+                NavigateScripts("");
+            }
+
+            var folders = _scriptsDirectory.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            for (var i = 0; i < folders.Length; i++)
+            {
+                ImGui.SameLine();
+                ImGui.TextUnformatted("/");
+                ImGui.SameLine();
+                if (ImGui.SmallButton(folders[i]))
+                {
+                    NavigateScripts(string.Join('/', folders[..(i + 1)]));
+                }
+            }
+
+            ImGui.SameLine();
+            Gui.Muted($"   C# scripts project: {ScriptsRoot}");
+            return;
+        }
+
         if (ImGui.SmallButton($"{Icons.Folder}  Assets"))
         {
             Navigate("");
@@ -143,6 +186,11 @@ internal sealed class ProjectPanel(EditorContext context)
         if (relative == _directory)
         {
             flags |= ImGuiTreeNodeFlags.Selected;
+        }
+
+        if (_inScripts)
+        {
+            flags &= ~ImGuiTreeNodeFlags.Selected;
         }
 
         var name = relative.Length == 0 ? "Assets" : Path.GetFileName(fullPath);
@@ -246,6 +294,12 @@ internal sealed class ProjectPanel(EditorContext context)
 
             if (record is not null && ImGui.BeginPopupContextItem())
             {
+                if (record.Type is AssetTypes.Script or AssetTypes.Text or AssetTypes.Json or AssetTypes.Shader or AssetTypes.Web)
+                {
+                    ScriptMenuItems(Assets.FullPath(guid));
+                    ImGui.Separator();
+                }
+
                 if (ImGui.MenuItem("Rename..."))
                 {
                     _renameTarget = guid;
@@ -506,7 +560,149 @@ internal sealed class ProjectPanel(EditorContext context)
     private void Navigate(string relative)
     {
         _directory = relative;
+        _inScripts = false;
         Rescan(force: true);
+    }
+
+    /// <summary>The C# scripts project's folder (outside Assets): the folder of <c>scripts.project</c>, or <c>Scripts</c>; null when there is none.</summary>
+    private string? ScriptsRoot
+    {
+        get
+        {
+            var project = context.Session.Project;
+            var folder = project.Scripts?.Project is { Length: > 0 } relative
+                ? Path.GetDirectoryName(project.ResolveProjectFile(relative))
+                : Path.Combine(project.RootDirectory, "Scripts");
+            return folder is not null && Directory.Exists(folder) ? folder : null;
+        }
+    }
+
+    private static bool IsBuildOutput(string folder) => Path.GetFileName(folder) is "bin" or "obj" or ".vs" or ".vscode";
+
+    private void DrawScriptsTree(string fullPath, string relative)
+    {
+        var children = Directory.GetDirectories(fullPath).Where(d => !IsBuildOutput(d)).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanAvailWidth | (children.Length == 0 ? ImGuiTreeNodeFlags.Leaf : ImGuiTreeNodeFlags.DefaultOpen);
+        if (_inScripts && relative == _scriptsDirectory)
+        {
+            flags |= ImGuiTreeNodeFlags.Selected;
+        }
+
+        var name = relative.Length == 0 ? "Scripts" : Path.GetFileName(fullPath);
+        var icon = relative.Length == 0 ? Icons.FileCode : _inScripts && relative == _scriptsDirectory ? Icons.FolderOpen : Icons.Folder;
+        var open = ImGui.TreeNodeEx($"{icon}  {name}###scripts/{relative}", flags);
+        if (ImGui.IsItemClicked() && !ImGui.IsItemToggledOpen())
+        {
+            NavigateScripts(relative);
+        }
+
+        if (relative.Length == 0 && ImGui.IsItemHovered())
+        {
+            Gui.Tooltip("The game's C# code (the scripts project), outside Assets");
+        }
+
+        if (open)
+        {
+            foreach (var child in children)
+            {
+                DrawScriptsTree(child, relative.Length == 0 ? Path.GetFileName(child) : $"{relative}/{Path.GetFileName(child)}");
+            }
+
+            ImGui.TreePop();
+        }
+    }
+
+    private void NavigateScripts(string relative)
+    {
+        (_inScripts, _scriptsDirectory) = (true, relative);
+        _lastScan = DateTime.MinValue;
+    }
+
+    private void DrawScriptEntries()
+    {
+        var root = ScriptsRoot!;
+        var full = _scriptsDirectory.Length == 0 ? root : Path.Combine(root, _scriptsDirectory);
+        if (!Directory.Exists(full))
+        {
+            (_scriptsDirectory, full) = ("", root);
+        }
+
+        if (DateTime.UtcNow - _lastScan > RescanInterval)
+        {
+            _lastScan = DateTime.UtcNow;
+            _scriptFolders = [.. Directory.GetDirectories(full).Where(d => !IsBuildOutput(d)).Select(Path.GetFileName).Order(StringComparer.OrdinalIgnoreCase)!];
+            _scriptFiles = [.. Directory.GetFiles(full).Select(Path.GetFileName).Order(StringComparer.OrdinalIgnoreCase)!];
+        }
+
+        foreach (var folder in _scriptFolders)
+        {
+            if (ImGui.Selectable($"{Icons.Folder}  {folder}", false, ImGuiSelectableFlags.AllowDoubleClick) && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+            {
+                NavigateScripts(_scriptsDirectory.Length == 0 ? folder : $"{_scriptsDirectory}/{folder}");
+            }
+        }
+
+        foreach (var file in _scriptFiles)
+        {
+            var path = Path.Combine(full, file);
+            ImGui.PushID(path);
+            Gui.Muted(Path.GetExtension(file).ToLowerInvariant() switch
+            {
+                ".cs" => Icons.FileCode,
+                ".csproj" or ".sln" or ".slnx" => Icons.FileCog,
+                ".json" => Icons.FileJson,
+                _ => Icons.File,
+            });
+            ImGui.SameLine();
+            if (ImGui.Selectable(file, false, ImGuiSelectableFlags.AllowDoubleClick) && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+            {
+                context.OpenScriptRequest = path; // the Script Editor, or the external editor (Edit > Preferences)
+            }
+
+            if (ImGui.BeginPopupContextItem())
+            {
+                ScriptMenuItems(path);
+                ImGui.EndPopup();
+            }
+
+            ImGui.PopID();
+        }
+
+        if (_scriptFolders.Length == 0 && _scriptFiles.Length == 0)
+        {
+            Gui.Muted("Empty folder. Create a C# component from the Script Editor.");
+        }
+
+        if (context.ExternalEditorError is { } error)
+        {
+            Gui.TextColored(new SysVector4(1f, 0.45f, 0.45f, 1f), error);
+        }
+    }
+
+    /// <summary>Open in the Script Editor, in the external editor, or show the file in Explorer.</summary>
+    private void ScriptMenuItems(string path)
+    {
+        if (ImGui.MenuItem($"{Icons.FileCode}  Open in Script Editor"))
+        {
+            context.OpenScriptInternallyRequest = path;
+        }
+
+        if (ImGui.MenuItem($"{Icons.ExternalLink}  Open in External Editor"))
+        {
+            context.OpenExternally(path);
+        }
+
+        if (ImGui.MenuItem($"{Icons.FolderOpen}  Show in Explorer"))
+        {
+            try
+            {
+                System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{path}\"")?.Dispose();
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                context.ExternalEditorError = ex.Message;
+            }
+        }
     }
 
     private void Rescan(bool force)

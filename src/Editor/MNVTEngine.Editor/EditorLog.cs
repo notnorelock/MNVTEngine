@@ -28,4 +28,7 @@ internal static partial class EditorLog
 
     [LoggerMessage(EventId = 5203, Message = "Asset {Path}: {Message}")]
     public static partial void AssetDiagnostic(ILogger logger, LogLevel level, string path, string message);
+
+    [LoggerMessage(EventId = 5208, Level = LogLevel.Warning, Message = "Could not open {File} in the external editor: {Error}")]
+    public static partial void ExternalEditorFailed(ILogger logger, string file, string error);
 }

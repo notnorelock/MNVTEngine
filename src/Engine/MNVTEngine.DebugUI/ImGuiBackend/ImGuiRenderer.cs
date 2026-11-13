@@ -26,7 +26,8 @@ public sealed unsafe class ImGuiRenderer : IDisposable
     /// An icon font merged into the text font (its glyphs in <paramref name="iconFont"/>.First to Last, e.g. a private use
     /// area), so labels can mix text and icons. The TrueType data is copied: the caller keeps its array.
     /// </param>
-    public ImGuiRenderer(IGraphicsDevice device, Material material, string? fontPath, float fontSize, float fontScale = 1f, (byte[] Ttf, char First, char Last)? iconFont = null)
+    /// <param name="codeFontPath">A monospaced font for code (<see cref="CodeFont"/>); without it code uses the text font.</param>
+    public ImGuiRenderer(IGraphicsDevice device, Material material, string? fontPath, float fontSize, float fontScale = 1f, (byte[] Ttf, char First, char Last)? iconFont = null, string? codeFontPath = null)
     {
         _device = device;
         _material = material;
@@ -68,6 +69,11 @@ public sealed unsafe class ImGuiRenderer : IDisposable
             Marshal.Copy(icons.Ttf, 0, data, icons.Ttf.Length);
             io.Fonts.AddFontFromMemoryTTF(data, icons.Ttf.Length, fontSize * fontScale * 0.95f, config, (nint)ranges);
             ImGuiNative.ImFontConfig_destroy(config);
+        }
+
+        if (codeFontPath is not null && File.Exists(codeFontPath))
+        {
+            CodeFont = io.Fonts.AddFontFromFileTTF(codeFontPath, (fontSize - 1f) * fontScale); // after the icons: they merge into the text font only
         }
 
         io.Fonts.GetTexDataAsRGBA32(out byte* pixels, out var width, out var height, out _);
@@ -186,6 +192,9 @@ public sealed unsafe class ImGuiRenderer : IDisposable
         ImGui.DestroyContext(Context);
     }
 
+    /// <summary>The monospaced code font, when one was given; push it with <c>ImGui.PushFont</c>.</summary>
+    public ImFontPtr? CodeFont { get; }
+
     private void EnsureCapacity(int vertexCount, int indexCount)
     {
         if (vertexCount > _vertices.Capacity)
@@ -201,3 +210,4 @@ public sealed unsafe class ImGuiRenderer : IDisposable
         }
     }
 }
+

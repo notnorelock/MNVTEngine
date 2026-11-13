@@ -46,6 +46,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private ConsolePanel _console = null!;
     private ProfilerPanel _profilerPanel = null!;
     private MixerPanel _mixerPanel = null!;
+    private PreferencesWindow _preferences = null!;
     private ScriptDebuggerPanel _scriptDebugger = null!;
     private BuildController _build = null!;
     private ScriptEditorPanel _scriptEditor = null!;
@@ -95,7 +96,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             Renderer = renderer,
             Resources = resources,
             SceneRenderer = new SceneRenderer(renderer, resources, _logger, ModuleIntegration.CreatePasses(modules, renderer, resources, loggerFactory)),
-            ImGui = new ImGuiRenderer(device, renderer.DefaultMaterial, font, 17f, iconFont: Icons.Font),
+            ImGui = new ImGuiRenderer(device, renderer.DefaultMaterial, font, 17f, iconFont: Icons.Font, codeFontPath: Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "consola.ttf")),
             GameUI = new UI.UIRenderer(device, renderer.DefaultMaterial),
             Session = session,
             PlayMode = new PlayModeController(session, loggerFactory) { Audio = Audio.AudioDevices.CreateOrSilent(Audio.OpenAL.OpenALAudioDevice.Create, loggerFactory.CreateLogger("Audio")), Modules = modules },
@@ -139,6 +140,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _console = new ConsolePanel(_context);
         _profilerPanel = new ProfilerPanel(_context, _profiler);
         _mixerPanel = new MixerPanel(_context);
+        CodeView.CodeFont = _context.ImGui.CodeFont;
+        _preferences = new PreferencesWindow(_context);
         _scriptDebugger = new ScriptDebuggerPanel(_context);
         _build = new BuildController(project, loggerFactory);
         _showBuildSettings = options.FocusWindow == "Build Settings";
@@ -266,14 +269,28 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _console.Draw();
         _profilerPanel.Draw();
         _mixerPanel.Draw();
+        _preferences.Draw();
         _build.Update();
         DrawBuildSettings();
         _diagnosticsWindow.Draw();
         _scriptDebugger.Draw();
+        if (_context.OpenScriptInternallyRequest is { } inEditor)
+        {
+            _context.OpenScriptInternallyRequest = null;
+            _scriptEditor.Open(inEditor);
+        }
+
         if (_context.OpenScriptRequest is { } script)
         {
             _context.OpenScriptRequest = null;
-            _scriptEditor.Open(script);
+            if (_context.Preferences.OpenScriptsExternally && SyntaxHighlighter.LanguageOf(script) is not null)
+            {
+                _context.OpenExternally(script);
+            }
+            else
+            {
+                _scriptEditor.Open(script);
+            }
         }
 
         _scriptEditor.Draw(time.UnscaledTotalTime);
@@ -553,6 +570,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             [
                 new(history.UndoLabel is { } undo ? $"Undo {undo}" : "Undo", "Ctrl+Z", () => history.Undo(), editing && history.CanUndo),
                 new(history.RedoLabel is { } redo ? $"Redo {redo}" : "Redo", "Ctrl+Y", () => history.Redo(), editing && history.CanRedo),
+                new("Preferences...", Action: () => _preferences.Open = true),
             ];
         }),
         new("GameObject", () =>

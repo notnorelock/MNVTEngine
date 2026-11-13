@@ -80,14 +80,29 @@ The game's debug interface runs inside the Game view during Play Mode, with its 
 The Script Editor is docked next to the Scene and Game views.
 
 - **Opening files:** double-click a script or text asset in the Project panel, or press **Edit in Script Editor** in a script's inspector. Assets that open here include `.mnvts`, `.json`, shaders, `.mnvtanim` and `.mnvtmat` (`.mnvtanimator` opens in the Animator). The **C# scripts** list opens files from `Scripts/`.
+- **The Project panel's Scripts root:** below Assets, the folder tree has **Scripts**, the C# scripts project (the folder of `scripts.project`, or `Scripts/`), with its subfolders; build output (`bin`, `obj`, `.vs`, `.vscode`) is hidden. Double-click a file to open it. Right-click a script there, or a script or text asset under Assets: **Open in Script Editor**, **Open in External Editor**, **Show in Explorer**.
+- **Colours:** C# and `.mnvts` are highlighted in VS Code's Dark+ colours, in a monospaced font (Consolas) with line numbers: keywords, control flow, types, function calls, variables, strings (C# verbatim, interpolated and raw strings across lines), numbers, comments and preprocessor lines. Shaders and JSON use the C# colours. The highlighting is lexical (no semantic analysis), so a call to a type's constructor or an attribute shows as a function.
 - **Saving:** Ctrl+S saves the file while the Script Editor has focus (and saves the scene otherwise). Tabs mark unsaved files.
 - **Changes from outside:** a clean tab reloads when the file changes on disk; a tab with unsaved edits keeps them and shows a warning.
 - **Checking:**
   - `.mnvts` is compiled as you type; click a diagnostic to jump to its line.
   - Saving a `.cs` file triggers the usual recompile and hot reload. Its compile errors are listed under that file.
 - **New files:** **+ C# component** creates `Scripts/<Name>.cs` with a component skeleton, and **+ Mission** creates `Assets/Missions/<Name>.mnvts`.
-- **Open externally** hands the file to the program Windows associates with it (for example Visual Studio or VS Code).
-- **Limitations:** there is no syntax highlighting or autocomplete, and closing a tab discards unsaved edits without asking.
+- **Open externally** opens the file in the external editor at the caret's line (see below).
+- **Limitations:** there is no autocomplete, held keys follow Dear ImGui's text box, and closing a tab discards unsaved edits without asking.
+
+### External script editor
+
+**Edit > Preferences** (saved for the user in `%AppData%\MNVTEngine\editor-preferences.json`, not in the project):
+
+| Choice | Opens |
+|---|---|
+| System default | The program Windows associates with the file type |
+| Visual Studio Code | `Code.exe <project folder> --goto <file>:<line>:<column>`: the project as the workspace, so C# gets IntelliSense from the scripts project. Code.exe is found in the user or machine install or on PATH; set it when it is elsewhere |
+| Custom program | Any program with an argument template: `{file}`, `{line}`, `{column}` and `{project}` are replaced (quote them yourself: `"{file}" -n{line}`) |
+
+**Double-click opens scripts in the external editor** sends C# and `.mnvts` files there instead of the Script Editor;
+right-click still offers both. Hot reload works either way: saving a `.cs` file from any editor recompiles.
 
 ## UI Editor
 
