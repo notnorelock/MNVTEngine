@@ -57,7 +57,7 @@ public sealed class ModelWorkflow
 
     /// <summary>The last successful import, or null when the model never imported.</summary>
     /// <exception cref="InvalidDataException">The artifact is unreadable.</exception>
-    public ModelData? Load() => _assets.ReadArtifact(Guid, ModelArtifact.Name) is { } artifact ? ModelArtifact.Read(artifact) : null;
+    public ModelData? Load() => _assets.ReadArtifact(Guid, ModelArtifact.Name) is { } artifact ? ModelArtifact.Read(artifact, name => _assets.ReadArtifact(Guid, name)) : null;
 
     /// <summary>
     /// Mesh names that scenes and prefabs reference (<c>asset:&lt;model&gt;#mesh/&lt;name&gt;</c>) but the model does not have,

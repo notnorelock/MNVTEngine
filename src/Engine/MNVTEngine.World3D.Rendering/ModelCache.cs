@@ -93,7 +93,7 @@ public sealed partial class ModelCache(ResourceCache resources) : IResourceExten
 
             var artifact = resources.Assets.ReadArtifact(guid, ModelArtifact.Name)
                 ?? throw new InvalidDataException("The model has not been imported (no artifact); open the project in the editor or fix its import errors.");
-            var data = ModelArtifact.Read(artifact);
+            var data = ModelArtifact.Read(artifact, name => resources.Assets.ReadArtifact(guid, name));
             loaded = new LoadedModel(data, new Texture2D?[data.Textures.Count], []);
             loaded.Materials = [.. data.Materials.Select(m => BuildModelMaterial(loaded, m, name))];
         }
@@ -199,7 +199,7 @@ public sealed partial class ModelCache(ResourceCache resources) : IResourceExten
             if (loaded is not null)
             {
                 ReleaseEmbedded(loaded);
-                meshes.AddRange(loaded.Data.Meshes.Select(m => m.Mesh));
+                meshes.AddRange(loaded.Data.Meshes.SelectMany(m => m.LoadedMeshes)); // streamed detail that is not loaded has no GPU copy
             }
 
             _models.Remove(guid);

@@ -42,6 +42,7 @@ Stored in the model's `.meta` under `settings`; invalid values are reported and 
 | `materials` | `{}` | Source material name to `"asset:<guid>"` of a `.mnvtmat` used instead (Extract Materials, Remap). |
 | `textures` | `{}` | Model texture name to `"asset:<guid>"` of a project texture used instead (Extract Textures). |
 | `meshAliases` | `{}` | Old mesh name to a current mesh name, so references to the old name keep drawing (Relink). |
+| `lods` | `[]` | Levels of detail for static meshes: `[{ "ratio": 0.5, "screenSize": 0.3 }, { "ratio": 0.15, "screenSize": 0.1 }]` (see [levels of detail](#levels-of-detail)). |
 
 ## Textures
 
@@ -115,7 +116,7 @@ An alias whose old name is a mesh of the model again, or whose target is not a m
 
 ## Artifacts
 
-- An import that succeeds writes `Library/Artifacts/<guid>/model`, a versioned binary (`ModelArtifact`, magic `MNVTMODL`). It is validated completely when read.
+- An import that succeeds writes `Library/Artifacts/<guid>/model`, a versioned binary (`ModelArtifact`, magic `MNVTMODL`, version 5). It is validated completely when read; streamed full-detail geometry (`mesh<N>`, see [levels of detail](#levels-of-detail)) is validated when it is loaded.
 - Each artifact file is written next to its target and moved over it.
 - An import that fails keeps the **last good artifact**. Scenes keep drawing it while the error shows in the asset inspector.
 - Deleting the model deletes its artifacts. `.gltf` buffers (`.bin`) are dependencies too.
@@ -128,6 +129,30 @@ Who imports:
 - **The build** imports them too: `ImportModels` reports import errors as `MNVB220` and warnings as `MNVB221`; a model without an artifact fails the build with `MNVB222`.
 - **Exported games** ship only the artifact, not the source file. They never contain Assimp or SharpGLTF; an architecture test enforces this.
 - **Read-only databases** (the runtime) give model files the Model type without importing them.
+
+## Levels of detail
+
+- **Generation.** With `lods` set, the importer reduces every static mesh (not skinned, no blend shapes, at least 64
+  triangles) to each `ratio` of its triangles with `MeshSimplifier` (quadric error edge collapse). Vertices only merge
+  into existing vertices, so a level uses a subset of the mesh's vertices with their normals, UVs and colors unchanged.
+  Open borders, UV and normal seams and submesh boundaries do not move, so meshes with many seams reduce less than
+  asked: the Showcase3D crate goes from 5508 to 2754 and 1566 triangles for ratios 0.5 and 0.15. A level that would
+  keep more than 90% of the previous one is skipped, with the levels after it. The model inspector lists each mesh's
+  levels.
+- **Selection.** Each frame the mesh pass picks a level per renderer from its screen size: the diameter of its world
+  bounds over the view's height at its distance (the whole height for orthographic views). A level applies below its
+  `screenSize`; above the first one the full mesh is drawn. Shadows use the same level.
+- **Streaming.** Meshes with levels keep their full-detail geometry in its own artifact (`mesh<N>`, magic `MNVTMESH`),
+  shipped next to the model in exported games. The model artifact holds the levels, the bounds and the counts, so a
+  model in the distance never reads its full geometry. When a mesh first needs full detail, it is read and validated
+  on a worker while its first level stands in; full detail that no view drew for 5 seconds
+  (`MeshScenePass.DetailKeepAlive`) is released, with its GPU copy. Code that reads `ModelMesh.Mesh` (picking, mesh
+  sources, the inspector) gets the full mesh, loading it synchronously when needed. A damaged detail artifact logs
+  error 2107 once and the first level keeps standing in.
+- **Diagnostics.** The profiler counts *Meshes at reduced detail* and *Mesh detail loading*; `MeshScenePass.LodCounts`
+  has the meshes drawn at each level in the last pass.
+- **Not covered.** Skinned meshes and meshes with blend shapes have no levels; levels switch without cross-fading; the
+  level does not take the render resolution or a global quality bias into account.
 
 ## Using a model
 

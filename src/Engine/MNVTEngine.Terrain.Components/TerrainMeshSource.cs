@@ -275,7 +275,7 @@ public sealed partial class TerrainMeshSource(RenderServices services) : IMeshIt
     /// <summary>The meshes a prop reference draws: one model mesh, or every mesh of a whole model at its node transform.</summary>
     private List<(Mesh Mesh, Matrix4x4 Local, Material[] Materials)> PropParts(AssetRef reference)
     {
-        Material[] MaterialsOf(Assets.Models.ModelMesh mesh) => [.. Enumerable.Range(0, mesh.Mesh.SubMeshes.Count).Select(i =>
+        Material[] MaterialsOf(Assets.Models.ModelMesh mesh) => [.. Enumerable.Range(0, mesh.SubMeshCount).Select(i =>
             resources.GetModelMaterial(reference.Guid, i < mesh.SubMeshMaterials.Count ? mesh.SubMeshMaterials[i] : -1)
             ?? PropFallbackMaterial())];
 

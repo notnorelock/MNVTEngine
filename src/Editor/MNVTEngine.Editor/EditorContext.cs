@@ -158,7 +158,7 @@ internal sealed class EditorContext
         Assets.Models.ModelData data;
         try
         {
-            data = Assets.Models.ModelArtifact.Read(artifact);
+            data = Assets.Models.ModelArtifact.Read(artifact, name => Session.Assets.ReadArtifact(model, name));
         }
         catch (InvalidDataException ex)
         {

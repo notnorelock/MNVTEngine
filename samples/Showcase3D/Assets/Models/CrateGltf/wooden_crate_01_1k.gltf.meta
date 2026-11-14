@@ -13,6 +13,16 @@
     "importCameras": true,
     "meshAliases": {},
     "materials": {},
-    "textures": {}
+    "textures": {},
+    "lods": [
+      {
+        "ratio": 0.5,
+        "screenSize": 0.3
+      },
+      {
+        "ratio": 0.15,
+        "screenSize": 0.1
+      }
+    ]
   }
 }

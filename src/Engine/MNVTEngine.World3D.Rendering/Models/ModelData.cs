@@ -42,9 +42,9 @@ public sealed class ModelData
 
     public ModelMaterial? FindMaterial(string name) => Materials.Find(m => m.Name == name);
 
-    public int VertexCount => Meshes.Sum(m => m.Mesh.VertexCount);
+    public int VertexCount => Meshes.Sum(m => m.VertexCount);
 
-    public int TriangleCount => Meshes.Sum(m => m.Mesh.TriangleCount);
+    public int TriangleCount => Meshes.Sum(m => m.TriangleCount);
 }
 
 /// <param name="Parent">Index of the parent node, -1 for the root.</param>
@@ -53,12 +53,91 @@ public sealed class ModelData
 public sealed record ModelNode(string Name, int Parent, Vector3 Position, Quaternion Rotation, Vector3 Scale, int Mesh = -1, int Skin = -1);
 
 /// <summary>A mesh with one material index per submesh; skinned meshes carry four joints and weights per vertex.</summary>
-public sealed class ModelMesh(string name, Mesh mesh)
+public sealed class ModelMesh
 {
-    /// <summary>Unique within the model; the mesh's sub-asset name.</summary>
-    public string Name { get; } = name;
+    private readonly Func<Mesh>? _loadDetail;
+    private readonly Lock _gate = new();
+    private readonly Bounds _bounds;
+    private readonly int _vertexCount;
+    private readonly int _triangleCount;
+    private Mesh? _mesh;
 
-    public Mesh Mesh { get; } = mesh;
+    public ModelMesh(string name, Mesh mesh)
+    {
+        Name = name;
+        _mesh = mesh ?? throw new ArgumentNullException(nameof(mesh));
+    }
+
+    /// <summary>
+    /// A mesh whose full-detail geometry stays in its own artifact until something needs it (levels of detail: far
+    /// away, only <see cref="Lods"/> are drawn). <paramref name="loadDetail"/> reads and validates it, on any thread.
+    /// </summary>
+    public ModelMesh(string name, Func<Mesh> loadDetail, Bounds bounds, int vertexCount, int triangleCount)
+    {
+        Name = name;
+        _loadDetail = loadDetail ?? throw new ArgumentNullException(nameof(loadDetail));
+        (_bounds, _vertexCount, _triangleCount) = (bounds, vertexCount, triangleCount);
+    }
+
+    /// <summary>Unique within the model; the mesh's sub-asset name.</summary>
+    public string Name { get; }
+
+    /// <summary>The full-detail mesh; reading it loads streamed geometry (<see cref="IsDetailStreamed"/>) synchronously.</summary>
+    /// <exception cref="InvalidDataException">The streamed geometry is missing or damaged.</exception>
+    public Mesh Mesh
+    {
+        get
+        {
+            if (Volatile.Read(ref _mesh) is { } mesh)
+            {
+                return mesh;
+            }
+
+            lock (_gate)
+            {
+                return _mesh ??= _loadDetail!();
+            }
+        }
+    }
+
+    /// <summary>The full-detail geometry lives in its own artifact and is loaded on demand.</summary>
+    public bool IsDetailStreamed => _loadDetail is not null;
+
+    /// <summary>The full-detail mesh is in memory (always, unless streamed).</summary>
+    public bool IsDetailLoaded => Volatile.Read(ref _mesh) is not null;
+
+    /// <summary>Drops streamed full-detail geometry (it loads again when needed); does nothing for other meshes.</summary>
+    public void ReleaseDetail()
+    {
+        if (_loadDetail is not null)
+        {
+            lock (_gate)
+            {
+                _mesh = null;
+            }
+        }
+    }
+
+    public Bounds Bounds => IsDetailStreamed ? _bounds : Mesh.Bounds;
+
+    /// <summary>
+    /// When the full-detail mesh was last drawn (<see cref="Environment.TickCount64"/>); renderers set it, and release
+    /// streamed detail nobody drew for a while.
+    /// </summary>
+    public long DetailLastDrawn { get; set; }
+
+    /// <summary>The meshes in memory: the full-detail one (when loaded) and the levels of detail.</summary>
+    public IEnumerable<Mesh> LoadedMeshes => (Volatile.Read(ref _mesh) is { } mesh ? [mesh] : Array.Empty<Mesh>()).Concat(Lods.Select(l => l.Mesh));
+
+    public int VertexCount => IsDetailStreamed ? _vertexCount : Mesh.VertexCount;
+
+    public int TriangleCount => IsDetailStreamed ? _triangleCount : Mesh.TriangleCount;
+
+    /// <summary>Submeshes (the same at every level of detail); known without loading streamed detail.</summary>
+    public int SubMeshCount => IsDetailStreamed ? SubMeshMaterials.Count : Mesh.SubMeshes.Count;
+
+    /// <summary>Levels of detail after the mesh itself, each coarser; empty when the model has none (<see cref="ModelMeshLod"/>).</summary>
+    public List<ModelMeshLod> Lods { get; } = [];
 
     /// <summary>Index into <see cref="ModelData.Materials"/> for each submesh (-1: none).</summary>
     public List<int> SubMeshMaterials { get; } = [];
@@ -75,6 +154,12 @@ public sealed class ModelMesh(string name, Mesh mesh)
     /// <summary>The weight of each blend shape when nothing sets one (glTF mesh weights; FBX shape defaults).</summary>
     public List<float> DefaultBlendShapeWeights { get; } = [];
 }
+
+/// <summary>
+/// A level of detail of a model mesh: a reduced mesh over a subset of its vertices (<see cref="MeshSimplifier"/>), drawn
+/// once the mesh covers less than <paramref name="ScreenSize"/> of the screen's height.
+/// </summary>
+public sealed record ModelMeshLod(Mesh Mesh, float ScreenSize);
 
 /// <summary>
 /// One blend shape of a mesh: offsets added to the base vertices, times its weight (0 = none, 1 = the full shape).

@@ -123,7 +123,7 @@ public static class ContentCompiler
         var serializer = new SceneSerializer(registry, assets);
         var dependencies = new Dictionary<Guid, IReadOnlyCollection<Guid>>();
         var bytecodes = new Dictionary<Guid, byte[]>();
-        var models = new Dictionary<Guid, byte[]>();
+        var models = new Dictionary<Guid, IReadOnlyList<(string Name, byte[] Data)>>();
         var readable = new List<AssetRecord>();
         var scripts = 0;
 
@@ -147,7 +147,7 @@ public static class ContentCompiler
             {
                 if (ModelDependencies(assets, record, diagnostics) is { } model)
                 {
-                    models[record.Guid] = model.Artifact;
+                    models[record.Guid] = model.Artifacts;
                     dependencies[record.Guid] = model.Dependencies;
                 }
             }
@@ -189,9 +189,15 @@ public static class ContentCompiler
             {
                 var package = output.For(layout.PackageOf(record.Guid));
                 var references = dependencies.GetValueOrDefault(record.Guid);
-                if (models.TryGetValue(record.Guid, out var model))
+                if (models.TryGetValue(record.Guid, out var modelArtifacts))
                 {
-                    package.Add(AssetDatabase.ArtifactEntry(record.Guid, ModelArtifact.Name), model, record.Guid, references); // the source file is not shipped
+                    // The source file is not shipped: the model artifact (the asset's entry), then streamed mesh geometry.
+                    package.Add(AssetDatabase.ArtifactEntry(record.Guid, ModelArtifact.Name), modelArtifacts[0].Data, record.Guid, references);
+                    foreach (var (name, data) in modelArtifacts.Skip(1))
+                    {
+                        package.Add(AssetDatabase.ArtifactEntry(record.Guid, name), data);
+                    }
+
                     continue;
                 }
 
@@ -317,8 +323,11 @@ public static class ContentCompiler
     }
 
     /// <returns>The assets this one references.</returns>
-    /// <summary>A model's artifact and the project textures it uses; an error when it was never imported or is unreadable.</summary>
-    private static (byte[] Artifact, IReadOnlyCollection<Guid> Dependencies)? ModelDependencies(AssetDatabase assets, AssetRecord record, List<BuildDiagnostic> diagnostics)
+    /// <summary>
+    /// A model's artifacts (the model, then its streamed mesh geometry) and the project textures it uses; an error when it
+    /// was never imported or is unreadable.
+    /// </summary>
+    internal static (IReadOnlyList<(string Name, byte[] Data)> Artifacts, IReadOnlyCollection<Guid> Dependencies)? ModelDependencies(AssetDatabase assets, AssetRecord record, List<BuildDiagnostic> diagnostics)
     {
         if (assets.ReadArtifact(record.Guid, ModelArtifact.Name) is not { } artifact)
         {
@@ -329,7 +338,7 @@ public static class ContentCompiler
         ModelData model;
         try
         {
-            model = ModelArtifact.Read(artifact);
+            model = ModelArtifact.Read(artifact, name => assets.ReadArtifact(record.Guid, name));
         }
         catch (InvalidDataException ex)
         {
@@ -344,7 +353,23 @@ public static class ContentCompiler
             diagnostics.Add(BuildDiagnostic.Error("MNVB206", $"References asset {missing}, which is not in the project.", record.Path));
         }
 
-        return (artifact, used);
+        var artifacts = new List<(string, byte[])> { (ModelArtifact.Name, artifact) };
+        for (var i = 0; i < model.Meshes.Count; i++)
+        {
+            if (model.Meshes[i].IsDetailStreamed)
+            {
+                var name = ModelArtifact.DetailArtifactName(i);
+                if (assets.ReadArtifact(record.Guid, name) is not { } detail)
+                {
+                    diagnostics.Add(BuildDiagnostic.Error("MNVB222", $"The full-detail geometry of mesh '{model.Meshes[i].Name}' is missing; reimport the model.", record.Path));
+                    return null;
+                }
+
+                artifacts.Add((name, detail));
+            }
+        }
+
+        return (artifacts, used);
     }
 
     private static IReadOnlyCollection<Guid> Import(IAssetImporter importer, AssetRecord record, byte[] data, AssetDatabase assets, List<BuildDiagnostic> diagnostics)

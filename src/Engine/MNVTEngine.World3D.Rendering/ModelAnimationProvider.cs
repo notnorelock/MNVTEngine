@@ -101,7 +101,7 @@ public sealed partial class ModelAnimationProvider : IModelAnimationProvider, IM
             }
 
             data = ModelArtifact.Read(_assets.ReadArtifact(guid, ModelArtifact.Name)
-                ?? throw new InvalidDataException("The model has not been imported (no artifact)."));
+                ?? throw new InvalidDataException("The model has not been imported (no artifact)."), name => _assets.ReadArtifact(guid, name));
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException)
         {

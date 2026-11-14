@@ -1,4 +1,5 @@
 using System.Globalization;
+using MNVTEngine.Graphics.Meshes;
 using MNVTEngine.Serialization;
 using Newtonsoft.Json.Linq;
 
@@ -41,6 +42,15 @@ public sealed record ModelImportSettings
 
     /// <summary>Model texture name to the project texture used instead (Extract Textures, Remap).</summary>
     public IReadOnlyDictionary<string, Guid> Textures { get; init; } = new SortedDictionary<string, Guid>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Levels of detail generated for static meshes (not skinned, no blend shapes), coarsest last; empty = none. Their
+    /// full-detail geometry is then streamed: loaded only while the mesh is drawn at its highest detail.
+    /// </summary>
+    public IReadOnlyList<ModelLodSetting> Lods { get; init; } = [];
+
+    /// <summary>A reasonable starting point for the <c>lods</c> setting: half and a fifth of the triangles.</summary>
+    public static IReadOnlyList<ModelLodSetting> DefaultLods { get; } = [new(0.5f, 0.5f), new(0.2f, 0.2f)];
 
     public static ModelImportSettings Read(JObject settings, ICollection<string>? problems = null)
     {
@@ -125,8 +135,32 @@ public sealed record ModelImportSettings
             problems?.Add("'meshAliases' must be an object of old name: \"current name\"; reset.");
         }
 
+        var lods = new List<ModelLodSetting>();
+        if (settings["lods"] is JArray lodList)
+        {
+            foreach (var item in lodList)
+            {
+                if (item is JObject lod && lod["ratio"] is { Type: JTokenType.Float or JTokenType.Integer } ratio && lod["screenSize"] is { Type: JTokenType.Float or JTokenType.Integer } size
+                    && ratio.Value<float>() is > 0f and < 1f and var r && size.Value<float>() is > 0f and < 1f and var screen
+                    && (lods.Count == 0 || (r < lods[^1].Ratio && screen < lods[^1].ScreenSize)))
+                {
+                    lods.Add(new ModelLodSetting(r, screen));
+                }
+                else
+                {
+                    problems?.Add("'lods' entries need a \"ratio\" and a \"screenSize\" between 0 and 1, each smaller than the previous entry's; the rest were removed.");
+                    break;
+                }
+            }
+        }
+        else if (settings["lods"] is not null)
+        {
+            problems?.Add("'lods' must be a list of { \"ratio\", \"screenSize\" }; reset.");
+        }
+
         return new ModelImportSettings
         {
+            Lods = lods,
             Materials = Remaps("materials"),
             MeshAliases = aliases,
             Textures = Remaps("textures"),
@@ -156,8 +190,13 @@ public sealed record ModelImportSettings
         ["meshAliases"] = new JObject(MeshAliases.Select(p => new JProperty(p.Key, p.Value))),
         ["materials"] = new JObject(Materials.Select(p => new JProperty(p.Key, AssetPrefix + p.Value.ToString("D")))),
         ["textures"] = new JObject(Textures.Select(p => new JProperty(p.Key, AssetPrefix + p.Value.ToString("D")))),
+        ["lods"] = new JArray(Lods.Select(l => new JObject { ["ratio"] = l.Ratio, ["screenSize"] = l.ScreenSize })),
     };
 }
+
+/// <param name="Ratio">Fraction of the mesh's triangles to keep (0 to 1).</param>
+/// <param name="ScreenSize">The level is drawn once the mesh covers less than this fraction of the screen's height.</param>
+public sealed record ModelLodSetting(float Ratio, float ScreenSize);
 
 /// <summary>What a reader gets: the source and how to find files and assets next to it.</summary>
 public sealed record ModelSource(string RelativePath, byte[] Data, string? FullPath, string? AssetsDirectory, Func<string, Guid?> ResolveAsset)
@@ -235,7 +274,8 @@ public sealed class ModelImporter(IReadOnlyList<IModelReader> readers) : IAssetI
             model.Warnings.Add(warning);
         }
 
-        context.Artifacts[ModelArtifact.Name] = ModelArtifact.Write(model);
+        var lodMeshes = GenerateLods(model, settings.Lods);
+        context.Artifacts[ModelArtifact.Name] = ModelArtifact.Write(model, context.Artifacts);
         var culture = CultureInfo.InvariantCulture;
         context.Properties["nodes"] = model.Nodes.Count.ToString(culture);
         context.Properties["meshes"] = model.Meshes.Count.ToString(culture);
@@ -247,6 +287,37 @@ public sealed class ModelImporter(IReadOnlyList<IModelReader> readers) : IAssetI
         context.Properties["animations"] = model.Animations.Count.ToString(culture);
         context.Properties["lights"] = model.Lights.Count.ToString(culture);
         context.Properties["cameras"] = model.Cameras.Count.ToString(culture);
+        context.Properties["lodMeshes"] = lodMeshes.ToString(culture);
+    }
+
+    /// <summary>Meshes below this many triangles get no levels of detail (they would save next to nothing).</summary>
+    public const int MinLodTriangles = 64;
+
+    /// <summary>Adds the configured levels of detail to every static mesh large enough; returns how many meshes got some.</summary>
+    public static int GenerateLods(ModelData model, IReadOnlyList<ModelLodSetting> lods)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(lods);
+        var count = 0;
+        foreach (var mesh in model.Meshes.Where(m => lods.Count > 0 && m.Joints is null && m.BlendShapes.Count == 0 && m.TriangleCount >= MinLodTriangles))
+        {
+            var previous = mesh.TriangleCount;
+            foreach (var lod in lods)
+            {
+                var reduced = MeshSimplifier.Simplify(mesh.Mesh, lod.Ratio).Mesh;
+                if (reduced.TriangleCount > previous * 0.9f)
+                {
+                    break; // the shape does not simplify further (seams, borders): more levels would only cost memory
+                }
+
+                mesh.Lods.Add(new ModelMeshLod(reduced, lod.ScreenSize));
+                previous = reduced.TriangleCount;
+            }
+
+            count += mesh.Lods.Count > 0 ? 1 : 0;
+        }
+
+        return count;
     }
 }
 

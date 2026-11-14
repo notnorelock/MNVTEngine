@@ -158,6 +158,7 @@ public sealed partial class MeshScenePass : IScenePass
     {
         MeshesDrawn = MeshesCulled = MeshTriangles = GpuSkinnedMeshes = 0;
         _items.Clear();
+        _lodCounts.Clear();
         _frame++;
         foreach (var meshRenderer in scene.World.Pool<MeshRenderer>().Components)
         {
@@ -168,7 +169,7 @@ public sealed partial class MeshScenePass : IScenePass
 
             if (meshRenderer.IsActiveAndEnabled && !meshRenderer.Mesh.IsNone)
             {
-                AddModelItems(meshRenderer);
+                AddModelItems(meshRenderer, camera);
             }
             else if (meshRenderer.IsActiveAndEnabled && meshRenderer.Primitive != PrimitiveMesh.None)
             {
@@ -180,6 +181,8 @@ public sealed partial class MeshScenePass : IScenePass
         {
             source.AddItems(new MeshItemContext(scene, _frame, Meshes(), _items, Hidden));
         }
+
+        ReleaseUnusedDetail();
 
         if (_items.Count == 0)
         {
@@ -225,10 +228,12 @@ public sealed partial class MeshScenePass : IScenePass
         Core.Diagnostics.Profiler.Count("GPU skinned meshes", GpuSkinnedMeshes);
         Core.Diagnostics.Profiler.Count("Instanced meshes", InstancedMeshes);
         Core.Diagnostics.Profiler.Count("Mesh draw calls", MeshDrawCalls);
+        Core.Diagnostics.Profiler.Count("Meshes at reduced detail", _lodCounts.Skip(1).Sum());
+        Core.Diagnostics.Profiler.Count("Mesh detail loading", _detailRequests.Count);
     }
 
     /// <summary>One item per submesh of a model mesh, with the renderer's material or the model's material of each submesh.</summary>
-    private void AddModelItems(MeshRenderer meshRenderer)
+    private void AddModelItems(MeshRenderer meshRenderer, Camera camera)
     {
         if (resources.GetModelMesh(meshRenderer.Mesh) is not { } modelMesh)
         {
@@ -236,7 +241,7 @@ public sealed partial class MeshScenePass : IScenePass
         }
 
         var custom = resources.GetMaterial(meshRenderer.Material);
-        var materials = new Material[modelMesh.Mesh.SubMeshes.Count];
+        var materials = new Material[modelMesh.SubMeshCount];
         for (var i = 0; i < materials.Length; i++)
         {
             var index = i < modelMesh.SubMeshMaterials.Count ? modelMesh.SubMeshMaterials[i] : -1;
@@ -246,7 +251,7 @@ public sealed partial class MeshScenePass : IScenePass
         var gpuSkin = GpuSkinning && modelMesh.Joints is not null && modelMesh.BlendShapes.Count == 0 && materials.All(m => SkinnedVariant(m) is not null);
         var (mesh, world, joints, bounds) = (modelMesh.Joints is not null || modelMesh.BlendShapes.Count > 0) && Deform(meshRenderer, modelMesh, gpuSkin) is { } deformed
             ? (deformed.Mesh, deformed.WorldSpace ? Matrix4x4.Identity : meshRenderer.Transform.LocalToWorldMatrix, deformed.Joints, deformed.Bounds) // skinned vertices are in world space
-            : (Meshes().Get(modelMesh.Mesh), meshRenderer.Transform.LocalToWorldMatrix, null, (Bounds?)null);
+            : (Meshes().Get(LevelOfDetail(modelMesh, meshRenderer.Transform.LocalToWorldMatrix, camera)), meshRenderer.Transform.LocalToWorldMatrix, null, (Bounds?)null);
         var white = resources.GetDefaultTexture(DefaultTexture.White);
         CullMode? cull = meshRenderer.DoubleSided ? CullMode.None : null;
         if (joints is not null)
@@ -258,6 +263,133 @@ public sealed partial class MeshScenePass : IScenePass
         {
             var material = joints is not null ? SkinnedVariant(materials[i])! : materials[i];
             _items.Add(new MeshDrawItem(mesh, i, material, white, world, cull, joints ?? default(ReadOnlyMemory<Matrix4x4>), bounds));
+        }
+    }
+
+    /// <summary>Meshes drawn at each level of detail in the last pass (index 0 = full detail).</summary>
+    public IReadOnlyList<int> LodCounts => _lodCounts;
+
+    /// <summary>Streamed full-detail meshes loading in the background.</summary>
+    public int DetailLoading => _detailRequests.Count;
+
+    /// <summary>How long streamed full detail stays loaded after it was last drawn.</summary>
+    public static TimeSpan DetailKeepAlive { get; set; } = TimeSpan.FromSeconds(5);
+
+    private readonly List<int> _lodCounts = [];
+    private readonly Dictionary<ModelMesh, Task> _detailRequests = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<ModelMesh, Mesh> _detailUploads = new(ReferenceEqualityComparer.Instance);
+    private readonly HashSet<ModelMesh> _detailFailed = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>
+    /// The mesh to draw: the level of detail for the share of the screen's height the mesh covers (its world bounds'
+    /// diameter against the view's height at its distance). Streamed full detail is loaded in the background when first
+    /// needed; until then, and if it cannot load, the first level of detail stands in.
+    /// </summary>
+    private Mesh LevelOfDetail(ModelMesh modelMesh, Matrix4x4 world, Camera camera)
+    {
+        if (modelMesh.Lods.Count == 0)
+        {
+            return modelMesh.Mesh;
+        }
+
+        var level = LodLevel(modelMesh, Renderer3D.TransformBounds(modelMesh.Bounds, world), camera.ProjectionMatrix, camera.Transform.Position);
+        if (level == 0 && !modelMesh.IsDetailLoaded)
+        {
+            RequestDetail(modelMesh);
+            level = 1;
+        }
+
+        while (_lodCounts.Count <= level)
+        {
+            _lodCounts.Add(0);
+        }
+
+        _lodCounts[level]++;
+        if (level > 0)
+        {
+            return modelMesh.Lods[level - 1].Mesh;
+        }
+
+        modelMesh.DetailLastDrawn = Environment.TickCount64;
+        var detail = modelMesh.Mesh;
+        if (_detailUploads.TryGetValue(modelMesh, out var uploaded) && !ReferenceEquals(uploaded, detail))
+        {
+            _meshes?.Remove(uploaded); // released and loaded again (by another view): the old GPU copy goes
+        }
+
+        if (modelMesh.IsDetailStreamed)
+        {
+            _detailUploads[modelMesh] = detail;
+        }
+
+        return detail;
+    }
+
+    /// <summary>
+    /// The level of detail for a mesh with these world bounds: 0 = full detail, <c>k</c> = <c>Lods[k - 1]</c>. The mesh's
+    /// screen size is its bounds' diameter over the view's height at the bounds' center (the whole height for
+    /// orthographic views); each level applies below its <see cref="ModelMeshLod.ScreenSize"/>.
+    /// </summary>
+    public static int LodLevel(ModelMesh modelMesh, Bounds worldBounds, Matrix4x4 projection, Vector3 camera)
+    {
+        ArgumentNullException.ThrowIfNull(modelMesh);
+        var distance = projection.M33 == 1f ? 1f : MathF.Max(1e-3f, Vector3.Distance(worldBounds.Center, camera));
+        var screen = worldBounds.Size.Magnitude * MathF.Abs(projection.M11) / (2f * distance);
+        var level = 0;
+        while (level < modelMesh.Lods.Count && screen < modelMesh.Lods[level].ScreenSize)
+        {
+            level++;
+        }
+
+        return level;
+    }
+
+    private void RequestDetail(ModelMesh modelMesh)
+    {
+        if (_detailFailed.Contains(modelMesh))
+        {
+            return;
+        }
+
+        if (_detailRequests.TryGetValue(modelMesh, out var pending))
+        {
+            if (!pending.IsCompleted)
+            {
+                return;
+            }
+
+            _detailRequests.Remove(modelMesh);
+            if (pending.Exception?.InnerException is { } error)
+            {
+                _detailFailed.Add(modelMesh); // keeps drawing its first level of detail; logged once
+                LogDetailFailed(logger, error, modelMesh.Name);
+            }
+
+            return;
+        }
+
+        _detailRequests[modelMesh] = Task.Run(() => _ = modelMesh.Mesh);
+    }
+
+    /// <summary>Every second or so: streamed full detail not drawn (by any view) for <see cref="DetailKeepAlive"/> is released, here and on the GPU.</summary>
+    private void ReleaseUnusedDetail()
+    {
+        foreach (var done in _detailRequests.Where(r => r.Value.IsCompleted).Select(r => r.Key).ToList())
+        {
+            RequestDetail(done); // collects the result (and reports a failure)
+        }
+
+        if (_frame % 60 != 0 || _detailUploads.Count == 0)
+        {
+            return;
+        }
+
+        var now = Environment.TickCount64;
+        foreach (var (modelMesh, uploaded) in _detailUploads.Where(d => now - d.Key.DetailLastDrawn > DetailKeepAlive.TotalMilliseconds).ToList())
+        {
+            _meshes?.Remove(uploaded);
+            _detailUploads.Remove(modelMesh);
+            modelMesh.ReleaseDetail();
         }
     }
 
@@ -771,6 +903,9 @@ public sealed partial class MeshScenePass : IScenePass
 
     [LoggerMessage(EventId = 2106, Level = LogLevel.Warning, Message = "'{GameObject}': the material property '{Property}' is set by the renderer; the override is ignored")]
     private static partial void LogRendererOwnedOverride(ILogger logger, string gameObject, string property);
+
+    [LoggerMessage(EventId = 2107, Level = LogLevel.Error, Message = "The full-detail geometry of mesh '{Mesh}' could not be loaded; it is drawn at its first level of detail")]
+    private static partial void LogDetailFailed(ILogger logger, Exception exception, string mesh);
 
     [LoggerMessage(EventId = 2104, Level = LogLevel.Warning, Message = "Render target '{Target}' has no depth buffer: 3D meshes are not drawn into it")]
     private static partial void LogNoDepth(ILogger logger, string target);

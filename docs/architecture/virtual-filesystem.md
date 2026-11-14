@@ -394,6 +394,8 @@ At startup, after the official packages, the game mounts extra content the runti
   `floor(log2(1 / scale))`, else the full image. A texture drawn without a size report (custom draws, meshes without
   UVs) gets its full image. Sharper levels load on a worker; a coarser level replaces a sharper one once it loaded, the
   proxy at once. A texture drawn by several renderers keeps the largest size any of them reported.
+- **Meshes.** Static meshes with levels of detail ship their full-detail geometry as its own entry, read on a worker
+  only while a mesh is drawn up close and released 5 seconds after (see [models](../engine/models.md#levels-of-detail)).
 - **Use tracking.** The Vulkan device stamps `Texture2D.LastDrawnFrame` whenever a texture is bound for drawing.
 - **Memory pressure.** Every 15 frames the resource cache checks its budget (`"streaming": { "textureBudgetMB": N }`,
   0 = none), the system's memory load (the GC's high-load threshold) and the GPU's remaining budget
@@ -475,7 +477,8 @@ Loading and streaming: `assets.loadTime` and `assets.loadTimeMax` (last 32 textu
 
 - Texture levels replace the whole image (the new level is uploaded with its own mipmaps), rather than adding or
   dropping mip levels of a resident image; 2D render targets drawn at a different size than the back buffer report a
-  scale relative to the back buffer. Meshes are not streamed.
+  scale relative to the back buffer.
+- Mesh streaming covers static meshes with levels of detail only (see [models](../engine/models.md#levels-of-detail)).
 - DLC cannot ship C# code.
 - Linux and macOS targets do not exist yet (no GLFW/OpenAL/Vulkan-loader packaging or runtime packs for them); the VFS
   and package format are platform-independent.

@@ -91,16 +91,16 @@ public static class DlcBuilder
             {
                 if (record.Type == AssetTypes.Model)
                 {
-                    if (assets.ReadArtifact(record.Guid, ModelArtifact.Name) is { } artifact)
+                    if (ContentCompiler.ModelDependencies(assets, record, diagnostics) is { } model)
                     {
-                        writer.Add(AssetDatabase.ArtifactEntry(record.Guid, ModelArtifact.Name), artifact, record.Guid);
-                    }
-                    else
-                    {
-                        diagnostics.Add(BuildDiagnostic.Error("MNVB222", "The model has no imported artifact; fix its import in the editor.", record.Path));
+                        writer.Add(AssetDatabase.ArtifactEntry(record.Guid, ModelArtifact.Name), model.Artifacts[0].Data, record.Guid);
+                        foreach (var (artifactName, bytes) in model.Artifacts.Skip(1))
+                        {
+                            writer.Add(AssetDatabase.ArtifactEntry(record.Guid, artifactName), bytes); // streamed mesh geometry
+                        }
                     }
 
-                    continue;
+                    continue; // a missing or unreadable artifact was reported
                 }
 
                 var data = assets.ReadAllBytes(record.Guid);

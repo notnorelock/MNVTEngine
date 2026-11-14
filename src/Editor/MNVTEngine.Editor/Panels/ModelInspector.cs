@@ -420,7 +420,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
 
         foreach (var mesh in model.Meshes)
         {
-            Gui.Bullet($"mesh/{mesh.Name}: {mesh.Mesh.VertexCount} vertices, {mesh.Mesh.TriangleCount} triangles, {mesh.Mesh.SubMeshes.Count} submesh(es){(mesh.Joints is null ? "" : ", skinned")}");
+            Gui.Bullet($"mesh/{mesh.Name}: {mesh.VertexCount} vertices, {mesh.TriangleCount} triangles, {mesh.SubMeshCount} submesh(es){(mesh.Lods.Count == 0 ? "" : ", LODs " + string.Join(" / ", mesh.Lods.Select(l => l.Mesh.TriangleCount)) + " triangles")}{(mesh.Joints is null ? "" : ", skinned")}");
         }
 
         foreach (var skin in model.Skins)

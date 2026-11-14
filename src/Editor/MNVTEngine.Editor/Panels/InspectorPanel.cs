@@ -756,7 +756,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
         {
             try
             {
-                names = [.. Assets.Models.ModelArtifact.Read(artifact).Meshes.Select(m => m.Name)];
+                names = [.. Assets.Models.ModelArtifact.Read(artifact, name => context.Session.Assets.ReadArtifact(model.Guid, name)).Meshes.Select(m => m.Name)];
             }
             catch (InvalidDataException ex)
             {

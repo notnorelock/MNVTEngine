@@ -8,20 +8,31 @@ namespace MNVTEngine.Assets.Models;
 /// The binary artifact of an imported model (<c>Library/Artifacts/&lt;guid&gt;/model</c>, and in exported games' archives):
 /// magic "MNVTMODL", a version, then nodes, meshes (streams, indices, submeshes, skinning), materials, textures
 /// (embedded bytes or a project asset), skins and animations. Reading validates every count and index, so a damaged
-/// or foreign file is rejected instead of crashing the renderer.
+/// or foreign file is rejected instead of crashing the renderer. Meshes with levels of detail can keep their full-detail
+/// geometry in artifacts of their own (<see cref="DetailArtifactName"/>), read only when needed.
 /// </summary>
 public static class ModelArtifact
 {
     public const string Name = "model";
     /// <summary>
     /// 2: material overrides (extracted or remapped materials). 3: blend shapes and weight channels. 4: texture UV sets,
-    /// lights, cameras and mesh aliases.
+    /// lights, cameras and mesh aliases. 5: levels of detail and streamed full-detail geometry.
     /// </summary>
-    public const int Version = 4;
+    public const int Version = 5;
+
+    private static readonly byte[] DetailMagic = "MNVTMESH"u8.ToArray();
+
+    /// <summary>Artifact holding the full-detail geometry of mesh <paramref name="meshIndex"/>, when it is streamed.</summary>
+    public static string DetailArtifactName(int meshIndex) => $"mesh{meshIndex}";
     private static readonly byte[] Magic = "MNVTMODL"u8.ToArray();
     private const int MaxCount = 1 << 24;
 
-    public static byte[] Write(ModelData model)
+    /// <param name="detailArtifacts">
+    /// When given, the full-detail geometry of meshes with levels of detail goes here (by <see cref="DetailArtifactName"/>)
+    /// instead of into the model artifact, so it loads only when drawn up close. Skinned meshes and meshes with blend
+    /// shapes always stay inline.
+    /// </param>
+    public static byte[] Write(ModelData model, IDictionary<string, byte[]>? detailArtifacts = null)
     {
         ArgumentNullException.ThrowIfNull(model);
         using var stream = new MemoryStream();
@@ -45,9 +56,9 @@ public static class ModelArtifact
         }
 
         w.Write(model.Meshes.Count);
-        foreach (var m in model.Meshes)
+        for (var i = 0; i < model.Meshes.Count; i++)
         {
-            WriteMesh(w, m);
+            WriteMesh(w, model.Meshes[i], i, detailArtifacts);
         }
 
         w.Write(model.Materials.Count);
@@ -168,8 +179,12 @@ public static class ModelArtifact
         return stream.ToArray();
     }
 
+    /// <param name="readArtifact">
+    /// Reads another artifact of the same model by name (streamed full-detail geometry); it is called when a mesh's
+    /// detail is first needed, possibly on another thread. Required when the model streams geometry.
+    /// </param>
     /// <exception cref="InvalidDataException">Not a model artifact, another version, or inconsistent data.</exception>
-    public static ModelData Read(byte[] data)
+    public static ModelData Read(byte[] data, Func<string, byte[]?>? readArtifact = null)
     {
         ArgumentNullException.ThrowIfNull(data);
         try
@@ -194,7 +209,7 @@ public static class ModelArtifact
 
             for (int i = 0, n = Count(r); i < n; i++)
             {
-                model.Meshes.Add(ReadMesh(r));
+                model.Meshes.Add(ReadMesh(r, i, readArtifact));
             }
 
             for (int i = 0, n = Count(r); i < n; i++)
@@ -306,10 +321,127 @@ public static class ModelArtifact
         }
     }
 
-    private static void WriteMesh(BinaryWriter w, ModelMesh model)
+    private static void WriteMesh(BinaryWriter w, ModelMesh model, int index, IDictionary<string, byte[]>? detailArtifacts)
+    {
+        w.Write(model.Name);
+        var separate = detailArtifacts is not null && model.Lods.Count > 0 && model.Joints is null && model.BlendShapes.Count == 0;
+        w.Write(separate);
+        if (separate)
+        {
+            var bounds = model.Bounds;
+            WriteVector(w, bounds.Min);
+            WriteVector(w, bounds.Max);
+            w.Write(model.VertexCount);
+            w.Write(model.TriangleCount);
+            w.Write(model.Mesh.SubMeshes.Count);
+            for (var i = 0; i < model.Mesh.SubMeshes.Count; i++)
+            {
+                w.Write(i < model.SubMeshMaterials.Count ? model.SubMeshMaterials[i] : -1);
+            }
+
+            using var detail = new MemoryStream();
+            using (var dw = new BinaryWriter(detail, Encoding.UTF8, leaveOpen: true))
+            {
+                dw.Write(DetailMagic);
+                dw.Write(Version);
+                WriteGeometry(dw, model.Mesh);
+            }
+
+            detailArtifacts![DetailArtifactName(index)] = detail.ToArray();
+        }
+        else
+        {
+            WriteInline(w, model);
+        }
+
+        w.Write(model.Lods.Count);
+        foreach (var lod in model.Lods)
+        {
+            w.Write(lod.ScreenSize);
+            WriteGeometry(w, lod.Mesh);
+        }
+    }
+
+    /// <summary>Vertex streams, indices and submesh ranges of a mesh (levels of detail and streamed geometry).</summary>
+    private static void WriteGeometry(BinaryWriter w, Mesh mesh)
+    {
+        WriteVectors(w, mesh.Positions);
+        WriteOptional(w, mesh.Normals, (bw, v) => WriteVector(bw, v));
+        WriteOptional(w, mesh.Tangents, (bw, v) => { bw.Write(v.X); bw.Write(v.Y); bw.Write(v.Z); bw.Write(v.W); });
+        WriteOptional(w, mesh.UV0, (bw, v) => { bw.Write(v.X); bw.Write(v.Y); });
+        WriteOptional(w, mesh.UV1, (bw, v) => { bw.Write(v.X); bw.Write(v.Y); });
+        WriteOptional(w, mesh.Colors, WriteColor);
+        w.Write(mesh.IndexSpan.Length);
+        foreach (var index in mesh.IndexSpan)
+        {
+            w.Write(index);
+        }
+
+        w.Write(mesh.SubMeshes.Count);
+        foreach (var sub in mesh.SubMeshes)
+        {
+            w.Write(sub.IndexStart);
+            w.Write(sub.IndexCount);
+        }
+    }
+
+    private static Mesh ReadGeometry(BinaryReader r, string name)
+    {
+        var mesh = new Mesh(name) { Positions = ReadVectors(r) };
+        mesh.Normals = ReadOptional(r, ReadVector);
+        mesh.Tangents = ReadOptional(r, br => new Vector4(br.ReadSingle(), br.ReadSingle(), br.ReadSingle(), br.ReadSingle()));
+        mesh.UV0 = ReadOptional(r, br => new Vector2(br.ReadSingle(), br.ReadSingle()));
+        mesh.UV1 = ReadOptional(r, br => new Vector2(br.ReadSingle(), br.ReadSingle()));
+        mesh.Colors = ReadOptional(r, ReadColor);
+        var indices = new uint[Count(r)];
+        for (var i = 0; i < indices.Length; i++)
+        {
+            indices[i] = r.ReadUInt32();
+        }
+
+        var subs = new SubMesh[Count(r)];
+        for (var i = 0; i < subs.Length; i++)
+        {
+            subs[i] = new SubMesh(r.ReadInt32(), r.ReadInt32());
+        }
+
+        mesh.SetIndices(indices, subs);
+        return mesh;
+    }
+
+    /// <summary>Reads streamed full-detail geometry and checks it matches what the model artifact says about it.</summary>
+    private static Mesh ReadDetail(byte[]? data, string name, int vertexCount, int subMeshCount)
+    {
+        if (data is null)
+        {
+            throw new InvalidDataException($"The full-detail geometry of mesh '{name}' is missing; reimport the model.");
+        }
+
+        try
+        {
+            using var r = new BinaryReader(new MemoryStream(data, writable: false), Encoding.UTF8);
+            if (!r.ReadBytes(DetailMagic.Length).AsSpan().SequenceEqual(DetailMagic) || r.ReadInt32() != Version)
+            {
+                throw new InvalidDataException($"The full-detail geometry of mesh '{name}' is not readable; reimport the model.");
+            }
+
+            var mesh = ReadGeometry(r, name);
+            if (mesh.VertexCount != vertexCount || mesh.SubMeshes.Count != subMeshCount || mesh.Validate().Count > 0)
+            {
+                throw new InvalidDataException($"The full-detail geometry of mesh '{name}' does not match the model.");
+            }
+
+            return mesh;
+        }
+        catch (EndOfStreamException ex)
+        {
+            throw new InvalidDataException($"The full-detail geometry of mesh '{name}' is truncated.", ex);
+        }
+    }
+
+    private static void WriteInline(BinaryWriter w, ModelMesh model)
     {
         var mesh = model.Mesh;
-        w.Write(model.Name);
         WriteVectors(w, mesh.Positions);
         WriteOptional(w, mesh.Normals, (bw, v) => WriteVector(bw, v));
         WriteOptional(w, mesh.Tangents, (bw, v) => { bw.Write(v.X); bw.Write(v.Y); bw.Write(v.Z); bw.Write(v.W); });
@@ -353,9 +485,41 @@ public static class ModelArtifact
         WriteFloats(w, [.. model.DefaultBlendShapeWeights]);
     }
 
-    private static ModelMesh ReadMesh(BinaryReader r)
+    private static ModelMesh ReadMesh(BinaryReader r, int index, Func<string, byte[]?>? readArtifact)
     {
         var name = r.ReadString();
+        ModelMesh result;
+        if (r.ReadBoolean())
+        {
+            var bounds = Bounds.FromMinMax(ReadVector(r), ReadVector(r));
+            var (vertexCount, triangleCount) = (Count(r), Count(r));
+            var materials = new int[Count(r)];
+            for (var i = 0; i < materials.Length; i++)
+            {
+                materials[i] = r.ReadInt32();
+            }
+
+            var read = readArtifact ?? throw new InvalidDataException($"Mesh '{name}' streams its geometry, which needs the model's other artifacts.");
+            var artifact = DetailArtifactName(index);
+            result = new ModelMesh(name, () => ReadDetail(read(artifact), name, vertexCount, materials.Length), bounds, vertexCount, triangleCount);
+            result.SubMeshMaterials.AddRange(materials);
+        }
+        else
+        {
+            result = ReadInline(r, name);
+        }
+
+        for (int i = 0, n = Count(r); i < n; i++)
+        {
+            var screenSize = r.ReadSingle();
+            result.Lods.Add(new ModelMeshLod(ReadGeometry(r, name), screenSize));
+        }
+
+        return result;
+    }
+
+    private static ModelMesh ReadInline(BinaryReader r, string name)
+    {
         var mesh = new Mesh(name) { Positions = ReadVectors(r) };
         mesh.Normals = ReadOptional(r, ReadVector);
         mesh.Tangents = ReadOptional(r, br => new Vector4(br.ReadSingle(), br.ReadSingle(), br.ReadSingle(), br.ReadSingle()));
@@ -426,7 +590,10 @@ public static class ModelArtifact
 
         foreach (var m in model.Meshes)
         {
-            Require(m.Mesh.Validate().Count == 0, $"mesh '{m.Name}': {string.Join(" ", m.Mesh.Validate())}");
+            Require(m.IsDetailStreamed || m.Mesh.Validate().Count == 0, $"mesh '{m.Name}': {(m.IsDetailStreamed ? "" : string.Join(" ", m.Mesh.Validate()))}");
+            Require(m.Lods.All(l => l.Mesh.Validate().Count == 0 && l.Mesh.SubMeshes.Count == m.SubMeshMaterials.Count), $"mesh '{m.Name}' has an invalid level of detail");
+            Require(m.Lods.Select(l => l.ScreenSize).Prepend(1f).Zip(m.Lods.Select(l => l.ScreenSize)).All(p => p.Second > 0f && p.Second < p.First),
+                $"mesh '{m.Name}' has levels of detail whose screen sizes do not decrease");
             Require(m.SubMeshMaterials.All(x => x >= -1 && x < model.Materials.Count), $"mesh '{m.Name}' refers to a missing material");
             Require(m.Joints is null || (m.Joints.Length == m.Mesh.VertexCount * 4 && m.Weights?.Length == m.Joints.Length), $"mesh '{m.Name}' has inconsistent skin weights");
             Require(m.BlendShapes.All(s => s.PositionDeltas.Length == m.Mesh.VertexCount && (s.NormalDeltas?.Length ?? m.Mesh.VertexCount) == m.Mesh.VertexCount && (s.TangentDeltas?.Length ?? m.Mesh.VertexCount) == m.Mesh.VertexCount), $"mesh '{m.Name}' has a blend shape of the wrong size");
