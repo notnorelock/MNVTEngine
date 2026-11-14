@@ -1,0 +1,12 @@
+{
+  "comment": "The engine version: MAJOR.DDMM.GIT_COMMIT_COUNT.BUILD. Change MAJOR here for a new engine generation; the rest is generated. See docs/architecture/versioning.md.",
+  "major": 1,
+  "minorStrategy": "DateDDMM",
+  "patchStrategy": "GitCommitCount",
+  "buildStrategy": "Incremental",
+  "dateTimezone": "UTC",
+  "buildCounterScope": "VersionIdentity",
+  "channel": "development",
+  "prerelease": null,
+  "missingGit": "Fallback"
+}

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Engine version generator (docs/architecture/versioning.md): reads eng/version.json and Git, allocates build numbers
+    and writes the version session every engine project is stamped with. It runs before the engine is built (from
+    eng/Version.proj), so it references no engine project and is not versioned itself.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <MnvtVersioning>false</MnvtVersioning>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" />
+  </ItemGroup>
+</Project>

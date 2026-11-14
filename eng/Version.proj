@@ -1,0 +1,57 @@
+<Project>
+  <!--
+    The version of a build session (docs/architecture/versioning.md). Every engine project calls the Resolve target
+    with the MSBuild task (Directory.Build.targets) and the same global properties, and MSBuild runs a target once per
+    project instance in a build: the whole session, solution or single project, on every node, gets one result.
+
+    - Pipeline builds (mnvt build, scripts/build.cmd, CI) pass MnvtVersionSession: a session folder the generator wrote,
+      with an allocated build number. It is only read here.
+    - Development builds (plain dotnet build) run the generator without allocation: BUILD 0, written only when the
+      source state changes, so incremental builds stay incremental.
+
+    A plain project (no SDK): it imports nothing, so it never versions itself.
+  -->
+  <PropertyGroup>
+    <MnvtRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..'))</MnvtRoot>
+    <MnvtVersioningProject>$(MnvtRoot)src/Tooling/MNVTEngine.Versioning/MNVTEngine.Versioning.csproj</MnvtVersioningProject>
+    <MnvtVersioningTool>$(MnvtRoot)artifacts/versioning-tool/</MnvtVersioningTool>
+    <MnvtVersioningDll>$(MnvtVersioningTool)MNVTEngine.Versioning.dll</MnvtVersioningDll>
+    <MnvtVersionSession Condition="'$(MnvtVersionSession)' == ''">$(MNVT_VERSION_SESSION)</MnvtVersionSession>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <MnvtVersioningSource Include="$(MnvtRoot)src/Tooling/MNVTEngine.Versioning/**/*.cs;$(MnvtVersioningProject);$(MnvtRoot)Directory.Build.props;$(MnvtRoot)Directory.Packages.props"
+                          Exclude="$(MnvtRoot)src/Tooling/MNVTEngine.Versioning/obj/**;$(MnvtRoot)src/Tooling/MNVTEngine.Versioning/bin/**" />
+  </ItemGroup>
+
+  <!-- The generator itself, built into artifacts/ (own obj folder, so it never races the solution's build of it). -->
+  <Target Name="BuildGenerator" Inputs="@(MnvtVersioningSource)" Outputs="$(MnvtVersioningDll)" Condition="'$(MnvtVersionSession)' == ''">
+    <Exec Command="dotnet build &quot;$(MnvtVersioningProject)&quot; -c Release -o &quot;$(MnvtVersioningTool)&quot; -p:MnvtVersioningToolBuild=true -nologo -v:q -nodeReuse:false -clp:NoSummary" />
+    <Touch Files="$(MnvtVersioningDll)" />
+  </Target>
+
+  <Target Name="Resolve" DependsOnTargets="BuildGenerator" Returns="@(MnvtVersionInfo)">
+    <PropertyGroup>
+      <_MnvtSession Condition="'$(MnvtVersionSession)' != ''">$([MSBuild]::NormalizeDirectory('$(MnvtVersionSession)'))</_MnvtSession>
+      <_MnvtSession Condition="'$(MnvtVersionSession)' == ''">$(MnvtRoot)artifacts/version/dev/$(Configuration)/</_MnvtSession>
+    </PropertyGroup>
+    <Error Condition="'$(MnvtVersionSession)' != '' and !Exists('$(_MnvtSession)version.props')"
+           Code="MNVV002" Text="MnvtVersionSession '$(MnvtVersionSession)' has no version.props; create it with MNVTEngine.Versioning resolve --allocate." />
+    <Exec Condition="'$(MnvtVersionSession)' == ''" StandardOutputImportance="high"
+          Command="dotnet &quot;$(MnvtVersioningDll)&quot; resolve --root &quot;$(MnvtRoot.TrimEnd('\/'))&quot; --out &quot;$(_MnvtSession.TrimEnd('\/'))&quot; --configuration $(Configuration) --sdk &quot;$(MnvtSdkVersion)&quot; --msbuild &quot;$(MSBuildVersion)&quot;" />
+
+    <XmlPeek XmlInputPath="$(_MnvtSession)version.props" Query="/Project/PropertyGroup/MnvtVersion/text()"><Output TaskParameter="Result" PropertyName="_Version" /></XmlPeek>
+    <XmlPeek XmlInputPath="$(_MnvtSession)version.props" Query="/Project/PropertyGroup/MnvtPackageVersion/text()"><Output TaskParameter="Result" PropertyName="_PackageVersion" /></XmlPeek>
+    <XmlPeek XmlInputPath="$(_MnvtSession)version.props" Query="/Project/PropertyGroup/MnvtAssemblyVersion/text()"><Output TaskParameter="Result" PropertyName="_AssemblyVersion" /></XmlPeek>
+    <XmlPeek XmlInputPath="$(_MnvtSession)version.props" Query="/Project/PropertyGroup/MnvtFileVersion/text()"><Output TaskParameter="Result" PropertyName="_FileVersion" /></XmlPeek>
+    <XmlPeek XmlInputPath="$(_MnvtSession)version.props" Query="/Project/PropertyGroup/MnvtInformationalVersion/text()"><Output TaskParameter="Result" PropertyName="_InformationalVersion" /></XmlPeek>
+    <XmlPeek XmlInputPath="$(_MnvtSession)version.props" Query="/Project/PropertyGroup/MnvtBuildId/text()"><Output TaskParameter="Result" PropertyName="_BuildId" /></XmlPeek>
+    <XmlPeek XmlInputPath="$(_MnvtSession)version.props" Query="/Project/PropertyGroup/MnvtCommit/text()"><Output TaskParameter="Result" PropertyName="_Commit" /></XmlPeek>
+    <XmlPeek XmlInputPath="$(_MnvtSession)version.props" Query="/Project/PropertyGroup/MnvtBuildTimestamp/text()"><Output TaskParameter="Result" PropertyName="_Timestamp" /></XmlPeek>
+    <ItemGroup>
+      <MnvtVersionInfo Include="$(_MnvtSession)" Version="$(_Version)" PackageVersion="$(_PackageVersion)" AssemblyVersion="$(_AssemblyVersion)" FileVersion="$(_FileVersion)"
+                       InformationalVersion="$(_InformationalVersion)" BuildId="$(_BuildId)" Commit="$(_Commit)" Timestamp="$(_Timestamp)" />
+    </ItemGroup>
+  </Target>
+</Project>

@@ -1,0 +1,34 @@
+<Project>
+  <!--
+    Engine versioning (docs/architecture/versioning.md). Every project under src/ gets the version of its build session
+    from eng/Version.proj, which MSBuild runs once per session: all assemblies of one build carry the same version.
+
+      AssemblyVersion       MAJOR.0.0.0 (stable within an engine generation, so binding never breaks)
+      FileVersion           MAJOR.DDMM.PATCH.BUILD (numeric: 3 January is 301)
+      InformationalVersion  MAJOR.DDMM.PATCH.BUILD[-label]+sha.<commit>[.dirty] (ProductVersion on Windows)
+      AssemblyMetadata      MNVTEngine.BuildId, MNVTEngine.Commit, MNVTEngine.BuildTimestamp
+    MNVTEngine.Core also compiles the session's EngineVersion.g.cs and ships its version.json as MNVTEngine.version.json.
+  -->
+  <Target Name="MnvtApplyVersion" Condition="'$(MnvtVersioning)' == 'true'" BeforeTargets="AssignTargetPaths;GetAssemblyVersion;GetCopyToOutputDirectoryItems;CoreCompile">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)eng/Version.proj" Targets="Resolve"
+             Properties="Configuration=$(Configuration);MnvtVersionSession=$(MnvtVersionSession);MnvtSdkVersion=$(NETCoreSdkVersion)"
+             RemoveProperties="Platform;TargetFramework;RuntimeIdentifier;SelfContained;PublishAot;SolutionDir;SolutionExt;SolutionFileName;SolutionName;SolutionPath;CurrentSolutionConfigurationContents;BuildingSolutionFile;MnvtGameName;MnvtConsole;MnvtPackageKey;MnvtVerificationKey;MnvtDevTools;MnvtBootstrap">
+      <Output TaskParameter="TargetOutputs" ItemName="_MnvtVersionInfo" />
+    </MSBuild>
+    <PropertyGroup>
+      <Version>@(_MnvtVersionInfo->'%(PackageVersion)')</Version>
+      <AssemblyVersion>@(_MnvtVersionInfo->'%(AssemblyVersion)')</AssemblyVersion>
+      <FileVersion>@(_MnvtVersionInfo->'%(FileVersion)')</FileVersion>
+      <InformationalVersion>@(_MnvtVersionInfo->'%(InformationalVersion)')</InformationalVersion>
+      <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    </PropertyGroup>
+    <ItemGroup>
+      <AssemblyMetadata Include="MNVTEngine.BuildId" Value="@(_MnvtVersionInfo->'%(BuildId)')" />
+      <AssemblyMetadata Include="MNVTEngine.Commit" Value="@(_MnvtVersionInfo->'%(Commit)')" />
+      <AssemblyMetadata Include="MNVTEngine.BuildTimestamp" Value="@(_MnvtVersionInfo->'%(Timestamp)')" />
+      <Compile Include="@(_MnvtVersionInfo->'%(Identity)EngineVersion.g.cs')" Condition="'$(MSBuildProjectName)' == 'MNVTEngine.Core'" />
+      <None Include="@(_MnvtVersionInfo->'%(Identity)version.json')" Link="MNVTEngine.version.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never"
+            Condition="'$(MSBuildProjectName)' == 'MNVTEngine.Core'" />
+    </ItemGroup>
+  </Target>
+</Project>

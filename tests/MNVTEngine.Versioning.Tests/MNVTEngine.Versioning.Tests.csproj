@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The version generator with real Git repositories (git must be on PATH), and the MSBuild integration of the engine. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Tooling\MNVTEngine.Versioning\MNVTEngine.Versioning.csproj" />
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+  </ItemGroup>
+</Project>

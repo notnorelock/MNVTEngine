@@ -12,6 +12,19 @@
     <Product>MNVTEngine</Product>
   </PropertyGroup>
 
+  <!-- Engine versioning (docs/architecture/versioning.md): projects under src/ get the version of the build session
+       from eng/Version.proj (Directory.Build.targets). MnvtVersionSession selects a pipeline build's session folder. -->
+  <PropertyGroup>
+    <MnvtVersioning Condition="'$(MnvtVersioning)' == '' and $([MSBuild]::MakeRelative('$(MSBuildThisFileDirectory)', '$(MSBuildProjectDirectory)').Replace('\', '/').StartsWith('src/'))">true</MnvtVersioning>
+    <MnvtVersionSession Condition="'$(MnvtVersionSession)' == ''">$(MNVT_VERSION_SESSION)</MnvtVersionSession>
+  </PropertyGroup>
+
+  <!-- eng/Version.proj builds the generator into artifacts/ with its own intermediate folder. -->
+  <PropertyGroup Condition="'$(MnvtVersioningToolBuild)' == 'true'">
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts/versioning-tool-obj/</BaseIntermediateOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin/**;obj/**</DefaultItemExcludes>
+  </PropertyGroup>
+
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
     <IsPackable>false</IsPackable>
     <OutputType>Exe</OutputType>
