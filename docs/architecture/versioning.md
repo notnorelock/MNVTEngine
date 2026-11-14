@@ -247,7 +247,15 @@ Each environment variable overrides the matching setting. `BuildOptions.VersionV
 The CI provider and run id are detected for GitHub Actions, Azure Pipelines, GitLab, Jenkins and TeamCity. Only these
 two values are recorded: no other environment variable, no secret and no path reaches the metadata.
 
-GitHub Actions example:
+The repository's own CI is `.github/workflows/build.yml` (windows-latest). Every push to `main` and every pull
+request runs `scripts\build.cmd Release` with `MNVT_BUILD_NUMBER` set to the run number, then the test suite. Running
+the workflow by hand (Actions, "Build", "Run workflow") also publishes a GitHub release `v<version>` on the chosen
+channel. Its asset `MNVTEngine-<version>-win-x64.zip` holds the source tree at that commit plus the prebuilt editor and
+CLI (`bin/Release`). Exports compile GameHost from those sources, so users still need the .NET SDK. The zip has no
+`.git` folder, so engine builds made from it get PATCH 0 unless they set `MNVT_PATCH` ([Without Git metadata](#without-git-metadata)).
+Releases are made only by hand: nothing tags or publishes on its own.
+
+The minimal form for another pipeline:
 
 ```yaml
 - uses: actions/checkout@v4

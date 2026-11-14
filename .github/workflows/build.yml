@@ -1,0 +1,107 @@
+# Engine CI: builds and tests every push and pull request, and publishes a GitHub release when run by hand.
+# One workflow, so github.run_number is one counter for every build number (docs/architecture/versioning.md).
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Publish a GitHub release of this build
+        type: boolean
+        default: true
+      channel:
+        description: Release channel (anything but release is marked as a prerelease)
+        type: choice
+        options: [release, beta, preview, nightly]
+        default: release
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # PATCH is the commit count: a shallow clone cannot count it
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        shell: cmd
+        run: scripts\build.cmd Release
+        # Only here: tests make their own builds and must not inherit the release identity.
+        env:
+          MNVT_BUILD_NUMBER: ${{ github.run_number }}
+          MNVT_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.channel || 'development' }}
+
+      - name: Test
+        run: dotnet test --solution MNVTEngine.sln -c Release --no-build
+
+      - name: Engine version
+        id: version
+        shell: pwsh
+        run: |
+          $info = Get-Content src/Editor/MNVTEngine.Editor/bin/Release/net11.0/MNVTEngine.version.json -Raw | ConvertFrom-Json
+          "version=$($info.version)" >> $env:GITHUB_OUTPUT
+          Write-Host "MNVTEngine $($info.informationalVersion), build $($info.buildId)"
+
+      # The engine ships as its source tree (exports compile GameHost from it) plus prebuilt editor and CLI.
+      - name: Package
+        if: github.event_name == 'workflow_dispatch' && inputs.release
+        shell: pwsh
+        run: |
+          $name = "MNVTEngine-${{ steps.version.outputs.version }}-win-x64"
+          $stage = Join-Path $env:RUNNER_TEMP $name
+          New-Item -ItemType Directory $stage | Out-Null
+          git archive --format=tar -o "$env:RUNNER_TEMP/source.tar" HEAD
+          # Windows bsdtar (zip support), not the GNU tar of Git for Windows
+          & "$env:SystemRoot/System32/tar.exe" -x -f "$env:RUNNER_TEMP/source.tar" -C $stage
+          foreach ($project in 'src/Editor/MNVTEngine.Editor', 'src/Tooling/MNVTEngine.CLI') {
+            Copy-Item -Recurse "$project/bin/Release" (New-Item -ItemType Directory -Force "$stage/$project/bin").FullName
+          }
+          & "$env:SystemRoot/System32/tar.exe" -a -c -f "$env:RUNNER_TEMP/$name.zip" -C $env:RUNNER_TEMP $name
+          "ZIP=$env:RUNNER_TEMP/$name.zip" >> $env:GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        if: env.ZIP != ''
+        with:
+          name: engine
+          path: ${{ env.ZIP }}
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+  release:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: engine
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          PRERELEASE: ${{ inputs.channel != 'release' && '--prerelease' || '' }}
+        run: >
+          gh release create "v$VERSION" *.zip --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
+          --title "MNVTEngine $VERSION" --generate-notes $PRERELEASE
