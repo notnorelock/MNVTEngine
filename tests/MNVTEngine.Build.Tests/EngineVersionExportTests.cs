@@ -27,6 +27,7 @@ public sealed class EngineVersionExportTests(TestBuildState state) : IDisposable
     [Fact]
     public async Task Export3D_GetsTheNextBuildNumber_AndTheGameReportsItsEngineBuild()
     {
+        Gpu.SkipWithoutVulkan14();
         var engine = EngineLocation.FindRoot();
         var template = ProjectTemplates.List(EngineLocation.TemplatesDirectory(engine)).Single(t => t.Id == "empty-3d");
         var directory = Path.Combine(_root, "Deep");

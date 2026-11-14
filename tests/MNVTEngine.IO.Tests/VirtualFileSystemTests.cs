@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 
 namespace MNVTEngine.IO.Tests;
@@ -156,26 +157,33 @@ public sealed class VirtualFileSystemTests
     {
         using var vfs = new VirtualFileSystem();
         vfs.Mount(Memory("base", ("a.txt", "base")));
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        var done = false;
+        var reading = 0;
         var readers = Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
         {
             var reads = 0;
-            while (!stop.IsCancellationRequested)
+            while (!Volatile.Read(ref done))
             {
                 var text = Encoding.UTF8.GetString(vfs.ReadAllBytes("a.txt"));
                 Assert.True(text is "base" or "patch", text);
-                reads++;
+                if (++reads == 1)
+                {
+                    Interlocked.Increment(ref reading);
+                }
             }
 
             return reads;
         })).ToList();
 
-        while (!stop.IsCancellationRequested)
+        // At least a second of churn, and until every reader has read during it (thread pool start-up is slow on small CI machines).
+        var clock = Stopwatch.StartNew();
+        while (clock.Elapsed < TimeSpan.FromSeconds(1) || (Volatile.Read(ref reading) < readers.Count && clock.Elapsed < TimeSpan.FromSeconds(30) && !readers.Any(r => r.IsCompleted)))
         {
             var handle = vfs.Mount(Memory("patch", ("a.txt", "patch")), new MountOptions(Priority: 1));
             vfs.Unmount(handle);
         }
 
+        Volatile.Write(ref done, true);
         Assert.All(await Task.WhenAll(readers), reads => Assert.True(reads > 0));
     }
 }

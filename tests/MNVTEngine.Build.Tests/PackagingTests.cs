@@ -149,6 +149,7 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
             Assert.DoesNotContain("Scenes/Main", raw, StringComparison.Ordinal); // file names are in the encrypted index
         }
 
+        Gpu.SkipWithoutVulkan14(); // everything above is checked without a GPU; running the game needs one
         var run = await BuildValidator.RunAsync(Output, 20, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken);
         Assert.Empty(run);
         var log = File.ReadAllText(Path.Combine(Output, "Logs", "game.log"));

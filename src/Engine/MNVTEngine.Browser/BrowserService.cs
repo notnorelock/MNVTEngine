@@ -312,6 +312,8 @@ public sealed partial class BrowserService : IDisposable
     private async Task RunConnectionAsync(NamedPipeServerStream pipe, Channel<JObject> outgoing, Process process, string session, CancellationToken cancel)
     {
         string reason;
+        var exited = false;
+        _ = WatchExitAsync();
         try
         {
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel))
@@ -351,15 +353,33 @@ public sealed partial class BrowserService : IDisposable
         }
         catch (OperationCanceledException)
         {
-            reason = "The browser host did not connect within 30 seconds.";
+            reason = Volatile.Read(ref exited) ? Exited() : "The browser host did not connect within 30 seconds.";
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or ObjectDisposedException or Newtonsoft.Json.JsonException)
         {
-            reason = $"The connection to the browser host failed: {ex.Message}";
+            reason = Volatile.Read(ref exited) ? Exited() : $"The connection to the browser host failed: {ex.Message}";
         }
 
         var lost = new JObject { ["type"] = HostLost, ["reason"] = reason };
         _incoming.Enqueue(lost);
+
+        string Exited() => $"The browser host exited (code {process.ExitCode}).";
+
+        // The host's exit ends the connection even when a process it started still holds the pipe open.
+        async Task WatchExitAsync()
+        {
+            try
+            {
+                await process.WaitForExitAsync(cancel).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return; // the game stopped the host; StopHost closes the pipe
+            }
+
+            Volatile.Write(ref exited, true);
+            pipe.Dispose();
+        }
     }
 
     private static async Task WriteLoopAsync(NamedPipeServerStream pipe, Channel<JObject> outgoing, CancellationToken cancel)

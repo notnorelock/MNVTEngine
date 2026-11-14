@@ -82,6 +82,7 @@ public sealed class DlcCodeTests : IDisposable
     [InlineData("aot")]
     public async Task DlcCode_LoadsIntoTheGame_AndItsComponentsRun(string backend)
     {
+        Gpu.SkipWithoutVulkan14();
         var directory = NewProject();
         var options = new BuildOptions { ScriptingBackend = backend };
         var result = await new GameBuilder(NullLogger.Instance).BuildAsync(directory, options, TestContext.Current.CancellationToken);

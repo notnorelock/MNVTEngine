@@ -25,7 +25,7 @@ dotnet test --project tests/MNVTEngine.Scenes.Tests -- --filter-method "*Prefab*
   Git and the build counter (`Directory.Build.targets`, [versioning](docs/architecture/versioning.md)). `dotnet build`
   gives BUILD 0; `scripts/build.cmd` and `mnvt build` allocate build numbers in `artifacts/build-state`.
 - MSBuild treats `*.mnvtproj` as a project file: build the `.csproj` explicitly when one sits next to it.
-- GPU tests (`Graphics.Vulkan.Tests`, `DebugUI.Tests`) need a Vulkan 1.4 GPU and skip without one. They request the
+- GPU tests (`Graphics.Vulkan.Tests`, `DebugUI.Tests`, and `Build.Tests` that run an exported game) need a Vulkan 1.4 GPU and skip without one (as on GitHub's runners). They request the
   validation layer and fail on validation errors. Install the LunarG Vulkan SDK, or point `VK_ADD_LAYER_PATH` at a
   Khronos validation layer build, or validation is silently off. GPU test classes share one `[Collection]` with
   `DisableParallelization = true`.

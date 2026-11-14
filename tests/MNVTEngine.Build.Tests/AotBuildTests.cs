@@ -33,6 +33,7 @@ public sealed class AotBuildTests : IDisposable
     [Fact]
     public async Task AotBuild_IsOneNativeExecutable_WithTheGamesCode_AndRuns()
     {
+        Gpu.SkipWithoutVulkan14();
         var result = await new GameBuilder(NullLogger.Instance).BuildAsync(NewProject(), new BuildOptions { ScriptingBackend = "aot", TestRunFrames = 20 }, TestContext.Current.CancellationToken);
         Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics));
         var output = result.OutputDirectory!;
