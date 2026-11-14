@@ -67,6 +67,8 @@ dotnet run --project samples/HelloWorld -- --frames 120 --screenshot shot.png --
 ## Code conventions
 
 - Match the surrounding code: naming, comment density, file layout. `.editorconfig` is authoritative for style.
+- Every C# file starts with the SPDX header (copyright, `MIT`, last-modified date). Run `scripts\Update-Headers.ps1`
+  after changes instead of writing or dating headers by hand; `templates/` is skipped on purpose.
 - JSON is Newtonsoft.Json only. Never use `TypeNameHandling`; polymorphism goes through explicit registries. Project and scene files are untrusted input: validate them.
 - Logging: inject `ILogger` and use `[LoggerMessage]` source-generated methods. Gameplay code uses `GameLog` / `Component.Log`. Never `Console.WriteLine` in engine code. See [logging](docs/engine/logging.md).
 - No swallowed exceptions. A `catch` either handles a specific case, logs with context, or rethrows. Catch filters exclude `OutOfMemoryException`.
