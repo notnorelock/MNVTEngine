@@ -58,6 +58,19 @@ public sealed class AudioSource : Component
 
     public bool IsPaused => _voice?.State == VoiceState.Paused;
 
+    /// <summary>Seconds into the playing clip; 0 when stopped. Setting it seeks (streamed clips too).</summary>
+    public float Time
+    {
+        get => _voice?.Time ?? 0f;
+        set
+        {
+            if (_voice is not null)
+            {
+                _voice.Time = value;
+            }
+        }
+    }
+
     public void Play()
     {
         if (System is not { } system || system.GetBuffer(Clip) is not { } buffer)

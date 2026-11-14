@@ -455,7 +455,6 @@ Loading and streaming: `assets.loadTime` and `assets.loadTimeMax` (last 32 textu
 ## 12. Remaining work
 
 - Texture streaming has two levels (proxy, full image), not per-mip streaming by screen size; meshes are not streamed.
-- Streamed audio cannot seek.
 - DLC cannot ship C# code; mods have no manifest or load-order control beyond file names.
 - Linux and macOS targets do not exist yet (no GLFW/OpenAL/Vulkan-loader packaging or runtime packs for them); the VFS
   and package format are platform-independent.

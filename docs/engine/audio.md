@@ -28,6 +28,7 @@ tests and headless runs mix, meter and time sound exactly as it would be heard.
 - **Settings:** `Clip` (a `.wav` or `.ogg` asset), `Volume`, `Pitch` (0.1–4), `Loop`, `PlayOnStart`, `Spatial`, `ReferenceDistance` (full volume up to here), `MaxDistance` (attenuation stops here).
 - **Methods:** `Play()`, `Pause()`, `Resume()`, `Stop()`, and `PlayOneShot(clip, volumeScale)`.
 - **State:** `IsPlaying` and `IsPaused`.
+- **Position:** `Time` is the seconds into the playing clip (0 when stopped); setting it seeks, clamped to the clip. A streamed clip restarts decoding at the new frame, so the jump is heard after one decoded block.
 - **One-shots** overlap freely and are recycled when they finish.
 - **Disabling** the component stops it; destroying it releases its voice.
 
@@ -124,17 +125,16 @@ UI's **Mixer** panel (changes there last for the run). Meters are live in Play m
 - **Ogg Vorbis:** through NVorbis.
 - **Channels:** mono and stereo only.
 - **Errors:** damaged or unsupported files raise `InvalidDataException` with the asset name.
-- **Streams:** `AudioDecoder.Open(stream, name)` gives an `IAudioSampleSource` (block reads, rewind); `AudioDecoder.Decode` drains one.
+- **Streams:** `AudioDecoder.Open(stream, name)` gives an `IAudioSampleSource` (block reads, `Seek(frame)`); `AudioDecoder.Decode` drains one.
 
 ## Tests
 
 - `NullAudioDevice` renders the mix in simulated time, so component behaviour (pause, finish, loops, one-shots, unload), bus levels, meters, panning and effects are tested deterministically (`MixerAndEffectTests`).
 - `OpenAL_PlaysAClipToTheEnd` plays a quiet beep on the real device, and skips on machines without audio output.
-- `AudioStreamingTests`: streamed decoding equals whole decoding, playback to the end without underruns, seamless looping, read errors stopping the voice, and the `loadType` / size rule.
+- `AudioStreamingTests`: streamed decoding equals whole decoding, playback to the end without underruns, seamless looping, seeking (`Time`) in streamed and decoded clips, read errors stopping the voice, and the `loadType` / size rule.
 
 ## Limitations
 
-- Streamed clips cannot seek to a position (only play from the start and loop).
 - Effects are inserts on groups: no send/return buses, no sidechain (ducking), no Doppler effect, and no 3D listener orientation. The mixer is per scene, not a shared asset.
 - Output is 48 kHz stereo; surround layouts are not supported.
 - `PlayOneShot` voices cannot be stopped individually.

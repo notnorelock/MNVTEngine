@@ -20,7 +20,7 @@ public class AudioStreamingTests
         }
 
         Assert.Equal(whole.Samples, streamed);
-        source.Rewind();
+        source.Seek(0);
         Assert.Equal(whole.Samples[..100], Read(source, 100).ToArray());
         Assert.Throws<InvalidDataException>(() => AudioDecoder.Open(new MemoryStream("not audio at all"u8.ToArray()), "x"));
     }
@@ -53,6 +53,53 @@ public class AudioStreamingTests
         Assert.Equal(VoiceState.Stopped, voice.State);
         Assert.Equal(0, device.StreamUnderruns);
         Assert.Equal(2, opened); // once to probe the format, once to play
+        Assert.True(SpinWait.SpinUntil(() => device.ActiveStreams == 0, 2000));
+    }
+
+    [Fact]
+    public void Seek_ReadsFromTheFrame()
+    {
+        var wav = AudioTests.Sine(0.5f);
+        var whole = AudioDecoder.Decode(wav, "sine.wav");
+        using var source = AudioDecoder.Open(new MemoryStream(wav), "sine.wav");
+        source.Seek(5000);
+        Assert.Equal(whole.Samples[5000..5100], Read(source, 100).ToArray());
+        source.Seek(long.MaxValue);
+        Assert.Empty(Read(source, 100));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Time_Seeks_StreamedAndDecodedClips(bool streamed)
+    {
+        using var device = new NullAudioDevice();
+        var wav = AudioTests.Sine(2f);
+        using var buffer = streamed
+            ? device.CreateStreamedBuffer(() => AudioDecoder.Open(new MemoryStream(wav), "sine.wav"))
+            : device.CreateBuffer(AudioDecoder.Decode(wav, "sine.wav"));
+        using var voice = device.CreateVoice();
+        Assert.Equal(0f, voice.Time);
+        voice.Play(buffer);
+        voice.Time = 1.5f;
+        for (var i = 0; i < 10; i++)
+        {
+            Thread.Sleep(10);
+            device.Update(0.01f);
+        }
+
+        Assert.InRange(voice.Time, 1.5f, 1.8f);
+        Assert.Equal(VoiceState.Playing, voice.State);
+        voice.Time = 10f; // clamped to the end: the clip finishes
+        for (var i = 0; i < 20 && voice.State == VoiceState.Playing; i++)
+        {
+            Thread.Sleep(10);
+            device.Update(0.01f);
+        }
+
+        Assert.Equal(VoiceState.Stopped, voice.State);
+        Assert.Equal(0f, voice.Time);
+        Assert.Equal(0, device.StreamUnderruns);
         Assert.True(SpinWait.SpinUntil(() => device.ActiveStreams == 0, 2000));
     }
 

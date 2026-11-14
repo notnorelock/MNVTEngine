@@ -73,6 +73,12 @@ public interface IAudioVoice : IDisposable
     /// <summary>The mixer bus (an <c>AudioMixer</c> group) it plays through; empty or unknown means Master.</summary>
     string Bus { get; set; }
 
+    /// <summary>
+    /// Seconds into the clip (looping wraps it); 0 when stopped. Setting it seeks, clamped to the clip: a streamed clip
+    /// restarts decoding there, so the seek is heard after the first block decodes.
+    /// </summary>
+    float Time { get; set; }
+
     void Play(IAudioBuffer buffer);
 
     void Pause();

@@ -321,10 +321,10 @@ public class MixingAudioDevice : IAudioDevice
     /// <summary>A decoding or read error of a streamed clip (its voice stopped early); null when there is none.</summary>
     public Exception? TakeStreamError() => _streamErrors.TryDequeue(out var error) ? error : null;
 
-    /// <summary>A stream for a voice about to play, with its decoder open and the first block decoded (on the caller's thread, outside the lock).</summary>
-    private ClipStream PrepareStream(StreamedBuffer buffer, bool loop)
+    /// <summary>A stream for a voice about to play from <paramref name="startFrame"/>, with its decoder open and the first block decoded (on the caller's thread, outside the lock).</summary>
+    private ClipStream PrepareStream(StreamedBuffer buffer, bool loop, long startFrame = 0)
     {
-        var stream = new ClipStream(buffer, Math.Max(StreamBlockFrames * 2, (int)(buffer.SampleRate * StreamAheadSeconds) + StreamBlockFrames)) { Loop = loop };
+        var stream = new ClipStream(buffer, Math.Max(StreamBlockFrames * 2, (int)(buffer.SampleRate * StreamAheadSeconds) + StreamBlockFrames)) { Loop = loop, StartFrame = startFrame };
         var block = Array.Empty<short>();
         Fill(stream, ref block, maxBlocks: 1);
         return stream;
@@ -383,7 +383,15 @@ public class MixingAudioDevice : IAudioDevice
     {
         try
         {
-            stream.Source ??= stream.Buffer.Open();
+            if (stream.Source is null)
+            {
+                stream.Source = stream.Buffer.Open();
+                if (stream.StartFrame > 0)
+                {
+                    stream.Source.Seek(stream.StartFrame);
+                }
+            }
+
             var channels = stream.Buffer.Channels;
             if (block.Length < StreamBlockFrames * channels)
             {
@@ -416,7 +424,7 @@ public class MixingAudioDevice : IAudioDevice
                 {
                     if (loop && emptyRewinds++ == 0)
                     {
-                        stream.Source.Rewind();
+                        stream.Source.Seek(0);
                         continue;
                     }
 
@@ -661,6 +669,9 @@ public class MixingAudioDevice : IAudioDevice
 
         public IAudioSampleSource? Source { get; set; }
 
+        /// <summary>The clip frame the ring starts at (a seek); <see cref="Written"/> and <see cref="ReadPosition"/> count from it.</summary>
+        public long StartFrame { get; init; }
+
         /// <summary>Frames decoded into the ring since the start (looping continues counting).</summary>
         public long Written { get; set; }
 
@@ -702,6 +713,63 @@ public class MixingAudioDevice : IAudioDevice
         public float MaxDistance { get; set; } = 20f;
 
         public string Bus { get; set; } = "";
+
+        public float Time
+        {
+            get
+            {
+                lock (device._lock)
+                {
+                    if (State == VoiceState.Stopped)
+                    {
+                        return 0f;
+                    }
+
+                    if (_stream is { } stream)
+                    {
+                        var seconds = (stream.StartFrame + stream.ReadPosition) / stream.Buffer.SampleRate;
+                        return (float)(stream.Buffer.Duration > 0 ? seconds % stream.Buffer.Duration : seconds); // looping keeps counting
+                    }
+
+                    return _clip is { } clip ? (float)(_position / clip.SampleRate) : 0f;
+                }
+            }
+
+            set
+            {
+                StreamedBuffer buffer;
+                bool loop;
+                lock (device._lock)
+                {
+                    if (_clip is { } clip)
+                    {
+                        _position = Math.Clamp(value, 0f, clip.Duration) * (double)clip.SampleRate;
+                        return;
+                    }
+
+                    if (_stream is not { } current)
+                    {
+                        return;
+                    }
+
+                    (buffer, loop) = (current.Buffer, Loop);
+                }
+
+                // A streamed clip restarts decoding at the new frame, outside the lock like Play.
+                var prepared = device.PrepareStream(buffer, loop, (long)(Math.Clamp(value, 0f, buffer.Duration) * (double)buffer.SampleRate));
+                lock (device._lock)
+                {
+                    if (_stream?.Buffer == buffer)
+                    {
+                        CloseStream();
+                        _stream = device.StartStream(prepared);
+                        return;
+                    }
+                }
+
+                prepared.Source?.Dispose(); // the voice stopped or switched clips meanwhile
+            }
+        }
 
         public void Play(IAudioBuffer buffer)
         {

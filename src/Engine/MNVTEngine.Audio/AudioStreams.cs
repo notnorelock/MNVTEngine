@@ -20,8 +20,8 @@ public interface IAudioSampleSource : IDisposable
     /// <exception cref="InvalidDataException">The data is damaged.</exception>
     int Read(Span<short> interleaved);
 
-    /// <summary>Back to the first frame (looping).</summary>
-    void Rewind();
+    /// <summary>Continues reading at <paramref name="frame"/> (clamped to the end); 0 rewinds, for looping.</summary>
+    void Seek(long frame);
 }
 
 /// <summary>Decodes WAV (PCM 8/16/24/32-bit, IEEE float) and Ogg Vorbis to 16-bit PCM, whole or streamed.</summary>
@@ -194,7 +194,7 @@ internal sealed class WavSampleSource : IAudioSampleSource
         return bytes / FrameBytes;
     }
 
-    public void Rewind() => _consumed = 0;
+    public void Seek(long frame) => _consumed = Math.Clamp(frame, 0, _dataLength / FrameBytes) * FrameBytes;
 
     public void Dispose() => _stream.Dispose();
 
@@ -284,7 +284,7 @@ internal sealed class OggSampleSource : IAudioSampleSource
         return read / Channels;
     }
 
-    public void Rewind() => _reader.SeekTo(0);
+    public void Seek(long frame) => _reader.SeekTo(Math.Clamp(frame, 0, Frames ?? long.MaxValue));
 
     public void Dispose() => _reader.Dispose();
 }
