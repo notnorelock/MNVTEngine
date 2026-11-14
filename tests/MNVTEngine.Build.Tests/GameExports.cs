@@ -1,4 +1,20 @@
+[assembly: AssemblyFixture(typeof(MNVTEngine.Build.Tests.TestBuildState))]
+
 namespace MNVTEngine.Build.Tests;
+
+/// <summary>Build numbers of the test builds come from a temporary build state, never the engine tree's (MNVT_BUILD_STATE_DIR).</summary>
+public sealed class TestBuildState : IDisposable
+{
+    public TestBuildState() => Environment.SetEnvironmentVariable("MNVT_BUILD_STATE_DIR", Directory);
+
+    public string Directory { get; } = System.IO.Directory.CreateTempSubdirectory("mnvt-build-state-").FullName;
+
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable("MNVT_BUILD_STATE_DIR", null);
+        System.IO.Directory.Delete(Directory, recursive: true);
+    }
+}
 
 /// <summary>
 /// Test classes that publish a real game host (dotnet publish of GameHost). They share the engine's build outputs, so

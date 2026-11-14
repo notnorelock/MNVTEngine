@@ -54,6 +54,12 @@ public sealed class AotBuildTests : IDisposable
         var report = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(BuildReport.PathFor(output)));
         Assert.Equal("aot", (string?)report["scriptingBackend"]!["id"]);
         Assert.Contains("Not IL2CPP", (string?)report["scriptingBackend"]!["description"], StringComparison.Ordinal);
+
+        // The native executables carry the engine build too, and the game logs it (EngineVersion is compiled in).
+        Assert.Equal(package.Engine!.FileVersion, System.Diagnostics.FileVersionInfo.GetVersionInfo(Path.Combine(output, "AotTest.exe")).FileVersion);
+        Assert.Equal(package.Engine.FileVersion, System.Diagnostics.FileVersionInfo.GetVersionInfo(Path.Combine(output, "MNVTCrashHandler.exe")).FileVersion);
+        Assert.Contains($"build {package.Engine.BuildId:D}", log, StringComparison.Ordinal);
+        Assert.Equal("aot", (string?)report["engine"]!["context"]!["scriptingBackend"]);
     }
 
     [Fact]

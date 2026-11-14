@@ -17,9 +17,6 @@ public static class GamePackager
 {
     public static TimeSpan PublishTimeout { get; set; } = TimeSpan.FromMinutes(10);
 
-    public static string EngineVersion =>
-        typeof(GameProject).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0";
-
     /// <summary>The devtools module (in-game debug UI): the project's switch decides; without one, Debug builds have it and Release builds do not.</summary>
     public static bool IncludesDevTools(BuildProfile profile, GameProject project) =>
         (project ?? throw new ArgumentNullException(nameof(project))).Modules.TryGetValue("devtools", out var on) ? on
@@ -30,8 +27,9 @@ public static class GamePackager
     /// <param name="bootstrap">The game's <see cref="ModuleBootstrap"/> props (MnvtBootstrap); null builds the host with every module.</param>
     /// <param name="packageKey">The packages' encryption key as embedded (<see cref="EmbeddedPackageKey"/>); null for unencrypted packages.</param>
     /// <param name="verificationKey">The public key the game verifies its packages and manifest with.</param>
+    /// <param name="version">The build's engine version (<see cref="PipelineVersion"/>) the engine assemblies are stamped with; null for a development version.</param>
     public static async Task<IReadOnlyList<BuildDiagnostic>> PublishHostAsync(
-        string engineRoot, BuildProfile profile, string executableName, string? packageKey, PackageVerificationKey verificationKey, string workDirectory, string packageDirectory, bool devTools, string? bootstrap = null, CancellationToken cancellationToken = default)
+        string engineRoot, BuildProfile profile, string executableName, string? packageKey, PackageVerificationKey verificationKey, string workDirectory, string packageDirectory, bool devTools, string? bootstrap = null, PipelineVersion? version = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(verificationKey);
@@ -68,6 +66,11 @@ public static class GamePackager
             arguments.Add($"-p:MnvtBootstrap={bootstrap}");
         }
 
+        if (version is not null)
+        {
+            arguments.Add(version.MsBuildProperty);
+        }
+
         var result = await DotnetCli.RunAsync(arguments, engineRoot, PublishTimeout, cancellationToken).ConfigureAwait(false);
         if (result.StartError is { } error)
         {
@@ -94,7 +97,7 @@ public static class GamePackager
     /// a native, ahead-of-time compiled handler (the game has no .NET runtime).
     /// </summary>
     public static async Task<IReadOnlyList<BuildDiagnostic>> PublishCrashHandlerAsync(
-        string engineRoot, BuildProfile profile, string workDirectory, string packageDirectory, bool aot, CancellationToken cancellationToken = default)
+        string engineRoot, BuildProfile profile, string workDirectory, string packageDirectory, bool aot, PipelineVersion? version = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
         var output = Path.Combine(workDirectory, "CrashHandler");
@@ -119,6 +122,11 @@ public static class GamePackager
         if (aot)
         {
             arguments.AddRange(["-p:PublishAot=true", "-p:TreatWarningsAsErrors=false"]);
+        }
+
+        if (version is not null)
+        {
+            arguments.Add(version.MsBuildProperty);
         }
 
         var result = await DotnetCli.RunAsync(arguments, engineRoot, PublishTimeout, cancellationToken).ConfigureAwait(false);
@@ -175,7 +183,7 @@ public static class GamePackager
     /// bytes the browser added with the diagnostics.
     /// </summary>
     public static async Task<(IReadOnlyList<BuildDiagnostic> Diagnostics, long Bytes)> PublishBrowserHostAsync(
-        string engineRoot, BuildProfile profile, string workDirectory, string packageDirectory, string locale = "en-US", CancellationToken cancellationToken = default)
+        string engineRoot, BuildProfile profile, string workDirectory, string packageDirectory, string locale = "en-US", PipelineVersion? version = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
         var output = Path.Combine(workDirectory, "BrowserHost");
@@ -198,6 +206,7 @@ public static class GamePackager
             "-p:ContinuousIntegrationBuild=true",
             "-p:DebugType=none",
             $"-p:MnvtPrivateRuntime={(needsRuntime ? "true" : "false")}",
+            .. version is null ? Array.Empty<string>() : [version.MsBuildProperty],
         ];
         var result = await DotnetCli.RunAsync(arguments, engineRoot, PublishTimeout, cancellationToken).ConfigureAwait(false);
         if (result.StartError is { } error)

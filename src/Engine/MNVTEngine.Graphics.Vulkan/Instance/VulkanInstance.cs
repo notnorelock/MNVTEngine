@@ -104,7 +104,7 @@ internal sealed unsafe partial class VulkanInstance : IDisposable
                 PApplicationName = name,
                 ApplicationVersion = 1,
                 PEngineName = engine,
-                EngineVersion = 1,
+                EngineVersion = Vk.MakeVersion((uint)MNVTEngine.EngineVersion.Major, 0, 0), // DDMM does not fit Vulkan's 10-bit minor
                 ApiVersion = VulkanVersion.Api14,
             };
             var info = new InstanceCreateInfo

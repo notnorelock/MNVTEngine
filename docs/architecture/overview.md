@@ -75,7 +75,8 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.Audio.OpenAL** | M8 | OpenAL Soft backend, chosen by hosts | Audio, Silk.NET.OpenAL |
 | **MNVTEngine.GameAssemblies** | M5 | Collectible load contexts for game code, component discovery and registration, unload support (reflection cache release) | Scenes |
 | **MNVTEngine.GameHost** | M7 | Executable of exported games: resolves `Dependencies/`, verifies the signed manifest, mounts the signed, encrypted content packages, loads game code from them; never compiles | Runtime, GameAssemblies, Graphics.Vulkan |
-| **MNVTEngine.Build** (Tooling) | M5/M7 | C# script compilation, build profiles, content compilation, host publishing, package validation, templates. See [building](../build-system/building.md) | GameAssemblies, Runtime |
+| **MNVTEngine.Build** (Tooling) | M5/M7 | C# script compilation, build profiles, content compilation, host publishing, package validation, templates. See [building](../build-system/building.md) | GameAssemblies, Runtime, Versioning |
+| **MNVTEngine.Versioning** (Tooling) | Versioning | The engine version generator: `eng/version.json`, Git metadata, build numbers, version sessions for MSBuild. See [engine versioning](versioning.md) | Newtonsoft.Json only: it runs before the engine is built |
 | **MNVTEngine.CLI** (Tooling, `mnvt`) | M7 | Commands `new`, `editor`, `run`, `build`, `validate`; argument parsing and reporting only | Build, Graphics.Vulkan |
 | **MNVTEngine.Player** (Tooling) | M5 | Development runner: compile scripts if stale, load, run any project | Build, Graphics.Vulkan |
 | **MNVTEngine.Editor.Services** | M3 | Session, selection, Play Mode, inspection, picking, gizmo math (no ImGui) | Runtime |

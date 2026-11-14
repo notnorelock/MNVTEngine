@@ -98,7 +98,7 @@ internal static class Game
 
         using (content)
         {
-            HostLog.Starting(logger, package.Name, package.Profile, package.EngineVersion);
+            HostLog.Starting(logger, package.Name, package.Profile, package.EngineVersion, package.ScriptingBackend, package.Target);
             return GameApplication.Run(
                 args,
                 (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication(package.Name, window.Options.VSync, window.Options.GraphicsValidation) with { PrecompiledShaders = content.TryRead }),
@@ -195,8 +195,8 @@ internal static class Game
 
 internal static partial class HostLog
 {
-    [LoggerMessage(EventId = 7000, Level = LogLevel.Information, Message = "{Game} ({Profile}), MNVTEngine {Version}")]
-    public static partial void Starting(ILogger logger, string game, string profile, string version);
+    [LoggerMessage(EventId = 7000, Level = LogLevel.Information, Message = "{Game} ({Profile}), built with MNVTEngine {Version}, {Backend}, {Target}")]
+    public static partial void Starting(ILogger logger, string game, string profile, string version, string backend, string target);
 
     [LoggerMessage(EventId = 7001, Level = LogLevel.Critical, Message = "The game content is missing or damaged; reinstall the game")]
     public static partial void BadPackage(ILogger logger, Exception exception);

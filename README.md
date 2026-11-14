@@ -80,6 +80,7 @@ See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scri
 - [Engine composition audit (modules, usage-based builds)](docs/architecture/engine-composition-audit.md)
 - [IL2CPP and ahead-of-time compilation (NativeAOT backend)](docs/architecture/il2cpp-aot-pipeline.md)
 - [Virtual file system and `.mnvtpack` packages: format, compression, encryption, signatures, export isolation](docs/architecture/virtual-filesystem.md)
+- [Engine versioning: `MAJOR.DDMM.PATCH.BUILD`, build numbers, metadata, CI overrides, reproducible builds](docs/architecture/versioning.md)
 - [Mathematics conventions](docs/engine/mathematics.md)
 - [JSON serialization](docs/serialization/json.md)
 - [2D rendering, frame loop, resource ownership](docs/graphics/rendering.md)

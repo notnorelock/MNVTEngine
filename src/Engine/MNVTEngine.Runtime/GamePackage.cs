@@ -94,7 +94,11 @@ public sealed partial class GamePackage
 
     public string Target { get; set; } = "";
 
+    /// <summary>The engine version the game was built with (MAJOR.DDMM.PATCH.BUILD[-label]); see <see cref="Engine"/>.</summary>
     public string EngineVersion { get; set; } = "";
+
+    /// <summary>The engine build the game was built with; null in manifests of builds before engine versioning.</summary>
+    public EngineBuildStamp? Engine { get; set; }
 
     /// <summary>Identity of this build: a hash of everything it was built from. Every package carries it.</summary>
     public Guid BuildId { get; set; }
@@ -252,4 +256,27 @@ public sealed partial class GamePackage
 
     [GeneratedRegex(@"^[A-Za-z][A-Za-z0-9_.\-]{0,63}$")]
     private static partial Regex ExecutableNamePattern();
+}
+
+/// <summary>The engine build an exported game was made with, as its signed manifest records it (docs/architecture/versioning.md).</summary>
+public sealed class EngineBuildStamp
+{
+    /// <summary>MAJOR.DDMM.PATCH.BUILD with the prerelease label, like "1.1411.140.4-dev".</summary>
+    public string Version { get; set; } = "";
+
+    /// <summary>The executable's numeric file version, like "1.1411.140.4".</summary>
+    public string FileVersion { get; set; } = "";
+
+    /// <summary>Distinguishes two builds with the same version.</summary>
+    public Guid BuildId { get; set; }
+
+    /// <summary>The engine's Git commit; null when the engine was built without Git metadata.</summary>
+    public string? Commit { get; set; }
+
+    /// <summary>True when the engine was built from a modified working tree: not exactly <see cref="Commit"/>.</summary>
+    public bool Dirty { get; set; }
+
+    public DateTime TimestampUtc { get; set; }
+
+    public string Channel { get; set; } = "";
 }

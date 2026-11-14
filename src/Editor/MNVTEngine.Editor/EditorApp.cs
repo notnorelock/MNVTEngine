@@ -54,6 +54,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private AnimatorEditorPanel _animator = null!;
     private bool _showBuildSettings;
     private DiagnosticsSettingsWindow _diagnosticsWindow = null!;
+    private readonly AboutWindow _about = new();
     private int _focusSceneFrames;
     private readonly Core.Diagnostics.FrameProfiler _profiler = new();
     private ScriptReloadController _scripts = null!;
@@ -146,6 +147,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _build = new BuildController(project, loggerFactory);
         _showBuildSettings = options.FocusWindow == "Build Settings";
         _diagnosticsWindow = new DiagnosticsSettingsWindow(_context) { Open = options.FocusWindow == "Diagnostics" };
+        _about.Open = options.FocusWindow == "About";
         foreach (var breakpoint in options.Breakpoints ?? [])
         {
             var separator = breakpoint.LastIndexOf(':');
@@ -273,6 +275,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _build.Update();
         DrawBuildSettings();
         _diagnosticsWindow.Draw();
+        _about.Draw();
         _scriptDebugger.Draw();
         if (_context.OpenScriptInternallyRequest is { } inEditor)
         {
@@ -610,6 +613,10 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         [
             new("Diagnostics Settings", Action: () => _diagnosticsWindow.Open = !_diagnosticsWindow.Open, Checked: _diagnosticsWindow.Open),
             new("Reset Layout", Action: () => _resetLayout = true),
+        ]),
+        new("Help", () =>
+        [
+            new("About MNVTEngine", Action: () => _about.Open = true),
         ]),
     ];
 

@@ -22,6 +22,10 @@ public static class Cli
     public const string Usage = """
         Usage: mnvt <command> [options]
 
+          --version             The engine build: version, commit, build id, date, configuration
+          version [--json] [--verbose]
+                                The same as --version; --json: complete metadata; --verbose: also the build host and what
+                                the next build of this engine tree would get (eng/version.json, Git state, build counter)
           new <Name> --profile 2d|3d [--template <id>] [--path <parent folder>]
                                 Create a 2D or 3D project (Empty 2D / Empty 3D, or a template of that profile; see `mnvt new --list`)
           modules list [project]  Engine modules: profiles, activation, dependencies (and their status in the project)
@@ -71,7 +75,7 @@ public static class Cli
 
         if (args[0] == "--version")
         {
-            output.WriteLine($"mnvt {GamePackager.EngineVersion}");
+            output.Write(EngineVersion.Describe());
             return Ok;
         }
 
@@ -89,6 +93,7 @@ public static class Cli
                 "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--scripting-backend", "--signing-key"], [], optionalValues: ["--run"]),
                 "package" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--signing-key", "--project", "--trust", "--new-signing-key", "--folder", "--name"], ["--entries", "--rotate", "--no-repack", "--separate-key"]),
                 "validate" => CommandLine.Parse(args, [], [], optionalValues: ["--run"]),
+                "version" => CommandLine.Parse(args, [], ["--json", "--verbose"]),
                 _ => throw new FormatException($"Unknown command '{args[0]}'."),
             };
         }
@@ -110,6 +115,7 @@ public static class Cli
                 "build" => await BuildAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
                 "analyze" => await AnalyzeAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
                 "package" => await PackageCommand.RunAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
+                "version" => VersionCommand.Run(command, output),
                 _ => await ValidateAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
             };
         }

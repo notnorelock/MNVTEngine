@@ -5,7 +5,7 @@ using MNVTEngine.Runtime;
 namespace MNVTEngine.Build;
 
 /// <summary>
-/// The build id: a hash of everything a build is made from (engine version, profile settings, keys' ids, the project
+/// The build id: a hash of everything a build is made from (engine source revision, profile settings, keys' ids, the project
 /// file, every file of Assets with its .meta, the imported artifacts and the compiled C# scripts). Identical inputs give
 /// the same id, so identical builds are byte-identical; any change gives a new id, and with it new package GUIDs and
 /// new per-package encryption keys.
@@ -14,7 +14,8 @@ public static class BuildIdentity
 {
     /// <param name="keyIds">Ids of the encryption and signing keys (they change the output too).</param>
     /// <param name="scriptsOutput">Compiled C# scripts folder; null without scripts.</param>
-    public static Guid Compute(GameProject project, BuildProfile profile, string? scriptsOutput, params IEnumerable<string> keyIds)
+    /// <param name="engineIdentity">The engine's source revision (<see cref="PipelineVersion.SourceIdentity"/>): not its build number, which changes on every build.</param>
+    public static Guid Compute(GameProject project, BuildProfile profile, string? scriptsOutput, string engineIdentity, params IEnumerable<string> keyIds)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(profile);
@@ -22,7 +23,7 @@ public static class BuildIdentity
         void Text(string text) => hash.AppendData(Encoding.UTF8.GetBytes(text + "\n"));
 
         Text("MNVTEngine build v1");
-        Text(GamePackager.EngineVersion);
+        Text(engineIdentity);
         Text($"{profile.Name}|{profile.Configuration}|{profile.Target}|{profile.ScriptingBackend}|{profile.Compression}|{profile.Encrypt}");
         foreach (var (extension, compression) in profile.CompressionByExtension.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase))
         {

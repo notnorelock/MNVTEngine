@@ -21,6 +21,9 @@ dotnet test --project tests/MNVTEngine.Scenes.Tests -- --filter-method "*Prefab*
   Fix analyzer warnings; do not suppress them without a reason in a comment.
 - Package versions live in `Directory.Packages.props` (central package management). Add new packages there, not in csproj files.
 - Add projects with `dotnet sln add --in-root <csproj>`; adding into solution folders fails on this SDK.
+- Versions are generated, never written in project files: `eng/version.json` sets MAJOR, the rest comes from the date,
+  Git and the build counter (`Directory.Build.targets`, [versioning](docs/architecture/versioning.md)). `dotnet build`
+  gives BUILD 0; `scripts/build.cmd` and `mnvt build` allocate build numbers in `artifacts/build-state`.
 - MSBuild treats `*.mnvtproj` as a project file: build the `.csproj` explicitly when one sits next to it.
 - GPU tests (`Graphics.Vulkan.Tests`, `DebugUI.Tests`) need a Vulkan 1.4 GPU and skip without one. They request the
   validation layer and fail on validation errors. Install the LunarG Vulkan SDK, or point `VK_ADD_LAYER_PATH` at a

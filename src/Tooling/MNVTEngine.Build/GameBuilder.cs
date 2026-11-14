@@ -30,6 +30,12 @@ public sealed record BuildOptions
 
     /// <summary>PEM file of the release signing key; null for <see cref="SigningKeys.EnvironmentVariable"/> or the development key.</summary>
     public string? SigningKey { get; init; }
+
+    /// <summary>
+    /// Engine version variables (MNVT_BUILD_NUMBER, MNVT_BUILD_TIMESTAMP, MNVT_REPRODUCIBLE, ...) that take precedence
+    /// over the process environment; see docs/architecture/versioning.md.
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? VersionVariables { get; init; }
 }
 
 public sealed record BuildResult(bool Succeeded, BuildProfile? Profile, string? OutputDirectory, string? Executable, IReadOnlyList<BuildDiagnostic> Diagnostics, TimeSpan Duration);
@@ -42,6 +48,35 @@ public sealed record BuildResult(bool Succeeded, BuildProfile? Profile, string? 
 public sealed partial class GameBuilder(ILogger logger)
 {
     public async Task<BuildResult> BuildAsync(string projectPath, BuildOptions options, CancellationToken cancellationToken = default)
+    {
+        PipelineVersion? version = null;
+        try
+        {
+            var result = await BuildCoreAsync(projectPath, options, v => version = v, cancellationToken).ConfigureAwait(false);
+            Complete(version, result.Succeeded ? "succeeded" : "failed");
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            Complete(version, "canceled");
+            throw;
+        }
+        catch (Exception)
+        {
+            Complete(version, "failed");
+            throw;
+        }
+    }
+
+    private void Complete(PipelineVersion? version, string result)
+    {
+        if (version?.Complete(result) is { } problem)
+        {
+            LogBuildStateFailed(logger, version.Info.Version, result, problem);
+        }
+    }
+
+    private async Task<BuildResult> BuildCoreAsync(string projectPath, BuildOptions options, Action<PipelineVersion> started, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(options);
         var watch = Stopwatch.StartNew();
@@ -94,10 +129,18 @@ public sealed partial class GameBuilder(ILogger logger)
         }
 
         var work = Path.Combine(project.RootDirectory, "Library", "Build", profile.Name);
+        var version = PipelineVersion.Begin(engineRoot, $"game:{project.Name}", Context(project, profile), Path.Combine(work, "Version"), options.VersionVariables, diagnostics);
+        if (version is null)
+        {
+            return Fail(profile);
+        }
+
+        started(version);
         var stage = Path.Combine(work, "Package");
         DeleteDirectory(stage);
         Directory.CreateDirectory(stage);
         LogBuilding(logger, project.Name, profile.Name, profile.Configuration, profile.Target);
+        LogEngineVersion(logger, version.Info.InformationalVersion, version.Info.BuildId);
 
         diagnostics.AddRange(ContentCompiler.CreateMissingMetas(project));
         diagnostics.AddRange(ContentCompiler.ImportModels(project));
@@ -169,7 +212,7 @@ public sealed partial class GameBuilder(ILogger logger)
 
         // 2. Content, into signed (and encrypted) packages: globals (index, runtime configuration, game code), default
         //    resources (precompiled shaders), one package per level, shared assets and resources. See ContentLayout.
-        var buildId = BuildIdentity.Compute(project, profile, scriptsOutput, profile.Encrypt ? key.IdText : "plain", signer.PublicKey.Id);
+        var buildId = BuildIdentity.Compute(project, profile, scriptsOutput, version.SourceIdentity, profile.Encrypt ? key.IdText : "plain", signer.PublicKey.Id);
         var contentDirectory = Path.Combine(work, "Content");
         DeleteDirectory(contentDirectory);
         Directory.CreateDirectory(contentDirectory);
@@ -182,7 +225,7 @@ public sealed partial class GameBuilder(ILogger logger)
         FrameworkPruning? pruning = null;
         var archive = new ContentPackageWriter(contentDirectory, new ContentPackageOptions(
             buildId, profile.Encrypt ? key : null, signer, profile.Compression, profile.CompressionByExtension,
-            new Dictionary<string, string> { ["game"] = project.Name, ["target"] = profile.Target, ["profile"] = profile.Name, ["engine"] = GamePackager.EngineVersion }));
+            PackageProperties(project, profile, version)));
         IReadOnlyList<ContentPackage> packages;
         using (archive)
         {
@@ -221,8 +264,10 @@ public sealed partial class GameBuilder(ILogger logger)
             var bootstrap = ModuleBootstrap.Write(content.Modules!, Path.Combine(work, "Bootstrap"),
                 aot ? new AotInput(aotSource!, scriptsAssemblyPath, AotBootstrap.Roots(content.Modules!, scripts?.AssemblyName, dlcAssemblies.Select(Path.GetFileNameWithoutExtension).OfType<string>()), dlcAssemblies) : null);
             modules = [.. content.Modules!.Modules.Select(m => m.Id)];
+            var moduleList = modules;
+            version.Update(c => c with { Profile = content.Modules.Profile.Id(), Modules = moduleList });
             var embeddedKey = profile.Encrypt ? EmbeddedPackageKey.Encode(key, buildId.ToByteArray()) : null;
-            diagnostics.AddRange(await GamePackager.PublishHostAsync(engineRoot, profile, executableName, embeddedKey, signer.PublicKey, work, stage, modules.Contains("devtools"), bootstrap, cancellationToken).ConfigureAwait(false));
+            diagnostics.AddRange(await GamePackager.PublishHostAsync(engineRoot, profile, executableName, embeddedKey, signer.PublicKey, work, stage, modules.Contains("devtools"), bootstrap, version, cancellationToken).ConfigureAwait(false));
             if (diagnostics.HasErrors())
             {
                 return Fail(profile);
@@ -238,10 +283,10 @@ public sealed partial class GameBuilder(ILogger logger)
                 scriptsAssembly = GamePackager.AddGameCode(archive.Globals, scriptsOutput!, scripts.AssemblyName, stage, profile.Configuration == "Debug", diagnostics);
             }
 
-            diagnostics.AddRange(await GamePackager.PublishCrashHandlerAsync(engineRoot, profile, work, stage, aot, cancellationToken).ConfigureAwait(false));
+            diagnostics.AddRange(await GamePackager.PublishCrashHandlerAsync(engineRoot, profile, work, stage, aot, version, cancellationToken).ConfigureAwait(false));
             if (modules.Contains("browser"))
             {
-                var (browserDiagnostics, browserBytes) = await GamePackager.PublishBrowserHostAsync(engineRoot, profile, work, stage, cancellationToken: cancellationToken).ConfigureAwait(false);
+                var (browserDiagnostics, browserBytes) = await GamePackager.PublishBrowserHostAsync(engineRoot, profile, work, stage, version: version, cancellationToken: cancellationToken).ConfigureAwait(false);
                 diagnostics.AddRange(browserDiagnostics);
                 browserHostBytes = browserBytes;
             }
@@ -291,7 +336,8 @@ public sealed partial class GameBuilder(ILogger logger)
             Modules = modules,
             ScriptingBackend = profile.ScriptingBackend,
             Target = profile.Target,
-            EngineVersion = GamePackager.EngineVersion,
+            EngineVersion = version.Info.Version,
+            Engine = Stamp(version),
             ScriptsAssembly = scriptsAssembly,
             Packages = [.. packages],
         }, signer);
@@ -318,7 +364,7 @@ public sealed partial class GameBuilder(ILogger logger)
         var formattedSize = GamePackager.FormatSize(size);
         LogPackaged(logger, formattedSize, output);
         var reportPath = BuildReport.PathFor(output);
-        BuildReport.Write(BuildReport.Create(new BuildReportInput(project, profile, compiled!, modules.Contains("devtools"), diagnostics) { PackageDirectory = output, Pruning = pruning, ScriptingBackend = profile.ScriptingBackend, BrowserHostBytes = browserHostBytes }), reportPath);
+        BuildReport.Write(BuildReport.Create(new BuildReportInput(project, profile, compiled!, modules.Contains("devtools"), diagnostics) { PackageDirectory = output, Pruning = pruning, ScriptingBackend = profile.ScriptingBackend, BrowserHostBytes = browserHostBytes, Version = version.Info }), reportPath);
         LogReport(logger, reportPath);
 
         if (options.TestRunFrames is { } frames)
@@ -338,6 +384,27 @@ public sealed partial class GameBuilder(ILogger logger)
     /// </summary>
     public async Task<(string? Directory, IReadOnlyList<ContentPackage> Packages, IReadOnlyList<BuildDiagnostic> Diagnostics)> PackageAsync(string projectPath, BuildOptions options, CancellationToken cancellationToken = default)
     {
+        PipelineVersion? version = null;
+        try
+        {
+            var result = await PackageCoreAsync(projectPath, options, v => version = v, cancellationToken).ConfigureAwait(false);
+            Complete(version, result.Directory is null ? "failed" : "succeeded");
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            Complete(version, "canceled");
+            throw;
+        }
+        catch (Exception)
+        {
+            Complete(version, "failed");
+            throw;
+        }
+    }
+
+    private async Task<(string? Directory, IReadOnlyList<ContentPackage> Packages, IReadOnlyList<BuildDiagnostic> Diagnostics)> PackageCoreAsync(string projectPath, BuildOptions options, Action<PipelineVersion> started, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(options);
         var diagnostics = new List<BuildDiagnostic>();
         if (LoadProject(projectPath, diagnostics) is not { } project || ResolveProfile(project, options, diagnostics) is not { } profile)
@@ -356,6 +423,23 @@ public sealed partial class GameBuilder(ILogger logger)
         var work = Path.Combine(project.RootDirectory, "Library", "Build", profile.Name + "-packages");
         DeleteDirectory(work);
         Directory.CreateDirectory(work);
+        string engineRoot;
+        try
+        {
+            engineRoot = EngineLocation.FindRoot();
+        }
+        catch (DirectoryNotFoundException ex)
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB106", ex.Message));
+            return (null, [], diagnostics);
+        }
+
+        if (PipelineVersion.Begin(engineRoot, $"packages:{project.Name}", Context(project, profile), Path.Combine(work, "Version"), options.VersionVariables, diagnostics) is not { } version)
+        {
+            return (null, [], diagnostics);
+        }
+
+        started(version);
         diagnostics.AddRange(ContentCompiler.CreateMissingMetas(project));
         diagnostics.AddRange(ContentCompiler.ImportModels(project));
 
@@ -377,14 +461,14 @@ public sealed partial class GameBuilder(ILogger logger)
             }
         }
 
-        var buildId = BuildIdentity.Compute(project, profile, scriptsOutput, profile.Encrypt ? key.IdText : "plain", signer.PublicKey.Id);
+        var buildId = BuildIdentity.Compute(project, profile, scriptsOutput, version.SourceIdentity, profile.Encrypt ? key.IdText : "plain", signer.PublicKey.Id);
         var staged = Path.Combine(work, "Packages");
         Directory.CreateDirectory(staged);
         IReadOnlyList<ContentPackage> packages;
         string? scriptsAssembly = null;
         using (var writer = new ContentPackageWriter(staged, new ContentPackageOptions(
             buildId, profile.Encrypt ? key : null, signer, profile.Compression, profile.CompressionByExtension,
-            new Dictionary<string, string> { ["game"] = project.Name, ["target"] = profile.Target, ["profile"] = profile.Name, ["engine"] = GamePackager.EngineVersion })))
+            PackageProperties(project, profile, version))))
         {
             try
             {
@@ -428,13 +512,40 @@ public sealed partial class GameBuilder(ILogger logger)
             BuildId = buildId,
             SigningKeyId = signer.PublicKey.Id,
             Target = profile.Target,
-            EngineVersion = GamePackager.EngineVersion,
+            EngineVersion = version.Info.Version,
+            Engine = Stamp(version),
             ScriptingBackend = profile.ScriptingBackend,
             ScriptsAssembly = scriptsAssembly,
             Packages = [.. packages],
         }.Save(output, signer);
         return (output, packages, diagnostics);
     }
+
+    /// <summary>What a pipeline build of the profile produces, for its version metadata.</summary>
+    internal static Versioning.BuildContext Context(GameProject project, BuildProfile profile) => new()
+    {
+        Configuration = profile.Configuration,
+        TargetPlatform = profile.Target,
+        TargetFramework = $"net{Environment.Version.Major}.{Environment.Version.Minor}",
+        Profile = project.Profile?.Id(),
+        ScriptingBackend = profile.ScriptingBackend,
+        GraphicsBackend = "vulkan",
+    };
+
+    private static Dictionary<string, string> PackageProperties(GameProject project, BuildProfile profile, PipelineVersion version) =>
+        new(version.PackageProperties) { ["game"] = project.Name, ["target"] = profile.Target, ["profile"] = profile.Name };
+
+    /// <summary>The engine build recorded in the manifest (signed with it).</summary>
+    internal static EngineBuildStamp Stamp(PipelineVersion version) => new()
+    {
+        Version = version.Info.Version,
+        FileVersion = version.Info.FileVersion,
+        BuildId = version.Info.BuildId,
+        Commit = version.Info.Source.Commit,
+        Dirty = version.Info.Source.Dirty,
+        TimestampUtc = version.Info.TimestampUtc.UtcDateTime,
+        Channel = version.Info.Channel,
+    };
 
     /// <summary>
     /// What a build of <paramref name="options"/>' profile would contain and why, without packaging: C# scripts compiled,
@@ -765,6 +876,12 @@ public sealed partial class GameBuilder(ILogger logger)
             LogModules(logger, ids, usage.Stripped.Count);
         }
     }
+
+    [LoggerMessage(EventId = 8030, Level = LogLevel.Information, Message = "Engine version {Version}, build id {BuildId}")]
+    private static partial void LogEngineVersion(ILogger logger, string version, Guid buildId);
+
+    [LoggerMessage(EventId = 8031, Level = LogLevel.Warning, Message = "Build {Version} could not be recorded as {Result} in the build state: {Problem}")]
+    private static partial void LogBuildStateFailed(ILogger logger, string version, string result, string problem);
 
     [LoggerMessage(EventId = 8012, Level = LogLevel.Information, Message = "Build report: {Path}")]
     private static partial void LogReport(ILogger logger, string path);

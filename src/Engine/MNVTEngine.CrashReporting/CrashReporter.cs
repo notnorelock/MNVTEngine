@@ -13,11 +13,20 @@ public sealed record CrashReporterOptions(string ProductName, string ReportsDire
 {
     public int KeepReports { get; init; } = 10;
 
-    /// <summary>The engine version shown in the title; defaults to this assembly's informational version.</summary>
+    /// <summary>The engine version shown in the title and report; defaults to this engine build's (its assemblies carry it).</summary>
     public string EngineVersion { get; init; } = DefaultEngineVersion;
 
-    internal static string DefaultEngineVersion =>
-        typeof(CrashReporter).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "dev";
+    /// <summary>"1.1411.140.4-dev+sha.abcdef123456 (build 7b4e...)": the version, commit and build id of this engine build.</summary>
+    internal static string DefaultEngineVersion
+    {
+        get
+        {
+            var assembly = typeof(CrashReporter).Assembly;
+            var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown";
+            var buildId = assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "MNVTEngine.BuildId")?.Value;
+            return buildId is null ? version : $"{version} (build {buildId})";
+        }
+    }
 }
 
 public enum CrashKind

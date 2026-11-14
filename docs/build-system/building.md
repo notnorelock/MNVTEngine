@@ -86,6 +86,7 @@ The steps run in this order. Every step reports diagnostics as `file(line,col): 
 1. **Project.** Loads and validates the project file and its profiles, then checks the output folder.
    The build refuses output folders that overlap the project, `Assets` or `Library`. It also refuses non-empty folders that do not contain a previous build, so a typo in `--output` cannot delete your files.
    It also loads the content key from `Settings/content.key` and the signing key (see [Packages, encryption and signing](#packages-encryption-and-signing)).
+   Then it allocates the build's engine version, `MAJOR.DDMM.PATCH.BUILD` with the next build number, into `Library/Build/<profile>/Version`. Every engine assembly it publishes, the packages, the manifest and the report carry that version and its build id (see [engine versioning](../architecture/versioning.md)). Errors are `MNVB120` (invalid `eng/version.json` or override) and warning `MNVB121` (no Git metadata: PATCH 0, marked).
 2. **C# scripts.** `dotnet build -c <configuration>` into `Library/Build/<profile>/Scripts`. The compiled components are loaded so that scenes can be checked against them, then unloaded.
 3. **Content** (`ContentCompiler`). Asset files that have no `.meta` yet (for example, added with the file explorer) get one, as they would in the editor, with warning `MNVB209`: commit it. 3D models are imported into `Library/Artifacts` (`MNVB220` import errors, `MNVB221` warnings); the game ships each model's artifact instead of its source file (`MNVB222` when a model has none). Then assets are opened **read-only**:
    - Every importer runs: images are decoded, JSON is parsed, and so on.
@@ -163,6 +164,7 @@ Every build writes `<output>.build-report.json` beside the game folder (it does 
 | Field | Contents |
 |---|---|
 | `profile`, `buildProfile`, `configuration`, `target`, `engineVersion` | What was built |
+| `engine` | The engine build: version, build id, timestamp, commit and dirty state, build host, CI, and the build context (configuration, target, profile, scripting and graphics backend, modules); see [engine versioning](../architecture/versioning.md) |
 | `scriptingBackend` | `jit` (CoreCLR, IL assemblies); see [IL2CPP / AOT](../architecture/il2cpp-aot-pipeline.md) |
 | `devTools` | Whether the in-game debug UI ships |
 | `modules.enabled` | Each module with `inclusion` (`always`, `explicit`, `automatic`, `dependency`, `available`), reason and usage evidence |
@@ -261,7 +263,7 @@ The format, keys and limits are described in [Virtual file system and packages](
 
 | Range | Stage |
 |---|---|
-| MNVB1xx | Project, profile, output folder and key (`100` load, `101` unknown profile, `102` configuration, `103` target, `104` output folder, `105` name clash, `106` engine not found, `107` key created, `108` invalid key file, `109` a project from before [project profiles](../engine/project-profiles.md) mixes 2D and 3D content, `110` warning: building a project from before profiles with its inferred profile, `111` unknown or unavailable scripting backend, `112` signing key unreadable, `113` signing key inside `Assets/`, `114` warning: Release build signed with the development key, `115` invalid DLC name or folder, `116` warning: DLC key file written, for the server only) |
+| MNVB1xx | Project, profile, output folder and key (`100` load, `101` unknown profile, `102` configuration, `103` target, `104` output folder, `105` name clash, `106` engine not found, `107` key created, `108` invalid key file, `109` a project from before [project profiles](../engine/project-profiles.md) mixes 2D and 3D content, `110` warning: building a project from before profiles with its inferred profile, `111` unknown or unavailable scripting backend, `112` signing key unreadable, `113` signing key inside `Assets/`, `114` warning: Release build signed with the development key, `115` invalid DLC name or folder, `116` warning: DLC key file written, for the server only, `120` engine version could not be resolved, `121` warning: engine built without Git metadata) |
 | MNVB2xx | Content (`209` created a missing `.meta`, `201` asset index, `202` unreadable, `203` import settings, `204`/`205` import errors and warnings, `206` missing referenced asset, `207`/`208` scene and prefab loading, `220`/`221` model import errors and warnings, `222` model without an artifact, `223` warning: an unreferenced scene, prefab or audio clip is not shipped, `224` warning: no streaming proxy for a texture) |
 | MNVB3xx, CSxxxx | C# scripts (`301` scripts project missing; compiler errors keep their `CS` codes and source positions) |
 | MNV1xxx–3xxx | `.mnvts` errors from the compiler; see the [language reference](../scripting/language.md) |
@@ -271,7 +273,7 @@ The format, keys and limits are described in [Virtual file system and packages](
 
 ## Reproducible builds
 
-The build uses deterministic compilation (`Deterministic`, `ContinuousIntegrationBuild`), a fixed file order, a build id hashed from the inputs (package GUIDs, key salts and synthetic nonces derive from it) and a committed key. The manifest contains no timestamps or machine paths. As a result, building the same sources twice gives an identical manifest, including the hash of every file and each package's header hash. The 64 ECDSA signature bytes of each package and of `package.sig` differ between builds (ECDSA signing is randomized); everything else in a package is identical. This holds for an incremental rebuild and for a rebuild after deleting `Library/Build`, and `PackagingTests.Rebuild_IsByteForByteIdentical` checks it.
+The build uses deterministic compilation (`Deterministic`, `ContinuousIntegrationBuild`), a fixed file order, a build id hashed from the inputs (package GUIDs, key salts and synthetic nonces derive from it; the engine counts with its source revision, not its build number) and a committed key. The manifest contains no machine paths. It does contain the engine build (build number, build id and time). Every build gets a new one, so pass a fixed engine version for a reproducible build: `MNVT_REPRODUCIBLE=true` with `MNVT_BUILD_NUMBER` and `MNVT_BUILD_TIMESTAMP` (or `SOURCE_DATE_EPOCH`), see [engine versioning](../architecture/versioning.md#reproducible-builds). With them, building the same sources twice gives an identical manifest, including the hash of every file and each package's header hash. The 64 ECDSA signature bytes of each package and of `package.sig` differ between builds (ECDSA signing is randomized); everything else in a package is identical. This holds for an incremental rebuild and for a rebuild after deleting `Library/Build`, and `PackagingTests.Rebuild_IsByteForByteIdentical` checks it.
 
 ## Engine location
 

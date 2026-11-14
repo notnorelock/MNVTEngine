@@ -24,8 +24,16 @@ public sealed class PackagedGameFixture : IAsyncLifetime
         FirstManifest = File.ReadAllText(Path.Combine(First.OutputDirectory!, "PackTest_Data", GamePackage.ManifestFile));
     }
 
+    /// <summary>Reproducible engine version (fixed build number and time), so rebuilds can be compared byte for byte.</summary>
+    public static readonly IReadOnlyDictionary<string, string> Reproducible = new Dictionary<string, string>
+    {
+        ["MNVT_REPRODUCIBLE"] = "true",
+        ["MNVT_BUILD_NUMBER"] = "7",
+        ["MNVT_BUILD_TIMESTAMP"] = "2026-11-14T12:00:00Z",
+    };
+
     public Task<BuildResult> Build(BuildOptions? options = null) =>
-        new GameBuilder(NullLogger.Instance).BuildAsync(ProjectDirectory, options ?? new BuildOptions(), TestContext.Current.CancellationToken);
+        new GameBuilder(NullLogger.Instance).BuildAsync(ProjectDirectory, (options ?? new BuildOptions()) with { VersionVariables = options?.VersionVariables ?? Reproducible }, TestContext.Current.CancellationToken);
 
     public ValueTask DisposeAsync()
     {
@@ -146,6 +154,37 @@ public sealed class PackagingTests(PackagedGameFixture game) : IClassFixture<Pac
         var log = File.ReadAllText(Path.Combine(Output, "Logs", "game.log"));
         Assert.Contains("[script] Move to the goal with WASD", log, StringComparison.Ordinal); // C# component, scene and bytecode all loaded from the packages
         Assert.Contains(", 0 compiled at run time", log, StringComparison.Ordinal); // every shader came precompiled from the default resources
+    }
+
+    [Fact]
+    public void Export_EmbedsItsEngineBuild_InTheExecutableManifestPackagesAndReport()
+    {
+        var manifest = GamePackage.Load(Path.Combine(Output, "PackTest_Data"));
+        var engine = manifest.Engine!;
+        Assert.Matches(@"^1\.\d{4}\.\d+\.7-dev$", engine.Version); // MAJOR.DDMM.PATCH.BUILD, the fixed build number
+        Assert.Equal("1411", engine.Version.Split('.')[1]);
+        Assert.Equal(engine.Version, manifest.EngineVersion);
+        Assert.Equal(new DateTime(2026, 11, 14, 12, 0, 0, DateTimeKind.Utc), engine.TimestampUtc);
+        Assert.Equal(EngineVersion.CommitHash, engine.Commit ?? "unknown"); // the engine tree the tests run from
+
+        // Every engine binary of the export: the game's executable, the engine assemblies, the crash handler.
+        foreach (var binary in new[] { "PackTest.exe", "PackTest.dll", "MNVTCrashHandler.exe", Path.Combine("Dependencies", "Managed", "MNVTEngine.Runtime.dll"), Path.Combine("Dependencies", "Managed", "MNVTEngine.Core.dll") })
+        {
+            var info = System.Diagnostics.FileVersionInfo.GetVersionInfo(Path.Combine(Output, binary));
+            Assert.Equal((engine.FileVersion, binary), (info.FileVersion, binary));
+            Assert.StartsWith(engine.Version + "+", info.ProductVersion, StringComparison.Ordinal);
+        }
+
+        var report = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(BuildReport.PathFor(Output)));
+        Assert.Equal((engine.Version, engine.BuildId.ToString("D"), "game:PackTest", "2d", "jit"),
+            ((string?)report["engineVersion"], (string?)report["engine"]!["buildId"], (string?)report["engine"]!["kind"], (string?)report["engine"]!["context"]!["profile"], (string?)report["engine"]!["context"]!["scriptingBackend"]));
+        Assert.Contains("world.2d", report["engine"]!["context"]!["modules"]!.Values<string>());
+
+        foreach (var file in Directory.GetFiles(Path.Combine(Output, "PackTest_Data"), "*.mnvtpack"))
+        {
+            using var package = IO.Packages.MnvtPackage.Open(file, PackageTools.OptionsFor(file));
+            Assert.Equal((engine.Version, engine.BuildId.ToString("D")), (package.Info.Properties["engine"], package.Info.Properties["engineBuild"]));
+        }
     }
 
     [Fact]

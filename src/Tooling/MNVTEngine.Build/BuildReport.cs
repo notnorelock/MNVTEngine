@@ -20,6 +20,9 @@ public sealed record BuildReportInput(GameProject Project, BuildProfile Profile,
 
     /// <summary>Bytes the browser host and CEF added to the package; null without the browser module or before packaging.</summary>
     public long? BrowserHostBytes { get; init; }
+
+    /// <summary>The engine build of the export (<see cref="PipelineVersion"/>); null for an analysis, which reports the running tool's.</summary>
+    public Versioning.EngineBuildInfo? Version { get; init; }
 }
 
 /// <summary>
@@ -62,7 +65,8 @@ public static class BuildReport
             ["buildProfile"] = input.Profile.Name,
             ["configuration"] = input.Profile.Configuration,
             ["target"] = input.Profile.Target,
-            ["engineVersion"] = GamePackager.EngineVersion,
+            ["engineVersion"] = input.Version?.Version ?? EngineVersion.Version,
+            ["engine"] = input.Version?.ToJson() ?? JObject.Parse(EngineVersion.MetadataJson),
             ["scriptingBackend"] = new JObject
             {
                 ["id"] = input.ScriptingBackend,

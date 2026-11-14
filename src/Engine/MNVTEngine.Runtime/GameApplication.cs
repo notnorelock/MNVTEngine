@@ -34,6 +34,7 @@ public static partial class GameApplication
         ArgumentNullException.ThrowIfNull(createDevice);
         ArgumentNullException.ThrowIfNull(loggerFactory);
         var logger = loggerFactory.CreateLogger("Game");
+        LogEngine(logger, EngineVersion.InformationalVersion, EngineVersion.BuildId, EngineVersion.BuildTimestampUtc, EngineVersion.BuildConfiguration);
 
         GameProject project;
         try
@@ -237,6 +238,9 @@ public static partial class GameApplication
         var i = Array.IndexOf(args, value);
         return i > 0 && args[i - 1] is "--frames" or "--screenshot" or "--profile" or "--debug-command";
     }
+
+    [LoggerMessage(EventId = 3207, Level = LogLevel.Information, Message = "MNVTEngine {Version}, build {BuildId}, built {Built:yyyy-MM-dd HH:mm:ss} UTC ({Configuration})")]
+    private static partial void LogEngine(ILogger logger, string version, string buildId, DateTime built, string configuration);
 
     [LoggerMessage(EventId = 3201, Level = LogLevel.Information, Message = "Profile written to {Path}: {Frames} frames, avg {Average:0.00} ms, p95 {P95:0.00} ms")]
     private static partial void LogProfile(ILogger logger, string path, int frames, double average, double p95);

@@ -31,6 +31,22 @@ public static class DlcBuilder
     /// <param name="separateKey">Encrypt with a new key of its own instead of the project's, written next to the package.</param>
     public static async Task<DlcResult> BuildAsync(GameProject project, BuildProfile profile, string folder, string name, string? output, string? signingKeyPath, bool separateKey, CancellationToken cancellationToken = default)
     {
+        PipelineVersion? version = null;
+        try
+        {
+            var result = await BuildCoreAsync(project, profile, folder, name, output, signingKeyPath, separateKey, v => version = v, cancellationToken).ConfigureAwait(false);
+            _ = version?.Complete(result.PackageFile is null ? "failed" : "succeeded"); // a missing record does not change the result
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            _ = version?.Complete("canceled");
+            throw;
+        }
+    }
+
+    private static async Task<DlcResult> BuildCoreAsync(GameProject project, BuildProfile profile, string folder, string name, string? output, string? signingKeyPath, bool separateKey, Action<PipelineVersion> started, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(profile);
         var diagnostics = new List<BuildDiagnostic>();
@@ -74,6 +90,23 @@ public static class DlcBuilder
             return new DlcResult(null, null, 0, diagnostics);
         }
 
+        string engineRoot;
+        try
+        {
+            engineRoot = EngineLocation.FindRoot();
+        }
+        catch (DirectoryNotFoundException ex)
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB106", ex.Message));
+            return new DlcResult(null, null, 0, diagnostics);
+        }
+
+        if (PipelineVersion.Begin(engineRoot, $"dlc:{project.Name}/{name}", GameBuilder.Context(project, profile), Path.Combine(project.RootDirectory, "Library", "Build", "dlc-" + name, "Version"), null, diagnostics) is not { } version)
+        {
+            return new DlcResult(null, null, 0, diagnostics);
+        }
+
+        started(version);
         var directory = Path.GetFullPath(output ?? Path.Combine(project.RootDirectory, "Builds", "dlc"));
         Directory.CreateDirectory(directory);
         var file = Path.Combine(directory, name + GamePackage.PackageExtension);
@@ -81,7 +114,7 @@ public static class DlcBuilder
 
         // Identity from the content, so rebuilding unchanged DLC gives the same package.
         using var identity = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        identity.AppendData(Encoding.UTF8.GetBytes($"MNVTEngine DLC v1\n{name}\n{GamePackager.EngineVersion}\n{key.IdText}\n{signer.PublicKey.Id}\n"));
+        identity.AppendData(Encoding.UTF8.GetBytes($"MNVTEngine DLC v1\n{name}\n{version.SourceIdentity}\n{key.IdText}\n{signer.PublicKey.Id}\n"));
         foreach (var record in records)
         {
             identity.AppendData(Encoding.UTF8.GetBytes(record.Path + "\n"));
@@ -94,7 +127,7 @@ public static class DlcBuilder
         }
 
         var digest = identity.GetHashAndReset();
-        var properties = new Dictionary<string, string> { ["kind"] = "dlc", ["game"] = project.Name, ["engine"] = GamePackager.EngineVersion, [GameContent.DlcProperty] = name };
+        var properties = new Dictionary<string, string>(version.PackageProperties) { ["kind"] = "dlc", ["game"] = project.Name, [GameContent.DlcProperty] = name };
         if (codeAssembly is not null)
         {
             properties[GameContent.ScriptsProperty] = codeAssembly;
