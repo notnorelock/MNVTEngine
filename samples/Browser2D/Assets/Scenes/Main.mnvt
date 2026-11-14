@@ -84,12 +84,12 @@
               {
                 "name": "Players",
                 "parent": "",
-                "volume": 0.8,
+                "volume": 1.9952624,
                 "muted": false,
                 "effects": [
                   {
                     "type": "lowpass",
-                    "enabled": true,
+                    "enabled": false,
                     "parameters": {
                       "cutoff": 170.0,
                       "resonance": 0.707
