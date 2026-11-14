@@ -75,11 +75,12 @@ public class SelectionAndReflectionTests
             in vec2 vTexCoord;
             in vec4 vColor;
             layout(binding = 0) uniform sampler2D uTexture;
+            uniform sampler2D uMask;
             uniform float uTime;
             uniform vec4 uGlow;
             uniform vec3 uUnsettable;
             out vec4 fragColor;
-            void main() { fragColor = texture(uTexture, vTexCoord) * vColor + uGlow * sin(uTime) + vec4(uUnsettable, 0.0); }
+            void main() { fragColor = texture(uTexture, vTexCoord) * texture(uMask, vTexCoord).r * vColor + uGlow * sin(uTime) + vec4(uUnsettable, 0.0); }
             """));
 
         var vp = Assert.Single(Assert.Single(vertex.UniformBlocks).Members);
@@ -92,8 +93,13 @@ public class SelectionAndReflectionTests
         Assert.Equal(UniformKind.Vector4, block.Members.Single(m => m.Name == "uGlow").Kind);
         Assert.Null(block.Members.Single(m => m.Name == "uUnsettable").Kind);
         Assert.Equal(0, block.Size % 16);
-        Assert.Equal(("uTexture", ShaderCompiler.FragmentSamplerBase), (Assert.Single(fragment.Samplers).Name, fragment.Samplers[0].Binding)); // sampler bindings are shifted past the uniform blocks
         Assert.Empty(SpirvModule.LinkByName(vertex, fragment));
+
+        // Linking assigns the engine layout: uTexture stays at 0, other samplers are shifted past the uniform blocks.
+        (_, fragment) = SpirvModule.AssignBindings(vertex, fragment, ShaderCompiler.TextureBinding, ShaderCompiler.VertexUniformBinding, ShaderCompiler.FragmentUniformBinding, ShaderCompiler.FragmentSamplerBase, ShaderCompiler.VertexSamplerBase);
+        Assert.Equal(
+            [("uTexture", ShaderCompiler.TextureBinding), ("uMask", ShaderCompiler.FragmentSamplerBase)],
+            fragment.Samplers.Select(s => (s.Name, s.Binding)).ToArray());
     }
 
     [Fact]

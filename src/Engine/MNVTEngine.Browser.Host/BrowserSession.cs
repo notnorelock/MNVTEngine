@@ -58,7 +58,8 @@ internal sealed class BrowserSession : IDisposable
     private SharedAudio? _audio;
     private int _audioGeneration;
     private CefSharp.DevTools.DevToolsClient? _devTools;
-    private bool _pageStarted;
+    private volatile bool _pageStarted;
+    private volatile bool _startRequested;
 
     /// <summary>Known only to the bridge script: messages without it come from a page that called CefSharp's API itself.</summary>
     private readonly string _bridgeToken = Guid.NewGuid().ToString("N");
@@ -341,7 +342,11 @@ internal sealed class BrowserSession : IDisposable
         _browser.Load(url);
     }
 
-    private bool IsInitialBlank(string url) => !_pageStarted && url == "about:blank" && StartUrl != "about:blank";
+    /// <summary>
+    /// The blank document CEF creates before <see cref="StartAsync"/> loads the first page. Reporting it as loaded let the
+    /// game evaluate script in a document the start load then replaced, which left the evaluation unanswered.
+    /// </summary>
+    private bool IsInitialBlank(string url) => !_pageStarted && url == "about:blank" && (!_startRequested || StartUrl != "about:blank");
 
     private void OnInitialized(object? sender, EventArgs e)
     {
@@ -359,6 +364,9 @@ internal sealed class BrowserSession : IDisposable
     /// <summary>Registers the bridge for every new document, then loads the first page.</summary>
     private async Task StartAsync()
     {
+        // CEF's own blank document must finish first: two overlapping about:blank loads cannot be told apart, and the
+        // second replaced the document the game was already evaluating script in.
+        await _browser.WaitForInitialLoadAsync().ConfigureAwait(false);
         try
         {
             if (BridgeOrigins(Policy) is { } origins)
@@ -375,6 +383,7 @@ internal sealed class BrowserSession : IDisposable
             Console.Error.WriteLine($"Browser {Id}: the bridge could not be registered: {ex.Message}");
         }
 
+        _startRequested = true;
         Load(StartUrl);
     }
 
