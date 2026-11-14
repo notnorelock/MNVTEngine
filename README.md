@@ -1,123 +1,165 @@
-# MNVTEngine
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/mnvtengine-logo.svg">
+    <img src="docs/images/mnvtengine-logo-dark.svg" alt="MNVTEngine" width="380">
+  </picture>
+</p>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/mnvtengine-logo.svg">
-  <img src="docs/images/mnvtengine-logo-dark.svg" alt="MNVTEngine" width="360">
-</picture>
+<p align="center">
+  <strong>A modular 2D and 3D game engine in C#, built on Vulkan 1.4 and .NET 11.</strong><br>
+  Write gameplay in C# or in its own scripting language, edit it live, and ship games whose content is sealed in signed packages.
+</p>
 
-A modular 2D game engine in C# / .NET 11:
+<p align="center">
+  <a href="https://github.com/notnorelock/MNVTEngine/actions/workflows/build.yml"><img src="https://github.com/notnorelock/MNVTEngine/actions/workflows/build.yml/badge.svg" alt="Build"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/.NET-11-512BD4.svg" alt=".NET 11">
+  <img src="https://img.shields.io/badge/Vulkan-1.4-AC162C.svg" alt="Vulkan 1.4">
+  <img src="https://img.shields.io/badge/platform-Windows%20x64-0078D4.svg" alt="Windows x64">
+</p>
 
-- **Core:** a Vulkan 1.4 renderer (Silk.NET, VMA, shaderc), an ImGui.NET editor and a hybrid ECS.
-- **Gameplay:** Box2D physics, OpenAL audio, sprite animation, tilemaps, materials and 2D lighting.
-- **Assets and scripting:** an asset pipeline with stable GUIDs, C# components with hot reload, and the `.mnvts` scripting language with its own bytecode VM, missions and debugger.
-- **Export:** standalone Windows games.
+---
 
-**Status: Milestone 8 (2D beta).** The engine can be used to build actual 2D games. Start with [getting started](docs/getting-started.md) or play `samples/Platformer`.
+## Why MNVTEngine
 
-## Requirements
+- **One engine, two worlds.** A project picks a 2D or 3D profile. The engine loads only the modules the game actually
+  uses, and the export contains only those modules.
+- **C# all the way down.** Engine, editor, tooling and gameplay share one language. Game code hot-reloads into a
+  collectible `AssemblyLoadContext` while the editor keeps running.
+- **A scripting language of its own.** `.mnvts` compiles to bytecode for the engine's VM. It comes with missions and
+  objectives, persistence and a debugger, for designers who should not need a C# toolchain.
+- **Exports that don't ship your project folder.** Games read content through a virtual file system. The content
+  lives in compressed, encrypted and signed `.mnvtpack` packages. C# runs JIT-compiled, or ahead of time as one native
+  executable with NativeAOT.
+- **Rules enforced by tests.** Module boundaries (Vulkan stays inside the backend, gameplay never sees backend types)
+  are checked from the project graph by the test suite.
+- **Every build is traceable.** Engine, editor, CLI, packages and exported games all carry the same
+  `MAJOR.DDMM.PATCH.BUILD` version, commit and build id.
 
-- .NET SDK 11 (`global.json` pins `11.0.100-rc.3` and rolls forward)
-- Windows x64 is the first target platform
-- A GPU and driver with Vulkan 1.4. The [LunarG Vulkan SDK](https://vulkan.lunarg.com/) is optional; it adds the validation layer that development builds use
+## Features
 
-## Build and test
+| Area | What you get |
+|---|---|
+| Rendering | Vulkan 1.4 backend (Silk.NET, VMA, shaderc): sprites, meshes, instancing, skinning and blend shapes, PBR materials, directional, point and spot shadows, tone mapping, texture streaming, 2D lighting |
+| World | Hybrid ECS with a GameObject API, scenes and prefabs, tilemaps, sprite animation, particle systems in 2D and 3D, terrain with roads, rivers and foliage |
+| Physics | Box2D for 2D, BepuPhysics v2 for 3D: rigidbodies, colliders, callbacks, ray casts, character collision |
+| Audio | OpenAL output with spatial audio, a mixer with buses and effects, streamed decoding |
+| Assets | Stable GUIDs and `.meta` sidecars; importers for images, fonts, audio, FBX, glTF and GLB models with LODs |
+| UI | Game UI, text and fonts, splash and loading screens, and an embedded Chromium browser that renders pages onto sprites and meshes |
+| Editor | ImGui editor with Play Mode, gizmos, inspectors, undo and redo, hot reload, script debugging |
+| Diagnostics | In-game HUD, profiler with GPU timings, console, budgets, debug drawing, crash handler with dumps and reports |
+| Shipping | `mnvt` CLI, build profiles, build validator, signed packages, DLC packages (including DLC code), build reports |
+
+## Quick start
+
+You need the .NET 11 SDK (pinned in `global.json`), Windows x64, and a GPU and driver with Vulkan 1.4. The
+[LunarG Vulkan SDK](https://vulkan.lunarg.com/) is optional: it adds the validation layer that development builds use.
 
 ```bash
-dotnet build MNVTEngine.sln
-dotnet test --solution MNVTEngine.sln
-```
-
-## The mnvt command
-
-```bash
-scripts\mnvt.cmd new MyGame --profile 2d          # or --profile 3d, or --template basic-2d (see docs/engine/project-profiles.md)
-scripts\mnvt.cmd run MyGame
+git clone https://github.com/notnorelock/MNVTEngine.git
+cd MNVTEngine
+scripts\mnvt.cmd new MyGame --profile 2d           # or --profile 3d, or --template basic-2d
+scripts\mnvt.cmd editor MyGame                     # edit; change Scripts/*.cs and watch it reload
 scripts\mnvt.cmd build MyGame --configuration release --run
-MyGame\Builds\release\MyGame.exe
 ```
 
-`scripts\mnvt.cmd` runs `src/Tooling/MNVTEngine.CLI` from source. See [building and exporting games](docs/build-system/building.md).
+The exported game lands in `MyGame\Builds\release\`. Next steps: [getting started](docs/getting-started.md) and
+[building and exporting games](docs/build-system/building.md).
 
-## Run the samples
+## Samples
 
 ```bash
-scripts\mnvt.cmd run samples/Platformer     # A/D or arrows run, Space jumps, Esc pauses: collect 5 coins, then reach the flag
-scripts\mnvt.cmd run samples/SceneDemo      # WASD flies; Tab switches to the physics/lighting arena
-
-dotnet run --project samples/HelloWorld
-# Automated: render 120 frames, save a screenshot, exit
-dotnet run --project samples/HelloWorld -- --frames 120 --screenshot shot.png --gpu-validation
+scripts\mnvt.cmd run samples/Platformer
+scripts\mnvt.cmd editor samples/Showcase3D
 ```
 
-SceneDemo: WASD/arrows move, Space spawns orbs, Tab switches scenes. Both samples export with `mnvt build`.
-HelloWorld: WASD/arrows move, mouse wheel zooms, Q/E rotate the camera, Escape quits. Requires a Vulkan 1.4 GPU and driver.
+| Sample | Shows |
+|---|---|
+| `Platformer` | A complete 2D level: collect five coins, then reach the flag |
+| `SceneDemo` | A tour of 2D features: physics, lighting, scene switching |
+| `Showcase3D` | 3D models, materials, lights and shadows |
+| `TerrainDemo` | Terrain, roads, rivers and foliage |
+| `Particles2D`, `Particles3D` | Particle systems in both worlds |
+| `UIShowcase` | Game UI and text |
+| `Browser2D`, `Browser3D` | Web pages on sprites and meshes |
+| `HelloWorld` | The renderer alone, with automation flags (`--frames 120 --screenshot shot.png --gpu-validation`) |
 
-## Run the editor
+## Building the engine
 
 ```bash
-scripts\mnvt.cmd editor samples/Platformer
+dotnet build MNVTEngine.sln            # development build
+dotnet test --solution MNVTEngine.sln  # the whole test suite
+scripts\build.cmd Release              # pipeline build with a build number
 ```
 
-See [the editor guide](docs/editor/editor.md) for controls. Edit `samples/*/Scripts/*.cs` while the editor runs to see hot reload.
+GPU tests need a Vulkan 1.4 device and skip without one. Every push builds and tests on GitHub Actions. Releases are
+published from a manual run of the same workflow ([versioning](docs/architecture/versioning.md)).
 
-## Layout
+## Repository
 
 | Path | Contents |
 |---|---|
-| `src/Engine` | Runtime engine modules (`Core`, `Mathematics`, `Serialization`, ...) and `GameHost`, the executable of exported games |
-| `src/Editor` | Editor: UI-free services and the ImGui application |
-| `src/Tooling` | `mnvt` CLI, build pipeline and packaging (`Build`), development runner (`Player`) |
-| `templates` | Project templates for `mnvt new` |
-| `scripts` | `mnvt.cmd` wrapper |
-| `samples` | `Platformer` (complete level), `SceneDemo` (feature tour), `UIShowcase` (game UI), `Showcase3D` (3D meshes), `HelloWorld` (renderer only) |
-| `tests` | xUnit v3 tests, including architecture dependency rules and GPU integration tests |
+| `src/Engine` | Runtime modules and `GameHost`, the executable of exported games |
+| `src/Editor` | UI-free editor services and the ImGui editor |
+| `src/Tooling` | `mnvt` CLI, build and packaging pipeline, development player, version generator |
+| `samples`, `templates` | Sample games and `mnvt new` templates |
+| `tests` | One xUnit v3 project per module, plus architecture rules |
 | `docs` | Architecture and subsystem documentation |
 
 ## Documentation
 
-- [Getting started: create, edit, script and export a game](docs/getting-started.md)
-- [Architecture overview, dependency rules, decisions, risks](docs/architecture/overview.md)
-- [Engine composition audit (modules, usage-based builds)](docs/architecture/engine-composition-audit.md)
-- [IL2CPP and ahead-of-time compilation (NativeAOT backend)](docs/architecture/il2cpp-aot-pipeline.md)
-- [Virtual file system and `.mnvtpack` packages: format, compression, encryption, signatures, export isolation](docs/architecture/virtual-filesystem.md)
-- [Engine versioning: `MAJOR.DDMM.PATCH.BUILD`, build numbers, metadata, CI overrides, reproducible builds](docs/architecture/versioning.md)
-- [Mathematics conventions](docs/engine/mathematics.md)
-- [JSON serialization](docs/serialization/json.md)
-- [2D rendering, frame loop, resource ownership](docs/graphics/rendering.md)
-- [Vulkan 1.4 backend: audit, decisions, synchronization model](docs/graphics/vulkan-migration.md)
-- [3D engine and model pipeline: audit, library choices, plan](docs/graphics/3d-plan.md); [acceptance evidence](docs/graphics/3d-acceptance.md); [meshes, 3D cameras and 3D rendering](docs/graphics/meshes.md)
+**Start here:** [Getting started](docs/getting-started.md) · [Architecture overview](docs/architecture/overview.md) ·
+[Building and exporting](docs/build-system/building.md) · [Editor](docs/editor/editor.md)
+
+<details>
+<summary><strong>Engine</strong></summary>
+
 - [Scenes, ECS, lifecycle, scene format, standalone runtime](docs/engine/scenes-and-runtime.md)
-- [Project profiles: 2D or 3D projects, legacy migration](docs/engine/project-profiles.md); [engine modules: catalog, resolution, lifecycle, `mnvt modules`](docs/engine/modules.md)
-- [Editor: panels, Play Mode, ImGui integration](docs/editor/editor.md)
-- [Assets: metas, GUIDs, importers, prefabs](docs/engine/assets.md); [models: FBX, glTF and GLB import](docs/engine/models.md)
-- [C# scripting: game assemblies, hot reload, unloading](docs/engine/csharp-scripting.md)
-- [Particle systems: simulation, emission, shapes, modules, curves, `.mnvtparticle`](docs/engine/particles.md)
-- [Embedded browser: Chromium pages on sprites and meshes, C# API, JavaScript bridge, security profiles](docs/engine/browser.md) ([architecture](docs/architecture/embedded-browser.md))
-- [.mnvts language reference: grammar, semantics, VM limits, errors](docs/scripting/language.md)
+- [Project profiles](docs/engine/project-profiles.md) and [engine modules](docs/engine/modules.md)
+- [Assets: metas, GUIDs, importers, prefabs](docs/engine/assets.md) and [model import](docs/engine/models.md)
+- [C# scripting and hot reload](docs/engine/csharp-scripting.md)
+- [Physics 2D](docs/engine/physics2d.md) and [Physics 3D](docs/engine/physics3d.md)
+- [Audio](docs/engine/audio.md), [sprite animation](docs/engine/animation.md), [tilemaps](docs/engine/tilemaps.md)
+- [Particles](docs/engine/particles.md) and [terrain](docs/engine/terrain.md)
+- [Embedded browser](docs/engine/browser.md) ([architecture](docs/architecture/embedded-browser.md))
+- [Mathematics conventions](docs/engine/mathematics.md) and [JSON serialization](docs/serialization/json.md)
+
+</details>
+
+<details>
+<summary><strong>Graphics and UI</strong></summary>
+
+- [Rendering, frame loop, resource ownership](docs/graphics/rendering.md)
+- [Vulkan 1.4 backend: decisions and synchronization](docs/graphics/vulkan-migration.md)
+- [Meshes, 3D cameras and 3D rendering](docs/graphics/meshes.md) ([3D plan](docs/graphics/3d-plan.md), [acceptance](docs/graphics/3d-acceptance.md))
+- [Materials, lighting and shadows](docs/graphics/materials-and-lighting.md)
+- [Game UI, text, fonts, splash and loading screens](docs/ui/ui-system.md)
+
+</details>
+
+<details>
+<summary><strong>Scripting</strong></summary>
+
+- [`.mnvts` language reference](docs/scripting/language.md)
 - [Missions: lifecycle, script API, persistence](docs/scripting/missions.md)
-- [Building and exporting games: CLI, profiles, packaging, validation](docs/build-system/building.md)
-- [Physics2D: rigidbodies, colliders, callbacks, ray casts](docs/engine/physics2d.md); [Physics 3D (BepuPhysics v2)](docs/engine/physics3d.md)
-- [Audio: sources, listener, spatial audio, decoding](docs/engine/audio.md)
-- [Sprite animation](docs/engine/animation.md) and [tilemaps](docs/engine/tilemaps.md)
-- [Terrain: roads, rivers, terrain cuts, foliage, TerrainHeaven projects](docs/engine/terrain.md)
-- [Materials, 3D lighting and shadows, 2D lighting](docs/graphics/materials-and-lighting.md)
-- [Logging: named loggers, levels per namespace/class, call sites](docs/engine/logging.md)
-- [Runtime diagnostics: in-game debug UI, HUD, profiler, console, budgets, debug drawing](docs/engine/diagnostics.md)
-- [Crash reporting: crash handler process, dumps, reports, crash window](docs/engine/crash-reporting.md)
-- [Game UI, text and fonts, window, splash and loading screens](docs/ui/ui-system.md)
-- [Profiling](docs/engine/profiling.md)
 
-## Roadmap
+</details>
 
-| Milestone | Scope | Status |
-|---|---|---|
-| 0 | Foundation: solution, math, serialization, logging, timing | done |
-| 1 | Window, graphics device, shaders, textures, SpriteBatch, Camera2D, input (OpenGL 4.5 at the time; Vulkan 1.4 since M9) | done |
-| 2 | Hybrid ECS, GameObject API, scenes, standalone runtime | done |
-| 3 | ImGui editor, Play Mode | done |
-| 4 | Asset pipeline with stable GUIDs | done |
-| 5 | C# game scripting via AssemblyLoadContext | done |
-| 6 | `.mnvts` language, compiler, VM, mission framework | done |
-| 7 | Build and Windows x64 packaging, `mnvt` CLI | done |
-| 8 | 2D beta: Physics2D, audio, sprite animation, tilemaps, materials, 2D lighting, undo/redo, profiling, script debugger, Platformer sample | done |
-| 9 | Vulkan 1.4 backend replaces OpenGL; runtime diagnostics with GPU timing and memory. See [Vulkan migration](docs/graphics/vulkan-migration.md) | done |
+<details>
+<summary><strong>Shipping and operations</strong></summary>
+
+- [Virtual file system and `.mnvtpack` packages](docs/architecture/virtual-filesystem.md)
+- [Ahead-of-time compilation (NativeAOT backend)](docs/architecture/il2cpp-aot-pipeline.md)
+- [Engine composition audit](docs/architecture/engine-composition-audit.md)
+- [Engine versioning and CI](docs/architecture/versioning.md)
+- [Logging](docs/engine/logging.md), [runtime diagnostics](docs/engine/diagnostics.md), [profiling](docs/engine/profiling.md)
+- [Crash reporting](docs/engine/crash-reporting.md)
+
+</details>
+
+## License
+
+MNVTEngine is released under the [MIT License](LICENSE). Copyright (c) 2026 Norbert Podbiegły (Norelock).
+
+Games made with the engine may use any license. A game that ships the engine's binaries must include this copyright
+and permission notice, for example in its credits or a license file.

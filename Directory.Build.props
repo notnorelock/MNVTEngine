@@ -9,6 +9,8 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <Deterministic>true</Deterministic>
     <Authors>MNVTEngine contributors</Authors>
+    <Copyright>Copyright (c) 2026 Norbert Podbiegły (Norelock)</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Product>MNVTEngine</Product>
   </PropertyGroup>
 

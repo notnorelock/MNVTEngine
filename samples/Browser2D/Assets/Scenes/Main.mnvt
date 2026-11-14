@@ -86,16 +86,7 @@
                 "parent": "",
                 "volume": 1.9952624,
                 "muted": false,
-                "effects": [
-                  {
-                    "type": "lowpass",
-                    "enabled": false,
-                    "parameters": {
-                      "cutoff": 170.0,
-                      "resonance": 0.707
-                    }
-                  }
-                ]
+                "effects": []
               }
             ]
           }
