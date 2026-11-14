@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
+// SPDX-License-Identifier: MIT
+// Part of MNVTEngine. Last modified 2026-11-03.
+
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
+// SPDX-License-Identifier: MIT
+// Part of MNVTEngine. Last modified 2026-11-11.
+
 namespace MNVTEngine.Terrain.Geometry;
 
 /// <summary>three.js MathUtils equivalents used throughout the tools.</summary>

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
+// SPDX-License-Identifier: MIT
+// Part of MNVTEngine. Last modified 2026-11-05.
+
 using SysVector4 = System.Numerics.Vector4;
 
 namespace MNVTEngine.Editor.Panels;

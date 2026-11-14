@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
+// SPDX-License-Identifier: MIT
+// Part of MNVTEngine. Last modified 2026-11-13.
+
 namespace MNVTEngine.Audio;
 
 /// <summary>One insert effect on a mixer group: its type id (<see cref="AudioEffects"/>), on/off and parameter values.</summary>

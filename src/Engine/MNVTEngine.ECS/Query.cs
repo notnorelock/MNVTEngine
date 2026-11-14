@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
+// SPDX-License-Identifier: MIT
+// Part of MNVTEngine. Last modified 2026-11-03.
+
 namespace MNVTEngine.ECS;
 
 // Queries iterate the first type's pool from the end and filter by the others.

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
+// SPDX-License-Identifier: MIT
+// Part of MNVTEngine. Last modified 2026-11-05.
+
 // Generated from lucide-static 1.69.0 font/codepoints.json (ISC, see Resources/Fonts/lucide-LICENSE.txt).
 // To add an icon: find its name at https://lucide.dev/icons and its codepoint in that package's codepoints.json.
 

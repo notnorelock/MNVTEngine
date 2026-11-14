@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
+// SPDX-License-Identifier: MIT
+// Part of MNVTEngine. Last modified 2026-11-12.
+
 namespace MNVTEngine.Particles;
 
 /// <summary>Space a velocity or force is given in: the emitter's (rotates with it) or the world's.</summary>

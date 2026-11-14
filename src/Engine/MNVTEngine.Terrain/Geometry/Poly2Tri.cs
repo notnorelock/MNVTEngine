@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
+// SPDX-License-Identifier: MIT
+// Part of MNVTEngine. Last modified 2026-11-05.
+
 namespace MNVTEngine.Terrain.Geometry;
 
 // A port of poly2tri.js 1.5.0 (BSD-3-Clause, Copyright (c) 2009-2014 Poly2Tri Contributors; see THIRD-PARTY-NOTICES.md):
