@@ -13,6 +13,7 @@
     "importCameras": true,
     "meshAliases": {},
     "materials": {},
-    "textures": {}
+    "textures": {},
+    "lods": []
   }
 }
