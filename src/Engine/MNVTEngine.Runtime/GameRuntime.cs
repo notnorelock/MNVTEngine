@@ -107,7 +107,7 @@ public sealed partial class GameRuntime(
         {
             foreach (var result in extra.MountExtraContent(project.Content, Path.GetDirectoryName(Path.GetFullPath(extra.Directory))!))
             {
-                LogExtraContent(_logger, result.Status == ExtraContentStatus.Failed ? LogLevel.Warning : LogLevel.Information, result.Name, result.Status, result.Detail ?? "");
+                LogExtraContent(_logger, result.Status == ExtraContentStatus.Failed ? LogLevel.Warning : LogLevel.Information, result.Name, result.Status, result.Detail ?? (result.Mod is { } mod ? $"{mod.Name} {mod.Version}".TrimEnd() : ""));
                 if (result.Status == ExtraContentStatus.WaitingForKey)
                 {
                     waiting.Add(Path.GetFileName(result.Name));

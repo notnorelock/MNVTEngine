@@ -356,6 +356,13 @@ At startup, after the official packages, the game mounts extra content the runti
   index (a GUID listed again takes the new path and settings; a path overridden by a higher mount serves the new
   bytes), so new assets load by GUID and path like the game's. Mods can therefore replace game assets, but never code.
 - **Failures** are logged and skip that package; the game still starts.
+- **Mod load order.** Mods load by file name, or in the order of `Mods/load-order.txt` when it exists: one package
+  file name per line, `#` starts a comment, and only listed mods load. A later mod overrides files of an earlier one
+  (same priority; the later mount wins). Missing or invalid entries are reported and skipped.
+- **Mod manifest.** A mod may carry `mod.json` at its root: `{ "name": "Hats", "version": "1.0", "author": "...",
+  "description": "...", "requires": ["Base"] }` (strings of 1-256 characters, at most 64 KiB). A mod whose required
+  mod is not loaded before it is skipped. `requires` names a mod's manifest `name`, or its file name without extension
+  when it has none. The startup log shows each mod's name and version; `ExtraContentResult.Mod` holds the manifest.
 - **Authoring.** `mnvt package dlc <project> --folder Assets/DLC/Forest --name Forest` packages one folder's assets
   (models as artifacts, scripts with bytecode, textures with proxies) and its index, signed and encrypted. The main
   build strips those assets when nothing in the game references them. C# code is not packaged in DLC.
@@ -365,8 +372,8 @@ At startup, after the official packages, the game mounts extra content the runti
   `DownloadableContent.Mount("Forest.mnvtpack", key, out var problem)`. A wrong key or a package not signed with the
   game's key is refused. Offline games never need this.
 - `.mnvts` bytecode in any package runs in the sandboxed VM (no file, process or network access) and is verified when loaded.
-- Not implemented: a mod manifest (name, version, load order beyond file names), per-mod capability restrictions beyond
-  code, and DLC that ships C# code.
+- Not implemented: per-mod capability restrictions beyond code, mod version constraints in `requires`, and DLC that
+  ships C# code.
 
 ## Streaming and memory
 
@@ -455,6 +462,6 @@ Loading and streaming: `assets.loadTime` and `assets.loadTimeMax` (last 32 textu
 ## 12. Remaining work
 
 - Texture streaming has two levels (proxy, full image), not per-mip streaming by screen size; meshes are not streamed.
-- DLC cannot ship C# code; mods have no manifest or load-order control beyond file names.
+- DLC cannot ship C# code; mod requirements have no version constraints.
 - Linux and macOS targets do not exist yet (no GLFW/OpenAL/Vulkan-loader packaging or runtime packs for them); the VFS
   and package format are platform-independent.

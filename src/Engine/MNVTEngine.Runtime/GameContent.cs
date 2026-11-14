@@ -1,5 +1,7 @@
 using MNVTEngine.IO;
 using MNVTEngine.IO.Packages;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace MNVTEngine.Runtime;
 
@@ -13,8 +15,67 @@ public enum ExtraContentStatus
     Failed,
 }
 
-/// <summary>What happened to one extra content package.</summary>
-public sealed record ExtraContentResult(string Name, ExtraContentStatus Status, string? Detail);
+/// <summary>What happened to one extra content package; <paramref name="Mod"/> is a mod's manifest, when it has one.</summary>
+public sealed record ExtraContentResult(string Name, ExtraContentStatus Status, string? Detail, ModManifest? Mod = null);
+
+/// <summary>
+/// <c>mod.json</c> at the root of a mod package: who made it and which mods it needs. <paramref name="Name"/> is what
+/// other mods' <paramref name="Requires"/> refer to (the package file name without extension when there is no manifest).
+/// </summary>
+public sealed record ModManifest(string Name, string? Version, string? Author, string? Description, IReadOnlyList<string> Requires)
+{
+    public const string FileName = "mod.json";
+
+    private const int MaxBytes = 64 * 1024;
+
+    /// <summary>The manifest of <paramref name="package"/>, or null when it has none.</summary>
+    /// <exception cref="InvalidDataException">The manifest is not valid (mod content is untrusted).</exception>
+    public static ModManifest? Read(MnvtPackage package)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        if (!package.TryGetEntry(FileName, out var entry))
+        {
+            return null;
+        }
+
+        if (entry.Length > MaxBytes)
+        {
+            throw new InvalidDataException($"{FileName} is larger than {MaxBytes / 1024} KiB.");
+        }
+
+        using var stream = package.OpenRead(FileName);
+        using var reader = new JsonTextReader(new StreamReader(stream)) { MaxDepth = 8 };
+        try
+        {
+            if (JToken.ReadFrom(reader) is not JObject json)
+            {
+                throw new InvalidDataException($"{FileName} is not a JSON object.");
+            }
+
+            var name = Text(json, "name") ?? throw new InvalidDataException($"{FileName} has no \"name\".");
+            var requires = json["requires"] switch
+            {
+                null => [],
+                JArray list when list.All(r => r.Type == JTokenType.String && Valid((string)r!)) => list.Select(r => (string)r!).ToArray(),
+                _ => throw new InvalidDataException($"{FileName}: \"requires\" must be a list of mod names."),
+            };
+            return new ModManifest(name, Text(json, "version"), Text(json, "author"), Text(json, "description"), requires);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException($"{FileName} is not valid JSON: {ex.Message}", ex);
+        }
+
+        static string? Text(JObject json, string key) => json[key] switch
+        {
+            null => null,
+            { Type: JTokenType.String } value when Valid((string)value!) => (string)value!,
+            _ => throw new InvalidDataException($"{FileName}: \"{key}\" must be a string of 1 to 256 characters."),
+        };
+
+        static bool Valid(string text) => text.Length is > 0 and <= 256;
+    }
+}
 
 /// <summary>
 /// The content of an exported game: its official packages, mounted in a <see cref="VirtualFileSystem"/> as trusted
@@ -48,6 +109,12 @@ public sealed class GameContent : IDisposable
     public const int ModPriority = 100;
 
     /// <summary>
+    /// Optional file in the Mods folder: package file names, one per line, in load order (a later mod overrides an earlier
+    /// one); <c>#</c> starts a comment. With it, only the listed mods load; without it, every package loads by file name.
+    /// </summary>
+    public const string ModLoadOrderFile = "load-order.txt";
+
+    /// <summary>
     /// Mounts extra content the configuration allows: <c>&lt;data&gt;/DLC/*.mnvtpack</c> (trusted: signed with the game's
     /// key, encrypted with a key the game has) and <c>&lt;game&gt;/Mods/*.mnvtpack</c> (untrusted: never serves code;
     /// unencrypted). A package that cannot be mounted is skipped and reported; DLC encrypted with a key the game does not
@@ -68,11 +135,10 @@ public sealed class GameContent : IDisposable
 
         if (settings.Mods)
         {
-            // Mods: no keys (they must be readable without the game's), any or no signature, never code.
-            var mods = new PackageOpenOptions();
-            foreach (var file in PackagesIn(Path.Combine(gameDirectory, ModsFolder)))
+            var loaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var file in ModsInLoadOrder(Path.Combine(gameDirectory, ModsFolder), results))
             {
-                results.Add(Mount(file, mods, new MountOptions(Priority: ModPriority, Trust: MountTrust.Untrusted, Name: $"{ModsFolder}/{Path.GetFileName(file)}"), dlc: false));
+                results.Add(MountMod(file, loaded));
             }
         }
 
@@ -116,6 +182,79 @@ public sealed class GameContent : IDisposable
         return result.Status == ExtraContentStatus.WaitingForKey
             ? result with { Status = ExtraContentStatus.Failed, Detail = "The provided key is not this package's key." }
             : result;
+    }
+
+    /// <summary>The mod packages to load, in order; problems with <see cref="ModLoadOrderFile"/> entries go to <paramref name="results"/>.</summary>
+    private static List<string> ModsInLoadOrder(string folder, List<ExtraContentResult> results)
+    {
+        var listFile = Path.Combine(folder, ModLoadOrderFile);
+        if (!File.Exists(listFile))
+        {
+            return System.IO.Directory.Exists(folder) ? [.. System.IO.Directory.EnumerateFiles(folder, "*" + GamePackage.PackageExtension).Order(StringComparer.OrdinalIgnoreCase)] : [];
+        }
+
+        var files = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var raw in File.ReadLines(listFile))
+        {
+            var hash = raw.IndexOf('#', StringComparison.Ordinal);
+            var line = (hash >= 0 ? raw[..hash] : raw).Trim();
+            if (line.Length == 0 || !seen.Add(line))
+            {
+                continue;
+            }
+
+            var name = $"{ModsFolder}/{line}";
+            if (Path.GetFileName(line) != line || !line.EndsWith(GamePackage.PackageExtension, StringComparison.OrdinalIgnoreCase))
+            {
+                results.Add(new ExtraContentResult(name, ExtraContentStatus.Failed, $"{ModLoadOrderFile} lists something that is not a package file name in the Mods folder."));
+            }
+            else if (!File.Exists(Path.Combine(folder, line)))
+            {
+                results.Add(new ExtraContentResult(name, ExtraContentStatus.Failed, $"Listed in {ModLoadOrderFile}, but the file is missing."));
+            }
+            else
+            {
+                files.Add(Path.Combine(folder, line));
+            }
+        }
+
+        return files;
+    }
+
+    /// <summary>A mod: no keys (it must be readable without the game's), any or no signature, never code; the mods it requires must be loaded before it.</summary>
+    private ExtraContentResult MountMod(string file, HashSet<string> loaded)
+    {
+        var name = $"{ModsFolder}/{Path.GetFileName(file)}";
+        MnvtPackage package;
+        try
+        {
+            package = MnvtPackage.Open(file, new PackageOpenOptions { Statistics = Files.Statistics });
+        }
+        catch (IOException ex)
+        {
+            return new ExtraContentResult(name, ExtraContentStatus.Failed, ex.Message);
+        }
+
+        try
+        {
+            var manifest = ModManifest.Read(package);
+            if (manifest?.Requires.FirstOrDefault(r => !loaded.Contains(r)) is { } missing)
+            {
+                package.Dispose();
+                return new ExtraContentResult(name, ExtraContentStatus.Failed, $"Needs the mod '{missing}', which is not loaded before it.", manifest);
+            }
+
+            // Every mod has the same priority and a later mount wins, so the load order decides overrides.
+            Files.Mount(new PackageFileSystemProvider(package), new MountOptions(Priority: ModPriority, Trust: MountTrust.Untrusted, Name: name));
+            loaded.Add(manifest?.Name ?? Path.GetFileNameWithoutExtension(file));
+            return new ExtraContentResult(name, ExtraContentStatus.Mounted, null, manifest);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException)
+        {
+            package.Dispose();
+            return new ExtraContentResult(name, ExtraContentStatus.Failed, ex.Message);
+        }
     }
 
     private ExtraContentResult Mount(string file, PackageOpenOptions options, MountOptions mount, bool dlc)
