@@ -139,7 +139,7 @@ public sealed class BuildPipelineTests : IDisposable
     }
 
     [Fact]
-    public void Dlc_PackagesOneFolder_WithItsIndex_SignedAndWithItsOwnKey()
+    public async Task Dlc_PackagesOneFolder_WithItsIndex_SignedAndWithItsOwnKey()
     {
         var project = NewProject();
         var folder = Path.Combine(project.AssetsDirectory, "DLC", "Forest");
@@ -150,7 +150,7 @@ public sealed class BuildPipelineTests : IDisposable
         SigningKeys.Create(signingKey);
         using var signer = IO.Packages.PackageSigningKey.FromPem(File.ReadAllText(signingKey));
 
-        var result = DlcBuilder.Build(project, project.EffectiveBuildProfiles[1], "Assets/DLC/Forest", "Forest", Path.Combine(_root, "dlc"), signingKey, separateKey: true);
+        var result = await DlcBuilder.BuildAsync(project, project.EffectiveBuildProfiles[1], "Assets/DLC/Forest", "Forest", Path.Combine(_root, "dlc"), signingKey, separateKey: true, TestContext.Current.CancellationToken);
         Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
         Assert.Equal(1, result.Assets);
         Assert.Contains(result.Diagnostics, d => d.Code == "MNVB116"); // the key file is for the server
@@ -162,7 +162,7 @@ public sealed class BuildPipelineTests : IDisposable
         Assert.True(package.Contains("Assets/DLC/Forest/Intro.mnvts"));
         Assert.True(package.Contains(Assets.AssetDatabase.CompiledEntry(Guid.Parse("d1000000-0000-4000-8000-000000000001"))));
         Assert.Equal(Guid.Parse("d1000000-0000-4000-8000-000000000001"), package.Entries.Single(e => e.Path.EndsWith(".mnvts", StringComparison.Ordinal)).AssetGuid);
-        Assert.Contains(DlcBuilder.Build(project, project.EffectiveBuildProfiles[1], "Assets/Nothing", "Empty", null, signingKey, false).Diagnostics, d => d.Code == "MNVB115");
+        Assert.Contains((await DlcBuilder.BuildAsync(project, project.EffectiveBuildProfiles[1], "Assets/Nothing", "Empty", null, signingKey, false, TestContext.Current.CancellationToken)).Diagnostics, d => d.Code == "MNVB115");
     }
 
     [Fact]

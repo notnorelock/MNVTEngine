@@ -149,6 +149,13 @@ public sealed class ContentSettings
     /// code (no C# assemblies are served from it). Off unless the game opts in.
     /// </summary>
     public bool Mods { get; set; }
+
+    /// <summary>
+    /// C# code of DLC: DLC name (<c>mnvt package dlc --name</c>) to a class library project relative to the project root,
+    /// which references the game's scripts project. <c>mnvt package dlc</c> builds and packages it; ahead-of-time builds
+    /// of the game compile it in, and enable its components when that DLC is mounted.
+    /// </summary>
+    public Dictionary<string, string> DlcCode { get; set; } = new(StringComparer.Ordinal);
 }
 
 /// <summary>A named export configuration (<c>"buildProfiles"</c> in the .mnvtproj), used by <c>mnvt build</c>.</summary>
@@ -583,6 +590,15 @@ public sealed class GameProject
 
         Streaming ??= new StreamingSettings();
         Content ??= new ContentSettings();
+        Content.DlcCode ??= new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (dlc, code) in Content.DlcCode)
+        {
+            if (!GamePackage.IsValidExecutableName(dlc) || string.IsNullOrWhiteSpace(code) || Path.IsPathRooted(code) || !code.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)
+                || code.Replace('\\', '/').Split('/').Contains(".."))
+            {
+                Error("content", $"content.dlcCode: '{dlc}' must map a DLC name to a .csproj path inside the project.");
+            }
+        }
         if (Streaming.TextureBudgetMB < 0 || !(Streaming.UnusedSeconds >= 0f))
         {
             Error("streaming", "streaming.textureBudgetMB and streaming.unusedSeconds must not be negative.");

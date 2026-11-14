@@ -29,7 +29,7 @@ Exit codes are 0 for success, 1 when there are errors, 64 for usage errors and 1
 | `package analyze <project> [--profile p]` | What each package of a build would hold: sizes before compression, duplicate content, stripped assets. |
 | `package extract <file.mnvtpack> --output dir [--project p]` | Developer tool: writes a package's files to a folder. The result is not a project and cannot be opened as one. |
 | `package keys <project> [--rotate] [--new-signing-key file.pem]` | Shows the encryption key id and signing keys; rotates the encryption key; creates a release signing key (outside the project). |
-| `package dlc <project> --folder Assets/... --name N [--output dir] [--separate-key]` | Packages one folder's assets as DLC for `<Game>_Data/DLC`, signed and encrypted; `--separate-key` gives it its own key for a server (see [extra content](../architecture/virtual-filesystem.md#mods-and-extra-content)). |
+| `package dlc <project> --folder Assets/... --name N [--output dir] [--separate-key]` | Packages one folder's assets as DLC for `<Game>_Data/DLC`, signed and encrypted; `--separate-key` gives it its own key for a server. A `content.dlcCode` project of that name is built and packaged as its C# code (compiled into ahead-of-time games instead; see [extra content](../architecture/virtual-filesystem.md#mods-and-extra-content)). |
 | `package benchmark <exported game> [--project p] [--no-repack]` | Read times from the packages against the same files on disk, per asset type, and each compression profile. |
 
 ## Templates

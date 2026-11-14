@@ -20,15 +20,16 @@ public sealed record DlcResult(string? PackageFile, string? KeyFile, int Assets,
 /// models as their artifacts, scripts with their bytecode, textures with their streaming proxy, and an asset index
 /// (<c>Index/&lt;name&gt;.json</c>) the game merges over its own. Signed with the game's signing key, so games accept it;
 /// encrypted with the project key, or with a key of its own whose file goes to the game's server
-/// (<see cref="Runtime.GameContent.MountDlc"/>). C# code is not packaged: DLC carries content, not assemblies.
-/// Copy the package into <c>&lt;Game&gt;_Data/DLC</c>.
+/// (<see cref="Runtime.GameContent.MountDlc"/>). When the project lists C# code for the DLC (<c>content.dlcCode</c>),
+/// it is built and packaged as <c>Scripts/&lt;Assembly&gt;.dll</c> for games on the JIT backend; ahead-of-time games
+/// compile DLC code in, so their DLC packages only name it. Copy the package into <c>&lt;Game&gt;_Data/DLC</c>.
 /// </summary>
 public static class DlcBuilder
 {
     /// <param name="folder">Path relative to Assets whose assets the DLC holds.</param>
     /// <param name="output">Folder for the package (and key file); default <c>Builds/dlc</c>.</param>
     /// <param name="separateKey">Encrypt with a new key of its own instead of the project's, written next to the package.</param>
-    public static DlcResult Build(GameProject project, BuildProfile profile, string folder, string name, string? output, string? signingKeyPath, bool separateKey)
+    public static async Task<DlcResult> BuildAsync(GameProject project, BuildProfile profile, string folder, string name, string? output, string? signingKeyPath, bool separateKey, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(profile);
@@ -60,6 +61,12 @@ public static class DlcBuilder
             return new DlcResult(null, null, 0, diagnostics);
         }
 
+        var (codeAssembly, codeBytes) = await BuildCodeAsync(project, profile, name, diagnostics, cancellationToken).ConfigureAwait(false);
+        if (diagnostics.HasErrors())
+        {
+            return new DlcResult(null, null, 0, diagnostics);
+        }
+
         var key = separateKey ? PackageEncryptionKey.Create() : ContentKeys.LoadOrCreate(project, diagnostics);
         using var signer = SigningKeys.Resolve(project, profile, signingKeyPath, diagnostics);
         if (key is null || signer is null || diagnostics.HasErrors())
@@ -81,12 +88,28 @@ public static class DlcBuilder
             identity.AppendData(SHA256.HashData(assets.ReadAllBytes(record.Guid)));
         }
 
+        if (codeBytes is not null)
+        {
+            identity.AppendData(SHA256.HashData(codeBytes));
+        }
+
         var digest = identity.GetHashAndReset();
+        var properties = new Dictionary<string, string> { ["kind"] = "dlc", ["game"] = project.Name, ["engine"] = GamePackager.EngineVersion, [GameContent.DlcProperty] = name };
+        if (codeAssembly is not null)
+        {
+            properties[GameContent.ScriptsProperty] = codeAssembly;
+        }
+
         var options = new PackageWriterOptions(new Guid(digest.AsSpan(0, 16)), new Guid(digest.AsSpan(16, 16)), profile.Compression,
             EncryptionKey: profile.Encrypt || separateKey ? key : null, SigningKey: signer,
-            Properties: new Dictionary<string, string> { ["kind"] = "dlc", ["game"] = project.Name, ["engine"] = GamePackager.EngineVersion });
+            Properties: properties);
         using (var writer = new PackageWriter(file, options))
         {
+            if (codeBytes is not null)
+            {
+                writer.Add(GamePackage.ScriptsEntryFolder + codeAssembly, codeBytes); // next to the game's code: it loads into the game's context
+            }
+
             foreach (var record in records)
             {
                 if (record.Type == AssetTypes.Model)
@@ -142,5 +165,47 @@ public static class DlcBuilder
         }
 
         return new DlcResult(file, keyFile, records.Count, diagnostics);
+    }
+
+    /// <summary>
+    /// Builds the DLC's C# project, if the project lists one: its assembly's file name, and its bytes for JIT games
+    /// (null for ahead-of-time games, which compile it in). Errors go to <paramref name="diagnostics"/>.
+    /// </summary>
+    private static async Task<(string? Assembly, byte[]? Bytes)> BuildCodeAsync(GameProject project, BuildProfile profile, string name, List<BuildDiagnostic> diagnostics, CancellationToken cancellationToken)
+    {
+        ScriptProject? code;
+        ScriptProject? game;
+        try
+        {
+            (code, game) = (ScriptProject.ForDlc(project, name), ScriptProject.For(project));
+        }
+        catch (FileNotFoundException ex)
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB117", ex.Message));
+            return (null, null);
+        }
+
+        if (code is null)
+        {
+            return (null, null);
+        }
+
+        if (game is null || string.Equals(code.AssemblyName, game.AssemblyName, StringComparison.OrdinalIgnoreCase))
+        {
+            diagnostics.Add(BuildDiagnostic.Error("MNVB117", game is null
+                ? "DLC code builds on the game's scripts project, and this project has none."
+                : $"The DLC's code project has the game's assembly name '{game.AssemblyName}'; give it its own."));
+            return (null, null);
+        }
+
+        var build = await ScriptCompiler.BuildAsync(code, profile.Configuration, code.OutputDirectory, cancellationToken).ConfigureAwait(false);
+        diagnostics.AddRange(build.Diagnostics.Select(BuildDiagnostic.FromScript));
+        if (!build.Succeeded)
+        {
+            return (null, null);
+        }
+
+        var fileName = code.AssemblyName + ".dll";
+        return (fileName, profile.ScriptingBackend == "aot" ? null : await File.ReadAllBytesAsync(build.AssemblyPath!, cancellationToken).ConfigureAwait(false));
     }
 }

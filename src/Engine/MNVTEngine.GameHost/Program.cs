@@ -116,27 +116,79 @@ internal static class Game
     private static bool LoadScripts(GamePackage package, GameContent content, ComponentRegistry registry, ILogger logger)
     {
 #if MNVT_AOT
-        // Ahead-of-time build: the game's C# is compiled into this executable; its components are registered from the
-        // list the build generated (GameComponents.g.cs), with no assembly loading and no type scanning.
-        _ = (package, content, logger);
+        // Ahead-of-time build: the game's C# (and the code of the DLC the project lists) is compiled into this
+        // executable; components are registered from the lists the build generated (GameComponents.g.cs), with no
+        // assembly loading and no type scanning. A DLC's components are registered once its package is mounted.
+        _ = package;
         GameComponents.Register(registry);
+        void LoadDlc(ExtraContentResult dlc)
+        {
+            if (dlc.Scripts is not null && !GameComponents.RegisterDlc(registry, dlc.Dlc ?? ""))
+            {
+                HostLog.DlcCodeNotBuiltIn(logger, dlc.Name);
+            }
+            else if (dlc.Scripts is not null)
+            {
+                HostLog.DlcCodeLoaded(logger, dlc.Name);
+            }
+        }
+#else
+        // Code comes only from trusted mounts: the official packages and DLC signed with the game's key (untrusted
+        // mounts never serve Scripts/). DLC assemblies load into the game's context, so they see its types.
+        var host = new GameAssemblyHost();
+        var ok = true;
+        byte[]? Read(string file) => content.TryRead(GamePackage.ScriptsEntryFolder + file);
+        if (package.ScriptsAssembly is { } scripts)
+        {
+            var folder = scripts[..(scripts.LastIndexOf('/') + 1)];
+            var load = host.Load(scripts[folder.Length..], file => content.TryRead(folder + file));
+            ok = Report(load.Diagnostics.Concat(GameAssemblyHost.Register(registry, null, load.Code))) && load.Code is not null;
+        }
+
+        void LoadDlc(ExtraContentResult dlc)
+        {
+            if (dlc.Scripts is not { } file)
+            {
+                return;
+            }
+
+            if (Path.GetFileName(file) != file || !file.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            {
+                HostLog.DlcCodeRejected(logger, dlc.Name, file);
+                return;
+            }
+
+            var load = host.Current is null ? host.Load(file, Read) : host.LoadAdditional(file);
+            if (Report(load.Diagnostics.Concat(GameAssemblyHost.Register(registry, null, load.Code))) && load.Code is not null)
+            {
+                HostLog.DlcCodeLoaded(logger, dlc.Name);
+            }
+        }
+
+        bool Report(IEnumerable<ScriptDiagnostic> diagnostics)
+        {
+            var success = true;
+            foreach (var diagnostic in diagnostics)
+            {
+                success &= diagnostic.Severity != ScriptDiagnosticSeverity.Error;
+                HostLog.Diagnostic(logger, diagnostic.Severity == ScriptDiagnosticSeverity.Error ? LogLevel.Error : LogLevel.Warning, diagnostic);
+            }
+
+            return success;
+        }
+#endif
+
+        // DLC mounted at startup, then DLC mounted later (keys from the game's server): failures are logged and the game runs on.
+        foreach (var dlc in content.ExtraContent.Where(r => r.Status == ExtraContentStatus.Mounted))
+        {
+            LoadDlc(dlc);
+        }
+
+        content.ExtraContentMounted += LoadDlc;
+#if MNVT_AOT
         return true;
 #else
-        if (package.ScriptsAssembly is not { } scripts)
-        {
-            return true;
-        }
-
-        // Code comes only from trusted mounts: the official packages (untrusted mounts never serve Scripts/).
-        var folder = scripts[..(scripts.LastIndexOf('/') + 1)];
-        var load = new GameAssemblyHost().Load(scripts[folder.Length..], file => content.TryRead(folder + file));
-        var diagnostics = load.Diagnostics.Concat(GameAssemblyHost.Register(registry, null, load.Code)).ToList();
-        foreach (var diagnostic in diagnostics)
-        {
-            HostLog.Diagnostic(logger, diagnostic.Severity == ScriptDiagnosticSeverity.Error ? LogLevel.Error : LogLevel.Warning, diagnostic);
-        }
-
-        return load.Code is not null && diagnostics.All(d => d.Severity != ScriptDiagnosticSeverity.Error);
+        return ok;
 #endif
     }
 }
@@ -154,6 +206,15 @@ internal static partial class HostLog
 
     [LoggerMessage(EventId = 7003, Level = LogLevel.Warning, Message = "logging.json ignored: {Reason}")]
     public static partial void BadLoggingSettings(ILogger logger, string reason);
+
+    [LoggerMessage(EventId = 7004, Level = LogLevel.Information, Message = "Code of {Dlc} loaded")]
+    public static partial void DlcCodeLoaded(ILogger logger, string dlc);
+
+    [LoggerMessage(EventId = 7005, Level = LogLevel.Error, Message = "{Dlc} has code this build of the game does not contain (ahead-of-time builds compile DLC code in); update the game. Its content is available, its components are not")]
+    public static partial void DlcCodeNotBuiltIn(ILogger logger, string dlc);
+
+    [LoggerMessage(EventId = 7006, Level = LogLevel.Error, Message = "{Dlc} names '{File}' as its code, which is not an assembly file name; its code is not loaded")]
+    public static partial void DlcCodeRejected(ILogger logger, string dlc, string file);
 
     [LoggerMessage(EventId = 7003, Message = "{Diagnostic}")]
     public static partial void Diagnostic(ILogger logger, LogLevel level, object diagnostic);

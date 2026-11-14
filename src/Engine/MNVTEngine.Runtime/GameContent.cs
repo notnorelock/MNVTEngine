@@ -16,7 +16,9 @@ public enum ExtraContentStatus
 }
 
 /// <summary>What happened to one extra content package; <paramref name="Mod"/> is a mod's manifest, when it has one.</summary>
-public sealed record ExtraContentResult(string Name, ExtraContentStatus Status, string? Detail, ModManifest? Mod = null);
+/// <param name="Dlc">A DLC package's name (its <c>dlc</c> property), which DLC code is registered under.</param>
+/// <param name="Scripts">The file name of a DLC's C# assembly in <c>Scripts/</c> (its <c>scripts</c> property); null without code.</param>
+public sealed record ExtraContentResult(string Name, ExtraContentStatus Status, string? Detail, ModManifest? Mod = null, string? Dlc = null, string? Scripts = null);
 
 /// <summary>
 /// <c>mod.json</c> at the root of a mod package: who made it and which mods it needs. <paramref name="Name"/> is what
@@ -177,6 +179,20 @@ public sealed class GameContent : IDisposable
     }
 
     private readonly PackageOpenOptions _options;
+    private readonly List<ExtraContentResult> _extraContent = [];
+    private List<ExtraContentResult>? _startupContent;
+
+    /// <summary>Package property naming a DLC (written by <c>mnvt package dlc</c>).</summary>
+    public const string DlcProperty = "dlc";
+
+    /// <summary>Package property with the file name of a DLC's C# assembly in <c>Scripts/</c>.</summary>
+    public const string ScriptsProperty = "scripts";
+
+    /// <summary>Every extra content package tried so far (<see cref="MountExtraContent"/>, <see cref="MountDlc"/>), in order.</summary>
+    public IReadOnlyList<ExtraContentResult> ExtraContent => _extraContent;
+
+    /// <summary>Raised for each extra content package that was mounted: the game host loads DLC code from it.</summary>
+    public event Action<ExtraContentResult>? ExtraContentMounted;
 
     /// <summary>Folder of official extra content inside the data folder.</summary>
     public const string DlcFolder = "DLC";
@@ -206,7 +222,13 @@ public sealed class GameContent : IDisposable
     public IReadOnlyList<ExtraContentResult> MountExtraContent(ContentSettings settings, string gameDirectory)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        if (_startupContent is not null)
+        {
+            return _startupContent; // mounted once, before the game's code loads (DLC code needs it); later calls report the same
+        }
+
         var results = new List<ExtraContentResult>();
+        _startupContent = results;
         if (settings.Dlc)
         {
             foreach (var file in PackagesIn(Path.Combine(Directory, DlcFolder)))
@@ -215,6 +237,8 @@ public sealed class GameContent : IDisposable
             }
         }
 
+        Record(results);
+        var dlcCount = results.Count;
         if (settings.Mods)
         {
             var loaded = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase); // name to version
@@ -224,6 +248,7 @@ public sealed class GameContent : IDisposable
             }
         }
 
+        Record(results.Skip(dlcCount));
         return results;
 
         static IEnumerable<string> PackagesIn(string folder) =>
@@ -261,9 +286,23 @@ public sealed class GameContent : IDisposable
         }
 
         var result = Mount(Path.Combine(Directory, DlcFolder, fileName), _options with { Keys = keys }, new MountOptions(Priority: DlcPriority, Trust: MountTrust.Trusted, Name: name), dlc: true);
-        return result.Status == ExtraContentStatus.WaitingForKey
+        result = result.Status == ExtraContentStatus.WaitingForKey
             ? result with { Status = ExtraContentStatus.Failed, Detail = "The provided key is not this package's key." }
             : result;
+        Record([result]);
+        return result;
+    }
+
+    private void Record(IEnumerable<ExtraContentResult> results)
+    {
+        foreach (var result in results.ToList())
+        {
+            _extraContent.Add(result);
+            if (result.Status == ExtraContentStatus.Mounted)
+            {
+                ExtraContentMounted?.Invoke(result);
+            }
+        }
     }
 
     /// <summary>The mod packages to load, in order; problems with <see cref="ModLoadOrderFile"/> entries go to <paramref name="results"/>.</summary>
@@ -346,8 +385,19 @@ public sealed class GameContent : IDisposable
     {
         try
         {
-            Files.MountPackage(file, options, mount);
-            return new ExtraContentResult(mount.Name!, ExtraContentStatus.Mounted, null);
+            var package = MnvtPackage.Open(file, options with { Statistics = Files.Statistics });
+            try
+            {
+                Files.Mount(new PackageFileSystemProvider(package), mount);
+            }
+            catch
+            {
+                package.Dispose();
+                throw;
+            }
+
+            var properties = package.Info.Properties;
+            return new ExtraContentResult(mount.Name!, ExtraContentStatus.Mounted, null, Dlc: properties.GetValueOrDefault(DlcProperty), Scripts: properties.GetValueOrDefault(ScriptsProperty));
         }
         catch (PackageException ex) when (dlc && ex.Error == PackageError.MissingKey)
         {

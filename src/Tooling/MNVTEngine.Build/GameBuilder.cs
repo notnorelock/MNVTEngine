@@ -121,6 +121,52 @@ public sealed partial class GameBuilder(ILogger logger)
             }
         }
 
+        // 1b. Ahead-of-time games cannot load code later: DLC code (content.dlcCode) is compiled in, enabled per mounted DLC.
+        var dlcComponents = new SortedDictionary<string, IReadOnlyList<Type>>(StringComparer.Ordinal);
+        var dlcAssemblies = new List<string>();
+        if (profile.ScriptingBackend == "aot" && project.Content.DlcCode.Count > 0)
+        {
+            if (code is null)
+            {
+                diagnostics.Add(BuildDiagnostic.Error("MNVB117", "DLC code builds on the game's scripts project, and this project has none."));
+                return Fail(profile);
+            }
+
+            foreach (var dlc in project.Content.DlcCode.Keys.Order(StringComparer.Ordinal))
+            {
+                ScriptProject dlcProject;
+                try
+                {
+                    dlcProject = ScriptProject.ForDlc(project, dlc)!;
+                }
+                catch (FileNotFoundException ex)
+                {
+                    diagnostics.Add(BuildDiagnostic.Error("MNVB117", ex.Message));
+                    return Fail(profile);
+                }
+
+                var dlcBuild = await ScriptCompiler.BuildAsync(dlcProject, profile.Configuration, Path.Combine(work, "Dlc", dlc), cancellationToken).ConfigureAwait(false);
+                diagnostics.AddRange(dlcBuild.Diagnostics.Select(BuildDiagnostic.FromScript));
+                if (!dlcBuild.Succeeded)
+                {
+                    return Fail(profile);
+                }
+
+                // Next to the game's assembly, so it loads into the game's code context for its component list.
+                var copy = Path.Combine(scriptsOutput!, Path.GetFileName(dlcBuild.AssemblyPath!));
+                File.Copy(dlcBuild.AssemblyPath!, copy, overwrite: true);
+                var load = GameAssemblyHost.LoadInto(code, Path.GetFileName(copy));
+                diagnostics.AddRange(load.Diagnostics.Select(BuildDiagnostic.FromScript));
+                dlcComponents[dlc] = load.Code?.ComponentTypes ?? [];
+                dlcAssemblies.Add(copy);
+            }
+
+            if (diagnostics.HasErrors())
+            {
+                return Fail(profile);
+            }
+        }
+
         // 2. Content, into signed (and encrypted) packages: globals (index, runtime configuration, game code), default
         //    resources (precompiled shaders), one package per level, shared assets and resources. See ContentLayout.
         var buildId = BuildIdentity.Compute(project, profile, scriptsOutput, profile.Encrypt ? key.IdText : "plain", signer.PublicKey.Id);
@@ -150,7 +196,7 @@ public sealed partial class GameBuilder(ILogger logger)
                 {
                     // Written while the game's code is loaded: its component types and their serialized members.
                     var roots = AotBootstrap.Roots(resolved, scripts?.AssemblyName);
-                    aotSource = AotBootstrap.Source(code?.ComponentTypes ?? [], registry.Types.Values.Distinct().Where(t => roots.Contains(t.Assembly.GetName().Name!)));
+                    aotSource = AotBootstrap.Source(code?.ComponentTypes ?? [], registry.Types.Values.Distinct().Where(t => roots.Contains(t.Assembly.GetName().Name!)), dlcComponents);
                 }
             }
             finally
@@ -173,7 +219,7 @@ public sealed partial class GameBuilder(ILogger logger)
             LogPublishing(logger, executableName, profile.Target);
             // The host is built with the game's modules only (generated bootstrap: references and explicit creation).
             var bootstrap = ModuleBootstrap.Write(content.Modules!, Path.Combine(work, "Bootstrap"),
-                aot ? new AotInput(aotSource!, scriptsAssemblyPath, AotBootstrap.Roots(content.Modules!, scripts?.AssemblyName)) : null);
+                aot ? new AotInput(aotSource!, scriptsAssemblyPath, AotBootstrap.Roots(content.Modules!, scripts?.AssemblyName, dlcAssemblies.Select(Path.GetFileNameWithoutExtension).OfType<string>()), dlcAssemblies) : null);
             modules = [.. content.Modules!.Modules.Select(m => m.Id)];
             var embeddedKey = profile.Encrypt ? EmbeddedPackageKey.Encode(key, buildId.ToByteArray()) : null;
             diagnostics.AddRange(await GamePackager.PublishHostAsync(engineRoot, profile, executableName, embeddedKey, signer.PublicKey, work, stage, modules.Contains("devtools"), bootstrap, cancellationToken).ConfigureAwait(false));

@@ -52,6 +52,22 @@ public sealed class ScriptProject
             : throw new FileNotFoundException($"Scripts project '{relative}' not found.", file);
     }
 
+    /// <summary>The C# project of DLC <paramref name="dlc"/> (<c>content.dlcCode</c>); null when the DLC has no code.</summary>
+    /// <exception cref="FileNotFoundException">The configured project file does not exist.</exception>
+    public static ScriptProject? ForDlc(GameProject project, string dlc)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        if (project.Content.DlcCode.GetValueOrDefault(dlc) is not { Length: > 0 } relative)
+        {
+            return null;
+        }
+
+        var file = project.ResolveProjectFile(relative);
+        return File.Exists(file)
+            ? new ScriptProject(file, Path.Combine(project.RootDirectory, "Library", "DlcAssemblies", dlc))
+            : throw new FileNotFoundException($"Code project '{relative}' of DLC '{dlc}' not found.", file);
+    }
+
     /// <summary>
     /// Fingerprint of every source input (paths, sizes, timestamps of .cs/.csproj/.props/.targets; bin and obj excluded)
     /// and of the engine build the scripts compile against: a script assembly built against an older engine (for example

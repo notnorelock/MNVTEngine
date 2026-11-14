@@ -14,7 +14,8 @@ namespace MNVTEngine.Build;
 /// <param name="ComponentsSource">The generated GameComponents.g.cs.</param>
 /// <param name="ScriptsAssembly">The game's compiled C# (referenced and compiled into the executable); null without C# scripts.</param>
 /// <param name="Roots">Assemblies whose metadata is kept whole.</param>
-public sealed record AotInput(string ComponentsSource, string? ScriptsAssembly, IReadOnlyList<string> Roots);
+/// <param name="DlcAssemblies">Paths of DLC code assemblies compiled into the executable (<c>content.dlcCode</c>).</param>
+public sealed record AotInput(string ComponentsSource, string? ScriptsAssembly, IReadOnlyList<string> Roots, IReadOnlyList<string>? DlcAssemblies = null);
 
 public static class ModuleBootstrap
 {
@@ -95,6 +96,11 @@ public static class ModuleBootstrap
         if (aot is not null)
         {
             text.Append("    <Compile Include=\"").Append(System.Security.SecurityElement.Escape(aotSourcePath)).Append("\" />\n");
+            foreach (var dlc in aot.DlcAssemblies ?? [])
+            {
+                text.Append("    <Reference Include=\"").Append(System.Security.SecurityElement.Escape(dlc)).Append("\" />\n");
+            }
+
             if (aot.ScriptsAssembly is not null)
             {
                 text.Append("    <Reference Include=\"").Append(System.Security.SecurityElement.Escape(aot.ScriptsAssembly)).Append("\" />\n");

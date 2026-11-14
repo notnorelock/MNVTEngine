@@ -85,6 +85,43 @@ public sealed class GameAssemblyHost
             return new GameCodeLoadResult(null, diagnostics);
         }
 
+        Current = new GameCode(context, main, Components(main, diagnostics));
+        return new GameCodeLoadResult(Current, diagnostics);
+    }
+
+    /// <summary>
+    /// Loads another assembly into the current generation's context (DLC code): it sees the game's own types, and the
+    /// result's <see cref="GameCode.ComponentTypes"/> are its components only, ready for <see cref="Register"/>.
+    /// </summary>
+    /// <param name="fileName">A file name the current generation's source can read.</param>
+    /// <exception cref="InvalidOperationException">No game code is loaded.</exception>
+    public GameCodeLoadResult LoadAdditional(string fileName)
+    {
+        return LoadInto(Current ?? throw new InvalidOperationException("Load the game's code before additional assemblies."), fileName);
+    }
+
+    /// <summary>Loads another assembly into <paramref name="current"/>'s context; see <see cref="LoadAdditional"/>.</summary>
+    public static GameCodeLoadResult LoadInto(GameCode current, string fileName)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentException.ThrowIfNullOrEmpty(fileName);
+        var diagnostics = new List<ScriptDiagnostic>();
+        Assembly assembly;
+        try
+        {
+            assembly = current.Context.LoadByFileName(fileName);
+        }
+        catch (Exception ex) when (ex is IOException or BadImageFormatException or UnauthorizedAccessException or InvalidDataException)
+        {
+            diagnostics.Add(new ScriptDiagnostic(ScriptDiagnosticSeverity.Error, "LOAD001", $"Cannot load '{fileName}': {ex.Message}"));
+            return new GameCodeLoadResult(null, diagnostics);
+        }
+
+        return new GameCodeLoadResult(new GameCode(current.Context, assembly, Components(assembly, diagnostics)), diagnostics);
+    }
+
+    private static List<Type> Components(Assembly main, List<ScriptDiagnostic> diagnostics)
+    {
         var components = new List<Type>();
         foreach (var type in ExportedTypes(main, diagnostics))
         {
@@ -102,8 +139,7 @@ public sealed class GameAssemblyHost
             components.Add(type);
         }
 
-        Current = new GameCode(context, main, components);
-        return new GameCodeLoadResult(Current, diagnostics);
+        return components;
     }
 
     /// <summary>

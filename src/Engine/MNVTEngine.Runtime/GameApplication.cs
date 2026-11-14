@@ -112,6 +112,8 @@ public static partial class GameApplication
     private static int RunGame(string[] args, GraphicsDeviceFactory createDevice, ILoggerFactory loggerFactory, ILogger logger, GameProject project, ComponentRegistry registry, IReadOnlyList<IEngineModule> modules,
         Func<GameProject, ComponentRegistry, bool>? prepareComponents, GameContent? content, DevelopmentTools? tools, IReadOnlyList<IAssetImporter>? importers)
     {
+        // DLC and mods first: DLC can bring code, which loads with the game's (logged by the runtime).
+        content?.MountExtraContent(project.Content, Path.GetDirectoryName(Path.GetFullPath(content.Directory))!);
         if (prepareComponents is not null && !prepareComponents(project, registry))
         {
             return 3;

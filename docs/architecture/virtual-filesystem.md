@@ -366,15 +366,28 @@ At startup, after the official packages, the game mounts extra content the runti
   when it has none. The startup log shows each mod's name and version; `ExtraContentResult.Mod` holds the manifest.
 - **Authoring.** `mnvt package dlc <project> --folder Assets/DLC/Forest --name Forest` packages one folder's assets
   (models as artifacts, scripts with bytecode, textures with proxies) and its index, signed and encrypted. The main
-  build strips those assets when nothing in the game references them. C# code is not packaged in DLC.
+  build strips those assets when nothing in the game references them.
+- **DLC code.** C# for a DLC lives in a class library that references the game's scripts project, listed in the
+  project file: `"content": { "dlcCode": { "Forest": "DLC/Forest/Forest.Scripts.csproj" } }`. `mnvt package dlc --name
+  Forest` builds it and sets the package properties `dlc` (the name) and `scripts` (the assembly's file name).
+  - **JIT games:** the assembly ships in the DLC as `Scripts/<Assembly>.dll`, next to the game's code. The game host
+    loads it into the game's code context (so it sees the game's types) and registers its components, at startup or
+    when `DownloadableContent.Mount` mounts the DLC later. DLC is trusted (signed with the game's key); mods never
+    serve `Scripts/`. Only the main assembly is packaged: DLC code cannot bring NuGet packages of its own.
+  - **Ahead-of-time games** cannot load code: the build compiles every `dlcCode` project into the executable and
+    generates `GameComponents.RegisterDlc`, which registers a DLC's components once that DLC is mounted. Their DLC
+    packages carry no assembly, only the properties. DLC whose code the executable does not contain (released after the
+    game) logs error 7005: its content loads, its components do not, until a game update.
+  - Extra content mounts before the game's code loads, so DLC code is registered before the first scene. A DLC
+    assembly that fails to load is logged (`LOAD001`) and the game runs on.
 - **Server-provided keys.** `--separate-key` encrypts the DLC with a key of its own, written next to the package for
   the game's server, never shipped. The game finds the package, reports it as waiting for its key
   (`DownloadableContent.WaitingForKey`), and mounts it when game code passes the key it got from the server:
   `DownloadableContent.Mount("Forest.mnvtpack", key, out var problem)`. A wrong key or a package not signed with the
   game's key is refused. Offline games never need this.
 - `.mnvts` bytecode in any package runs in the sandboxed VM (no file, process or network access) and is verified when loaded.
-- Not implemented: per-mod capability restrictions beyond code, and DLC that
-  ships C# code.
+- Not implemented: per-mod capability restrictions beyond code, and DLC code for ahead-of-time games released after
+  the game itself.
 
 ## Streaming and memory
 
@@ -479,6 +492,6 @@ Loading and streaming: `assets.loadTime` and `assets.loadTimeMax` (last 32 textu
   dropping mip levels of a resident image; 2D render targets drawn at a different size than the back buffer report a
   scale relative to the back buffer.
 - Mesh streaming covers static meshes with levels of detail only (see [models](../engine/models.md#levels-of-detail)).
-- DLC cannot ship C# code.
+- Ahead-of-time games run only DLC code they were built with; JIT games load DLC code but not its NuGet dependencies.
 - Linux and macOS targets do not exist yet (no GLFW/OpenAL/Vulkan-loader packaging or runtime packs for them); the VFS
   and package format are platform-independent.
