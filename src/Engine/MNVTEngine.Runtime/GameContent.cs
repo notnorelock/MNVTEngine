@@ -22,7 +22,7 @@ public sealed record ExtraContentResult(string Name, ExtraContentStatus Status, 
 /// <c>mod.json</c> at the root of a mod package: who made it and which mods it needs. <paramref name="Name"/> is what
 /// other mods' <paramref name="Requires"/> refer to (the package file name without extension when there is no manifest).
 /// </summary>
-public sealed record ModManifest(string Name, string? Version, string? Author, string? Description, IReadOnlyList<string> Requires)
+public sealed record ModManifest(string Name, string? Version, string? Author, string? Description, IReadOnlyList<ModRequirement> Requires)
 {
     public const string FileName = "mod.json";
 
@@ -56,7 +56,7 @@ public sealed record ModManifest(string Name, string? Version, string? Author, s
             var requires = json["requires"] switch
             {
                 null => [],
-                JArray list when list.All(r => r.Type == JTokenType.String && Valid((string)r!)) => list.Select(r => (string)r!).ToArray(),
+                JArray list when list.All(r => r.Type == JTokenType.String && Valid((string)r!)) => list.Select(r => ModRequirement.Parse((string)r!)).ToArray(),
                 _ => throw new InvalidDataException($"{FileName}: \"requires\" must be a list of mod names."),
             };
             return new ModManifest(name, Text(json, "version"), Text(json, "author"), Text(json, "description"), requires);
@@ -74,6 +74,88 @@ public sealed record ModManifest(string Name, string? Version, string? Author, s
         };
 
         static bool Valid(string text) => text.Length is > 0 and <= 256;
+    }
+}
+
+/// <summary>
+/// One entry of a manifest's <c>requires</c>: a mod name, optionally with a version constraint such as
+/// <c>"Base &gt;= 1.2"</c> (operators <c>=</c>, <c>&gt;=</c>, <c>&gt;</c>, <c>&lt;=</c>, <c>&lt;</c>; versions are 1 to 4
+/// dot-separated numbers, missing parts count as 0).
+/// </summary>
+public sealed record ModRequirement(string Name, string? Operator, string? Version)
+{
+    private static readonly string[] Operators = [">=", "<=", "=", ">", "<"]; // two-character operators first
+
+    /// <exception cref="InvalidDataException">Not a name with an optional valid constraint.</exception>
+    public static ModRequirement Parse(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var at = text.IndexOfAny(['<', '>', '=']);
+        if (at < 0)
+        {
+            return text.Trim() is { Length: > 0 } plain ? new ModRequirement(plain, null, null) : throw Invalid(text);
+        }
+
+        var name = text[..at].Trim();
+        var op = Operators.First(o => text.AsSpan(at).StartsWith(o, StringComparison.Ordinal));
+        var version = text[(at + op.Length)..].Trim();
+        return name.Length > 0 && Parts(version) is not null ? new ModRequirement(name, op, version) : throw Invalid(text);
+
+        static InvalidDataException Invalid(string text) =>
+            new($"{ModManifest.FileName}: \"{text}\" is not a mod name with an optional version constraint (\"Base >= 1.2\").");
+    }
+
+    /// <summary>True when a mod of <paramref name="version"/> satisfies the constraint (always, without one).</summary>
+    public bool IsMetBy(string? version)
+    {
+        if (Operator is null)
+        {
+            return true;
+        }
+
+        if (Parts(version) is not { } have)
+        {
+            return false; // a constraint needs a numeric version to compare with
+        }
+
+        var want = Parts(Version)!;
+        var order = 0;
+        for (var i = 0; i < 4 && order == 0; i++)
+        {
+            order = have[i].CompareTo(want[i]);
+        }
+
+        return Operator switch
+        {
+            "=" => order == 0,
+            ">=" => order >= 0,
+            ">" => order > 0,
+            "<=" => order <= 0,
+            _ => order < 0,
+        };
+    }
+
+    public override string ToString() => Operator is null ? Name : $"{Name} {Operator} {Version}";
+
+    /// <summary>The four numeric parts of a version, or null.</summary>
+    private static int[]? Parts(string? version)
+    {
+        var parts = version?.Split('.') ?? [];
+        if (parts.Length is < 1 or > 4)
+        {
+            return null;
+        }
+
+        var numbers = new int[4];
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (!int.TryParse(parts[i], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out numbers[i]))
+            {
+                return null;
+            }
+        }
+
+        return numbers;
     }
 }
 
@@ -135,7 +217,7 @@ public sealed class GameContent : IDisposable
 
         if (settings.Mods)
         {
-            var loaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var loaded = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase); // name to version
             foreach (var file in ModsInLoadOrder(Path.Combine(gameDirectory, ModsFolder), results))
             {
                 results.Add(MountMod(file, loaded));
@@ -223,7 +305,7 @@ public sealed class GameContent : IDisposable
     }
 
     /// <summary>A mod: no keys (it must be readable without the game's), any or no signature, never code; the mods it requires must be loaded before it.</summary>
-    private ExtraContentResult MountMod(string file, HashSet<string> loaded)
+    private ExtraContentResult MountMod(string file, Dictionary<string, string?> loaded)
     {
         var name = $"{ModsFolder}/{Path.GetFileName(file)}";
         MnvtPackage package;
@@ -239,15 +321,18 @@ public sealed class GameContent : IDisposable
         try
         {
             var manifest = ModManifest.Read(package);
-            if (manifest?.Requires.FirstOrDefault(r => !loaded.Contains(r)) is { } missing)
+            if (manifest?.Requires.FirstOrDefault(r => !loaded.TryGetValue(r.Name, out var version) || !r.IsMetBy(version)) is { } unmet)
             {
                 package.Dispose();
-                return new ExtraContentResult(name, ExtraContentStatus.Failed, $"Needs the mod '{missing}', which is not loaded before it.", manifest);
+                var problem = loaded.TryGetValue(unmet.Name, out var found)
+                    ? $"Needs '{unmet}', but version {found ?? "(none)"} is loaded."
+                    : $"Needs the mod '{unmet.Name}', which is not loaded before it.";
+                return new ExtraContentResult(name, ExtraContentStatus.Failed, problem, manifest);
             }
 
             // Every mod has the same priority and a later mount wins, so the load order decides overrides.
             Files.Mount(new PackageFileSystemProvider(package), new MountOptions(Priority: ModPriority, Trust: MountTrust.Untrusted, Name: name));
-            loaded.Add(manifest?.Name ?? Path.GetFileNameWithoutExtension(file));
+            loaded[manifest?.Name ?? Path.GetFileNameWithoutExtension(file)] = manifest?.Version;
             return new ExtraContentResult(name, ExtraContentStatus.Mounted, null, manifest);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException)

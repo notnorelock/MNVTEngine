@@ -360,8 +360,9 @@ At startup, after the official packages, the game mounts extra content the runti
   file name per line, `#` starts a comment, and only listed mods load. A later mod overrides files of an earlier one
   (same priority; the later mount wins). Missing or invalid entries are reported and skipped.
 - **Mod manifest.** A mod may carry `mod.json` at its root: `{ "name": "Hats", "version": "1.0", "author": "...",
-  "description": "...", "requires": ["Base"] }` (strings of 1-256 characters, at most 64 KiB). A mod whose required
-  mod is not loaded before it is skipped. `requires` names a mod's manifest `name`, or its file name without extension
+  "description": "...", "requires": ["Base >= 1.2"] }` (strings of 1-256 characters, at most 64 KiB). A mod whose required
+  mod is not loaded before it, or has a version outside the constraint, is skipped. Constraints use `=`, `>=`, `>`,
+  `<=`, `<` on versions of 1-4 numbers (`1.2` equals `1.2.0`); a constraint is never met by a non-numeric version. `requires` names a mod's manifest `name`, or its file name without extension
   when it has none. The startup log shows each mod's name and version; `ExtraContentResult.Mod` holds the manifest.
 - **Authoring.** `mnvt package dlc <project> --folder Assets/DLC/Forest --name Forest` packages one folder's assets
   (models as artifacts, scripts with bytecode, textures with proxies) and its index, signed and encrypted. The main
@@ -372,7 +373,7 @@ At startup, after the official packages, the game mounts extra content the runti
   `DownloadableContent.Mount("Forest.mnvtpack", key, out var problem)`. A wrong key or a package not signed with the
   game's key is refused. Offline games never need this.
 - `.mnvts` bytecode in any package runs in the sandboxed VM (no file, process or network access) and is verified when loaded.
-- Not implemented: per-mod capability restrictions beyond code, mod version constraints in `requires`, and DLC that
+- Not implemented: per-mod capability restrictions beyond code, and DLC that
   ships C# code.
 
 ## Streaming and memory
@@ -462,6 +463,6 @@ Loading and streaming: `assets.loadTime` and `assets.loadTimeMax` (last 32 textu
 ## 12. Remaining work
 
 - Texture streaming has two levels (proxy, full image), not per-mip streaming by screen size; meshes are not streamed.
-- DLC cannot ship C# code; mod requirements have no version constraints.
+- DLC cannot ship C# code.
 - Linux and macOS targets do not exist yet (no GLFW/OpenAL/Vulkan-loader packaging or runtime packs for them); the VFS
   and package format are platform-independent.

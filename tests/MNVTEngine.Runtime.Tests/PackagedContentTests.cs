@@ -215,22 +215,49 @@ public sealed class PackagedContentTests : IDisposable
         WriteGame();
         var mods = Path.Combine(_root, "Mods");
         WriteExtra(Path.Combine(mods, "base.mnvtpack"), "base", null, null, ("mod.json", """{ "name": "Base", "version": "1.2" }""", Guid.Empty), ("Assets/Web/logo.png", "base logo", Guid.Empty));
-        WriteExtra(Path.Combine(mods, "addon.mnvtpack"), "addon", null, null, ("mod.json", """{ "name": "Addon", "requires": ["base"] }""", Guid.Empty), ("Assets/Web/logo.png", "addon logo", Guid.Empty));
+        WriteExtra(Path.Combine(mods, "addon.mnvtpack"), "addon", null, null, ("mod.json", """{ "name": "Addon", "requires": ["base >= 1.1"] }""", Guid.Empty), ("Assets/Web/logo.png", "addon logo", Guid.Empty));
+        WriteExtra(Path.Combine(mods, "picky.mnvtpack"), "picky", null, null, ("mod.json", """{ "name": "Picky", "requires": ["Base >= 2"] }""", Guid.Empty));
         WriteExtra(Path.Combine(mods, "early.mnvtpack"), "early", null, null, ("mod.json", """{ "name": "Early", "requires": ["Addon"] }""", Guid.Empty));
         WriteExtra(Path.Combine(mods, "broken.mnvtpack"), "broken", null, null, ("mod.json", """{ "name": 5 }""", Guid.Empty));
         WriteExtra(Path.Combine(mods, "unlisted.mnvtpack"), "unlisted", null, null, ("Assets/Web/logo.png", "unlisted logo", Guid.Empty));
-        File.WriteAllLines(Path.Combine(mods, GameContent.ModLoadOrderFile), ["# first loads first", "early.mnvtpack", "base.mnvtpack", "addon.mnvtpack  # overrides base", "base.mnvtpack", "ghost.mnvtpack", "../escape.mnvtpack", "broken.mnvtpack"]);
+        File.WriteAllLines(Path.Combine(mods, GameContent.ModLoadOrderFile), ["# first loads first", "early.mnvtpack", "base.mnvtpack", "addon.mnvtpack  # overrides base", "base.mnvtpack", "ghost.mnvtpack", "../escape.mnvtpack", "broken.mnvtpack", "picky.mnvtpack"]);
 
         using var content = GamePackage.Load(Data).OpenContent(Data, Options);
         var results = content.MountExtraContent(new ContentSettings { Mods = true }, _root);
         Assert.Equal(
             [("Mods/ghost.mnvtpack", ExtraContentStatus.Failed), ("Mods/../escape.mnvtpack", ExtraContentStatus.Failed), ("Mods/early.mnvtpack", ExtraContentStatus.Failed),
-             ("Mods/base.mnvtpack", ExtraContentStatus.Mounted), ("Mods/addon.mnvtpack", ExtraContentStatus.Mounted), ("Mods/broken.mnvtpack", ExtraContentStatus.Failed)],
+             ("Mods/base.mnvtpack", ExtraContentStatus.Mounted), ("Mods/addon.mnvtpack", ExtraContentStatus.Mounted), ("Mods/broken.mnvtpack", ExtraContentStatus.Failed), ("Mods/picky.mnvtpack", ExtraContentStatus.Failed)],
             results.Select(r => (r.Name, r.Status)).ToArray());
+        Assert.Equal("Needs 'Base >= 2', but version 1.2 is loaded.", results.Single(r => r.Name == "Mods/picky.mnvtpack").Detail);
         Assert.Contains("'Addon'", results.Single(r => r.Name == "Mods/early.mnvtpack").Detail, StringComparison.Ordinal); // needs a mod loaded later
         Assert.Equal(("Base", "1.2"), (results.Single(r => r.Name == "Mods/base.mnvtpack").Mod!.Name, results.Single(r => r.Name == "Mods/base.mnvtpack").Mod!.Version));
         Assert.Equal("addon logo", Encoding.UTF8.GetString(content.Read("Assets/Web/logo.png"))); // the later mod wins; the unlisted one is not loaded
     }
+
+    [Theory]
+    [InlineData("Base", null, true)]
+    [InlineData("Base", "x", true)]
+    [InlineData("Base >= 1.2", "1.2", true)]
+    [InlineData("Base>=1.2", "1.10", true)]
+    [InlineData("Base >= 1.2", "1.1.9", false)]
+    [InlineData("Base > 1", "1.0.0", false)]
+    [InlineData("Base = 1.0", "1", true)]
+    [InlineData("Base < 2", "1.99", true)]
+    [InlineData("Base <= 2", "2.0.1", false)]
+    [InlineData("Base >= 1", "beta", false)]
+    [InlineData("Base >= 1", null, false)]
+    public void ModRequirement_ComparesVersions(string requirement, string? version, bool met) =>
+        Assert.Equal(met, ModRequirement.Parse(requirement).IsMetBy(version));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(">= 1")]
+    [InlineData("Base >=")]
+    [InlineData("Base >= 1.x")]
+    [InlineData("Base >= 1.2.3.4.5")]
+    [InlineData("Base => 1")]
+    public void ModRequirement_RejectsInvalidConstraints(string requirement) =>
+        Assert.Throws<InvalidDataException>(() => ModRequirement.Parse(requirement));
 
     [Fact]
     public void ExtraContent_IsOnlyMountedWhenAllowed()
