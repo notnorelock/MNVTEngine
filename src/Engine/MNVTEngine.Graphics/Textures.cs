@@ -60,6 +60,50 @@ public abstract class Texture2D : GraphicsResource
     /// </summary>
     public virtual (int Width, int Height) ResidentSize => (Width, Height);
 
+    /// <summary>Frames over which <see cref="RequiredScale"/> keeps the largest reported size.</summary>
+    public const int ScreenScaleWindow = 30;
+
+    private long _scaleBucket = -2;
+    private float _scaleCurrent;
+    private float _scalePrevious;
+
+    /// <summary>
+    /// Set by texture streaming: renderers then report how large the texture is drawn (<see cref="ReportScreenScale"/>), so
+    /// it can be loaded at the resolution the screen needs. Off for other textures, which skip the bookkeeping.
+    /// </summary>
+    public bool TrackScreenScale { get; set; }
+
+    /// <summary>
+    /// A renderer drew the texture this large on screen, as a fraction of its full size (1 = one texel per pixel, 0.25 =
+    /// a quarter of its resolution is enough). Keeps the largest of the last <see cref="ScreenScaleWindow"/> to 2x frames.
+    /// </summary>
+    public void ReportScreenScale(float scale, long frame)
+    {
+        if (!float.IsFinite(scale))
+        {
+            scale = float.MaxValue;
+        }
+
+        var bucket = frame / ScreenScaleWindow;
+        if (bucket != _scaleBucket)
+        {
+            _scalePrevious = bucket == _scaleBucket + 1 ? _scaleCurrent : 0f;
+            (_scaleCurrent, _scaleBucket) = (0f, bucket);
+        }
+
+        _scaleCurrent = Math.Max(_scaleCurrent, scale);
+    }
+
+    /// <summary>
+    /// The largest scale reported recently (<see cref="ReportScreenScale"/>); null when nothing reported one, in which case
+    /// a texture that is drawn must be treated as needing its full resolution (some draws cannot tell their size).
+    /// </summary>
+    public float? RequiredScale(long frame)
+    {
+        var bucket = frame / ScreenScaleWindow;
+        return bucket == _scaleBucket ? Math.Max(_scaleCurrent, _scalePrevious) : bucket == _scaleBucket + 1 ? _scaleCurrent : null;
+    }
+
     /// <summary>
     /// True when texel row 0 is the bottom of the image (render targets). Uploaded images store row 0 at the top.
     /// Sprite rendering uses this to pick texture coordinates so both appear upright.

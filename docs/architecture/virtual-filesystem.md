@@ -379,17 +379,28 @@ At startup, after the official packages, the game mounts extra content the runti
 ## Streaming and memory
 
 - **Audio.** Long clips are decoded while they play from a stream over the package (see [audio](../engine/audio.md#resource-lifetime)).
-- **Textures.** Builds write a 64-pixel proxy (`Artifacts/<guid>/proxy`, raw RGBA) for every texture larger than 128
-  pixels. Exported games show the proxy at once and decode the full image on a worker; the full image replaces the
-  proxy inside the same `Texture2D` (`IGraphicsDevice.ReplaceTexture`), which keeps reporting its full size, so sprite
-  sizes, source rectangles, materials and models that hold it stay valid. Scene loading no longer waits for those
-  textures. Development loads textures whole.
+- **Textures.** Builds write, for every texture larger than 128 pixels, a 64-pixel proxy (`Artifacts/<guid>/proxy`,
+  raw RGBA) and its reduced levels (`Artifacts/<guid>/mip1`, `mip2`, ...: the image at 1/2, 1/4, ... of its size, PNG,
+  each box-filtered from the one above, down to the last level above 128 pixels). Exported games show the proxy at
+  once and then load the level the screen needs (below); the level replaces the image inside the same `Texture2D`
+  (`IGraphicsDevice.ReplaceTexture`), which keeps reporting its full size, so sprite sizes, source rectangles,
+  materials and models that hold it stay valid. Scene loading does not wait for those textures. Development loads
+  textures whole. Packages built before reduced levels existed switch between the proxy and the full image.
+- **Level by drawn size.** Streamed textures have `Texture2D.TrackScreenScale` set, and renderers report how large
+  they draw them (`ReportScreenScale`, the largest over the last 30 to 60 frames): sprites from their quad's pixel size
+  against the source rectangle, 3D meshes from pixels per world unit at the mesh's nearest point against texels per
+  world unit (the mesh's UV0 density, `GpuMesh.UVDensity`, times the texture size). The resource cache then keeps the
+  smallest level at least as large as drawn: the proxy alone when the drawn size fits it, else level
+  `floor(log2(1 / scale))`, else the full image. A texture drawn without a size report (custom draws, meshes without
+  UVs) gets its full image. Sharper levels load on a worker; a coarser level replaces a sharper one once it loaded, the
+  proxy at once. A texture drawn by several renderers keeps the largest size any of them reported.
 - **Use tracking.** The Vulkan device stamps `Texture2D.LastDrawnFrame` whenever a texture is bound for drawing.
 - **Memory pressure.** Every 15 frames the resource cache checks its budget (`"streaming": { "textureBudgetMB": N }`,
   0 = none), the system's memory load (the GC's high-load threshold) and the GPU's remaining budget
-  (`VK_EXT_memory_budget`, under 128 MB). Over it, full images not drawn for `"unusedSeconds"` (default 10) return to
-  their proxy, least recently drawn first; drawing one again streams it back in. Textures in use are never downgraded,
-  so a budget smaller than one frame's textures is exceeded rather than thrashed.
+  (`VK_EXT_memory_budget`, under 128 MB). Loading a sharper level waits while it would exceed the budget or memory is
+  short. Over it, textures not drawn for `"unusedSeconds"` (default 10) return to their proxy, least recently drawn
+  first; drawing one again streams it back in. Textures in use keep the level their drawn size needs, so a budget
+  smaller than one frame's textures is exceeded rather than thrashed.
 - **Unloading.** After a scene change (once `unusedSeconds` passed), textures not drawn since are unloaded with the
   materials and models that use them (`ResourceCache.UnloadUnused`); they load again on use.
 - **Lifetime.** Textures, materials and models are cached per runtime and released by these rules or when their asset
@@ -445,7 +456,7 @@ asynchronous reads, bytes read and chunks decoded per frame, chunk cache hits, v
 decompression time per frame (from every thread), total package opening time, failed reads and corrupted chunks.
 Cached assets and their memory are the existing `assets.loaded` and `memory.assets` metrics of the resource cache.
 Loading and streaming: `assets.loadTime` and `assets.loadTimeMax` (last 32 texture loads), `scene.loadTime`,
-`textures.proxies`, `textures.fullResolution`, `textures.pending`, `textures.downgrades`, `assets.unloaded`,
+`textures.proxies`, `textures.fullResolution`, `textures.reduced`, `textures.pending`, `textures.downgrades`, `assets.unloaded`,
 `memory.streamedTextures`; audio: `audio.streams`, `audio.underruns`.
 
 ## 11. What this protects, and what it does not
@@ -462,7 +473,9 @@ Loading and streaming: `assets.loadTime` and `assets.loadTimeMax` (last 32 textu
 
 ## 12. Remaining work
 
-- Texture streaming has two levels (proxy, full image), not per-mip streaming by screen size; meshes are not streamed.
+- Texture levels replace the whole image (the new level is uploaded with its own mipmaps), rather than adding or
+  dropping mip levels of a resident image; 2D render targets drawn at a different size than the back buffer report a
+  scale relative to the back buffer. Meshes are not streamed.
 - DLC cannot ship C# code.
 - Linux and macOS targets do not exist yet (no GLFW/OpenAL/Vulkan-loader packaging or runtime packs for them); the VFS
   and package format are platform-independent.

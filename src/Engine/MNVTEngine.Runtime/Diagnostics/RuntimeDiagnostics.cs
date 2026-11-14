@@ -543,6 +543,7 @@ public sealed partial class RuntimeDiagnostics
             metrics.Set(DiagnosticMetrics.AssetsUnloaded, loads.Unloaded);
             metrics.Set(DiagnosticMetrics.TextureProxies, loads.Proxies);
             metrics.Set(DiagnosticMetrics.TexturesStreamedIn, loads.FullResolution);
+            metrics.Set(DiagnosticMetrics.TexturesReduced, loads.Reduced);
             metrics.Set(DiagnosticMetrics.TexturesPending, loads.Pending);
             metrics.Set(DiagnosticMetrics.TextureDowngrades, loads.Downgrades);
             metrics.Set(DiagnosticMetrics.StreamedTextureMemory, MetricValue.Estimated(loads.FullBytes));

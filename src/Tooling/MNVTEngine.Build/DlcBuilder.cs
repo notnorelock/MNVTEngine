@@ -110,9 +110,12 @@ public static class DlcBuilder
                     writer.Add(AssetDatabase.CompiledEntry(record.Guid), bytecode);
                 }
 
-                if (record.Type == AssetTypes.Texture && project.Streaming.Textures && ContentCompiler.Proxy(assets, record, diagnostics) is { } proxy)
+                if (record.Type == AssetTypes.Texture && project.Streaming.Textures)
                 {
-                    writer.Add(AssetDatabase.ArtifactEntry(record.Guid, TextureProxy.ArtifactName), proxy);
+                    foreach (var (artifact, bytes) in ContentCompiler.StreamingArtifacts(assets, record, diagnostics))
+                    {
+                        writer.Add(AssetDatabase.ArtifactEntry(record.Guid, artifact), bytes);
+                    }
                 }
             }
 

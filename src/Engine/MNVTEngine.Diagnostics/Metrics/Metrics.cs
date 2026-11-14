@@ -145,6 +145,7 @@ public static class Metrics
     public const string SceneLoadTime = "scene.loadTime";
     public const string TextureProxies = "textures.proxies";
     public const string TexturesStreamedIn = "textures.fullResolution";
+    public const string TexturesReduced = "textures.reduced";
     public const string TexturesPending = "textures.pending";
     public const string TextureDowngrades = "textures.downgrades";
     public const string StreamedTextureMemory = "memory.streamedTextures";
@@ -259,7 +260,8 @@ public static class Metrics
         new(SceneLoadTime, "Scene load time", "Assets", MetricUnit.Milliseconds, "Duration of the last scene load, from request to start."),
         new(TextureProxies, "Texture proxies", "Assets", MetricUnit.Count, "Streamed textures showing their low-resolution proxy now."),
         new(TexturesStreamedIn, "Full-resolution textures", "Assets", MetricUnit.Count, "Streamed textures showing their full image."),
-        new(TexturesPending, "Textures streaming in", "Assets", MetricUnit.Count, "Full images being read and decoded in the background."),
+        new(TexturesReduced, "Reduced textures", "Assets", MetricUnit.Count, "Streamed textures showing a reduced level: drawn small enough not to need their full image."),
+        new(TexturesPending, "Textures streaming in", "Assets", MetricUnit.Count, "Texture levels being read and decoded in the background."),
         new(TextureDowngrades, "Texture downgrades", "Assets", MetricUnit.Count, "Full images released for budget or memory pressure, since start."),
         new(StreamedTextureMemory, "Streamed texture memory", "Memory", MetricUnit.Bytes, "GPU memory of full-resolution streamed textures (estimated from sizes, with mipmaps)."),
         new(DebugDrawCommands, "Debug draws", "Diagnostics", MetricUnit.Count, "Debug draw commands queued this frame."),

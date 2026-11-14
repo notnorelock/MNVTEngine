@@ -205,9 +205,12 @@ public static class ContentCompiler
                     package.Add(AssetDatabase.CompiledEntry(record.Guid), bytecode);
                 }
 
-                if (record.Type == AssetTypes.Texture && project.Streaming.Textures && Proxy(assets, record, diagnostics) is { } proxy)
+                if (record.Type == AssetTypes.Texture && project.Streaming.Textures)
                 {
-                    package.Add(AssetDatabase.ArtifactEntry(record.Guid, TextureProxy.ArtifactName), proxy); // streamed: shown while the full image loads
+                    foreach (var (name, data) in StreamingArtifacts(assets, record, diagnostics))
+                    {
+                        package.Add(AssetDatabase.ArtifactEntry(record.Guid, name), data); // streamed: the proxy and reduced levels
+                    }
                 }
             }
         }
@@ -278,18 +281,38 @@ public static class ContentCompiler
         return precompiler.Entries.Count;
     }
 
-    /// <summary>The streaming proxy of a texture large enough to stream; null for small ones (or, with a warning, undecodable ones).</summary>
-    internal static byte[]? Proxy(AssetDatabase assets, AssetRecord record, List<BuildDiagnostic> diagnostics)
+    /// <summary>
+    /// The streaming artifacts of a texture large enough to stream (<see cref="TextureProxy"/>): its proxy and its reduced
+    /// levels, each box-filtered from the one above and stored as PNG. None for small textures (or, with a warning,
+    /// undecodable ones).
+    /// </summary>
+    internal static List<(string Name, byte[] Data)> StreamingArtifacts(AssetDatabase assets, AssetRecord record, List<BuildDiagnostic> diagnostics)
     {
         try
         {
             var image = Image.Decode(assets.ReadAllBytes(record.Guid), record.Path, assets.GetTextureSettings(record.Guid).SvgScale);
-            return TextureProxy.ShouldStream(image.Width, image.Height) ? TextureProxy.Create(image) : null;
+            if (!TextureProxy.ShouldStream(image.Width, image.Height))
+            {
+                return [];
+            }
+
+            var artifacts = new List<(string, byte[])> { (TextureProxy.ArtifactName, TextureProxy.Create(image)) };
+            var level = image;
+            for (var k = 1; k <= TextureProxy.ReducedLevels(image.Width, image.Height); k++)
+            {
+                var (width, height) = TextureProxy.LevelSize(image.Width, image.Height, k);
+                level = TextureProxy.Downsample(level, width, height);
+                using var png = new MemoryStream();
+                new StbImageWriteSharp.ImageWriter().WritePng(level.Pixels, width, height, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, png);
+                artifacts.Add((TextureProxy.LevelArtifactName(k), png.ToArray()));
+            }
+
+            return artifacts;
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException)
         {
             diagnostics.Add(BuildDiagnostic.Warning("MNVB224", $"No streaming proxy (the texture loads whole): {ex.Message}", record.Path));
-            return null;
+            return [];
         }
     }
 

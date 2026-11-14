@@ -12,22 +12,26 @@ public sealed record TextureStreamingOptions(long BudgetBytes, long UnusedFrames
 /// <summary>What texture streaming and asset loading did (diagnostics).</summary>
 /// <param name="Proxies">Streamed textures showing their proxy now.</param>
 /// <param name="FullResolution">Streamed textures showing their full image.</param>
-/// <param name="FullBytes">GPU memory of those full images (with mipmaps).</param>
+/// <param name="FullBytes">GPU memory of the full and reduced images of streamed textures (with mipmaps; proxies not counted).</param>
 /// <param name="Pending">Full images being read and decoded in the background.</param>
 /// <param name="Downgrades">Full images released (budget, memory pressure) since start.</param>
 /// <param name="Unloaded">Textures unloaded as unused since start.</param>
 /// <param name="AverageLoad">Mean duration of the last 32 texture loads (read, decode, upload); null before any.</param>
 /// <param name="MaxLoad">Longest of those.</param>
 /// <param name="LastSceneLoad">Duration of the last scene load, from request to start; null before any.</param>
+/// <param name="Reduced">Streamed textures showing a reduced level (drawn small enough not to need the full image).</param>
 public readonly record struct AssetLoadStatistics(
-    int Proxies, int FullResolution, long FullBytes, int Pending, long Downgrades, long Unloaded, TimeSpan? AverageLoad, TimeSpan? MaxLoad, TimeSpan? LastSceneLoad);
+    int Proxies, int FullResolution, long FullBytes, int Pending, long Downgrades, long Unloaded, TimeSpan? AverageLoad, TimeSpan? MaxLoad, TimeSpan? LastSceneLoad, int Reduced = 0);
 
 /// <summary>
-/// Texture streaming: in exported games a large texture first shows its build-time proxy (<see cref="TextureProxy"/>),
-/// while its full image is read and decoded on a worker; <see cref="Update"/> swaps it in on the graphics thread. The
-/// <see cref="Texture2D"/> object stays the same throughout (<see cref="IGraphicsDevice.ReplaceTexture"/>), so materials
-/// and models holding it simply draw sharper. Over the budget, or when the system or GPU runs short of memory, full
-/// images not drawn for a while go back to their proxy; drawing one again streams it in again.
+/// Texture streaming: in exported games a large texture first shows its build-time proxy (<see cref="TextureProxy"/>).
+/// Renderers report how large they draw it (<see cref="Texture2D.ReportScreenScale"/>), and <see cref="Update"/> loads
+/// the smallest level that is still sharp at that size: the full image, a reduced level (1/2, 1/4, ...), or the proxy
+/// alone. Levels are read and decoded on a worker and swapped in on the graphics thread; the <see cref="Texture2D"/>
+/// object stays the same throughout (<see cref="IGraphicsDevice.ReplaceTexture"/>), so materials and models holding it
+/// simply draw sharper or softer. A texture drawn without a size report needs its full image. Over the budget, or when
+/// the system or GPU runs short of memory, textures not drawn for a while go back to their proxy; drawing one again
+/// streams it in again.
 /// </summary>
 public sealed partial class ResourceCache
 {
@@ -39,6 +43,7 @@ public sealed partial class ResourceCache
     private long _downgrades;
     private long _unloaded;
     private long _gpuShortUntil;
+    private bool _pressure;
     private TimeSpan? _lastSceneLoad;
 
     /// <summary>Turns texture streaming on (exported games; needs proxies, which builds write, and a backend that can replace textures).</summary>
@@ -52,10 +57,12 @@ public sealed partial class ResourceCache
     {
         get
         {
-            var full = _streamed.Values.Where(s => s.Full).ToList();
+            var proxies = _streamed.Values.Count(s => s.Resident == s.ProxyLevel);
+            var full = _streamed.Values.Count(s => s.Resident == 0);
             return new AssetLoadStatistics(
-                _streamed.Count - full.Count, full.Count, full.Sum(s => s.FullBytes), _streamed.Values.Count(s => s.Pending is not null), _downgrades, _unloaded,
-                _loadTimes.Count == 0 ? null : TimeSpan.FromTicks((long)_loadTimes.Average(t => t.Ticks)), _loadTimes.Count == 0 ? null : _loadTimes.Max(), _lastSceneLoad);
+                proxies, full, _streamed.Values.Sum(s => s.Bytes(s.Resident)), _streamed.Values.Count(s => s.Pending is not null), _downgrades, _unloaded,
+                _loadTimes.Count == 0 ? null : TimeSpan.FromTicks((long)_loadTimes.Average(t => t.Ticks)), _loadTimes.Count == 0 ? null : _loadTimes.Max(), _lastSceneLoad,
+                _streamed.Count - proxies - full);
         }
     }
 
@@ -63,8 +70,9 @@ public sealed partial class ResourceCache
     public void RecordSceneLoad(TimeSpan duration) => _lastSceneLoad = duration;
 
     /// <summary>
-    /// Once per frame on the graphics thread: swaps in full images that finished loading, streams in textures drawn
-    /// again, and releases full images over the budget or under memory pressure.
+    /// Once per frame on the graphics thread: swaps in levels that finished loading, loads the level each drawn texture
+    /// needs at its drawn size (textures showing only their proxy are checked every frame, the others every 15), and
+    /// releases images over the budget or under memory pressure.
     /// </summary>
     public void Update()
     {
@@ -82,42 +90,90 @@ public sealed partial class ResourceCache
             }
         }
 
-        if (frame % 15 != 0)
+        var full = frame % 15 == 0;
+        if (full)
         {
-            return;
+            _pressure = UnderMemoryPressure(frame);
         }
 
-        var pressure = UnderMemoryPressure(frame);
-        var used = _streamed.Values.Where(s => s.Full).Sum(s => s.FullBytes);
+        var pressure = _pressure;
+        var used = _streamed.Values.Sum(s => s.Bytes(s.Resident));
         foreach (var (guid, stream) in _streamed)
         {
-            // Drawn in the last frames while showing its proxy: stream it in (unless that would break the budget or memory is short).
-            if (!stream.Full && stream.Pending is null && stream.Texture.LastDrawnFrame >= frame - 2 && !pressure
-                && (options.BudgetBytes == 0 || used + stream.EstimatedFullBytes <= options.BudgetBytes))
+            if (stream.Pending is not null || (!full && stream.Resident != stream.ProxyLevel) || NeededLevel(stream, frame) is not { } needed || needed == stream.Resident)
             {
-                StartFull(guid, stream);
-                used += stream.EstimatedFullBytes;
+                continue;
+            }
+
+            if (needed > stream.Resident)
+            {
+                // Drawn smaller than its image: the proxy is swapped in at once, a reduced level after it loads.
+                if (needed == stream.ProxyLevel)
+                {
+                    used -= ShowProxy(stream);
+                }
+                else
+                {
+                    Start(guid, stream, needed);
+                }
+            }
+            else if (!pressure && (options.BudgetBytes == 0 || used - stream.Bytes(stream.Resident) + stream.Bytes(needed) <= options.BudgetBytes))
+            {
+                Start(guid, stream, needed); // sharper (unless that would break the budget or memory is short)
+                used += stream.Bytes(needed) - stream.Bytes(stream.Resident);
             }
         }
 
-        if (!pressure && (options.BudgetBytes == 0 || used <= options.BudgetBytes))
+        if (!full || (!pressure && (options.BudgetBytes == 0 || used <= options.BudgetBytes)))
         {
             return;
         }
 
-        // Release full images, least recently drawn first, of textures not drawn for a while; ones in use stay sharp.
-        foreach (var stream in _streamed.Values.Where(s => s.Full && LastUse(s) < frame - options.UnusedFrames).OrderBy(LastUse))
+        // Release images, least recently drawn first, of textures not drawn for a while; ones in use stay as sharp as they are drawn.
+        foreach (var stream in _streamed.Values.Where(s => s.Resident != s.ProxyLevel && LastUse(s) < frame - options.UnusedFrames).OrderBy(LastUse))
         {
             if (!pressure && used <= options.BudgetBytes)
             {
                 break;
             }
 
-            _device.ReplaceTexture(stream.Texture, stream.Proxy.Width, stream.Proxy.Height, stream.Proxy.Pixels);
-            used -= stream.FullBytes;
-            (stream.Full, stream.FullBytes) = (false, 0);
+            used -= ShowProxy(stream);
             _downgrades++;
         }
+    }
+
+    /// <summary>
+    /// The level a texture drawn in the last frames needs: the proxy when its drawn size fits the proxy, else the smallest
+    /// level at least as large as drawn, or the full image when no draw reported its size. Null when it was not drawn.
+    /// </summary>
+    private static int? NeededLevel(StreamedTexture stream, long frame)
+    {
+        var texture = stream.Texture;
+        if (texture.LastDrawnFrame < frame - (2 * Texture2D.ScreenScaleWindow) || texture.LastDrawnFrame == 0)
+        {
+            return null;
+        }
+
+        if (texture.RequiredScale(frame) is not { } scale || scale >= 1f)
+        {
+            return 0;
+        }
+
+        if (scale * Math.Max(texture.Width, texture.Height) <= Math.Max(stream.Proxy.Width, stream.Proxy.Height))
+        {
+            return stream.ProxyLevel;
+        }
+
+        return Math.Clamp((int)MathF.Floor(MathF.Log2(1f / scale)), 0, stream.Levels);
+    }
+
+    /// <summary>Shows the proxy (kept in memory, so at once); returns the bytes released.</summary>
+    private long ShowProxy(StreamedTexture stream)
+    {
+        var released = stream.Bytes(stream.Resident);
+        _device.ReplaceTexture(stream.Texture, stream.Proxy.Width, stream.Proxy.Height, stream.Proxy.Pixels);
+        stream.Resident = stream.ProxyLevel;
+        return released;
     }
 
     /// <summary>
@@ -155,18 +211,24 @@ public sealed partial class ResourceCache
         var settings = _assets.GetTextureSettings(guid);
         var path = _assets.Get(guid)?.Path ?? guid.ToString();
         var texture = _device.CreateStreamingTexture(fullWidth, fullHeight, proxy.Width, proxy.Height, proxy.Pixels, settings.ToSampler(), path);
-        var stream = new StreamedTexture(guid, texture, proxy, (long)fullWidth * fullHeight * 4 * (settings.ToSampler().GenerateMipmaps ? 4 : 3) / 3);
-        _streamed[guid] = stream;
-        StartFull(guid, stream);
-        return texture;
+        texture.TrackScreenScale = true;
+
+        // Builds before reduced levels existed stored only the proxy: such textures switch between it and the full image.
+        var levels = _assets.Content.FileExists(AssetDatabase.ArtifactEntry(guid, TextureProxy.LevelArtifactName(1))) ? TextureProxy.ReducedLevels(fullWidth, fullHeight) : 0;
+        _streamed[guid] = new StreamedTexture(guid, texture, proxy, levels, settings.ToSampler().GenerateMipmaps);
+        return texture; // the first draws report the size it needs
     }
 
-    private void StartFull(Guid guid, StreamedTexture stream)
+    /// <summary>Starts reading and decoding <paramref name="level"/> (0 = the asset itself, else a reduced level) on a worker.</summary>
+    private void Start(Guid guid, StreamedTexture stream, int level)
     {
         var path = _assets.Get(guid)?.Path ?? guid.ToString();
         var svgScale = _assets.GetTextureSettings(guid).SvgScale;
         stream.Started = Stopwatch.GetTimestamp();
-        stream.Pending = Task.Run(() => Image.Decode(_assets.ReadAllBytes(guid), path, svgScale));
+        stream.PendingLevel = level;
+        stream.Pending = level == 0
+            ? Task.Run(() => Image.Decode(_assets.ReadAllBytes(guid), path, svgScale))
+            : Task.Run(() => Image.Decode(_assets.ReadArtifact(guid, TextureProxy.LevelArtifactName(level)) ?? throw new FileNotFoundException($"Level {level} of '{path}' is missing."), $"{path} (level {level})"));
     }
 
     private void Complete(Guid guid, StreamedTexture stream, Task<Image> pending)
@@ -176,7 +238,7 @@ public sealed partial class ResourceCache
         {
             var image = pending.Result;
             _device.ReplaceTexture(stream.Texture, image.Width, image.Height, image.Pixels);
-            (stream.Full, stream.FullBytes) = (true, stream.EstimatedFullBytes);
+            stream.Resident = stream.PendingLevel;
             _loadedFrame[guid] = _device.FrameNumber;
             RecordLoad(Stopwatch.GetElapsedTime(stream.Started));
         }
@@ -222,7 +284,8 @@ public sealed partial class ResourceCache
         _loadedFrame.Remove(guid);
     }
 
-    private sealed class StreamedTexture(Guid guid, Texture2D texture, Image proxy, long estimatedFullBytes)
+    /// <summary>One streamed texture. Levels: 0 = full image, 1..<see cref="Levels"/> = reduced, <see cref="ProxyLevel"/> = the proxy.</summary>
+    private sealed class StreamedTexture(Guid guid, Texture2D texture, Image proxy, int levels, bool mipmaps)
     {
         public Guid Guid { get; } = guid;
 
@@ -230,13 +293,27 @@ public sealed partial class ResourceCache
 
         public Image Proxy { get; } = proxy;
 
-        public long EstimatedFullBytes { get; } = estimatedFullBytes;
+        public int Levels { get; } = levels;
 
-        public bool Full { get; set; }
+        public int ProxyLevel => Levels + 1;
 
-        public long FullBytes { get; set; }
+        public int Resident { get; set; } = levels + 1;
+
+        public int PendingLevel { get; set; }
 
         public Task<Image>? Pending { get; set; }
+
+        /// <summary>GPU bytes of a level (with mipmaps); the proxy counts as 0.</summary>
+        public long Bytes(int level)
+        {
+            if (level == ProxyLevel)
+            {
+                return 0;
+            }
+
+            var (width, height) = TextureProxy.LevelSize(Texture.Width, Texture.Height, level);
+            return (long)width * height * 4 * (mipmaps ? 4 : 3) / 3;
+        }
 
         public long Started { get; set; }
 

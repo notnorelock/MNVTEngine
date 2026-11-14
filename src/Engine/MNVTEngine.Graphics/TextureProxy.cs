@@ -3,10 +3,12 @@ using System.Buffers.Binary;
 namespace MNVTEngine.Graphics;
 
 /// <summary>
-/// The low-resolution stand-in of a streamed texture: drawn while the full image loads, and again after the full image
-/// was released under memory pressure. Built at export time (artifact <see cref="ArtifactName"/>) as raw RGBA8, so
-/// showing it needs no decoding: <c>"MNVTPRXY"</c>, u32 version 1, u32 full width, u32 full height, u32 proxy width,
-/// u32 proxy height, then the proxy's pixels, little-endian.
+/// The low-resolution stand-in of a streamed texture: drawn while a sharper level loads, and again after it was released
+/// under memory pressure. Built at export time (artifact <see cref="ArtifactName"/>) as raw RGBA8, so showing it needs
+/// no decoding: <c>"MNVTPRXY"</c>, u32 version 1, u32 full width, u32 full height, u32 proxy width, u32 proxy height,
+/// then the proxy's pixels, little-endian. Between the proxy and the full image, builds store reduced levels (artifacts
+/// <see cref="LevelArtifactName"/>, PNG): level <c>k</c> is the image at 1/2^k of its size, for every level whose longest
+/// side is still above <c>2 * MaxSize</c>.
 /// </summary>
 public static class TextureProxy
 {
@@ -19,6 +21,24 @@ public static class TextureProxy
 
     /// <summary>True when a texture of this size is worth streaming.</summary>
     public static bool ShouldStream(int width, int height) => Math.Max(width, height) > MaxSize * 2;
+
+    /// <summary>Artifact name of reduced level <paramref name="level"/> (1 = half size).</summary>
+    public static string LevelArtifactName(int level) => $"mip{level}";
+
+    /// <summary>How many reduced levels a build stores for a texture of this size (0 when it is not streamed).</summary>
+    public static int ReducedLevels(int width, int height)
+    {
+        var levels = 0;
+        while (ShouldStream(Math.Max(1, width >> (levels + 1)), Math.Max(1, height >> (levels + 1))))
+        {
+            levels++;
+        }
+
+        return ShouldStream(width, height) ? levels : 0;
+    }
+
+    /// <summary>Size of level <paramref name="level"/> of a <paramref name="width"/> x <paramref name="height"/> texture.</summary>
+    public static (int Width, int Height) LevelSize(int width, int height, int level) => (Math.Max(1, width >> level), Math.Max(1, height >> level));
 
     /// <summary>The proxy of <paramref name="full"/>: box-filtered down to at most <see cref="MaxSize"/> on its longest side, encoded.</summary>
     public static byte[] Create(Image full)
@@ -34,7 +54,25 @@ public static class TextureProxy
         BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(16), full.Height);
         BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(20), width);
         BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(24), height);
-        var pixels = data.AsSpan(HeaderSize);
+        Downsample(full, width, height, data.AsSpan(HeaderSize));
+        return data;
+    }
+
+    /// <summary><paramref name="full"/> box-filtered to <paramref name="width"/> x <paramref name="height"/> (not larger than it).</summary>
+    public static Image Downsample(Image full, int width, int height)
+    {
+        ArgumentNullException.ThrowIfNull(full);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(width, full.Width);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(height, full.Height);
+        var pixels = new byte[width * height * 4];
+        Downsample(full, width, height, pixels);
+        return new Image(width, height, pixels);
+    }
+
+    private static void Downsample(Image full, int width, int height, Span<byte> pixels)
+    {
         for (var y = 0; y < height; y++)
         {
             var y0 = y * full.Height / height;
@@ -65,8 +103,6 @@ public static class TextureProxy
                 pixels[o + 3] = (byte)(a / count);
             }
         }
-
-        return data;
     }
 
     /// <exception cref="InvalidDataException">Not a proxy, or a malformed one.</exception>

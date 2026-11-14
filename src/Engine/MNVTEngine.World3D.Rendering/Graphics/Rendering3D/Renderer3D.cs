@@ -81,6 +81,7 @@ public sealed class Renderer3D(IGraphicsDevice device)
 
             var distance = Vector3.DistanceSquared(bounds.Center, view.Position);
             (item.Material.IsTransparent ? _transparent : _opaque).Add((item, distance));
+            ReportScreenScale(item, bounds, view);
         }
 
         // Front to back saves fragment work; within a distance band (a factor of about 1.4 in distance) draws with the
@@ -163,6 +164,40 @@ public sealed class Renderer3D(IGraphicsDevice device)
         foreach (var key in _groups.Where(g => g.Value.Count < Math.Max(2, InstancingThreshold)).Select(g => g.Key).ToList())
         {
             _groups.Remove(key);
+        }
+    }
+
+    /// <summary>
+    /// Tells the item's streamed textures how many of their texels a screen pixel covers at the item's nearest point:
+    /// pixels per world unit at that distance against texels per world unit (the mesh's UV density at the texture's
+    /// size). Meshes of unknown UV density report nothing, so their textures load at full resolution.
+    /// </summary>
+    private void ReportScreenScale(in MeshDrawItem item, Bounds bounds, in View3D view)
+    {
+        if (item.Mesh.UVDensity <= 0f)
+        {
+            return;
+        }
+
+        var w = item.World;
+        var objectScale = MathF.Max(new Vector3(w.M00, w.M10, w.M20).Magnitude, MathF.Max(new Vector3(w.M01, w.M11, w.M21).Magnitude, new Vector3(w.M02, w.M12, w.M22).Magnitude));
+        var uvPerWorld = item.Mesh.UVDensity / MathF.Max(objectScale, 1e-6f);
+        var ortho = view.Projection.M33 == 1f;
+        var distance = MathF.Max(0.05f, Vector3.Distance(bounds.Center, view.Position) - bounds.Extents.Magnitude);
+        var pixelsPerWorld = MathF.Abs(view.Projection.M11) * device.BackBufferHeight * 0.5f / (ortho ? 1f : distance);
+        var frame = device.FrameNumber;
+        Report(item.Texture);
+        foreach (var texture in item.Material.Textures.Values)
+        {
+            Report(texture);
+        }
+
+        void Report(Texture2D texture)
+        {
+            if (texture.TrackScreenScale)
+            {
+                texture.ReportScreenScale(pixelsPerWorld / (MathF.Sqrt((float)texture.Width * texture.Height) * uvPerWorld), frame);
+            }
         }
     }
 

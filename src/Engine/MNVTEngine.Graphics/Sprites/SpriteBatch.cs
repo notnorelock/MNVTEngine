@@ -120,6 +120,11 @@ public sealed class SpriteBatch : IDisposable
         var (sin, cos) = rotationDegrees == 0f ? (0f, 1f) : MathF.SinCos(rotationDegrees * Mathf.Deg2Rad);
         Vector2 Corner(float x, float y) => new(position.X + (x * cos) - (y * sin), position.Y + (x * sin) + (y * cos));
 
+        if (texture.TrackScreenScale)
+        {
+            ReportScreenScale(texture, Corner(x0, y0), Corner(x1, y0), Corner(x0, y1), src);
+        }
+
         var packed = color.ToRgba32();
         EnsureCapacity(_count + 1);
         _items[_count] = new SpriteItem(
@@ -131,6 +136,21 @@ public sealed class SpriteBatch : IDisposable
             new SpriteVertex(Corner(x1, y1), new Vector2(u1, vTop), packed),
             new SpriteVertex(Corner(x0, y1), new Vector2(u0, vTop), packed));
         _count++;
+    }
+
+    /// <summary>Tells a streamed texture how many screen pixels its source texels cover (sprites are 2D: the transform is affine).</summary>
+    private void ReportScreenScale(Texture2D texture, Vector2 origin, Vector2 right, Vector2 up, Rect source)
+    {
+        var half = new Vector2(_device.BackBufferWidth * 0.5f, _device.BackBufferHeight * 0.5f);
+        Vector2 Pixels(Vector2 world)
+        {
+            var ndc = _viewProjection.MultiplyPoint3x4(new Vector3(world.X, world.Y, 0f));
+            return new Vector2(ndc.X, ndc.Y) * half;
+        }
+
+        var o = Pixels(origin);
+        var scale = Math.Max(Vector2.Distance(Pixels(right), o) / Math.Max(1f, MathF.Abs(source.Width)), Vector2.Distance(Pixels(up), o) / Math.Max(1f, MathF.Abs(source.Height)));
+        texture.ReportScreenScale(scale, _device.FrameNumber);
     }
 
     public void End()

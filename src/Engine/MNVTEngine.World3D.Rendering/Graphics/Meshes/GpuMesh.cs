@@ -83,6 +83,35 @@ public sealed class GpuMesh : IDisposable
     /// <summary>Vertex plus index bytes in GPU memory.</summary>
     public long SizeInBytes { get; }
 
+    /// <summary>
+    /// UV0 units per object-space unit, averaged over the mesh's area (sqrt of UV area over surface area); 0 when unknown
+    /// (no UVs, or degenerate). Texture streaming uses it to tell how many texels a draw needs.
+    /// </summary>
+    public float UVDensity { get; init; }
+
+    /// <summary>See <see cref="UVDensity"/>.</summary>
+    public static float UVDensityOf(Mesh mesh)
+    {
+        ArgumentNullException.ThrowIfNull(mesh);
+        if (mesh.UV0 is not { } uv)
+        {
+            return 0f;
+        }
+
+        var positions = mesh.Positions;
+        var indices = mesh.IndexSpan;
+        double uvArea = 0, area = 0;
+        for (var i = 0; i + 2 < indices.Length; i += 3)
+        {
+            var (a, b, c) = ((int)indices[i], (int)indices[i + 1], (int)indices[i + 2]);
+            area += Vector3.Cross(positions[b] - positions[a], positions[c] - positions[a]).Magnitude;
+            var (e1, e2) = (uv[b] - uv[a], uv[c] - uv[a]);
+            uvArea += Math.Abs((e1.X * e2.Y) - (e1.Y * e2.X));
+        }
+
+        return area > 1e-12 && uvArea > 1e-12 ? (float)Math.Sqrt(uvArea / area) : 0f;
+    }
+
     public bool IsDisposed => Vertices.IsDisposed;
 
     /// <exception cref="InvalidDataException">The mesh is invalid (see <see cref="Mesh.Validate"/>).</exception>
@@ -119,7 +148,7 @@ public sealed class GpuMesh : IDisposable
                 indexBytes = mesh.IndexSpan.Length * sizeof(uint);
             }
 
-            return new GpuMesh(mesh.Name, vertexBuffer, indexBuffer, [.. mesh.SubMeshes], mesh.Bounds, mesh.Version, vertexBytes.Length + indexBytes);
+            return new GpuMesh(mesh.Name, vertexBuffer, indexBuffer, [.. mesh.SubMeshes], mesh.Bounds, mesh.Version, vertexBytes.Length + indexBytes) { UVDensity = UVDensityOf(mesh) };
         }
         catch
         {
@@ -168,7 +197,7 @@ public sealed class GpuMesh : IDisposable
                 ? device.CreateIndexBuffer([.. mesh.IndexSpan.ToArray().Select(i => (ushort)i)], mesh.Name + " indices")
                 : device.CreateIndexBuffer(mesh.IndexSpan, mesh.Name + " indices");
             return new GpuMesh(mesh.Name, vertexBuffer, indexBuffer, [.. mesh.SubMeshes], mesh.Bounds, mesh.Version,
-                vertexBytes.Length + (mesh.IndexSpan.Length * (mesh.IndexFormat == IndexFormat.UInt16 ? 2 : 4)));
+                vertexBytes.Length + (mesh.IndexSpan.Length * (mesh.IndexFormat == IndexFormat.UInt16 ? 2 : 4))) { UVDensity = UVDensityOf(mesh) };
         }
         catch
         {
