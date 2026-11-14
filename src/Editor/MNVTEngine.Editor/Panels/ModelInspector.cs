@@ -288,6 +288,7 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         Toggle("Import animations", _settings.ImportAnimations, v => _settings = _settings with { ImportAnimations = v });
         Toggle("Import lights", _settings.ImportLights, v => _settings = _settings with { ImportLights = v });
         Toggle("Import cameras", _settings.ImportCameras, v => _settings = _settings with { ImportCameras = v });
+        DrawLodSettings();
 
         var dirty = _settings.ToJson().ToString() != _applied.ToJson().ToString();
         ImGui.BeginDisabled(!dirty);
@@ -303,6 +304,55 @@ internal sealed class ModelInspector(EditorContext context) : IDisposable
         }
 
         ImGui.EndDisabled();
+    }
+
+    /// <summary>Levels of detail: each keeps a share of the triangles and applies below a screen size, both smaller than the level before.</summary>
+    private void DrawLodSettings()
+    {
+        Toggle("Levels of detail (static meshes)", _settings.Lods.Count > 0, v => _settings = _settings with { Lods = v ? ModelImportSettings.DefaultLods : [] });
+        if (ImGui.IsItemHovered())
+        {
+            Gui.Tooltip("Reduced meshes drawn when the model is small on screen; the full meshes then load only when drawn up close.");
+        }
+        if (_settings.Lods.Count == 0)
+        {
+            return;
+        }
+
+        var lods = _settings.Lods.ToList();
+        var changed = false;
+        for (var i = 0; i < lods.Count; i++)
+        {
+            var (maxRatio, maxScreen) = i == 0 ? (0.99f, 0.99f) : (lods[i - 1].Ratio - 0.01f, lods[i - 1].ScreenSize - 0.01f);
+            var ratio = lods[i].Ratio * 100f;
+            var screen = lods[i].ScreenSize * 100f;
+            ImGui.PushID(i);
+            ImGui.SetNextItemWidth(120f);
+            changed |= ImGui.DragFloat($"LOD {i + 1} triangles", ref ratio, 0.5f, 1f, maxRatio * 100f, "%.0f%%");
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(120f);
+            changed |= ImGui.DragFloat("below screen height", ref screen, 0.5f, 1f, maxScreen * 100f, "%.0f%%");
+            ImGui.PopID();
+            lods[i] = new ModelLodSetting(Math.Clamp(ratio / 100f, 0.01f, Math.Max(0.01f, maxRatio)), Math.Clamp(screen / 100f, 0.01f, Math.Max(0.01f, maxScreen)));
+        }
+
+        if (lods[^1].Ratio > 0.02f && lods[^1].ScreenSize > 0.02f && ImGui.SmallButton($"{Icons.Plus} Level"))
+        {
+            lods.Add(new ModelLodSetting(lods[^1].Ratio / 2f, lods[^1].ScreenSize / 2f));
+            changed = true;
+        }
+
+        ImGui.SameLine();
+        if (lods.Count > 1 && ImGui.SmallButton($"{Icons.X} Level"))
+        {
+            lods.RemoveAt(lods.Count - 1);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            _settings = _settings with { Lods = lods };
+        }
     }
 
     private static void Toggle(string label, bool value, Action<bool> set)

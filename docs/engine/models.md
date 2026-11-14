@@ -138,7 +138,7 @@ Who imports:
   Open borders, UV and normal seams and submesh boundaries do not move, so meshes with many seams reduce less than
   asked: the Showcase3D crate goes from 5508 to 2754 and 1566 triangles for ratios 0.5 and 0.15. A level that would
   keep more than 90% of the previous one is skipped, with the levels after it. The model inspector lists each mesh's
-  levels.
+  levels and edits them (*Levels of detail* under *Import settings*: triangle share and screen height per level).
 - **Selection.** Each frame the mesh pass picks a level per renderer from its screen size: the diameter of its world
   bounds over the view's height at its distance (the whole height for orthographic views). A level applies below its
   `screenSize`; above the first one the full mesh is drawn. Shadows use the same level.
