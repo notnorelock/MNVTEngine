@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 using System.Diagnostics;
 using System.Globalization;
@@ -44,7 +44,9 @@ public static class Cli
                                 Play the project from its sources
           build <project> [--profile name] [--configuration debug|release] [--target win-x64]
                           [--output folder] [--signing-key key.pem] [--run [frames]]
+                          [--obfuscate [--obfuscate-scheme letters|unicode]]
                                 Export a standalone game (default: the "release" profile into Builds/<profile>)
+                                --obfuscate renames the game's code (JIT exports; seed: MNVT_OBFUSCATION_SEED)
           package build <project> [--profile name] [--configuration ...] [--output folder] [--signing-key key.pem]
                                 Build only the content packages (.mnvtpack) and their signed manifest
           package inspect <file.mnvtpack> [--project <project>] [--entries]
@@ -94,7 +96,7 @@ public static class Cli
                 "editor" => CommandLine.Parse(args, ["--frames"], []),
                 "run" => CommandLine.Parse(args, ["--frames", "--screenshot", "--profile"], ["--gpu-validation"]),
                 "build" when args.Length > 1 && args[1] == "analyze" => CommandLine.Parse(["analyze", .. args[2..]], ["--profile", "--configuration", "--target", "--scripting-backend", "--json"], []),
-                "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--scripting-backend", "--signing-key"], [], optionalValues: ["--run"]),
+                "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--scripting-backend", "--signing-key", "--obfuscate-scheme"], ["--obfuscate"], optionalValues: ["--run"]),
                 "package" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--signing-key", "--project", "--trust", "--new-signing-key", "--folder", "--name"], ["--entries", "--rotate", "--no-repack", "--separate-key"]),
                 "validate" => CommandLine.Parse(args, [], [], optionalValues: ["--run"]),
                 "version" => CommandLine.Parse(args, [], ["--json", "--verbose"]),
@@ -275,6 +277,8 @@ public static class Cli
             ScriptingBackend = command.Value("--scripting-backend"),
             TestRunFrames = command.Has("--run") ? command.Int("--run", 120) : null,
             SigningKey = command.Value("--signing-key"),
+            // JIT exports only: renames the game's classes and hides strings. Seed from MNVT_OBFUSCATION_SEED.
+            Obfuscation = command.Has("--obfuscate") ? new ObfuscationSettings { Scheme = command.Value("--obfuscate-scheme") ?? "letters" } : null,
         };
         var result = await new GameBuilder(loggerFactory.CreateLogger("Build")).BuildAsync(command.Single("project"), options, cancellationToken).ConfigureAwait(false);
         Report(output, result.Diagnostics);

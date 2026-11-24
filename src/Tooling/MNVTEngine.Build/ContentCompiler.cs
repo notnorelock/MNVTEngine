@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 using System.Text;
 using MNVTEngine.Assets;
@@ -113,7 +113,8 @@ public static class ContentCompiler
     /// <param name="registry">Built-in and game components, used to load scenes and prefabs.</param>
     /// <param name="output">Content packages to write; null to validate only.</param>
     /// <param name="scriptsAssembly">The compiled C# scripts, read (not loaded) for usage evidence; null without scripts.</param>
-    public static ContentResult Compile(GameProject project, ComponentRegistry registry, ContentPackageWriter? output, string? scriptsAssembly = null)
+    /// <param name="sceneTypeRenames">Component type ids renamed by obfuscation (old full name → new), applied to shipped scenes and prefabs; null when not obfuscating.</param>
+    public static ContentResult Compile(GameProject project, ComponentRegistry registry, ContentPackageWriter? output, string? scriptsAssembly = null, IReadOnlyDictionary<string, string>? sceneTypeRenames = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(registry);
@@ -205,8 +206,15 @@ public static class ContentCompiler
                     continue;
                 }
 
-                using (var source = File.OpenRead(assets.FullPath(record.Guid)))
+                if (sceneTypeRenames is { Count: > 0 } && record.Type is AssetTypes.Scene or AssetTypes.Prefab)
                 {
+                    // Obfuscation renamed the game's component classes: rewrite the type ids in the shipped scene.
+                    var remapped = SceneRemapper.Remap(File.ReadAllBytes(assets.FullPath(record.Guid)), sceneTypeRenames);
+                    package.Add(AssetDatabase.AssetsEntryFolder + record.Path, remapped, record.Guid, references);
+                }
+                else
+                {
+                    using var source = File.OpenRead(assets.FullPath(record.Guid));
                     package.Add(AssetDatabase.AssetsEntryFolder + record.Path, source, record.Guid, references);
                 }
 

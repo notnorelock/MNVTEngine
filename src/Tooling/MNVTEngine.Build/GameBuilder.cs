@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -34,6 +34,9 @@ public sealed record BuildOptions
 
     /// <summary>PEM file of the release signing key; null for <see cref="SigningKeys.EnvironmentVariable"/> or the development key.</summary>
     public string? SigningKey { get; init; }
+
+    /// <summary>Obfuscate the game's compiled assembly (JIT exports only); null to ship it unobfuscated.</summary>
+    public ObfuscationSettings? Obfuscation { get; init; }
 
     /// <summary>
     /// Engine version variables (MNVT_BUILD_NUMBER, MNVT_BUILD_TIMESTAMP, MNVT_REPRODUCIBLE, ...) that take precedence
@@ -224,6 +227,35 @@ public sealed partial class GameBuilder(ILogger logger)
         List<string> modules;
         long? browserHostBytes = null;
         var aot = profile.ScriptingBackend == "aot";
+
+        // Obfuscate the game's compiled assembly. Reads the original (the registry above is loaded from it, and the
+        // content compile below still reads it unencrypted for usage analysis) and writes a copy. JIT: type names are
+        // renamed and remapped in the shipped scenes. AOT: type names are kept (the generated bootstrap names them)
+        // and strings and private members are obfuscated, which still hides them in the native build's metadata. The
+        // obfuscated copy replaces the original just before it ships (JIT) or is compiled into the native build (AOT).
+        IReadOnlyDictionary<string, string>? sceneTypeRenames = null;
+        string? obfuscatedAssembly = null;
+        if (scripts is not null && options.Obfuscation is { } obfuscation)
+        {
+            var obfuscatedOutput = Path.Combine(work, "Obfuscated");
+            DeleteDirectory(obfuscatedOutput);
+            var outcome = GameObfuscation.Protect(scriptsAssemblyPath!, [AppContext.BaseDirectory], obfuscatedOutput, Path.Combine(work, "ObfuscationReports"), obfuscation, preserveTypeNames: aot);
+            foreach (var warning in outcome.Warnings)
+            {
+                LogObfuscationWarning(logger, warning);
+            }
+
+            if (!outcome.Success)
+            {
+                diagnostics.AddRange(outcome.Errors.Select(e => BuildDiagnostic.Error("MNVB560", e)));
+                return Fail(profile);
+            }
+
+            obfuscatedAssembly = outcome.ObfuscatedFile;
+            sceneTypeRenames = aot ? null : outcome.TypeRenames; // AOT keeps type names, so scenes are not remapped
+            LogObfuscated(logger, outcome.TypeRenames.Count, outcome.MappingPath);
+        }
+
         string? aotSource = null;
         ContentResult? compiled = null;
         FrameworkPruning? pruning = null;
@@ -237,7 +269,7 @@ public sealed partial class GameBuilder(ILogger logger)
             try
             {
                 ApplyDevToolsDefault(project, profile);
-                content = ContentCompiler.Compile(project, registry, archive, scriptsAssemblyPath);
+                content = ContentCompiler.Compile(project, registry, archive, scriptsAssemblyPath, sceneTypeRenames);
                 compiled = content;
                 if (aot && content.Modules is { } resolved)
                 {
@@ -264,6 +296,13 @@ public sealed partial class GameBuilder(ILogger logger)
 
             // 3. Host with its private runtime; dependencies into Dependencies/Managed and Dependencies/Native.
             LogPublishing(logger, executableName, profile.Target);
+            // Ahead-of-time: the native build compiles the game assembly, so swap in the obfuscated copy first (its
+            // type names are kept, so the generated bootstrap still names them; the content above read the original).
+            if (aot && obfuscatedAssembly is not null)
+            {
+                File.Copy(obfuscatedAssembly, scriptsAssemblyPath!, overwrite: true);
+            }
+
             // The host is built with the game's modules only (generated bootstrap: references and explicit creation).
             var bootstrap = ModuleBootstrap.Write(content.Modules!, Path.Combine(work, "Bootstrap"),
                 aot ? new AotInput(aotSource!, scriptsAssemblyPath, AotBootstrap.Roots(content.Modules!, scripts?.AssemblyName, dlcAssemblies.Select(Path.GetFileNameWithoutExtension).OfType<string>()), dlcAssemblies) : null);
@@ -284,6 +323,11 @@ public sealed partial class GameBuilder(ILogger logger)
             }
             else if (scripts is not null)
             {
+                if (obfuscatedAssembly is not null)
+                {
+                    File.Copy(obfuscatedAssembly, scriptsAssemblyPath!, overwrite: true); // ship the obfuscated assembly, not the original
+                }
+
                 scriptsAssembly = GamePackager.AddGameCode(archive.Globals, scriptsOutput!, scripts.AssemblyName, stage, profile.Configuration == "Debug", diagnostics);
             }
 
@@ -871,6 +915,12 @@ public sealed partial class GameBuilder(ILogger logger)
 
     [LoggerMessage(EventId = 8002, Level = LogLevel.Information, Message = "Compiled content: {Assets} assets, {Scripts} .mnvts scripts, {Shaders} shader stages precompiled")]
     private static partial void LogContent(ILogger logger, int assets, int scripts, int shaders);
+
+    [LoggerMessage(EventId = 8032, Level = LogLevel.Information, Message = "Obfuscated the game assembly: {Types} component types renamed. Rename map (keep private): {MappingPath}")]
+    private static partial void LogObfuscated(ILogger logger, int types, string? mappingPath);
+
+    [LoggerMessage(EventId = 8033, Level = LogLevel.Warning, Message = "Obfuscation: {Warning}")]
+    private static partial void LogObfuscationWarning(ILogger logger, string warning);
 
     private static void LogUsage(ILogger logger, ContentResult content)
     {

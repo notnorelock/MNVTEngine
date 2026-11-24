@@ -5,6 +5,7 @@
 using MNVTEngine.Obfuscation;
 using MNVTEngine.Obfuscation.Configuration;
 using MNVTEngine.Obfuscation.Reporting;
+using MNVTEngine.Obfuscation.Rules;
 
 namespace MNVTEngine.Build;
 
@@ -49,12 +50,18 @@ public static class GameObfuscation
     /// (which must differ from the assembly's folder) and the rename map into <paramref name="reportsDirectory"/>.
     /// <paramref name="referenceDirectories"/> hold the engine assemblies it is compiled against.
     /// </summary>
+    /// <param name="preserveTypeNames">
+    /// Keep every type's name (rename only members, and encrypt strings). Used for ahead-of-time exports, whose
+    /// generated bootstrap references the component types by name and whose scenes are then not remapped. When
+    /// false, type names are renamed too and <see cref="ObfuscationOutcome.TypeRenames"/> drives the scene remap.
+    /// </param>
     public static ObfuscationOutcome Protect(
         string assemblyFile,
         IReadOnlyList<string> referenceDirectories,
         string outputDirectory,
         string reportsDirectory,
-        ObfuscationSettings settings)
+        ObfuscationSettings settings,
+        bool preserveTypeNames = false)
     {
         ArgumentException.ThrowIfNullOrEmpty(assemblyFile);
         ArgumentNullException.ThrowIfNull(settings);
@@ -71,8 +78,13 @@ public static class GameObfuscation
             Features = new FeatureOptions { RenameSymbols = true, ObfuscateStrings = settings.Strings, ControlFlow = settings.ControlFlow },
             // A game's assembly is closed: nothing else compiles against it, so names can go. The engine binds to it
             // through virtual overrides of Component (kept automatically) and serialized members (kept by name below).
-            Renaming = new RenamingOptions { PreservePublicApi = false, Scheme = settings.Scheme, Seed = settings.Seed, SeedEnvironmentVariable = settings.SeedEnvironmentVariable },
-            Preservation = new PreservationOptions { PreserveSerializedFields = true },
+            // Ahead-of-time builds keep type names (preserveTypeNames): their generated bootstrap names the types.
+            Renaming = new RenamingOptions { PreservePublicApi = preserveTypeNames, Scheme = settings.Scheme, Seed = settings.Seed, SeedEnvironmentVariable = settings.SeedEnvironmentVariable },
+            Preservation = new PreservationOptions
+            {
+                PreserveSerializedFields = true,
+                Rules = preserveTypeNames ? [new() { Type = "*", Kind = "type", Features = ["rename"], Reason = "aot-type-name" }] : [],
+            },
             Reporting = new ReportingOptions { ReportsDirectory = Path.GetFullPath(reportsDirectory), AllowReportsInOutput = false, GenerateMapping = true },
         };
 
