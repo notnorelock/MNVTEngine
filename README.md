@@ -149,6 +149,7 @@ published from a manual run of the same workflow ([versioning](docs/architecture
 <summary><strong>Shipping and operations</strong></summary>
 
 - [Virtual file system and `.mnvtpack` packages](docs/architecture/virtual-filesystem.md)
+- [Code obfuscation (`mnvt build --obfuscate`)](docs/architecture/obfuscation.md)
 - [Ahead-of-time compilation (NativeAOT backend)](docs/architecture/il2cpp-aot-pipeline.md)
 - [Engine composition audit](docs/architecture/engine-composition-audit.md)
 - [Engine versioning and CI](docs/architecture/versioning.md)

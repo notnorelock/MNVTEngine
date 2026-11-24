@@ -210,6 +210,14 @@ The format, keys and limits are described in [Virtual file system and packages](
 - **No real fix exists.** This is true of every game engine's asset encryption, and no client-side scheme can avoid it.
 - **Keep secrets out of the game.** Never put secrets such as server credentials or API keys in game content or game code.
 
+## Obfuscation
+
+`mnvt build --obfuscate` renames the game's C# and encrypts its string literals so a build is harder to read.
+JIT exports rename the component classes and remap their type ids in the shipped scenes; ahead-of-time exports
+keep type names (the native bootstrap names them) and obfuscate strings and private members. Set a private seed
+in `MNVT_OBFUSCATION_SEED`; pick `--obfuscate-scheme unicode` for look-alike glyph names. Like encryption above,
+it raises the cost of reverse-engineering, it does not prevent it. See [obfuscation](../architecture/obfuscation.md).
+
 ## Running an exported game
 
 - `MyGame.exe` runs the content in `MyGame_Data/`. It never compiles anything, and it needs neither the .NET SDK, an installed .NET runtime, nor the editor. The build tests run the game with no `dotnet` on `PATH`.

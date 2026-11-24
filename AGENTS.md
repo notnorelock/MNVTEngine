@@ -47,7 +47,7 @@ dotnet run --project samples/HelloWorld -- --frames 120 --screenshot shot.png --
 |---|---|
 | `src/Engine` | Runtime modules (`Core`, `Mathematics`, `ECS`, `Scenes`, `Graphics`, `Graphics.Vulkan`, `Platform`, `Input`, `Audio`, `Physics2D`, `Assets`, `Scripting*`, `Diagnostics`, `DebugUI`, `CrashReporting`, `Runtime`, ...) and `GameHost`, the executable of exported games |
 | `src/Editor` | `Editor.Services` (UI-free, testable) and `Editor` (ImGui application) |
-| `src/Tooling` | `CLI` (`mnvt`), `Build` (export pipeline, packaging, validator), `Player` (development runner) |
+| `src/Tooling` | `CLI` (`mnvt`), `Build` (export pipeline, packaging, validator), `Player` (development runner), `Obfuscation` (Cecil assembly obfuscator, `--obfuscate`) |
 | `samples`, `templates` | Sample games and `mnvt new` templates |
 | `tests` | One xUnit project per module, plus `Architecture.Tests` |
 | `docs` | Architecture and subsystem docs; [architecture overview](docs/architecture/overview.md) lists decisions and rules |
