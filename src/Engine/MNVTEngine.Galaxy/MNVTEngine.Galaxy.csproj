@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- MNVTEngine.Galaxy: the engine's client/server networking. A from-scratch reliable-UDP (RUDP) transport with an
+       encrypted, authenticated wire protocol (ECDH key exchange + AES-GCM) and a byte-oriented message API. Pure
+       managed and headless: no graphics, platform or asset dependencies, so a dedicated server never touches them.
+       See docs/architecture/networking.md. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Tests exercise the internal transport, crypto, reliability and connection layers directly. -->
+    <InternalsVisibleTo Include="MNVTEngine.Galaxy.Tests" />
+  </ItemGroup>
+</Project>
