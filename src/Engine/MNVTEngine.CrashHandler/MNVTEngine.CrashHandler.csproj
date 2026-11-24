@@ -6,6 +6,8 @@
     compiled ahead of time (AOT builds); see GamePackager.
   -->
   <PropertyGroup>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AllowedReferenceRelatedFileExtensions>.pdb</AllowedReferenceRelatedFileExtensions>
     <OutputType>WinExe</OutputType>
     <AssemblyName>MNVTCrashHandler</AssemblyName>
     <RootNamespace>MNVTEngine.CrashReporting</RootNamespace>

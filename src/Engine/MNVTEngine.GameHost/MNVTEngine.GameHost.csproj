@@ -9,6 +9,11 @@
     and Dependencies/Native by the packager and resolved by HostLayout at startup.
   -->
   <PropertyGroup>
+    <!-- No XML docs: this host is published renamed to the game, so a GameHost.xml would not match the output name. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Exported games ship no documentation: keep the referenced engine assemblies' .xml out of the output
+         (default copies .pdb and .xml next to each reference; an .xml in Dependencies/Managed fails an AOT build). -->
+    <AllowedReferenceRelatedFileExtensions>.pdb</AllowedReferenceRelatedFileExtensions>
     <OutputType Condition="'$(MnvtConsole)' == 'false'">WinExe</OutputType>
     <OutputType Condition="'$(MnvtConsole)' != 'false'">Exe</OutputType>
     <AssemblyName Condition="'$(MnvtGameName)' != ''">$(MnvtGameName)</AssemblyName>

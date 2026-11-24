@@ -17,7 +17,8 @@ Exit codes are 0 for success, 1 when there are errors, 64 for usage errors and 1
 
 | Command | What it does |
 |---|---|
-| `new <Name> [--template id] [--path dir]` | Copies a template from `templates/` into `<dir>/<Name>` and checks that the new project loads. `--list` shows templates. |
+| `new <Name> [--template id] [--path dir]` | Copies a template from `templates/` into `<dir>/<Name>`, writes a `.sln`, and checks that the new project loads. `--list` shows templates. |
+| `sln <project>` | Writes (or rewrites) a Visual Studio solution for the project, so it opens from a double-click. |
 | `run <project> [--frames N] [--screenshot f]` | Plays the project from its sources. Same as `MNVTEngine.Player`: stale C# scripts are compiled first. |
 | `editor <project> [--frames N]` | Starts the editor from the engine sources and waits for it to close. |
 | `validate <project>` | Runs every check a build runs (project, profiles, C# scripts, imports, strict `.mnvts` compile, scenes, prefabs, references) and writes nothing. |
@@ -45,7 +46,20 @@ A template is a folder with a `template.json` file (`id`, `description`). Two ki
 - In file names: `__Name__` and `__Identifier__`.
 - In text files: `{{Name}}`, `{{Identifier}}` and `{{EngineRoot}}`.
 
-The C# scripts project of `basic-2d` references the engine sources through `{{EngineRoot}}`, so a new project can live anywhere on disk.
+The C# scripts project of `basic-2d` references the engine's gameplay assemblies through `{{EngineRoot}}`, so a new project can live anywhere on disk.
+
+## Visual Studio and the engine SDK
+
+A game's C# is a normal .NET project. `mnvt new` writes a `.sln`, so the project opens in Visual Studio (or Rider, or
+VS Code) from a double-click; `mnvt sln <project>` writes one for an existing project. The engine assemblies ship
+with XML documentation, so the IDE shows IntelliSense tooltips for the engine API.
+
+Inside this repository, a project's scripts reference the engine's gameplay `.csproj` files directly (through
+`{{EngineRoot}}`), which always matches the engine the host is built from. For a game developed against a **released**
+engine (no source checkout), the engine also publishes **`MNVTEngine.Sdk`** — its non-backend assemblies and their docs
+bundled as a NuGet package, versioned as the engine (`MAJOR.DDMM.PATCH`) and refreshed into the local feed
+`artifacts/nuget` on every build. A game references it compile-only (`ExcludeAssets="runtime"`); the game host provides
+the engine at run time.
 
 ## Build profiles
 

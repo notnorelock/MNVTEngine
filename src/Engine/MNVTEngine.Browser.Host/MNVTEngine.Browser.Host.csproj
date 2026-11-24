@@ -6,6 +6,8 @@
     this process always runs on CoreCLR, also next to NativeAOT games. See docs/architecture/embedded-browser.md.
   -->
   <PropertyGroup>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AllowedReferenceRelatedFileExtensions>.pdb</AllowedReferenceRelatedFileExtensions>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net11.0-windows</TargetFramework>
     <AssemblyName>MNVTBrowserHost</AssemblyName>

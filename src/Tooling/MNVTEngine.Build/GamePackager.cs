@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 using System.Globalization;
 using System.Reflection;
@@ -284,7 +284,9 @@ public static class GamePackager
 
     /// <summary>
     /// Removes the symbol files of an ahead-of-time build: the managed .pdb files of the compiled assemblies are never
-    /// used by a native executable; Debug keeps the executable's own native .pdb.
+    /// used by a native executable; Debug keeps the executable's own native .pdb. The engine assemblies' .xml
+    /// documentation files (copied next to project references) are dropped too: a game ships no docs, and an .xml left
+    /// in Dependencies/Managed would make it look like the game carries managed assemblies.
     /// </summary>
     public static void RemoveSymbols(string packageDirectory, string executableName, bool all)
     {
@@ -294,6 +296,11 @@ public static class GamePackager
             {
                 File.Delete(file);
             }
+        }
+
+        foreach (var doc in Directory.EnumerateFiles(packageDirectory, "*.xml", SearchOption.AllDirectories).ToList())
+        {
+            File.Delete(doc);
         }
     }
 
