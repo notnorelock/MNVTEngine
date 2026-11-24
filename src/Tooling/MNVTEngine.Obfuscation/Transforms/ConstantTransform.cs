@@ -35,11 +35,18 @@ internal sealed class ConstantTransform
             if (ins.OpCode.Code == Code.Ldc_I4 && ins.Operand is int v)
             {
                 int key = _random.Next(int.MinValue, int.MaxValue);
+                // Vary the identity per site so the stream is not a wall of the same xor: (v^k)^k, (v-k)+k, (v+k)-k.
+                (int first, OpCode op) = _random.Next(3) switch
+                {
+                    0 => (v ^ key, OpCodes.Xor),
+                    1 => (unchecked(v - key), OpCodes.Add),
+                    _ => (unchecked(v + key), OpCodes.Sub),
+                };
                 ins.OpCode = OpCodes.Ldc_I4;
-                ins.Operand = v ^ key;
+                ins.Operand = first;
                 Instruction k1 = il.Create(OpCodes.Ldc_I4, key);
                 il.InsertAfter(ins, k1);
-                il.InsertAfter(k1, il.Create(OpCodes.Xor));
+                il.InsertAfter(k1, il.Create(op));
                 Replaced++;
             }
             else if (ins.OpCode.Code == Code.Ldc_I8 && ins.Operand is long lv)

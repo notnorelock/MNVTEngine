@@ -89,7 +89,8 @@ public static class GameObfuscation
             // them are rewritten to the pinned names; only the primary's output ships.
             Assemblies = [fileName, .. companions],
             ReferenceDirectories = referenceDirectories.Select(Path.GetFullPath).ToList(),
-            Features = new FeatureOptions { RenameSymbols = true, ObfuscateStrings = settings.Strings, ControlFlow = settings.ControlFlow },
+            // Control-flow flattening and integer-literal math are always on: obfuscation always hides the logic, not just the names.
+            Features = new FeatureOptions { RenameSymbols = true, ObfuscateStrings = settings.Strings, ControlFlow = true, TransformConstants = true },
             // A game's assembly is closed: nothing else compiles against it, so names can go. The engine binds to it
             // through virtual overrides of Component (kept automatically) and serialized members (kept by name below).
             // Ahead-of-time builds keep type names (preserveTypeNames): their generated bootstrap names the types.

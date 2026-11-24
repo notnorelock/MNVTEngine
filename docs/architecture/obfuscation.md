@@ -13,7 +13,11 @@ The obfuscator ([`MNVTEngine.Obfuscation`](../../src/Tooling/MNVTEngine.Obfuscat
 
 - **Renames** types, namespaces, methods and non-serialized members to meaningless names.
 - **Encrypts** string literals in method bodies into one per-module blob, decoded on first use.
-- Optionally **reorders control flow** and hides integer constants.
+- **Flattens control flow**: every method it can prove safe is rewritten into a state machine — its basic blocks are
+  emitted in a shuffled order with random state numbers, and a `switch` dispatcher on a `state` local drives them, so
+  the IL no longer follows the execution order while computing the same result. Always on.
+- **Hides integer constants**: each literal becomes a small arithmetic identity (`(v ^ k) ^ k`, `(v - k) + k` or
+  `(v + k) - k`, varied per site) so the value is not a literal in the stream. Always on.
 
 New names are a keyed hash of each symbol's original identity, so the same seed gives the same names every build.
 The `--obfuscate-scheme unicode` option draws names from the four accented capital I's (`Ì Í Î Ï`), giving

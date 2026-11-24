@@ -9,15 +9,15 @@ using Mono.Cecil.Rocks;
 namespace MNVTEngine.Obfuscation.Transforms;
 
 /// <summary>
-/// Reorders a method's basic blocks and routes them through a dispatcher, so the IL order no longer follows
-/// the execution order. The method is split into basic blocks at branch targets and after branches; the
-/// blocks are shuffled; each one ends with an explicit branch to the next, and a leading switch on a state
-/// local jumps to the real entry. Semantics are unchanged: the same blocks run in the same order.
+/// Flattens a method's control flow: the basic blocks are emitted in a shuffled order with random state numbers, a
+/// <c>state</c> local drives a <c>switch</c> dispatcher, and each block ends by setting <c>state</c> to its successor
+/// and jumping back to the dispatcher (a conditional block sets one of two states). The IL no longer follows the
+/// execution order, yet the same blocks run in the same order, so semantics are unchanged.
 ///
 /// Safety: the method is skipped (not rewritten) unless every rule holds — no exception handlers (a protected
-/// region's bounds must stay contiguous), the evaluation stack is empty at every block boundary (so a block
-/// can be moved without carrying stack state), no fault/filter, and within the configured size. A skipped
-/// method is reported, never silently mangled.
+/// region's bounds must stay contiguous), the evaluation stack is empty at every block boundary (so a block can be
+/// moved without carrying stack state), no fault/filter, no <c>jmp</c>/<c>localloc</c>/<c>switch</c>, and within the
+/// configured size. A skipped method is reported, never silently mangled.
 /// </summary>
 internal sealed class ControlFlowTransform
 {
@@ -62,45 +62,127 @@ internal sealed class ControlFlowTransform
             return;
         }
 
-        ILProcessor il = body.GetILProcessor();
-        // Make each block's fall-through explicit, so a block can be moved freely.
-        for (int i = 0; i < blocks.Count; i++)
+        if (!Flatten(body, blocks))
         {
-            Block b = blocks[i];
-            Instruction last = b.Last;
-            if (last.OpCode.FlowControl is FlowControl.Branch or FlowControl.Return or FlowControl.Throw) continue;
-            if (i + 1 >= blocks.Count) continue;
-            Instruction br = il.Create(OpCodes.Br, blocks[i + 1].First);
-            il.InsertAfter(last, br);
-            b.Last = br;
+            body.OptimizeMacros();
+            Skipped++;
+            SkippedMethods.Add((method, "a block ran off the end of the method"));
+            return;
         }
-
-        Instruction entry = blocks[0].First;
-        List<Block> body2 = blocks.Skip(1).ToList();
-        Shuffle(body2);
-
-        var instructions = body.Instructions;
-        instructions.Clear();
-        // Dispatcher: br entry (the original first block). Keeping it a single br, not a switch, is enough to
-        // break the textual order while staying verifiable; blocks below are emitted shuffled.
-        var dispatch = il.Create(OpCodes.Br, entry);
-        instructions.Add(dispatch);
-        AppendBlock(instructions, blocks[0]);
-        foreach (Block b in body2) AppendBlock(instructions, b);
 
         body.OptimizeMacros();
         Transformed++;
     }
 
-    private static void AppendBlock(Mono.Collections.Generic.Collection<Instruction> into, Block b)
+    /// <summary>
+    /// Rewrites the blocks into a flat state machine: a <c>state</c> local, a dispatcher that <c>switch</c>es on it to
+    /// the real block, and each block ending by setting <c>state</c> to its successor and jumping back to the
+    /// dispatcher. The blocks are emitted in a shuffled order with random state numbers, so the IL no longer follows
+    /// execution. Returns false (leaving the body valid but unflattened) if a block has no successor and does not end.
+    /// </summary>
+    private bool Flatten(Mono.Cecil.Cil.MethodBody body, List<Block> blocks)
     {
-        Instruction? cur = b.First;
-        while (true)
+        int n = blocks.Count;
+        var index = new Dictionary<Instruction, int>();
+        for (int i = 0; i < n; i++)
         {
-            into.Add(cur!);
-            if (cur == b.Last) break;
-            cur = cur!.Next;
+            index[blocks[i].First] = i;
         }
+
+        var state = new VariableDefinition(body.Method.Module.TypeSystem.Int32);
+        body.Variables.Add(state);
+        body.InitLocals = true;
+
+        // A random, unique state number per block, and the inverse for the dispatcher.
+        var stateOf = Enumerable.Range(0, n).ToList();
+        Shuffle(stateOf);
+        var dispatch = Instruction.Create(OpCodes.Ldloc, state);
+
+        List<Instruction> SetState(int blockIndex) =>
+            [Instruction.Create(OpCodes.Ldc_I4, stateOf[blockIndex]), Instruction.Create(OpCodes.Stloc, state), Instruction.Create(OpCodes.Br, dispatch)];
+
+        var emitted = new List<Instruction>[n]; // the stream for each block
+        var entry = new Instruction[n];         // where the dispatcher jumps for that block
+        var order = Enumerable.Range(0, n).ToList();
+        Shuffle(order);
+
+        foreach (int bi in order)
+        {
+            Block b = blocks[bi];
+            var insns = new List<Instruction>();
+            for (Instruction cur = b.First; ; cur = cur.Next)
+            {
+                insns.Add(cur);
+                if (cur == b.Last)
+                {
+                    break;
+                }
+            }
+
+            Instruction last = b.Last;
+            var stream = new List<Instruction>();
+            if (last.OpCode.FlowControl is FlowControl.Return or FlowControl.Throw)
+            {
+                stream.AddRange(insns); // ends the method; no successor
+            }
+            else if (last.OpCode.Code is Code.Br)
+            {
+                stream.AddRange(insns[..^1]); // drop the branch
+                stream.AddRange(SetState(index[(Instruction)last.Operand]));
+            }
+            else if (last.OpCode.FlowControl is FlowControl.Cond_Branch)
+            {
+                if (last.Next is null)
+                {
+                    return false;
+                }
+
+                var trueStub = SetState(index[(Instruction)last.Operand]);
+                stream.AddRange(insns);                     // keep the condition and its branch
+                stream.AddRange(SetState(index[last.Next])); // false path: fall through to here
+                stream.AddRange(trueStub);                  // true path:
+                last.Operand = trueStub[0];                 // retarget the branch to the true stub
+            }
+            else
+            {
+                if (last.Next is null)
+                {
+                    return false; // a non-terminator block that falls off the end
+                }
+
+                stream.AddRange(insns);
+                stream.AddRange(SetState(index[last.Next]));
+            }
+
+            emitted[bi] = stream;
+            entry[bi] = stream[0];
+        }
+
+        var switchTargets = new Instruction[n];
+        for (int i = 0; i < n; i++)
+        {
+            switchTargets[stateOf[i]] = entry[i];
+        }
+
+        var instructions = body.Instructions;
+        instructions.Clear();
+        foreach (Instruction i in SetState(0)) // enter at the first block via the dispatcher
+        {
+            instructions.Add(i);
+        }
+
+        foreach (int bi in order)
+        {
+            foreach (Instruction i in emitted[bi])
+            {
+                instructions.Add(i);
+            }
+        }
+
+        instructions.Add(dispatch);
+        instructions.Add(Instruction.Create(OpCodes.Switch, switchTargets));
+        instructions.Add(Instruction.Create(OpCodes.Br, entry[0])); // unreachable: states cover every case
+        return true;
     }
 
     private string? CanTransform(Mono.Cecil.Cil.MethodBody body)
@@ -108,7 +190,7 @@ internal sealed class ControlFlowTransform
         if (body.HasExceptionHandlers) return "it has try/catch/finally regions";
         if (body.Instructions.Count > _maxInstructions) return $"it has more than {_maxInstructions} instructions";
         foreach (Instruction i in body.Instructions)
-            if (i.OpCode.Code is Code.Jmp or Code.Localloc) return "it uses jmp or localloc";
+            if (i.OpCode.Code is Code.Jmp or Code.Localloc or Code.Switch) return "it uses jmp, localloc or a switch";
         return null;
     }
 
@@ -145,22 +227,37 @@ internal sealed class ControlFlowTransform
     }
 
     /// <summary>The evaluation stack must be empty at each block boundary. Computed block by block from zero.</summary>
-    private static bool StackBalanced(List<Block> blocks)
+    private static bool StackBalanced(List<Block> blocks) => blocks.All(BlockBalanced);
+
+    private static bool BlockBalanced(Block b)
     {
-        foreach (Block b in blocks)
+        int depth = 0;
+        for (Instruction cur = b.First; ; cur = cur.Next)
         {
-            int depth = 0;
-            Instruction? cur = b.First;
-            while (true)
+            bool last = cur == b.Last;
+            // A block ending in ret or throw is self-contained: ret leaves the return value (void: 0, value: 1) and
+            // throw the exception; both are consumed by leaving the method, so the block still routes cleanly.
+            if (last && cur.OpCode.Code == Code.Ret)
             {
-                depth += StackDelta(cur!);
-                if (depth < 0) return false;
-                if (cur == b.Last) break;
-                cur = cur!.Next;
+                return depth is 0 or 1;
             }
-            if (depth != 0) return false;
+
+            if (last && cur.OpCode.FlowControl == FlowControl.Throw)
+            {
+                return depth >= 1;
+            }
+
+            depth += StackDelta(cur);
+            if (depth < 0)
+            {
+                return false;
+            }
+
+            if (last)
+            {
+                return depth == 0; // a block that hands off to another must leave an empty stack
+            }
         }
-        return true;
     }
 
     private static int StackDelta(Instruction i)
