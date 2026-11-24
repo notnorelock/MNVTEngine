@@ -9,8 +9,7 @@ deterrent, not a lock.
 
 ## What it does
 
-The obfuscator ([`MNVTEngine.Obfuscation`](../../src/Tooling/MNVTEngine.Obfuscation), a Mono.Cecil tool vendored from
-the Paradise obfuscator, MIT) rewrites the game's compiled assembly:
+The obfuscator ([`MNVTEngine.Obfuscation`](../../src/Tooling/MNVTEngine.Obfuscation), a Mono.Cecil tool vendored) rewrites the game's compiled assembly:
 
 - **Renames** types, namespaces, methods and non-serialized members to meaningless names.
 - **Encrypts** string literals in method bodies into one per-module blob, decoded on first use.
