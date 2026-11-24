@@ -32,6 +32,7 @@ public static class Cli
                                 the next build of this engine tree would get (eng/version.json, Git state, build counter)
           new <Name> --profile 2d|3d [--template <id>] [--path <parent folder>]
                                 Create a 2D or 3D project (Empty 2D / Empty 3D, or a template of that profile; see `mnvt new --list`)
+          sln <project>           Write a Visual Studio solution (.sln) for the project, so it opens from a double-click
           modules list [project]  Engine modules: profiles, activation, dependencies (and their status in the project)
           modules validate <project>
                                 Resolve the project's modules and check its scenes use only components of enabled modules
@@ -91,6 +92,7 @@ public static class Cli
             command = args[0] switch
             {
                 "new" => CommandLine.Parse(args, ["--profile", "--template", "--path"], ["--list"]),
+                "sln" => CommandLine.Parse(args, [], []),
                 "migrate" => CommandLine.Parse(args, ["--profile"], []),
                 "modules" => CommandLine.Parse(args, [], []),
                 "editor" => CommandLine.Parse(args, ["--frames"], []),
@@ -114,6 +116,7 @@ public static class Cli
             return command.Name switch
             {
                 "new" => New(command, output),
+                "sln" => Sln(command, output),
                 "migrate" => Migrate(command, output),
                 "modules" => ModulesCommand(command, output),
                 "editor" => await EditorAsync(command, output, cancellationToken).ConfigureAwait(false),
@@ -164,7 +167,21 @@ public static class Cli
 
         var target = Path.GetFullPath(Path.Combine(command.Value("--path") ?? ".", name));
         var file = ProjectTemplates.Create(template, name, target, engineRoot);
-        output.WriteLine($"Created {template.Profile.DisplayName()} project {file} from '{template.Id}'.\nNext: mnvt run \"{target}\"  or  mnvt editor \"{target}\"");
+        var solution = SolutionFile.Write(target);
+        output.WriteLine($"Created {template.Profile.DisplayName()} project {file} from '{template.Id}'.\nOpen {Path.GetFileName(solution)} in Visual Studio, or: mnvt run \"{target}\"  or  mnvt editor \"{target}\"");
+        return Ok;
+    }
+
+    private static int Sln(CommandLine command, TextWriter output)
+    {
+        var directory = Path.GetFullPath(command.Single("project"));
+        if (File.Exists(directory))
+        {
+            directory = Path.GetDirectoryName(directory)!;
+        }
+
+        var solution = SolutionFile.Write(directory);
+        output.WriteLine($"Wrote {solution}");
         return Ok;
     }
 
