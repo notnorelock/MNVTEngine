@@ -2,5 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Galaxy\MNVTEngine.Galaxy.csproj" />
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Galaxy.Server\MNVTEngine.Galaxy.Server.csproj" />
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Galaxy.Replication\MNVTEngine.Galaxy.Replication.csproj" />
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
   </ItemGroup>
 </Project>

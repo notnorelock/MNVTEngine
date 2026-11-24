@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- MNVTEngine.Galaxy.Replication: scene-level state replication over MNVTEngine.Galaxy. Server-authoritative
+       NetworkObject/NetworkTransform components with spawn/despawn and client-side snapshot interpolation, plus the
+       NetworkClient and NetworkServer driver components. References Scenes (components, transforms) and Galaxy. -->
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Galaxy\MNVTEngine.Galaxy.csproj" />
+  </ItemGroup>
+</Project>

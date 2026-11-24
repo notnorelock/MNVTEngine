@@ -82,10 +82,11 @@ public static class BuiltinModules
         Components = ["MNVTEngine.MissionRunner"],
     };
 
-    public static ModuleDefinition Networking { get; } = new("networking", "Networking", "Client/server networking (MNVTEngine.Galaxy): an encrypted reliable-UDP transport and a headless dedicated-server framework.")
+    public static ModuleDefinition Networking { get; } = new("networking", "Networking", "Client/server networking (MNVTEngine.Galaxy): an encrypted reliable-UDP transport, a headless dedicated-server framework, and scene state replication.")
     {
         Requires = ["core"],
-        RuntimeAssemblies = ["MNVTEngine.Galaxy", "MNVTEngine.Galaxy.Server"],
+        RuntimeAssemblies = ["MNVTEngine.Galaxy", "MNVTEngine.Galaxy.Server", "MNVTEngine.Galaxy.Replication"],
+        Components = ["MNVTEngine.NetworkObject", "MNVTEngine.NetworkTransform", "MNVTEngine.NetworkClient", "MNVTEngine.NetworkServer"],
     };
 
     public static ModuleDefinition UI { get; } = new("ui", "UI", "Screen-space UI documents, drawn over the scene; the same in 2D and 3D projects.")
