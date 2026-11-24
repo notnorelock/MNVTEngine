@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The obfuscator core: name generation and (later) assembly round-trips. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Tooling\MNVTEngine.Obfuscation\MNVTEngine.Obfuscation.csproj" />
+  </ItemGroup>
+</Project>
