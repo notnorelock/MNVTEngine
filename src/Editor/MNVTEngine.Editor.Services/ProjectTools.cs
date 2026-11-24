@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-12.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -68,6 +68,12 @@ public sealed partial class BuildController(GameProject project, ILoggerFactory 
     /// </summary>
     public string? ScriptingBackend { get; set; }
 
+    /// <summary>Obfuscate the game's compiled code on build. On by default; the private rename map stays in the build folder.</summary>
+    public bool Obfuscate { get; set; } = true;
+
+    /// <summary>Naming scheme when <see cref="Obfuscate"/> is on: "letters" (short ASCII) or "unicode" (accented-I glyphs).</summary>
+    public string ObfuscationScheme { get; set; } = "unicode";
+
     /// <summary>The backend the next build uses: <see cref="ScriptingBackend"/>, else the profile's.</summary>
     public string EffectiveScriptingBackend =>
         ScriptingBackend ?? project.EffectiveBuildProfiles.FirstOrDefault(p => p.Name == Profile)?.ScriptingBackend ?? "jit";
@@ -92,8 +98,9 @@ public sealed partial class BuildController(GameProject project, ILoggerFactory 
         _runWhenDone = runWhenDone;
         var profile = Profile;
         var backend = ScriptingBackend;
+        var obfuscation = Obfuscate ? new ObfuscationSettings { Scheme = ObfuscationScheme } : null;
         _clock.Restart();
-        _build = Task.Run(() => new GameBuilder(_logger).BuildAsync(project.ProjectFile, new BuildOptions { Profile = profile, ScriptingBackend = backend }));
+        _build = Task.Run(() => new GameBuilder(_logger).BuildAsync(project.ProjectFile, new BuildOptions { Profile = profile, ScriptingBackend = backend, Obfuscation = obfuscation }));
     }
 
     /// <exception cref="InvalidOperationException">A build or validation is already running.</exception>

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 using System.Diagnostics.CodeAnalysis;
 using ImGuiNET;
@@ -1146,6 +1146,29 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             if (ImGui.IsItemHovered())
             {
                 Gui.Tooltip("JIT: IL on a private .NET runtime (about 80 MB). AOT: NativeAOT, no runtime (about 25 MB), needs the MSVC linker and takes about a minute longer. For this editor session; the project file is not changed.");
+            }
+
+            var obfuscate = _build.Obfuscate;
+            if (ImGui.Checkbox("Obfuscate code", ref obfuscate))
+            {
+                _build.Obfuscate = obfuscate;
+            }
+
+            if (ImGui.IsItemHovered())
+            {
+                Gui.Tooltip("Renames the game's classes, methods and fields and encrypts its string literals (JIT and AOT). The reverse map stays in the build folder; keep it private.");
+            }
+
+            if (obfuscate)
+            {
+                ImGui.SameLine();
+                string[] schemes = ["Letters (short ASCII)", "Unicode (accented-I glyphs)"];
+                var scheme = _build.ObfuscationScheme == "unicode" ? 1 : 0;
+                ImGui.SetNextItemWidth(220);
+                if (ImGui.Combo("Names", ref scheme, schemes, schemes.Length))
+                {
+                    _build.ObfuscationScheme = scheme == 1 ? "unicode" : "letters";
+                }
             }
 
             Gui.Muted($"{profile.Configuration}, {profile.Target}, {_build.EffectiveScriptingBackend.ToUpperInvariant()}, console window: {(profile.ShowsConsole ? "yes" : "no")}");

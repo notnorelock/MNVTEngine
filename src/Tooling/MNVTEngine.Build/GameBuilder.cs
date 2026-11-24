@@ -35,7 +35,7 @@ public sealed record BuildOptions
     /// <summary>PEM file of the release signing key; null for <see cref="SigningKeys.EnvironmentVariable"/> or the development key.</summary>
     public string? SigningKey { get; init; }
 
-    /// <summary>Obfuscate the game's compiled assembly (JIT exports only); null to ship it unobfuscated.</summary>
+    /// <summary>Obfuscate the game's compiled assembly (JIT and AOT); null to ship it unobfuscated.</summary>
     public ObfuscationSettings? Obfuscation { get; init; }
 
     /// <summary>
