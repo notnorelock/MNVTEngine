@@ -25,6 +25,7 @@ internal enum PacketType : byte
     ConnectAccept = 2,
     ConnectReject = 3,
     Payload = 4,
+    ConnectChallenge = 5,
 }
 
 /// <summary>Why a connection attempt was refused, carried in a <see cref="PacketType.ConnectReject"/>.</summary>

@@ -54,7 +54,7 @@ public abstract class GameServer : IDisposable
             throw new InvalidOperationException("The server is already running.");
         }
 
-        IPEndPoint local = _server.Start(_options.Port, _options.MaxClients);
+        IPEndPoint local = _server.Start(_options.Port, _options.MaxClients, _options.Identity);
         _running = true;
         Guard(OnStarted, "OnStarted");
         return local;

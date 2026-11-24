@@ -8,7 +8,10 @@ namespace MNVTEngine.Galaxy;
 public static class GalaxyConstants
 {
     /// <summary>Bumped whenever the wire format changes; a client and server must match to connect.</summary>
-    public const int ProtocolVersion = 1;
+    public const int ProtocolVersion = 2;
+
+    /// <summary>Most simultaneous connections accepted from one IP address; a basic per-source flood limit.</summary>
+    public const int MaxConnectionsPerAddress = 16;
 
     /// <summary>Largest UDP payload the protocol will send or accept, chosen to stay under a typical path MTU so a
     /// datagram is not fragmented by IP. Anything larger is dropped as malformed.</summary>

@@ -41,6 +41,8 @@ public sealed partial class GalaxyClient : IDisposable
     private IPEndPoint? _server;
     private ECDiffieHellman? _keyExchange;
     private byte[] _clientPublicKey = [];
+    private byte[] _pinnedServerKey = [];
+    private byte[] _cookie = [];
     private byte[] _connectRequest = [];
     private Connection? _connection;
     private long _connectStartedMs;
@@ -59,9 +61,11 @@ public sealed partial class GalaxyClient : IDisposable
 
     public GalaxyClientState State { get; private set; } = GalaxyClientState.Disconnected;
 
-    /// <summary>Begins connecting to <paramref name="host"/>:<paramref name="port"/>. Returns false if the host
+    /// <summary>Begins connecting to <paramref name="host"/>:<paramref name="port"/>. Pass the server's pinned
+    /// identity public key (<see cref="GalaxyIdentity.PublicKey"/>) to require the server to prove it — the connection
+    /// is refused if the signature or key does not match, which defeats a man-in-the-middle. Returns false if the host
     /// cannot be resolved.</summary>
-    public bool Connect(string host, int port)
+    public bool Connect(string host, int port, ReadOnlySpan<byte> pinnedServerKey = default)
     {
         ArgumentNullException.ThrowIfNull(host);
         if (!TryResolve(host, port, out IPEndPoint? server))
@@ -73,16 +77,22 @@ public sealed partial class GalaxyClient : IDisposable
         _transport = new UdpTransport();
         _transport.Bind(new IPEndPoint(IPAddress.IPv6Any, 0));
         _server = server;
+        _pinnedServerKey = pinnedServerKey.ToArray();
+        _cookie = [];
         _keyExchange = SessionCrypto.CreateKeyExchange(out _clientPublicKey);
-
-        byte[] request = new byte[GalaxyConstants.MaxDatagramSize];
-        int length = HandshakePackets.BuildConnectRequest(request, _clientPublicKey);
-        _connectRequest = request[..length];
+        BuildConnectRequest();
 
         State = GalaxyClientState.Connecting;
         _connectStartedMs = _clock.ElapsedMilliseconds;
         _lastConnectSendMs = _connectStartedMs - ConnectResendMilliseconds; // So the first Tick sends immediately.
         return true;
+    }
+
+    private void BuildConnectRequest()
+    {
+        byte[] request = new byte[GalaxyConstants.MaxDatagramSize];
+        int length = HandshakePackets.BuildConnectRequest(request, _clientPublicKey, _cookie);
+        _connectRequest = request[..length];
     }
 
     /// <summary>Sends a message to the server. Ignored unless connected.</summary>
@@ -142,6 +152,10 @@ public sealed partial class GalaxyClient : IDisposable
     {
         switch ((PacketType)datagram[0])
         {
+            case PacketType.ConnectChallenge when State == GalaxyClientState.Connecting:
+                OnChallenge(datagram, now);
+                break;
+
             case PacketType.ConnectAccept when State == GalaxyClientState.Connecting:
                 OnAccept(datagram, now);
                 break;
@@ -160,10 +174,30 @@ public sealed partial class GalaxyClient : IDisposable
         }
     }
 
+    private void OnChallenge(ReadOnlySpan<byte> datagram, long now)
+    {
+        if (!HandshakePackets.TryParseChallenge(datagram, out byte[] cookie))
+        {
+            return;
+        }
+
+        _cookie = cookie;
+        BuildConnectRequest();
+        _transport!.Send(_connectRequest, _server!);
+        _lastConnectSendMs = now;
+    }
+
     private void OnAccept(ReadOnlySpan<byte> datagram, long now)
     {
-        if (!HandshakePackets.TryParseAccept(datagram, out uint connectionId, out byte[] serverPublicKey))
+        if (!HandshakePackets.TryParseAccept(datagram, out uint connectionId, out byte[] serverPublicKey, out byte[] identityPublicKey, out byte[] signature))
         {
+            return;
+        }
+
+        if (_pinnedServerKey.Length > 0 && !VerifyServerIdentity(identityPublicKey, serverPublicKey, signature))
+        {
+            LogServerIdentityRejected(_logger);
+            End(DisconnectReason.ProtocolError);
             return;
         }
 
@@ -184,6 +218,19 @@ public sealed partial class GalaxyClient : IDisposable
         _keyExchange = null;
         State = GalaxyClientState.Connected;
         Connected?.Invoke();
+    }
+
+    private bool VerifyServerIdentity(byte[] identityPublicKey, byte[] serverPublicKey, byte[] signature)
+    {
+        if (identityPublicKey.Length == 0 || signature.Length == 0 || !CryptographicOperations.FixedTimeEquals(identityPublicKey, _pinnedServerKey))
+        {
+            return false;
+        }
+
+        byte[] transcript = new byte[_clientPublicKey.Length + serverPublicKey.Length];
+        _clientPublicKey.CopyTo(transcript, 0);
+        serverPublicKey.CopyTo(transcript, _clientPublicKey.Length);
+        return GalaxyIdentity.Verify(identityPublicKey, transcript, signature);
     }
 
     private void OnPayload(ReadOnlySpan<byte> datagram, long now)
@@ -278,4 +325,7 @@ public sealed partial class GalaxyClient : IDisposable
 
     [LoggerMessage(EventId = 9111, Level = LogLevel.Error, Message = "The handshake failed while deriving session keys")]
     private static partial void LogHandshakeFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 9112, Level = LogLevel.Error, Message = "Rejecting the server: its identity key or signature does not match the pinned key (possible man-in-the-middle)")]
+    private static partial void LogServerIdentityRejected(ILogger logger);
 }

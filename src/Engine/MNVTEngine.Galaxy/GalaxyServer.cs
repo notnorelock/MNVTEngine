@@ -34,9 +34,12 @@ public sealed partial class GalaxyServer : IDisposable
     private readonly List<Message> _inbound = [];
     private readonly Dictionary<uint, Peer> _peers = [];
     private readonly Dictionary<IPEndPoint, uint> _byEndpoint = [];
+    private readonly Dictionary<IPAddress, int> _perAddress = [];
     private readonly List<uint> _scratchIds = [];
+    private readonly byte[] _cookieSecret = RandomNumberGenerator.GetBytes(32);
 
     private ITransport? _transport;
+    private GalaxyIdentity? _identity;
     private int _maxClients;
     private long _handshakeSecondStartMs;
     private int _handshakesThisSecond;
@@ -57,9 +60,10 @@ public sealed partial class GalaxyServer : IDisposable
     /// <summary>The connected clients' ids.</summary>
     public IReadOnlyCollection<uint> Clients => _peers.Keys;
 
-    /// <summary>Binds the server to <paramref name="port"/> and returns the actual local endpoint. Pass a custom
+    /// <summary>Binds the server to <paramref name="port"/> and returns the actual local endpoint. Pass an
+    /// <paramref name="identity"/> to authenticate the server to clients that pin its public key. Pass a custom
     /// <paramref name="transport"/> to test over an in-memory channel.</summary>
-    public IPEndPoint Start(int port, int maxClients = 64, ITransport? transport = null)
+    public IPEndPoint Start(int port, int maxClients = 64, GalaxyIdentity? identity = null, ITransport? transport = null)
     {
         if (IsRunning)
         {
@@ -67,6 +71,7 @@ public sealed partial class GalaxyServer : IDisposable
         }
 
         _maxClients = maxClients;
+        _identity = identity;
         _transport = transport ?? new UdpTransport();
         IPEndPoint local = _transport.Bind(new IPEndPoint(IPAddress.IPv6Any, port));
         LogStarted(_logger, local, maxClients);
@@ -167,7 +172,7 @@ public sealed partial class GalaxyServer : IDisposable
             return;
         }
 
-        if (!HandshakePackets.TryParseConnectRequest(datagram, out int protocolVersion, out byte[] clientPublicKey))
+        if (!HandshakePackets.TryParseConnectRequest(datagram, out int protocolVersion, out byte[] clientPublicKey, out byte[] cookie))
         {
             SendReject(remote, RejectReason.Malformed);
             return;
@@ -184,13 +189,28 @@ public sealed partial class GalaxyServer : IDisposable
             return; // Over the per-second budget; the client will retransmit.
         }
 
-        if (_peers.Count >= _maxClients)
+        if (!ConnectionCookie.Verify(cookie, _cookieSecret, remote, clientPublicKey, now))
+        {
+            SendChallenge(remote, clientPublicKey, now); // Stateless: prove the source address before any state is kept.
+            return;
+        }
+
+        if (_perAddress.GetValueOrDefault(remote.Address) >= GalaxyConstants.MaxConnectionsPerAddress || _peers.Count >= _maxClients)
         {
             SendReject(remote, RejectReason.ServerFull);
             return;
         }
 
         AcceptConnection(remote, clientPublicKey, now);
+    }
+
+    private void SendChallenge(IPEndPoint remote, ReadOnlySpan<byte> clientPublicKey, long now)
+    {
+        Span<byte> cookie = stackalloc byte[ConnectionCookie.Size];
+        ConnectionCookie.Write(cookie, _cookieSecret, remote, clientPublicKey, now);
+        Span<byte> buffer = stackalloc byte[3 + ConnectionCookie.Size];
+        int length = HandshakePackets.BuildChallenge(buffer, cookie);
+        _transport!.Send(buffer[..length], remote);
     }
 
     private void AcceptConnection(IPEndPoint remote, byte[] clientPublicKey, long now)
@@ -208,14 +228,25 @@ public sealed partial class GalaxyServer : IDisposable
             return;
         }
 
+        byte[] identityPublicKey = _identity?.PublicKey ?? [];
+        byte[] signature = [];
+        if (_identity is not null)
+        {
+            byte[] transcript = new byte[clientPublicKey.Length + serverPublicKey.Length];
+            clientPublicKey.CopyTo(transcript, 0);
+            serverPublicKey.CopyTo(transcript, clientPublicKey.Length);
+            signature = _identity.Sign(transcript);
+        }
+
         uint connectionId = NewConnectionId();
         byte[] accept = new byte[GalaxyConstants.MaxDatagramSize];
-        int length = HandshakePackets.BuildAccept(accept, connectionId, serverPublicKey);
+        int length = HandshakePackets.BuildAccept(accept, connectionId, serverPublicKey, identityPublicKey, signature);
         accept = accept[..length];
 
         var connection = new Connection(connectionId, remote, _transport!, crypto, now, _logger);
         _peers[connectionId] = new Peer(connection, accept);
         _byEndpoint[remote] = connectionId;
+        _perAddress[remote.Address] = _perAddress.GetValueOrDefault(remote.Address) + 1;
 
         _transport!.Send(accept, remote);
         LogClientConnected(_logger, connectionId, remote);
@@ -291,6 +322,17 @@ public sealed partial class GalaxyServer : IDisposable
     {
         _peers.Remove(connectionId);
         _byEndpoint.Remove(peer.Connection.Remote);
+        IPAddress address = peer.Connection.Remote.Address;
+        int remaining = _perAddress.GetValueOrDefault(address) - 1;
+        if (remaining <= 0)
+        {
+            _perAddress.Remove(address);
+        }
+        else
+        {
+            _perAddress[address] = remaining;
+        }
+
         peer.Connection.Dispose();
         LogClientDisconnected(_logger, connectionId, reason);
         ClientDisconnected?.Invoke(connectionId, reason);
@@ -308,6 +350,7 @@ public sealed partial class GalaxyServer : IDisposable
 
         _peers.Clear();
         _byEndpoint.Clear();
+        _perAddress.Clear();
         foreach (Message message in _inbound)
         {
             message.Release();

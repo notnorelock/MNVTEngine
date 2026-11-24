@@ -2,11 +2,17 @@
 // SPDX-License-Identifier: MIT
 // Part of MNVTEngine. Last modified 2026-11-24.
 
+using MNVTEngine.Galaxy.Security;
+
 namespace MNVTEngine.Galaxy.Server;
 
 /// <summary>Configuration for a <see cref="GameServer"/>.</summary>
 public sealed class GameServerOptions
 {
+    /// <summary>The server's identity, used to authenticate it to clients that pin its public key. Null leaves the
+    /// handshake unsigned (confidential and forward-secret, but open to a man-in-the-middle).</summary>
+    public GalaxyIdentity? Identity { get; set; }
+
     /// <summary>UDP port to listen on. 0 lets the OS choose (useful in tests).</summary>
     public int Port { get; set; } = 7777;
 
