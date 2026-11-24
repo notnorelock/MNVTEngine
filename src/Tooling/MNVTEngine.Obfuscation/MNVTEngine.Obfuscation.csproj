@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Development-time tooling: obfuscates a game's compiled Scripts assembly at export (JIT exports). Vendored from
+    the Paradise Obfuscator (the author's own MIT code), so the engine's analyzers and code-style rules are relaxed
+    here rather than reworking the whole body; TreatWarningsAsErrors stays on for real compiler errors.
+  -->
+  <PropertyGroup>
+    <RootNamespace>MNVTEngine.Obfuscation</RootNamespace>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <RunAnalyzers>false</RunAnalyzers>
+    <AnalysisMode>None</AnalysisMode>
+    <NoWarn>$(NoWarn);CS1591;CS1573;IDE0005</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mono.Cecil" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.Obfuscation.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -169,6 +169,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Versioning", "sr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Versioning.Tests", "tests\MNVTEngine.Versioning.Tests\MNVTEngine.Versioning.Tests.csproj", "{15FD19F8-F3E9-4F78-9D14-E25C3F39A69F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MNVTEngine.Obfuscation", "src\Tooling\MNVTEngine.Obfuscation\MNVTEngine.Obfuscation.csproj", "{F6D24727-CE3B-4C43-A1B0-21AE860DA383}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1175,6 +1177,18 @@ Global
 		{15FD19F8-F3E9-4F78-9D14-E25C3F39A69F}.Release|x64.Build.0 = Release|Any CPU
 		{15FD19F8-F3E9-4F78-9D14-E25C3F39A69F}.Release|x86.ActiveCfg = Release|Any CPU
 		{15FD19F8-F3E9-4F78-9D14-E25C3F39A69F}.Release|x86.Build.0 = Release|Any CPU
+		{F6D24727-CE3B-4C43-A1B0-21AE860DA383}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F6D24727-CE3B-4C43-A1B0-21AE860DA383}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F6D24727-CE3B-4C43-A1B0-21AE860DA383}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F6D24727-CE3B-4C43-A1B0-21AE860DA383}.Debug|x64.Build.0 = Debug|Any CPU
+		{F6D24727-CE3B-4C43-A1B0-21AE860DA383}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F6D24727-CE3B-4C43-A1B0-21AE860DA383}.Debug|x86.Build.0 = Debug|Any CPU
+		{F6D24727-CE3B-4C43-A1B0-21AE860DA383}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F6D24727-CE3B-4C43-A1B0-21AE860DA383}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F6D24727-CE3B-4C43-A1B0-21AE860DA383}.Release|x64.ActiveCfg = Release|Any CPU
+		{F6D24727-CE3B-4C43-A1B0-21AE860DA383}.Release|x64.Build.0 = Release|Any CPU
+		{F6D24727-CE3B-4C43-A1B0-21AE860DA383}.Release|x86.ActiveCfg = Release|Any CPU
+		{F6D24727-CE3B-4C43-A1B0-21AE860DA383}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
