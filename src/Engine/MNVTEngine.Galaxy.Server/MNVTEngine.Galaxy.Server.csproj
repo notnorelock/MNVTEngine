@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- MNVTEngine.Galaxy.Server: a headless dedicated-server framework over MNVTEngine.Galaxy. Wraps the networking in
+       a fixed-rate tick loop with lifecycle hooks and per-callback error isolation, so one client's bad message can
+       never crash the server. References only the networking layer: no graphics, platform or assets, so a dedicated
+       server never reaches for files a client would have. See docs/architecture/networking.md. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Galaxy\MNVTEngine.Galaxy.csproj" />
+  </ItemGroup>
+</Project>
