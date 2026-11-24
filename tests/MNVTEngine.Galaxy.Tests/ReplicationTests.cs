@@ -117,6 +117,54 @@ public sealed class ReplicationTests
         ((IDisposable)client).Dispose();
     }
 
+    [Fact]
+    public void AnOwningClient_DrivesItsObject_AndTheServerFollows()
+    {
+        ComponentRegistry registry = ComponentRegistry.CreateDefault().Register<NetworkObject>().Register<NetworkTransform>().Register<NetworkServer>().Register<NetworkClient>();
+        var serializer = new SceneSerializer(registry);
+
+        var authored = new Scene();
+        GameObject avatar = authored.CreateGameObject("Avatar");
+        avatar.AddComponent<NetworkObject>();
+        avatar.AddComponent<NetworkTransform>();
+        string json = serializer.Serialize(authored);
+
+        Scene serverScene = serializer.Deserialize(json).Scene;
+        var serverStep = new Stepper(serverScene);
+        NetworkServer server = serverScene.CreateGameObject("Net").AddComponent<NetworkServer>();
+        server.Port = 0;
+        server.SnapshotRate = 60;
+        uint? joined = null;
+        server.ClientConnected += id => joined = id;
+        serverScene.Start();
+        serverStep.Step(0f);
+
+        Scene clientScene = serializer.Deserialize(json).Scene;
+        var clientStep = new Stepper(clientScene);
+        NetworkClient client = clientScene.CreateGameObject("Net").AddComponent<NetworkClient>();
+        client.Host = "127.0.0.1";
+        client.Port = server.BoundPort;
+        clientScene.Start();
+
+        NetworkObject clientAvatar = clientScene.Find("Avatar")!.GetComponent<NetworkObject>()!;
+        NetworkObject serverAvatar = serverScene.Find("Avatar")!.GetComponent<NetworkObject>()!;
+        const float dt = 1f / 60f;
+        Pump(serverStep, clientStep, dt, () => joined is not null && clientAvatar.IsSpawned, 5000);
+        Assert.NotNull(joined);
+
+        server.AssignOwnership(serverAvatar, joined!.Value);
+        Pump(serverStep, clientStep, dt, () => clientAvatar.Role == NetworkRole.Authority, 3000);
+        Assert.Equal(NetworkRole.Authority, clientAvatar.Role);
+
+        // The owning client moves its object; the server must accept the owner's transform.
+        clientAvatar.Transform.Position = new Vector3(-6f, 0f, 0f);
+        Pump(serverStep, clientStep, dt, () => serverAvatar.Transform.Position.X < -5.5f, 3000);
+        Assert.InRange(serverAvatar.Transform.Position.X, -6.5f, -5.5f);
+
+        ((IDisposable)server).Dispose();
+        ((IDisposable)client).Dispose();
+    }
+
     private static Vector3 RemotePosition(Scene scene)
     {
         foreach (NetworkObject networkObject in scene.FindObjectsOfType<NetworkObject>())

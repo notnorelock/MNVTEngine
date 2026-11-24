@@ -23,6 +23,8 @@ internal static class ReplicationProtocol
     public const int Spawn = 60_001;
     public const int Despawn = 60_002;
     public const int Snapshot = 60_003;
+    public const int OwnerAssign = 60_004; // server -> owning client: you now own (or no longer own) an object
+    public const int OwnerState = 60_005;  // owning client -> server: the transform of an object it owns
 
     public static void WriteVector(Message message, Vector3 value)
     {

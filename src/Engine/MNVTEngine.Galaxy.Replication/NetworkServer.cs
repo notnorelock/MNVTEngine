@@ -52,7 +52,41 @@ public sealed class NetworkServer : Component, IDisposable
 
         _server = new GalaxyServer();
         _server.ClientConnected += OnClientConnected;
+        _server.ClientDisconnected += OnClientDisconnected;
+        _server.MessageReceived += OnMessage;
         BoundPort = _server.Start(Port, MaxClients).Port;
+    }
+
+    /// <summary>Raised for a client message that is not replication (a game's own message).</summary>
+    public event Action<uint, Message>? MessageReceived;
+
+    /// <summary>Raised when a client connects (e.g. to assign it ownership of a spawned player object).</summary>
+    public event Action<uint>? ClientConnected;
+
+    /// <summary>Raised when a client disconnects.</summary>
+    public event Action<uint>? ClientDisconnected;
+
+    /// <summary>Gives a client authority over an object: that client then drives its transform and the server
+    /// accepts it. Pass 0 to return authority to the server.</summary>
+    public void AssignOwnership(NetworkObject networkObject, uint clientId)
+    {
+        ArgumentNullException.ThrowIfNull(networkObject);
+        if (_server is null || networkObject.NetworkId == 0)
+        {
+            return;
+        }
+
+        uint previous = networkObject.Owner;
+        networkObject.Owner = clientId;
+        if (previous is not 0 && previous != clientId)
+        {
+            SendOwnerAssign(previous, networkObject.NetworkId, owned: false);
+        }
+
+        if (clientId is not 0)
+        {
+            SendOwnerAssign(clientId, networkObject.NetworkId, owned: true);
+        }
     }
 
     public override void OnDestroy() => Dispose();
@@ -155,7 +189,67 @@ public sealed class NetworkServer : Component, IDisposable
             Message spawn = BuildSpawn(networkObject);
             _server!.Send(clientId, spawn, DeliveryMethod.Reliable);
             spawn.Release();
+            if (networkObject.Owner == clientId)
+            {
+                SendOwnerAssign(clientId, networkObject.NetworkId, owned: true);
+            }
         }
+
+        ClientConnected?.Invoke(clientId);
+    }
+
+    private void OnClientDisconnected(uint clientId, DisconnectReason reason)
+    {
+        foreach (NetworkObject networkObject in _objects.Values)
+        {
+            if (networkObject.Owner == clientId)
+            {
+                networkObject.Owner = 0; // The owner left: the server takes authority back.
+            }
+        }
+
+        ClientDisconnected?.Invoke(clientId);
+    }
+
+    private void OnMessage(uint clientId, Message message)
+    {
+        if (message.Id != ReplicationProtocol.OwnerState)
+        {
+            MessageReceived?.Invoke(clientId, message);
+            return;
+        }
+
+        uint networkId = message.ReadUInt();
+        TransformState state = ReplicationProtocol.ReadState(message);
+        if (message.Failed || !_objects.TryGetValue(networkId, out NetworkObject? networkObject) || networkObject.Owner != clientId || networkObject.IsDestroyed)
+        {
+            return; // Only the object's owner may drive it.
+        }
+
+        Transform transform = networkObject.Transform;
+        if ((state.Flags & TransformState.PositionBit) != 0)
+        {
+            transform.Position = state.Position;
+        }
+
+        if ((state.Flags & TransformState.RotationBit) != 0)
+        {
+            transform.Rotation = state.Rotation;
+        }
+
+        if ((state.Flags & TransformState.ScaleBit) != 0)
+        {
+            transform.LocalScale = state.Scale;
+        }
+    }
+
+    private void SendOwnerAssign(uint clientId, uint networkId, bool owned)
+    {
+        Message message = Message.Create(ReplicationProtocol.OwnerAssign);
+        message.Write(networkId);
+        message.Write(owned);
+        _server!.Send(clientId, message, DeliveryMethod.Reliable);
+        message.Release();
     }
 
     private void BroadcastSpawn(NetworkObject networkObject)

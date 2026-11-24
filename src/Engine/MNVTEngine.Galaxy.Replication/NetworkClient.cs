@@ -19,6 +19,7 @@ public sealed class NetworkClient : Component, IDisposable
 {
     private readonly Dictionary<uint, NetworkObject> _objects = [];
     private GalaxyClient? _client;
+    private float _ownerAccumulator;
 
     /// <summary>Server host name or address.</summary>
     [SerializeField]
@@ -36,6 +37,10 @@ public sealed class NetworkClient : Component, IDisposable
     /// <summary>Connect as soon as the scene starts playing.</summary>
     [SerializeField]
     public bool ConnectOnStart { get; set; } = true;
+
+    /// <summary>Updates per second sent to the server for objects this client owns.</summary>
+    [SerializeField]
+    public int OwnerSendRate { get; set; } = 20;
 
     /// <summary>Raised once connected.</summary>
     public event Action? Connected;
@@ -98,7 +103,44 @@ public sealed class NetworkClient : Component, IDisposable
         MessagesSent++;
     }
 
-    public override void Update() => _client?.Tick();
+    public override void Update()
+    {
+        if (_client is null)
+        {
+            return;
+        }
+
+        _client.Tick();
+        _ownerAccumulator += Time.DeltaTime;
+        float interval = 1f / Math.Max(1, OwnerSendRate);
+        if (_ownerAccumulator >= interval)
+        {
+            _ownerAccumulator = 0f;
+            SendOwnedStates();
+        }
+    }
+
+    private void SendOwnedStates()
+    {
+        foreach (NetworkObject networkObject in _objects.Values)
+        {
+            if (networkObject.Role != NetworkRole.Authority || networkObject.IsDestroyed)
+            {
+                continue;
+            }
+
+            if (networkObject.GetComponent<NetworkTransform>() is not { } transform)
+            {
+                continue;
+            }
+
+            Transform current = networkObject.Transform;
+            Message message = Message.Create(ReplicationProtocol.OwnerState);
+            message.Write(networkObject.NetworkId);
+            ReplicationProtocol.WriteState(message, transform.Flags, current.Position, current.Rotation, current.LocalScale);
+            _client!.Send(message, DeliveryMethod.Unreliable);
+        }
+    }
 
     public override void OnDestroy() => Dispose();
 
@@ -142,6 +184,10 @@ public sealed class NetworkClient : Component, IDisposable
 
             case ReplicationProtocol.Snapshot:
                 HandleSnapshot(message);
+                break;
+
+            case ReplicationProtocol.OwnerAssign:
+                HandleOwnerAssign(message);
                 break;
 
             default:
@@ -195,6 +241,23 @@ public sealed class NetworkClient : Component, IDisposable
         instance.Transform.Rotation = state.Rotation;
         instance.Transform.LocalScale = state.Scale;
         _objects[networkId] = networkObject;
+    }
+
+    private void HandleOwnerAssign(Message message)
+    {
+        uint networkId = message.ReadUInt();
+        bool owned = message.ReadBool();
+        if (message.Failed || !_objects.TryGetValue(networkId, out NetworkObject? networkObject))
+        {
+            return;
+        }
+
+        // An owned object is driven locally (authority); a released one goes back to following snapshots.
+        networkObject.Role = owned ? NetworkRole.Authority : NetworkRole.Remote;
+        if (owned)
+        {
+            networkObject.GetComponent<NetworkTransform>()?.ClearBuffer();
+        }
     }
 
     private void HandleDespawn(Message message)
