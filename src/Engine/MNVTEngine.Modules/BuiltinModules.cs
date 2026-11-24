@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 namespace MNVTEngine.Modules;
 
@@ -80,6 +80,12 @@ public static class BuiltinModules
         RuntimeAssemblies = ["MNVTEngine.Scripting", "MNVTEngine.Scripting.Missions", "MNVTEngine.Scripting.Bindings"],
         AssetTypes = ["Script"],
         Components = ["MNVTEngine.MissionRunner"],
+    };
+
+    public static ModuleDefinition Networking { get; } = new("networking", "Networking", "Client/server networking (MNVTEngine.Galaxy): an encrypted reliable-UDP transport and a headless dedicated-server framework.")
+    {
+        Requires = ["core"],
+        RuntimeAssemblies = ["MNVTEngine.Galaxy", "MNVTEngine.Galaxy.Server"],
     };
 
     public static ModuleDefinition UI { get; } = new("ui", "UI", "Screen-space UI documents, drawn over the scene; the same in 2D and 3D projects.")
@@ -212,5 +218,5 @@ public static class BuiltinModules
     };
 
     public static IReadOnlyList<ModuleDefinition> All { get; } =
-        [Core, Platform, Graphics, Assets, Runtime, Audio, Scripting, UI, DevTools, World2D, World3D, Physics2D, Physics3D, Terrain, Particles, Particles2D, Particles3D, Browser, BrowserAudio, Browser2D, Browser3D];
+        [Core, Platform, Graphics, Assets, Runtime, Audio, Scripting, Networking, UI, DevTools, World2D, World3D, Physics2D, Physics3D, Terrain, Particles, Particles2D, Particles3D, Browser, BrowserAudio, Browser2D, Browser3D];
 }

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 namespace MNVTEngine.Modules.Tests;
 
@@ -21,7 +21,7 @@ public sealed class ModuleResolverTests
     {
         var resolution = Resolve(ProjectProfile.TwoD);
         Assert.True(resolution.Succeeded);
-        Assert.Equal(["core", "audio", "graphics", "assets", "particles", "platform", "runtime", "browser", "browser.audio", "scripting", "ui", "world.2d", "browser.2d", "particles.2d", "physics.2d"], Ids(resolution));
+        Assert.Equal(["core", "audio", "graphics", "assets", "networking", "particles", "platform", "runtime", "browser", "browser.audio", "scripting", "ui", "world.2d", "browser.2d", "particles.2d", "physics.2d"], Ids(resolution));
         Assert.DoesNotContain(resolution.Modules, m => m.ExclusiveProfile == ProjectProfile.ThreeD);
         Assert.Equal("not available in 2D", resolution.Excluded.Single(e => e.Module.Id == "world.3d").Reason);
         Assert.Equal("opt-in, not enabled", resolution.Excluded.Single(e => e.Module.Id == "devtools").Reason);
@@ -32,7 +32,7 @@ public sealed class ModuleResolverTests
     {
         var resolution = Resolve(ProjectProfile.ThreeD);
         Assert.True(resolution.Succeeded);
-        Assert.Equal(["core", "audio", "graphics", "assets", "particles", "platform", "runtime", "browser", "browser.audio", "scripting", "ui", "world.3d", "browser.3d", "particles.3d", "physics.3d", "terrain"], Ids(resolution));
+        Assert.Equal(["core", "audio", "graphics", "assets", "networking", "particles", "platform", "runtime", "browser", "browser.audio", "scripting", "ui", "world.3d", "browser.3d", "particles.3d", "physics.3d", "terrain"], Ids(resolution));
         Assert.DoesNotContain(resolution.Modules, m => m.ExclusiveProfile == ProjectProfile.TwoD);
     }
 

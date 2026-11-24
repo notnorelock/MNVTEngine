@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 namespace MNVTEngine.Modules.Tests;
 
@@ -17,7 +17,7 @@ public sealed class ModuleCatalogTests
         Assert.Empty(ModuleCatalog.Validate(BuiltinModules.All));
         var ids = ModuleCatalog.Builtin.Modules.Select(m => m.Id).ToList();
         Assert.Equal(ids.Order(StringComparer.Ordinal), ids);
-        Assert.Equal(21, ids.Count);
+        Assert.Equal(22, ids.Count);
     }
 
     [Fact]
