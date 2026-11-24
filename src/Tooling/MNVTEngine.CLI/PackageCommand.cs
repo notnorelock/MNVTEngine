@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Build;
@@ -87,8 +87,9 @@ internal static class PackageCommand
                 var loadedProject = GameProject.Load(target);
                 var diagnostics = new List<BuildDiagnostic>();
                 var profile = GameBuilder.ResolveProfile(loadedProject, Options(command), diagnostics) ?? throw new FormatException(string.Join(" ", diagnostics.Select(d => d.Message)));
+                var obfuscation = command.Has("--obfuscate") ? new ObfuscationSettings { Scheme = command.Value("--obfuscate-scheme") ?? "letters" } : null;
                 var result = await DlcBuilder.BuildAsync(loadedProject, profile, command.Value("--folder") ?? throw new FormatException("Use: mnvt package dlc <project> --folder <Assets/...> --name <Name>."),
-                    command.Value("--name") ?? throw new FormatException("Use: mnvt package dlc <project> --folder <Assets/...> --name <Name>."), command.Value("--output"), command.Value("--signing-key"), command.Has("--separate-key"), cancellationToken).ConfigureAwait(false);
+                    command.Value("--name") ?? throw new FormatException("Use: mnvt package dlc <project> --folder <Assets/...> --name <Name>."), command.Value("--output"), command.Value("--signing-key"), command.Has("--separate-key"), obfuscation, cancellationToken).ConfigureAwait(false);
                 Cli.Report(output, result.Diagnostics);
                 output.WriteLine(result.PackageFile is null ? "DLC packaging FAILED." : $"{result.Assets} assets in {result.PackageFile}; copy it into <Game>_Data/{GameContent.DlcFolder}.");
                 return result.PackageFile is null ? Cli.Failed : Cli.Ok;

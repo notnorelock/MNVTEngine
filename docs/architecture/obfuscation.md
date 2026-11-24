@@ -38,7 +38,7 @@ The engine finds parts of a game by name, so those names are never renamed:
 |---|---|---|
 | What ships | the managed assembly (IL) | one native executable, no IL |
 | Type names | **renamed**; the shipped scenes and prefabs are remapped to the new ids ([`SceneRemapper`](../../src/Tooling/MNVTEngine.Build/SceneRemapper.cs)) | **kept** (the generated AOT bootstrap names the component types), so scenes are not remapped |
-| Members and strings | renamed / encrypted | renamed (private) / encrypted — hidden in the native build's metadata and data |
+| Members and strings | renamed (components' serialized members too; scene/prefab data keys are remapped) / encrypted | renamed (private; serialized member names kept, like type names) / encrypted — hidden in the native build's metadata and data |
 
 For AOT the obfuscator runs **before** the native compile, so ILC compiles the obfuscated IL. The build always
 reads the original assembly for asset-usage analysis first, so encrypting string literals never hides the asset
@@ -52,10 +52,15 @@ build.
 
 ## Limitations
 
-- **Serialized field names are kept**, not renamed: remapping renamed field names would require rewriting nested
-  serialized values in scene data, which the JSON cannot disambiguate without type information. Class names,
-  namespaces, methods, private members and strings are still obfuscated.
-- **DLC assemblies** are not obfuscated yet; only the main game assembly is.
+- **Nested serialized types keep their member names.** A component's own serialized members are renamed (JIT) and
+  their scene/prefab keys remapped, but the members of a plain data type serialized *inline* inside a component are
+  kept: that inline JSON carries no type id, so there is nothing to remap it by. AOT keeps all member names, like it
+  keeps type names.
+- **A code DLC obfuscated with `--obfuscate` must reach the game through the engine API, not the game's own (renamed)
+  script types.** DLC obfuscation renames only the DLC's own classes, members and strings and remaps its scenes; it
+  treats the engine and game assemblies as references and keeps their names. A JIT game that itself ships obfuscated
+  renames its types, so a DLC that calls them by name would not resolve against it. (AOT DLC code is compiled into the
+  game's native build, which already protects it.)
 - Obfuscation needs the engine assemblies as references (passed automatically) to decide what is safe to rename;
   without them it keeps more names.
 

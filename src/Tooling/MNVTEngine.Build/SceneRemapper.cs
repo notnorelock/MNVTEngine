@@ -3,6 +3,7 @@
 // Part of MNVTEngine. Last modified 2026-11-24.
 
 using System.Text;
+using MNVTEngine.Scenes;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -37,6 +38,50 @@ public static class SceneRemapper
         var changed = Rewrite(root, types, members);
         if (changed == 0) return sceneJson;
         return Encoding.UTF8.GetBytes(root.ToString(Formatting.None));
+    }
+
+    /// <summary>
+    /// Turns an obfuscator's member renames ("DeclaringTypeFullName::member" → new member) into per-component scene
+    /// JSON key maps (component type full name → old JSON key → new JSON key) for <see cref="Remap"/>. Inherited
+    /// members are included via <see cref="ComponentTypeInfo.SerializableMembers"/>; a component with none renamed is
+    /// left out.
+    /// </summary>
+    public static Dictionary<string, IReadOnlyDictionary<string, string>> MemberKeyMap(
+        IEnumerable<Type> componentTypes, IReadOnlyDictionary<string, string> memberRenames)
+    {
+        ArgumentNullException.ThrowIfNull(componentTypes);
+        ArgumentNullException.ThrowIfNull(memberRenames);
+        var result = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);
+        if (memberRenames.Count == 0)
+        {
+            return result;
+        }
+
+        foreach (var type in componentTypes)
+        {
+            Dictionary<string, string>? keys = null;
+            foreach (var member in ComponentTypeInfo.Get(type).SerializableMembers)
+            {
+                if (member.DeclaringType is { } declaring
+                    && memberRenames.TryGetValue(declaring.FullName + "::" + member.Name, out var newName))
+                {
+                    (keys ??= new(StringComparer.Ordinal))[JsonKey(member.Name)] = JsonKey(newName);
+                }
+            }
+
+            if (keys is not null && type.FullName is { } id)
+            {
+                result[id] = keys;
+            }
+        }
+
+        return result;
+    }
+
+    private static string JsonKey(string name)
+    {
+        var trimmed = name.TrimStart('_');
+        return trimmed.Length == 0 ? name : char.ToLowerInvariant(trimmed[0]) + trimmed[1..];
     }
 
     private static readonly IReadOnlyDictionary<string, string> EmptyTypes = new Dictionary<string, string>();

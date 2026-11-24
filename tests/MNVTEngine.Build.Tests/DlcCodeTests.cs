@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 using System.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -96,7 +96,7 @@ public sealed class DlcCodeTests : IDisposable
         var project = GameProject.Load(Directory.GetFiles(directory, "*" + GameProject.Extension).Single());
         var diagnostics = new List<BuildDiagnostic>();
         var profile = GameBuilder.ResolveProfile(project, options, diagnostics)!;
-        var dlc = await DlcBuilder.BuildAsync(project, profile, "Assets/DLC/Forest", "Forest", Path.Combine(_root, "dlc"), null, separateKey: false, TestContext.Current.CancellationToken);
+        var dlc = await DlcBuilder.BuildAsync(project, profile, "Assets/DLC/Forest", "Forest", Path.Combine(_root, "dlc"), null, separateKey: false, cancellationToken: TestContext.Current.CancellationToken);
         Assert.False(dlc.Diagnostics.HasErrors(), string.Join("\n", dlc.Diagnostics));
         using (var package = IO.Packages.MnvtPackage.Open(dlc.PackageFile!, new IO.Packages.PackageOpenOptions(new IO.Packages.PackageKeyRing(ContentKeys.LoadOrCreate(project, [])!))))
         {
@@ -113,6 +113,36 @@ public sealed class DlcCodeTests : IDisposable
         var log = File.ReadAllText(Path.Combine(output, "Logs", "game.log"));
         Assert.True(game.ExitCode == 0, log);
         Assert.Contains("Code of DLC/Forest.mnvtpack loaded", log, StringComparison.Ordinal);
+        Assert.Contains("forest code runs next to PlayerController", log, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ObfuscatedDlc_Jit_IsRenamedButStillLoadsAndRuns()
+    {
+        Gpu.SkipWithoutVulkan14();
+        var directory = NewProject();
+        // The game ships unobfuscated (the DLC reaches its PlayerController type by name); only the DLC is obfuscated.
+        var options = new BuildOptions { ScriptingBackend = "jit" };
+        var result = await new GameBuilder(NullLogger.Instance).BuildAsync(directory, options, TestContext.Current.CancellationToken);
+        Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics));
+        var output = result.OutputDirectory!;
+
+        var project = GameProject.Load(Directory.GetFiles(directory, "*" + GameProject.Extension).Single());
+        var diagnostics = new List<BuildDiagnostic>();
+        var profile = GameBuilder.ResolveProfile(project, options, diagnostics)!;
+        var dlc = await DlcBuilder.BuildAsync(project, profile, "Assets/DLC/Forest", "Forest", Path.Combine(_root, "dlc"), null, separateKey: false,
+            new ObfuscationSettings { Seed = "dlc-obf-test" }, TestContext.Current.CancellationToken);
+        Assert.False(dlc.Diagnostics.HasErrors(), string.Join("\n", dlc.Diagnostics));
+
+        var dlcFolder = Path.Combine(output, "DlcTest_Data", GameContent.DlcFolder);
+        Directory.CreateDirectory(dlcFolder);
+        File.Copy(dlc.PackageFile!, Path.Combine(dlcFolder, "Forest.mnvtpack"));
+
+        using var game = Process.Start(new ProcessStartInfo(Path.Combine(output, "DlcTest.exe"), "--frames 30") { WorkingDirectory = output, UseShellExecute = false })!;
+        Assert.True(game.WaitForExit(TimeSpan.FromMinutes(2)), "the game did not exit");
+        var log = File.ReadAllText(Path.Combine(output, "Logs", "game.log"));
+        // ForestGreeter was renamed and its scene type id remapped to match: it loads (not as MissingComponent) and runs.
+        Assert.True(game.ExitCode == 0, log);
         Assert.Contains("forest code runs next to PlayerController", log, StringComparison.Ordinal);
     }
 

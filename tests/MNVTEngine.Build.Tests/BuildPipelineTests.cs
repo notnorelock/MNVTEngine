@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 using Microsoft.Extensions.Logging.Abstractions;
 using MNVTEngine.CLI;
@@ -154,7 +154,7 @@ public sealed class BuildPipelineTests : IDisposable
         SigningKeys.Create(signingKey);
         using var signer = IO.Packages.PackageSigningKey.FromPem(File.ReadAllText(signingKey));
 
-        var result = await DlcBuilder.BuildAsync(project, project.EffectiveBuildProfiles[1], "Assets/DLC/Forest", "Forest", Path.Combine(_root, "dlc"), signingKey, separateKey: true, TestContext.Current.CancellationToken);
+        var result = await DlcBuilder.BuildAsync(project, project.EffectiveBuildProfiles[1], "Assets/DLC/Forest", "Forest", Path.Combine(_root, "dlc"), signingKey, separateKey: true, cancellationToken: TestContext.Current.CancellationToken);
         Assert.False(result.Diagnostics.HasErrors(), string.Join("\n", result.Diagnostics));
         Assert.Equal(1, result.Assets);
         Assert.Contains(result.Diagnostics, d => d.Code == "MNVB116"); // the key file is for the server
@@ -166,7 +166,7 @@ public sealed class BuildPipelineTests : IDisposable
         Assert.True(package.Contains("Assets/DLC/Forest/Intro.mnvts"));
         Assert.True(package.Contains(Assets.AssetDatabase.CompiledEntry(Guid.Parse("d1000000-0000-4000-8000-000000000001"))));
         Assert.Equal(Guid.Parse("d1000000-0000-4000-8000-000000000001"), package.Entries.Single(e => e.Path.EndsWith(".mnvts", StringComparison.Ordinal)).AssetGuid);
-        Assert.Contains((await DlcBuilder.BuildAsync(project, project.EffectiveBuildProfiles[1], "Assets/Nothing", "Empty", null, signingKey, false, TestContext.Current.CancellationToken)).Diagnostics, d => d.Code == "MNVB115");
+        Assert.Contains((await DlcBuilder.BuildAsync(project, project.EffectiveBuildProfiles[1], "Assets/Nothing", "Empty", null, signingKey, false, cancellationToken: TestContext.Current.CancellationToken)).Diagnostics, d => d.Code == "MNVB115");
     }
 
     [Fact]

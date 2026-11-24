@@ -1,15 +1,17 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 using System.Security.Cryptography;
 using System.Text;
 using MNVTEngine.Assets;
 using MNVTEngine.Assets.Models;
+using MNVTEngine.GameAssemblies;
 using MNVTEngine.Graphics;
 using MNVTEngine.IO;
 using MNVTEngine.IO.Packages;
 using MNVTEngine.Runtime;
+using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
 using Newtonsoft.Json;
 
@@ -33,12 +35,12 @@ public static class DlcBuilder
     /// <param name="folder">Path relative to Assets whose assets the DLC holds.</param>
     /// <param name="output">Folder for the package (and key file); default <c>Builds/dlc</c>.</param>
     /// <param name="separateKey">Encrypt with a new key of its own instead of the project's, written next to the package.</param>
-    public static async Task<DlcResult> BuildAsync(GameProject project, BuildProfile profile, string folder, string name, string? output, string? signingKeyPath, bool separateKey, CancellationToken cancellationToken = default)
+    public static async Task<DlcResult> BuildAsync(GameProject project, BuildProfile profile, string folder, string name, string? output, string? signingKeyPath, bool separateKey, ObfuscationSettings? obfuscation = null, CancellationToken cancellationToken = default)
     {
         PipelineVersion? version = null;
         try
         {
-            var result = await BuildCoreAsync(project, profile, folder, name, output, signingKeyPath, separateKey, v => version = v, cancellationToken).ConfigureAwait(false);
+            var result = await BuildCoreAsync(project, profile, folder, name, output, signingKeyPath, separateKey, obfuscation, v => version = v, cancellationToken).ConfigureAwait(false);
             _ = version?.Complete(result.PackageFile is null ? "failed" : "succeeded"); // a missing record does not change the result
             return result;
         }
@@ -49,7 +51,7 @@ public static class DlcBuilder
         }
     }
 
-    private static async Task<DlcResult> BuildCoreAsync(GameProject project, BuildProfile profile, string folder, string name, string? output, string? signingKeyPath, bool separateKey, Action<PipelineVersion> started, CancellationToken cancellationToken)
+    private static async Task<DlcResult> BuildCoreAsync(GameProject project, BuildProfile profile, string folder, string name, string? output, string? signingKeyPath, bool separateKey, ObfuscationSettings? obfuscation, Action<PipelineVersion> started, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(profile);
@@ -81,11 +83,13 @@ public static class DlcBuilder
             return new DlcResult(null, null, 0, diagnostics);
         }
 
-        var (codeAssembly, codeBytes) = await BuildCodeAsync(project, profile, name, diagnostics, cancellationToken).ConfigureAwait(false);
+        var dlcCode = await BuildCodeAsync(project, profile, name, obfuscation, diagnostics, cancellationToken).ConfigureAwait(false);
         if (diagnostics.HasErrors())
         {
             return new DlcResult(null, null, 0, diagnostics);
         }
+
+        var (codeAssembly, codeBytes) = (dlcCode.Assembly, dlcCode.Bytes);
 
         var key = separateKey ? PackageEncryptionKey.Create() : ContentKeys.LoadOrCreate(project, diagnostics);
         using var signer = SigningKeys.Resolve(project, profile, signingKeyPath, diagnostics);
@@ -164,6 +168,11 @@ public static class DlcBuilder
                 }
 
                 var data = assets.ReadAllBytes(record.Guid);
+                if (record.Type is AssetTypes.Scene or AssetTypes.Prefab && (dlcCode.TypeRenames is { Count: > 0 } || dlcCode.MemberRenames is { Count: > 0 }))
+                {
+                    data = SceneRemapper.Remap(data, dlcCode.TypeRenames, dlcCode.MemberRenames); // obfuscation renamed the DLC's component classes and members
+                }
+
                 writer.Add(AssetDatabase.AssetsEntryFolder + record.Path, data, record.Guid);
                 if (record.Type == AssetTypes.Script && ContentCompiler.CompileScript(record.Path, data, diagnostics) is { } bytecode)
                 {
@@ -204,11 +213,22 @@ public static class DlcBuilder
         return new DlcResult(file, keyFile, records.Count, diagnostics);
     }
 
+    /// <summary>What the DLC's code build produced: the assembly file name, its bytes (JIT; null for ahead-of-time), and any obfuscation renames to apply to the DLC's scenes.</summary>
+    private sealed record DlcCode(
+        string? Assembly,
+        byte[]? Bytes,
+        IReadOnlyDictionary<string, string>? TypeRenames,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? MemberRenames)
+    {
+        public static readonly DlcCode None = new(null, null, null, null);
+    }
+
     /// <summary>
-    /// Builds the DLC's C# project, if the project lists one: its assembly's file name, and its bytes for JIT games
-    /// (null for ahead-of-time games, which compile it in). Errors go to <paramref name="diagnostics"/>.
+    /// Builds the DLC's C# project, if the project lists one, and obfuscates it when asked (JIT only): its assembly's
+    /// file name, its bytes for JIT games (null for ahead-of-time games, which compile it in) and the renames to
+    /// apply to the DLC's shipped scenes. Errors go to <paramref name="diagnostics"/>.
     /// </summary>
-    private static async Task<(string? Assembly, byte[]? Bytes)> BuildCodeAsync(GameProject project, BuildProfile profile, string name, List<BuildDiagnostic> diagnostics, CancellationToken cancellationToken)
+    private static async Task<DlcCode> BuildCodeAsync(GameProject project, BuildProfile profile, string name, ObfuscationSettings? obfuscation, List<BuildDiagnostic> diagnostics, CancellationToken cancellationToken)
     {
         ScriptProject? code;
         ScriptProject? game;
@@ -219,12 +239,12 @@ public static class DlcBuilder
         catch (FileNotFoundException ex)
         {
             diagnostics.Add(BuildDiagnostic.Error("MNVB117", ex.Message));
-            return (null, null);
+            return DlcCode.None;
         }
 
         if (code is null)
         {
-            return (null, null);
+            return DlcCode.None;
         }
 
         if (game is null || string.Equals(code.AssemblyName, game.AssemblyName, StringComparison.OrdinalIgnoreCase))
@@ -232,17 +252,88 @@ public static class DlcBuilder
             diagnostics.Add(BuildDiagnostic.Error("MNVB117", game is null
                 ? "DLC code builds on the game's scripts project, and this project has none."
                 : $"The DLC's code project has the game's assembly name '{game.AssemblyName}'; give it its own."));
-            return (null, null);
+            return DlcCode.None;
         }
 
         var build = await ScriptCompiler.BuildAsync(code, profile.Configuration, code.OutputDirectory, cancellationToken).ConfigureAwait(false);
         diagnostics.AddRange(build.Diagnostics.Select(BuildDiagnostic.FromScript));
         if (!build.Succeeded)
         {
-            return (null, null);
+            return DlcCode.None;
         }
 
         var fileName = code.AssemblyName + ".dll";
-        return (fileName, profile.ScriptingBackend == "aot" ? null : await File.ReadAllBytesAsync(build.AssemblyPath!, cancellationToken).ConfigureAwait(false));
+        if (profile.ScriptingBackend == "aot")
+        {
+            return new DlcCode(fileName, null, null, null); // the game's native build compiles and protects the DLC
+        }
+
+        if (obfuscation is null)
+        {
+            return new DlcCode(fileName, await File.ReadAllBytesAsync(build.AssemblyPath!, cancellationToken).ConfigureAwait(false), null, null);
+        }
+
+        return Obfuscate(project, name, code, game, build.AssemblyPath!, fileName, obfuscation, diagnostics);
+    }
+
+    /// <summary>
+    /// Obfuscates the DLC assembly and maps its scene renames. The DLC's own classes, members and strings are renamed;
+    /// the engine and game assemblies are references, so their names are kept — a DLC obfuscated this way must reach
+    /// the game through the engine API, not the game's own (renamed) script types.
+    /// </summary>
+    private static DlcCode Obfuscate(GameProject project, string name, ScriptProject code, ScriptProject game, string assemblyPath, string fileName, ObfuscationSettings obfuscation, List<BuildDiagnostic> diagnostics)
+    {
+        // Load the DLC's component types (through the game's context) so renamed member names can be remapped in its
+        // scenes; if that fails, keep member names rather than risk writing keys the game cannot read.
+        var componentTypes = new List<Type>();
+        GameCode? gameCode = null;
+        var host = new GameAssemblyHost();
+        var gameAssembly = Path.Combine(code.OutputDirectory, game.AssemblyName + ".dll");
+        try
+        {
+            if (File.Exists(gameAssembly) && host.Load(gameAssembly).Code is { } loadedGame)
+            {
+                gameCode = loadedGame;
+                componentTypes.AddRange(GameAssemblyHost.LoadInto(loadedGame, fileName).Code?.ComponentTypes ?? []);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or BadImageFormatException or InvalidOperationException)
+        {
+            diagnostics.Add(BuildDiagnostic.Warning("MNVB118", $"Could not inspect the DLC's components for obfuscation ({ex.Message}); its serialized field names are kept."));
+        }
+
+        var work = Path.Combine(project.RootDirectory, "Library", "Build", "dlc-" + name);
+        var outputDirectory = Path.Combine(work, "Obfuscated");
+        if (Directory.Exists(outputDirectory))
+        {
+            Directory.Delete(outputDirectory, recursive: true);
+        }
+
+        var outcome = GameObfuscation.Protect(assemblyPath, [AppContext.BaseDirectory, code.OutputDirectory], outputDirectory,
+            Path.Combine(work, "ObfuscationReports"), obfuscation, preserveTypeNames: false, renameComponentMembers: componentTypes.Count > 0);
+
+        var memberRenames = SceneRemapper.MemberKeyMap(componentTypes, outcome.MemberRenames);
+        foreach (var assembly in componentTypes.Select(t => t.Assembly).Distinct())
+        {
+            ComponentTypeInfo.Evict(assembly);
+        }
+
+        if (gameCode is not null)
+        {
+            GameAssemblyHost.Unload(gameCode); // the DLC shares this context, so this unloads both
+        }
+
+        foreach (var warning in outcome.Warnings)
+        {
+            diagnostics.Add(BuildDiagnostic.Warning("MNVB561", warning));
+        }
+
+        if (!outcome.Success)
+        {
+            diagnostics.AddRange(outcome.Errors.Select(e => BuildDiagnostic.Error("MNVB560", e)));
+            return DlcCode.None;
+        }
+
+        return new DlcCode(fileName, File.ReadAllBytes(outcome.ObfuscatedFile), outcome.TypeRenames, memberRenames);
     }
 }

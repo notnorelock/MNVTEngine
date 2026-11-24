@@ -56,13 +56,18 @@ public static class GameObfuscation
     /// generated bootstrap references the component types by name and whose scenes are then not remapped. When
     /// false, type names are renamed too and <see cref="ObfuscationOutcome.TypeRenames"/> drives the scene remap.
     /// </param>
+    /// <param name="renameComponentMembers">
+    /// Rename the serialized members of components (their scene JSON keys). The caller must then remap the scene data
+    /// keys from <see cref="ObfuscationOutcome.MemberRenames"/>; pass false to keep the names when it cannot.
+    /// </param>
     public static ObfuscationOutcome Protect(
         string assemblyFile,
         IReadOnlyList<string> referenceDirectories,
         string outputDirectory,
         string reportsDirectory,
         ObfuscationSettings settings,
-        bool preserveTypeNames = false)
+        bool preserveTypeNames = false,
+        bool renameComponentMembers = true)
     {
         ArgumentException.ThrowIfNullOrEmpty(assemblyFile);
         ArgumentNullException.ThrowIfNull(settings);
@@ -85,7 +90,7 @@ public static class GameObfuscation
             {
                 PreserveSerializedFields = true,
                 // JIT renames component members and remaps the scene keys; AOT keeps names (its bootstrap scenes are not remapped).
-                KeepComponentMembers = preserveTypeNames,
+                KeepComponentMembers = preserveTypeNames || !renameComponentMembers,
                 Rules = preserveTypeNames ? [new() { Type = "*", Kind = "type", Features = ["rename"], Reason = "aot-type-name" }] : [],
             },
             Reporting = new ReportingOptions { ReportsDirectory = Path.GetFullPath(reportsDirectory), AllowReportsInOutput = false, GenerateMapping = true },
