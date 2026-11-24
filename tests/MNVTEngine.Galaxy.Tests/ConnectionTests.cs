@@ -77,6 +77,54 @@ public sealed class ConnectionTests
     }
 
     [Fact]
+    public void ALargeMessage_IsFragmented_AndReassembledIntact_OverALossyNetwork()
+    {
+        var net = new TestNetwork(seed: 555) { Loss = 0.2, Reorder = true };
+        (SessionCrypto clientCrypto, SessionCrypto serverCrypto) = Handshakes.Pair();
+        ITransport clientTransport = net.Host(ClientAddress);
+        ITransport serverTransport = net.Host(ServerAddress);
+
+        var client = new Connection(1, ServerAddress, clientTransport, clientCrypto, 0, NullLogger.Instance);
+        var server = new Connection(1, ClientAddress, serverTransport, serverCrypto, 0, NullLogger.Instance);
+
+        byte[] big = new byte[20_000]; // ~20 fragments
+        new Random(1).NextBytes(big);
+        Message message = Message.Create(99);
+        message.Write(big);
+        client.Send(message, DeliveryMethod.Reliable, 0);
+
+        byte[]? got = null;
+        var inbound = new List<Message>();
+        byte[] buffer = new byte[GalaxyConstants.MaxDatagramSize];
+        long now = 0;
+        for (int iteration = 0; iteration < 5000 && got is null; iteration++)
+        {
+            now += 10;
+            client.Tick(now);
+            server.Tick(now);
+            while (serverTransport.TryReceive(buffer, out int length, out _))
+            {
+                server.Receive(buffer.AsSpan(0, length), now, inbound, out _);
+                foreach (Message received in inbound)
+                {
+                    got = received.ReadBytes();
+                    received.Release();
+                }
+
+                inbound.Clear();
+            }
+
+            while (clientTransport.TryReceive(buffer, out int length, out _))
+            {
+                client.Receive(buffer.AsSpan(0, length), now, inbound, out _);
+            }
+        }
+
+        Assert.NotNull(got);
+        Assert.Equal(big, got);
+    }
+
+    [Fact]
     public void Tick_ReportsTimeout_AfterSilence()
     {
         var net = new TestNetwork(seed: 1);

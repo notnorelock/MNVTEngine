@@ -24,11 +24,13 @@ internal sealed partial class Connection : IDisposable
     private readonly ITransport _transport;
     private readonly SessionCrypto _crypto;
     private readonly ReliableChannel _reliable = new();
+    private readonly MessageReassembler _reassembler = new();
     private readonly List<byte[]> _delivered = [];
     private readonly ILogger _logger;
 
     private long _lastReceiveMs;
     private long _lastSendMs;
+    private ushort _fragmentGroup;
 
     public Connection(uint connectionId, IPEndPoint remote, ITransport transport, SessionCrypto crypto, long nowMs, ILogger logger)
     {
@@ -62,10 +64,48 @@ internal sealed partial class Connection : IDisposable
             return;
         }
 
-        Span<byte> app = stackalloc byte[2 + body.Length];
-        BinaryPrimitives.WriteUInt16LittleEndian(app, (ushort)message.Id);
-        body.CopyTo(app[2..]);
+        ushort id = (ushort)message.Id;
+        if (body.Length <= GalaxyConstants.MaxFragmentPayload)
+        {
+            Span<byte> app = stackalloc byte[3 + body.Length];
+            app[0] = (byte)AppKind.Whole;
+            BinaryPrimitives.WriteUInt16LittleEndian(app.Slice(1, 2), id);
+            body.CopyTo(app[3..]);
+            DispatchApp(app, method, nowMs);
+            return;
+        }
 
+        SendFragmented(id, body, method, nowMs);
+    }
+
+    private void SendFragmented(ushort id, ReadOnlySpan<byte> body, DeliveryMethod method, long nowMs)
+    {
+        int payload = GalaxyConstants.MaxFragmentPayload;
+        int count = (body.Length + payload - 1) / payload;
+        if (method == DeliveryMethod.Reliable && _reliable.InFlight + count > GalaxyConstants.MaxReliableInFlight)
+        {
+            LogReliableOverflow(_logger, GalaxyConstants.MaxReliableInFlight);
+            return;
+        }
+
+        ushort group = _fragmentGroup++;
+        Span<byte> envelope = stackalloc byte[9 + payload];
+        envelope[0] = (byte)AppKind.Fragment;
+        BinaryPrimitives.WriteUInt16LittleEndian(envelope.Slice(1, 2), id);
+        BinaryPrimitives.WriteUInt16LittleEndian(envelope.Slice(3, 2), group);
+        BinaryPrimitives.WriteUInt16LittleEndian(envelope.Slice(7, 2), (ushort)count);
+        for (int i = 0; i < count; i++)
+        {
+            int offset = i * payload;
+            int size = Math.Min(payload, body.Length - offset);
+            BinaryPrimitives.WriteUInt16LittleEndian(envelope.Slice(5, 2), (ushort)i);
+            body.Slice(offset, size).CopyTo(envelope[9..]);
+            DispatchApp(envelope[..(9 + size)], method, nowMs);
+        }
+    }
+
+    private void DispatchApp(ReadOnlySpan<byte> app, DeliveryMethod method, long nowMs)
+    {
         if (method == DeliveryMethod.Reliable)
         {
             if (!_reliable.TryEnqueue(app, nowMs, out ushort sequence))
@@ -193,17 +233,34 @@ internal sealed partial class Connection : IDisposable
         }
     }
 
-    private static void AddApplicationMessage(ReadOnlySpan<byte> payload, List<Message> inbound)
+    private void AddApplicationMessage(ReadOnlySpan<byte> payload, List<Message> inbound)
     {
-        if (payload.Length < 2)
+        if (payload.Length < 3)
         {
             return;
         }
 
-        ushort id = BinaryPrimitives.ReadUInt16LittleEndian(payload);
-        Message message = Message.Create(id);
-        message.LoadFrom(payload[2..]);
-        inbound.Add(message);
+        ushort id = BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(1, 2));
+        if ((AppKind)payload[0] == AppKind.Whole)
+        {
+            Message message = Message.Create(id);
+            message.LoadFrom(payload[3..]);
+            inbound.Add(message);
+            return;
+        }
+
+        if (payload.Length < 9)
+        {
+            return;
+        }
+
+        ushort group = BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(3, 2));
+        ushort index = BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(5, 2));
+        ushort count = BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(7, 2));
+        if (_reassembler.Add(id, group, index, count, payload[9..]) is { } whole)
+        {
+            inbound.Add(whole);
+        }
     }
 
     private void SendReliableFrame(ushort sequence, ReadOnlySpan<byte> app, long nowMs)

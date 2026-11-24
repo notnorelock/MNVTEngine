@@ -14,9 +14,19 @@ public static class GalaxyConstants
     /// datagram is not fragmented by IP. Anything larger is dropped as malformed.</summary>
     public const int MaxDatagramSize = 1200;
 
-    /// <summary>Largest application message body. One message travels in one datagram in this version
-    /// (shortcut: no fragmentation yet; add it when a use case needs messages above one MTU).</summary>
-    public const int MaxMessageSize = 1024;
+    /// <summary>Largest application message body. A message above <see cref="MaxFragmentPayload"/> is split across
+    /// several datagrams and reassembled by the receiver.</summary>
+    public const int MaxMessageSize = 64 * 1024;
+
+    /// <summary>Largest message chunk carried in one datagram; messages above this are fragmented.</summary>
+    public const int MaxFragmentPayload = 1024;
+
+    /// <summary>Most fragments one message may be split into (<see cref="MaxMessageSize"/> / <see cref="MaxFragmentPayload"/>).</summary>
+    public const int MaxFragmentsPerMessage = MaxMessageSize / MaxFragmentPayload;
+
+    /// <summary>Most partially-received fragmented messages a connection reassembles at once; bounds memory from a
+    /// peer that sends endless incomplete groups.</summary>
+    public const int MaxFragmentGroups = 64;
 
     /// <summary>A connection with no datagram received for this long is considered lost.</summary>
     public const int TimeoutMilliseconds = 5000;

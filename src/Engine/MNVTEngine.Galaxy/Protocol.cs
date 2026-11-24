@@ -70,3 +70,11 @@ internal enum ControlOpcode : byte
     KeepAlive = 0,
     Disconnect = 1,
 }
+
+/// <summary>The first byte of an application chunk inside a reliable or unreliable frame: a whole small message, or
+/// one fragment of a larger one.</summary>
+internal enum AppKind : byte
+{
+    Whole = 0,
+    Fragment = 1,
+}
