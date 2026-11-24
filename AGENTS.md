@@ -104,4 +104,5 @@ C# game code loads into a collectible `AssemblyLoadContext`. Anything static tha
 - Each change ships with tests and updated docs (`docs/`, README links) for the behavior it changes.
 - Run the affected test projects before finishing; run the full suite for cross-cutting changes.
 - Verify rendering or UI changes in the real app (Player, editor, or an exported build), not only in tests.
-- Commit locally only when asked. Never push. Do not include unrelated user changes in a commit.
+- Commit finished work in logical groups, one commit per change. Push only when asked. Do not include unrelated user
+  changes in a commit. Commit messages carry no AI or assistant attribution (no `Co-Authored-By` trailers).
