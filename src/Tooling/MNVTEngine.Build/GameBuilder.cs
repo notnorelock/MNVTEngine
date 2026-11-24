@@ -234,13 +234,15 @@ public sealed partial class GameBuilder(ILogger logger)
         // and strings and private members are obfuscated, which still hides them in the native build's metadata. The
         // obfuscated copy replaces the original just before it ships (JIT) or is compiled into the native build (AOT).
         IReadOnlyDictionary<string, string>? sceneTypeRenames = null;
-        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? sceneMemberRenames = null;
+        SceneRemapper.IKeyMap? sceneKeyMap = null;
         string? obfuscatedAssembly = null;
         if (scripts is not null && options.Obfuscation is { } obfuscation)
         {
             var obfuscatedOutput = Path.Combine(work, "Obfuscated");
             DeleteDirectory(obfuscatedOutput);
-            var outcome = GameObfuscation.Protect(scriptsAssemblyPath!, [AppContext.BaseDirectory], obfuscatedOutput, Path.Combine(work, "ObfuscationReports"), obfuscation, preserveTypeNames: aot);
+            // JIT renames the scene-data types' members (components and the data types nested in them) and remaps the keys.
+            var sceneDataTypes = aot ? null : SceneRemapper.SceneDataTypes(code?.ComponentTypes ?? []);
+            var outcome = GameObfuscation.Protect(scriptsAssemblyPath!, [AppContext.BaseDirectory], obfuscatedOutput, Path.Combine(work, "ObfuscationReports"), obfuscation, preserveTypeNames: aot, renameMemberTypes: sceneDataTypes);
             foreach (var warning in outcome.Warnings)
             {
                 LogObfuscationWarning(logger, warning);
@@ -255,7 +257,7 @@ public sealed partial class GameBuilder(ILogger logger)
             obfuscatedAssembly = outcome.ObfuscatedFile;
             // AOT keeps type and member names (its bootstrap names them), so its scenes are not remapped.
             sceneTypeRenames = aot ? null : outcome.TypeRenames;
-            sceneMemberRenames = aot ? null : SceneRemapper.MemberKeyMap(registry.Types.Values.Distinct(), outcome.MemberRenames);
+            sceneKeyMap = aot ? null : SceneRemapper.BuildKeyMap(code?.ComponentTypes ?? [], outcome.MemberRenames);
             LogObfuscated(logger, outcome.TypeRenames.Count, outcome.MappingPath);
         }
 
@@ -272,7 +274,7 @@ public sealed partial class GameBuilder(ILogger logger)
             try
             {
                 ApplyDevToolsDefault(project, profile);
-                content = ContentCompiler.Compile(project, registry, archive, scriptsAssemblyPath, sceneTypeRenames, sceneMemberRenames);
+                content = ContentCompiler.Compile(project, registry, archive, scriptsAssemblyPath, sceneTypeRenames, sceneKeyMap);
                 compiled = content;
                 if (aot && content.Modules is { } resolved)
                 {

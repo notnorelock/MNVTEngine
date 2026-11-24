@@ -46,20 +46,6 @@ internal static class EngineKnowledge
         "Newtonsoft.Json", "System.Text.Json", "System.Runtime.Serialization", "System.Xml.Serialization", "MessagePack", "ProtoBuf",
     };
 
-    /// <summary>The MNVTEngine component base; its subclasses' serialized members become scene/prefab JSON keys.</summary>
-    public const string ComponentBase = "MNVTEngine.Component";
-
-    /// <summary>True when <paramref name="type"/> derives from <see cref="ComponentBase"/> (walking resolvable bases).</summary>
-    public static bool IsComponentType(TypeDefinition type)
-    {
-        for (TypeReference? b = type.BaseType; b != null; b = b.Resolve()?.BaseType)
-        {
-            if (b.FullName == ComponentBase) return true;
-        }
-
-        return false;
-    }
-
     public static bool IsSerializerType(TypeReference declaring)
     {
         string ns = declaring.Namespace;

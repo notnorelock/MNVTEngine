@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 using MNVTEngine.Mathematics;
 using MNVTEngine.Serialization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 
 namespace MNVTEngine.Scenes;
 
@@ -456,6 +457,35 @@ public sealed class SceneSerializer
         {
             Error(diagnostics, data, $"{component.GetType().Name} on '{component.GameObject.Name}' could not be fully read: {ex.Message}");
         }
+    }
+
+    /// <summary>One member the scene serializer writes: its JSON key, the CLR member it comes from, that member's type, and whether it is a reference (written as an id, with no sub-object to descend into).</summary>
+    public readonly record struct SerializedMember(string JsonKey, string MemberName, Type MemberType, Type DeclaringType, bool IsReference);
+
+    /// <summary>
+    /// The JSON members the serializer writes for <paramref name="type"/> (a component or a plain data type nested in
+    /// one), keyed exactly as they appear in scene and prefab files. Build tooling uses this to remap the keys after
+    /// obfuscation renames the members; it mirrors the real serializer, so the keys always agree with what a game reads.
+    /// </summary>
+    public static IReadOnlyList<SerializedMember> SerializedMembers(Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        var resolver = new ComponentContractResolver(new SceneReferenceConverter(null, null, null));
+        if (resolver.ResolveContract(type) is not JsonObjectContract contract)
+        {
+            return [];
+        }
+
+        var members = new List<SerializedMember>();
+        foreach (var property in contract.Properties)
+        {
+            if (property is { Ignored: false, UnderlyingName: { } member, PropertyName: { } key, PropertyType: { } memberType, DeclaringType: { } declaring })
+            {
+                members.Add(new SerializedMember(key, member, memberType, declaring, ComponentContractResolver.IsReferenceType(memberType)));
+            }
+        }
+
+        return members;
     }
 
     private static JsonSerializer CreateSerializer(SceneReferenceConverter references)

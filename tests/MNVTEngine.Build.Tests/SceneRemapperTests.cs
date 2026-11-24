@@ -44,34 +44,58 @@ public sealed class SceneRemapperTests
     }
 
     [Fact]
-    public void RenamesComponentDataKeys_KeepsNestedAndEngineKeys()
+    public void RenamesDataKeys_ThroughNestedObjectsAndArrays_KeepingEngineKeys()
     {
-        const string Scene = """
+        var members = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [$"{typeof(ObfHero).FullName}::Speed"] = "AaA",
+            [$"{typeof(ObfHero).FullName}::Loadout"] = "BbB",
+            [$"{typeof(ObfHero).FullName}::Party"] = "CcC",
+            [$"{typeof(ObfStats).FullName}::Health"] = "DdD",
+            [$"{typeof(ObfStats).FullName}::Mana"] = "EeE",
+        };
+        var keyMap = SceneRemapper.BuildKeyMap([typeof(ObfHero)], members);
+
+        var scene = $$"""
         {
           "gameObjects": [
             {
               "components": [
                 { "type": "MNVTEngine.Camera", "data": { "fieldOfView": 60.0 } },
-                { "type": "Game.PlayerController", "data": { "speed": 5.0, "target": { "x": 1.0, "y": 2.0 } } }
+                { "type": "{{typeof(ObfHero).FullName}}", "data": {
+                    "speed": 5.0,
+                    "loadout": { "health": 10, "mana": 3 },
+                    "party": [ { "health": 1, "mana": 2 } ]
+                } }
               ]
             }
           ]
         }
         """;
 
-        var members = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal)
-        {
-            ["Game.PlayerController"] = new Dictionary<string, string>(StringComparer.Ordinal) { ["speed"] = "ìíî", ["target"] = "ïìí" },
-        };
-
-        var result = JObject.Parse(Encoding.UTF8.GetString(SceneRemapper.Remap(Encoding.UTF8.GetBytes(Scene), Renames, members)));
+        var result = JObject.Parse(Encoding.UTF8.GetString(SceneRemapper.Remap(Encoding.UTF8.GetBytes(scene), null, keyMap)));
         var components = result["gameObjects"]![0]!["components"]!;
 
-        Assert.Equal(60.0, (double?)components[0]!["data"]!["fieldOfView"]); // engine component data keys untouched
+        Assert.Equal(60.0, (double?)components[0]!["data"]!["fieldOfView"]); // engine component untouched
         var data = components[1]!["data"]!;
-        Assert.Null(data["speed"]); // old member key gone
-        Assert.Equal(5.0, (double?)data["ìíî"]); // renamed to the new JSON key, value preserved
-        Assert.Equal(1.0, (double?)data["ïìí"]!["x"]); // nested engine-type value kept, only its top-level key renamed
+        Assert.Null(data["speed"]);
+        Assert.Equal(5.0, (double?)data["aaA"]); // component member key renamed (JsonName of the new name)
+        Assert.Equal(10, (int?)data["bbB"]!["ddD"]); // nested object key renamed (camelCase of the new name)
+        Assert.Equal(3, (int?)data["bbB"]!["eeE"]);
+        Assert.Equal(1, (int?)data["ccC"]![0]!["ddD"]); // through an array of nested objects
+    }
+
+    private sealed class ObfStats
+    {
+        public int Health = 1;
+        public int Mana = 1;
+    }
+
+    private sealed class ObfHero : MNVTEngine.Component
+    {
+        public float Speed = 1f;
+        public ObfStats Loadout = new();
+        public ObfStats[] Party = [];
     }
 
     [Fact]

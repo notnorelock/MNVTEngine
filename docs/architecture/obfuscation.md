@@ -38,7 +38,7 @@ The engine finds parts of a game by name, so those names are never renamed:
 |---|---|---|
 | What ships | the managed assembly (IL) | one native executable, no IL |
 | Type names | **renamed**; the shipped scenes and prefabs are remapped to the new ids ([`SceneRemapper`](../../src/Tooling/MNVTEngine.Build/SceneRemapper.cs)) | **kept** (the generated AOT bootstrap names the component types), so scenes are not remapped |
-| Members and strings | renamed (components' serialized members too; scene/prefab data keys are remapped) / encrypted | renamed (private; serialized member names kept, like type names) / encrypted — hidden in the native build's metadata and data |
+| Members and strings | renamed (the serialized members of components **and the data types nested in them**; scene/prefab data keys are remapped at every depth) / encrypted | renamed (private; serialized member names kept, like type names) / encrypted — hidden in the native build's metadata and data |
 
 For AOT the obfuscator runs **before** the native compile, so ILC compiles the obfuscated IL. The build always
 reads the original assembly for asset-usage analysis first, so encrypting string literals never hides the asset
@@ -52,10 +52,6 @@ build.
 
 ## Limitations
 
-- **Nested serialized types keep their member names.** A component's own serialized members are renamed (JIT) and
-  their scene/prefab keys remapped, but the members of a plain data type serialized *inline* inside a component are
-  kept: that inline JSON carries no type id, so there is nothing to remap it by. AOT keeps all member names, like it
-  keeps type names.
 - **A code DLC obfuscated with `--obfuscate` must reach the game through the engine API, not the game's own (renamed)
   script types.** DLC obfuscation renames only the DLC's own classes, members and strings and remaps its scenes; it
   treats the engine and game assemblies as references and keeps their names. A JIT game that itself ships obfuscated

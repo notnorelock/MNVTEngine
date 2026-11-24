@@ -112,11 +112,11 @@ public sealed class PreservationOptions
     public bool PreserveSerializedFields { get; set; } = true;
 
     /// <summary>
-    /// Keep the serialized member names of MNVTEngine components (scene/prefab JSON keys). When false, those members
-    /// are renamed and the export remaps the keys; the serialized members of plain nested types are still kept, since
-    /// their inline JSON carries no type to remap by.
+    /// Full names of the types whose serialized members may be renamed (components and the data types nested in their
+    /// scene data); the export remaps the scene keys of exactly these. Every other type keeps its serialized member
+    /// names, so any other serializer still reads them. Empty keeps all of them (the default).
     /// </summary>
-    public bool KeepComponentMembers { get; set; } = true;
+    public HashSet<string> RenameMemberTypes { get; set; } = new(StringComparer.Ordinal);
 
     /// <summary>Keep names that string-based reflection, serializers and attribute strings may look up.</summary>
     public bool PreserveReflectionTargets { get; set; } = true;

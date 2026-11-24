@@ -56,9 +56,10 @@ public static class GameObfuscation
     /// generated bootstrap references the component types by name and whose scenes are then not remapped. When
     /// false, type names are renamed too and <see cref="ObfuscationOutcome.TypeRenames"/> drives the scene remap.
     /// </param>
-    /// <param name="renameComponentMembers">
-    /// Rename the serialized members of components (their scene JSON keys). The caller must then remap the scene data
-    /// keys from <see cref="ObfuscationOutcome.MemberRenames"/>; pass false to keep the names when it cannot.
+    /// <param name="renameMemberTypes">
+    /// Full names of the types whose serialized members may be renamed (components and the data types nested in their
+    /// scene data). The caller remaps the scene keys of exactly these from <see cref="ObfuscationOutcome.MemberRenames"/>;
+    /// null or empty keeps every serialized member name. Ignored when <paramref name="preserveTypeNames"/> is set.
     /// </param>
     public static ObfuscationOutcome Protect(
         string assemblyFile,
@@ -67,7 +68,7 @@ public static class GameObfuscation
         string reportsDirectory,
         ObfuscationSettings settings,
         bool preserveTypeNames = false,
-        bool renameComponentMembers = true)
+        IReadOnlySet<string>? renameMemberTypes = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(assemblyFile);
         ArgumentNullException.ThrowIfNull(settings);
@@ -89,8 +90,8 @@ public static class GameObfuscation
             Preservation = new PreservationOptions
             {
                 PreserveSerializedFields = true,
-                // JIT renames component members and remaps the scene keys; AOT keeps names (its bootstrap scenes are not remapped).
-                KeepComponentMembers = preserveTypeNames || !renameComponentMembers,
+                // JIT renames the scene-data types' members and remaps the keys; AOT keeps names (its bootstrap scenes are not remapped).
+                RenameMemberTypes = preserveTypeNames || renameMemberTypes is null ? [] : new HashSet<string>(renameMemberTypes, StringComparer.Ordinal),
                 Rules = preserveTypeNames ? [new() { Type = "*", Kind = "type", Features = ["rename"], Reason = "aot-type-name" }] : [],
             },
             Reporting = new ReportingOptions { ReportsDirectory = Path.GetFullPath(reportsDirectory), AllowReportsInOutput = false, GenerateMapping = true },

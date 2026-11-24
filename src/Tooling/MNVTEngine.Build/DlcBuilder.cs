@@ -168,9 +168,9 @@ public static class DlcBuilder
                 }
 
                 var data = assets.ReadAllBytes(record.Guid);
-                if (record.Type is AssetTypes.Scene or AssetTypes.Prefab && (dlcCode.TypeRenames is { Count: > 0 } || dlcCode.MemberRenames is { Count: > 0 }))
+                if (record.Type is AssetTypes.Scene or AssetTypes.Prefab && (dlcCode.TypeRenames is { Count: > 0 } || dlcCode.KeyMap is not null))
                 {
-                    data = SceneRemapper.Remap(data, dlcCode.TypeRenames, dlcCode.MemberRenames); // obfuscation renamed the DLC's component classes and members
+                    data = SceneRemapper.Remap(data, dlcCode.TypeRenames, dlcCode.KeyMap); // obfuscation renamed the DLC's component classes and members
                 }
 
                 writer.Add(AssetDatabase.AssetsEntryFolder + record.Path, data, record.Guid);
@@ -218,7 +218,7 @@ public static class DlcBuilder
         string? Assembly,
         byte[]? Bytes,
         IReadOnlyDictionary<string, string>? TypeRenames,
-        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? MemberRenames)
+        SceneRemapper.IKeyMap? KeyMap)
     {
         public static readonly DlcCode None = new(null, null, null, null);
     }
@@ -310,9 +310,9 @@ public static class DlcBuilder
         }
 
         var outcome = GameObfuscation.Protect(assemblyPath, [AppContext.BaseDirectory, code.OutputDirectory], outputDirectory,
-            Path.Combine(work, "ObfuscationReports"), obfuscation, preserveTypeNames: false, renameComponentMembers: componentTypes.Count > 0);
+            Path.Combine(work, "ObfuscationReports"), obfuscation, preserveTypeNames: false, renameMemberTypes: SceneRemapper.SceneDataTypes(componentTypes));
 
-        var memberRenames = SceneRemapper.MemberKeyMap(componentTypes, outcome.MemberRenames);
+        var keyMap = SceneRemapper.BuildKeyMap(componentTypes, outcome.MemberRenames);
         foreach (var assembly in componentTypes.Select(t => t.Assembly).Distinct())
         {
             ComponentTypeInfo.Evict(assembly);
@@ -334,6 +334,6 @@ public static class DlcBuilder
             return DlcCode.None;
         }
 
-        return new DlcCode(fileName, File.ReadAllBytes(outcome.ObfuscatedFile), outcome.TypeRenames, memberRenames);
+        return new DlcCode(fileName, File.ReadAllBytes(outcome.ObfuscatedFile), outcome.TypeRenames, keyMap);
     }
 }

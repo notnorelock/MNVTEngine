@@ -114,8 +114,8 @@ public static class ContentCompiler
     /// <param name="output">Content packages to write; null to validate only.</param>
     /// <param name="scriptsAssembly">The compiled C# scripts, read (not loaded) for usage evidence; null without scripts.</param>
     /// <param name="sceneTypeRenames">Component type ids renamed by obfuscation (old full name → new), applied to shipped scenes and prefabs; null when not obfuscating.</param>
-    /// <param name="sceneMemberRenames">Per-component serialized member JSON keys renamed by obfuscation (old type full name → old key → new key); null when not obfuscating or when member names are kept.</param>
-    public static ContentResult Compile(GameProject project, ComponentRegistry registry, ContentPackageWriter? output, string? scriptsAssembly = null, IReadOnlyDictionary<string, string>? sceneTypeRenames = null, IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? sceneMemberRenames = null)
+    /// <param name="sceneKeyMap">Scene/prefab data-key renames from obfuscation (see <see cref="SceneRemapper.BuildKeyMap"/>); null when not obfuscating or when member names are kept.</param>
+    public static ContentResult Compile(GameProject project, ComponentRegistry registry, ContentPackageWriter? output, string? scriptsAssembly = null, IReadOnlyDictionary<string, string>? sceneTypeRenames = null, SceneRemapper.IKeyMap? sceneKeyMap = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(registry);
@@ -207,10 +207,10 @@ public static class ContentCompiler
                     continue;
                 }
 
-                if ((sceneTypeRenames is { Count: > 0 } || sceneMemberRenames is { Count: > 0 }) && record.Type is AssetTypes.Scene or AssetTypes.Prefab)
+                if ((sceneTypeRenames is { Count: > 0 } || sceneKeyMap is not null) && record.Type is AssetTypes.Scene or AssetTypes.Prefab)
                 {
                     // Obfuscation renamed the game's component classes and members: rewrite the type ids and data keys in the shipped scene.
-                    var remapped = SceneRemapper.Remap(File.ReadAllBytes(assets.FullPath(record.Guid)), sceneTypeRenames, sceneMemberRenames);
+                    var remapped = SceneRemapper.Remap(File.ReadAllBytes(assets.FullPath(record.Guid)), sceneTypeRenames, sceneKeyMap);
                     package.Add(AssetDatabase.AssetsEntryFolder + record.Path, remapped, record.Guid, references);
                 }
                 else
