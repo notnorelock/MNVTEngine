@@ -16,6 +16,7 @@
   <ItemGroup>
     <ProjectReference Include="..\MNVTEngine.Scripting.Bindings\MNVTEngine.Scripting.Bindings.csproj" />
     <ProjectReference Include="..\MNVTEngine.Audio\MNVTEngine.Audio.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Galaxy.Replication\MNVTEngine.Galaxy.Replication.csproj" />
     <ProjectReference Include="..\MNVTEngine.Physics2D\MNVTEngine.Physics2D.csproj" />
     <ProjectReference Include="..\MNVTEngine.UI\MNVTEngine.UI.csproj" />
     <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" />

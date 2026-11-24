@@ -31,6 +31,7 @@ public class ModuleBoundaryTests
         ("MNVTEngine.DebugUI", "MNVTEngine.Physics2D"),
         ("MNVTEngine.DebugUI", "MNVTEngine.Scripting.Bindings"),
         ("MNVTEngine.DebugUI", "MNVTEngine.UI"),
+        ("MNVTEngine.DebugUI", "MNVTEngine.Galaxy.Replication"),
     ];
 
     private static Dictionary<string, ModuleDefinition> Owners() =>
