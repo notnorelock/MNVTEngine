@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Galaxy\MNVTEngine.Galaxy.csproj" />
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Galaxy.Server\MNVTEngine.Galaxy.Server.csproj" />
+  </ItemGroup>
+</Project>
