@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
+﻿// SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 using ImGuiNET;
 using MNVTEngine.DebugUI.ImGuiBackend;
@@ -148,14 +148,30 @@ internal sealed class HierarchyPanel(EditorContext context)
         }
     }
 
-    /// <summary>The "create" items, for the GameObject menu and the Hierarchy's context menus.</summary>
+    /// <summary>
+    /// The "create" items, for the GameObject menu and the Hierarchy's context menus. Only items whose components the
+    /// project's profile registers: an unregistered component cannot be saved, so the next undo snapshot would throw.
+    /// </summary>
     public IReadOnlyList<MenuEntry> CreateEntries(Transform? parent) =>
+        [.. AllCreateEntries(parent).Where(e => CanCreate(context.Session.Registry, e.Requires)).Select(e => e.Entry)];
+
+    internal static bool CanCreate(Scenes.ComponentRegistry registry, IEnumerable<Type> components) => components.All(registry.Types.Values.Contains);
+
+    /// <summary>Components each create item adds, by item name (tests check them against the profiles' registries).</summary>
+    internal static IReadOnlyDictionary<string, Type[]> CreateRequirements { get; } = new Dictionary<string, Type[]>
+    {
+        ["Create Sprite"] = [typeof(SpriteRenderer)],
+        ["3D Object"] = [typeof(MeshRenderer), typeof(BoxCollider), typeof(SphereCollider), typeof(CapsuleCollider), typeof(CylinderCollider)],
+        ["Light"] = [typeof(Light), typeof(AmbientLight)],
+    };
+
+    private IEnumerable<(MenuEntry Entry, Type[] Requires)> AllCreateEntries(Transform? parent) =>
     [
-        new("Create Empty", Action: () => context.CreateGameObject("GameObject", parent)),
-        new("Create Header", Action: () => context.CreateGameObject("Header", parent).AddComponent<HierarchyStyle>().Kind = HierarchyStyleKind.Header),
-        new("Create Sprite", Action: () => context.CreateGameObject("Sprite", parent).AddComponent<SpriteRenderer>()),
-        new("Create Camera", Action: () => context.CreateGameObject("Camera", parent).AddComponent<Camera>()),
-        MenuEntry.Submenu("3D Object",
+        (new("Create Empty", Action: () => context.CreateGameObject("GameObject", parent)), []),
+        (new("Create Header", Action: () => context.CreateGameObject("Header", parent).AddComponent<HierarchyStyle>().Kind = HierarchyStyleKind.Header), [typeof(HierarchyStyle)]),
+        (new("Create Sprite", Action: () => context.CreateGameObject("Sprite", parent).AddComponent<SpriteRenderer>()), CreateRequirements["Create Sprite"]),
+        (new("Create Camera", Action: () => context.CreateGameObject("Camera", parent).AddComponent<Camera>()), [typeof(Camera)]),
+        (MenuEntry.Submenu("3D Object",
         [
             .. Enum.GetValues<PrimitiveMesh>().Where(p => p != PrimitiveMesh.None).Select(primitive => new MenuEntry(primitive.ToString(), Action: () =>
             {
@@ -163,8 +179,8 @@ internal sealed class HierarchyPanel(EditorContext context)
                 gameObject.AddComponent<MeshRenderer>().Primitive = primitive;
                 AddCollider(gameObject, primitive);
             })),
-        ]),
-        MenuEntry.Submenu("Light",
+        ]), CreateRequirements["3D Object"]),
+        (MenuEntry.Submenu("Light",
         [
             .. Enum.GetValues<LightType>().Select(type => new MenuEntry($"{type} Light", Action: () =>
             {
@@ -175,7 +191,7 @@ internal sealed class HierarchyPanel(EditorContext context)
                 gameObject.Transform.LocalPosition = type == LightType.Point ? new Vector3(0f, 2f, 0f) : new Vector3(0f, 4f, 0f);
             })),
             new("Ambient Light", Action: () => context.CreateGameObject("Ambient Light", parent).AddComponent<AmbientLight>()),
-        ]),
+        ]), CreateRequirements["Light"]),
     ];
 
     /// <summary>A collider matching a primitive's shape, as Unity adds one (add a Rigidbody to make it fall).</summary>
