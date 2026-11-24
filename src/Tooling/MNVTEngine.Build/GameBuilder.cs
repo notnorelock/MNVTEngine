@@ -258,7 +258,14 @@ public sealed partial class GameBuilder(ILogger logger)
             // AOT keeps type and member names (its bootstrap names them), so its scenes are not remapped.
             sceneTypeRenames = aot ? null : outcome.TypeRenames;
             sceneKeyMap = aot ? null : SceneRemapper.BuildKeyMap(code?.ComponentTypes ?? [], outcome.MemberRenames);
+            // Persist the game's rename map (JIT) so a later DLC build can pin these names and resolve its calls into
+            // the game; a run that does not obfuscate the IL clears it, so no DLC pins against a stale map.
+            ObfuscationPins.Write(project, scripts.AssemblyName, aot ? null : outcome.PinMap);
             LogObfuscated(logger, outcome.TypeRenames.Count, outcome.MappingPath);
+        }
+        else if (scripts is not null)
+        {
+            ObfuscationPins.Write(project, scripts.AssemblyName, null);
         }
 
         string? aotSource = null;

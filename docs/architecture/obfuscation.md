@@ -50,15 +50,16 @@ Each obfuscated build writes a rename map (old name → new) next to the build, 
 every original name, so it must not ship; keep it with the build that produced it to read a crash log from that
 build.
 
-## Limitations
+## DLC against an obfuscated game
 
-- **A code DLC obfuscated with `--obfuscate` must reach the game through the engine API, not the game's own (renamed)
-  script types.** DLC obfuscation renames only the DLC's own classes, members and strings and remaps its scenes; it
-  treats the engine and game assemblies as references and keeps their names. A JIT game that itself ships obfuscated
-  renames its types, so a DLC that calls them by name would not resolve against it. (AOT DLC code is compiled into the
-  game's native build, which already protects it.)
-- Obfuscation needs the engine assemblies as references (passed automatically) to decide what is safe to rename;
-  without them it keeps more names.
+A JIT game export obfuscated with `--obfuscate` also records its rename map under `Library/Build/Obfuscation`. When a
+DLC is then obfuscated, its build **pins** those names: the game is obfuscated alongside the DLC with its symbols
+forced to their recorded names, so the DLC's calls into the game's own (renamed) classes, methods and fields are
+rewritten to match and resolve at runtime. Build the game before its DLC; a game build that does not obfuscate the IL
+clears the map, so a DLC is never pinned against names the shipped game does not use. (AOT DLC code is compiled into
+the game's native build, which already protects it.)
+
+Obfuscation needs the engine assemblies as references (passed automatically) to decide what is safe to rename.
 
 See [versioning](versioning.md) for how a build is identified and [the virtual file system](virtual-filesystem.md)
 for how content is packaged.

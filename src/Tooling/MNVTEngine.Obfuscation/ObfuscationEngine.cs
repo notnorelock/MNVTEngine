@@ -21,6 +21,9 @@ public sealed class ObfuscationResult
     public required DiagnosticBag Diagnostics { get; init; }
     public Report? Report { get; init; }
     public Mapping? Mapping { get; init; }
+
+    /// <summary>Every renamed symbol's final name by <see cref="Analysis.Symbol.Id"/>; persist it to pin these names when obfuscating a dependent assembly (a DLC).</summary>
+    public IReadOnlyDictionary<string, string> FinalNames { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
     public string? MappingPath { get; init; }
     public string? ReportPath { get; init; }
     public List<string> WrittenFiles { get; } = new();
@@ -119,6 +122,7 @@ public sealed class ObfuscationEngine
             Diagnostics = _diag,
             Report = report,
             Mapping = mapping,
+            FinalNames = renamer?.FinalNames ?? new Dictionary<string, string>(StringComparer.Ordinal),
             Elapsed = sw.Elapsed,
         };
         final.WrittenFiles.AddRange(result.WrittenFiles);
@@ -277,6 +281,7 @@ public sealed class ObfuscationEngine
             Diagnostics = _diag,
             Report = result.Report,
             Mapping = result.Mapping,
+            FinalNames = result.FinalNames,
             MappingPath = mappingPath,
             ReportPath = reportPath,
             Elapsed = result.Elapsed,

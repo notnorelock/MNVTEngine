@@ -273,6 +273,9 @@ public static class DlcBuilder
             return new DlcCode(fileName, await File.ReadAllBytesAsync(build.AssemblyPath!, cancellationToken).ConfigureAwait(false), null, null);
         }
 
+        // Put the game assembly next to the DLC (its ProjectReference may not copy it) so one obfuscation pass can
+        // load both: the DLC for protection, the game to inspect its components and, when pinned, rewrite references.
+        await ScriptCompiler.BuildAsync(game, profile.Configuration, code.OutputDirectory, cancellationToken).ConfigureAwait(false);
         return Obfuscate(project, name, code, game, build.AssemblyPath!, fileName, obfuscation, diagnostics);
     }
 
@@ -309,8 +312,12 @@ public static class DlcBuilder
             Directory.Delete(outputDirectory, recursive: true);
         }
 
+        // If the game shipped obfuscated, pin its names so the DLC's calls into the game resolve against it.
+        var pins = ObfuscationPins.Read(project, game.AssemblyName);
+        var pinnedCompanions = pins is not null && File.Exists(gameAssembly) ? new[] { game.AssemblyName + ".dll" } : null;
         var outcome = GameObfuscation.Protect(assemblyPath, [AppContext.BaseDirectory, code.OutputDirectory], outputDirectory,
-            Path.Combine(work, "ObfuscationReports"), obfuscation, preserveTypeNames: false, renameMemberTypes: SceneRemapper.SceneDataTypes(componentTypes));
+            Path.Combine(work, "ObfuscationReports"), obfuscation, preserveTypeNames: false, renameMemberTypes: SceneRemapper.SceneDataTypes(componentTypes),
+            pinnedCompanions: pinnedCompanions, pinnedNames: pinnedCompanions is null ? null : pins);
 
         var keyMap = SceneRemapper.BuildKeyMap(componentTypes, outcome.MemberRenames);
         foreach (var assembly in componentTypes.Select(t => t.Assembly).Distinct())

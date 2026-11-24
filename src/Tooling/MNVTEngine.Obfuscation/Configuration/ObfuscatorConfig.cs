@@ -81,6 +81,17 @@ public sealed class RenamingOptions
 
     /// <summary>"letters" (short ASCII names) or "unicode" (Latin and Cyrillic look-alikes).</summary>
     public string Scheme { get; set; } = NamingSchemes.Letters;
+
+    /// <summary>
+    /// Final names (symbol id → new short name) forced onto the symbols of <see cref="PinnedAssemblies"/>, from an
+    /// earlier obfuscation of that assembly. A listed symbol gets exactly this name; an unlisted one of a pinned
+    /// assembly keeps its original name. Lets a DLC be obfuscated so its calls into an already-obfuscated game still
+    /// resolve. The ids are <c>Symbol.Id</c> values ([assembly]Kind:CecilFullName), stable while the assembly is.
+    /// </summary>
+    public Dictionary<string, string> PinnedNames { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>Names of the assemblies whose symbol names come from <see cref="PinnedNames"/> instead of being generated.</summary>
+    public HashSet<string> PinnedAssemblies { get; set; } = new(StringComparer.Ordinal);
 }
 
 public static class NamingSchemes

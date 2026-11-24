@@ -39,6 +39,26 @@ internal sealed class Renamer
     public List<RenameEntry> Entries { get; } = new();
     public int ParametersRenamed { get; private set; }
 
+    /// <summary>Every renamed symbol's final name, by <see cref="Symbol.Id"/>; persisted so a DLC can pin the game's names.</summary>
+    public Dictionary<string, string> FinalNames { get; } = new(StringComparer.Ordinal);
+
+    // The forced name for a symbol of a pinned (already-obfuscated) assembly, or null to generate one.
+    private string? Pinned(Symbol s) =>
+        _config.Renaming.PinnedAssemblies.Contains(s.Owner.Name) && _config.Renaming.PinnedNames.TryGetValue(s.Id, out var name) ? name : null;
+
+    private string? PinnedGroupName(string key)
+    {
+        foreach (var pair in _analysis.VirtualKeys)
+        {
+            if (pair.Value == key && _catalog.Get(pair.Key) is { } s && Pinned(s) is { } pinned)
+            {
+                return pinned;
+            }
+        }
+
+        return null;
+    }
+
     public Renamer(AssemblySet set, AnalysisOutcome analysis, ObfuscatorConfig config, NameGenerator names, DiagnosticBag diagnostics)
     {
         _set = set;
@@ -231,7 +251,7 @@ internal sealed class Renamer
                 if (t.DeclaringType == null)
                 {
                     string ns = stripNamespaces ? string.Empty : t.Namespace;
-                    string name = _names.Create(s.Id, n => topLevel.Contains(ns + "\u0000" + n + arity), hint) + arity;
+                    string name = Pinned(s) ?? _names.Create(s.Id, n => topLevel.Contains(ns + "\u0000" + n + arity), hint) + arity;
                     topLevel.Add(ns + "\u0000" + name);
                     _newNames[t] = name;
                     _newNamespaces[t] = ns;
@@ -239,7 +259,7 @@ internal sealed class Renamer
                 else
                 {
                     HashSet<string> taken = NestedNames(nested, t.DeclaringType);
-                    string name = _names.Create(s.Id, n => taken.Contains(n + arity), hint) + arity;
+                    string name = Pinned(s) ?? _names.Create(s.Id, n => taken.Contains(n + arity), hint) + arity;
                     taken.Add(name);
                     _newNames[t] = name;
                 }
@@ -298,7 +318,7 @@ internal sealed class Renamer
         {
             bool renamable = _analysis.VirtualKeys.Where(kv => kv.Value == key).All(kv => _catalog.Get(kv.Key)?.CanRename ?? false);
             if (!renamable) continue;
-            string name = _names.Create("V:" + key, n => globalMethodNames.Contains(n) || AccessorPrefixes.Any(p => globalMethodNames.Contains(p + n)), VirtualKeyLength(key));
+            string name = PinnedGroupName(key) ?? _names.Create("V:" + key, n => globalMethodNames.Contains(n) || AccessorPrefixes.Any(p => globalMethodNames.Contains(p + n)), VirtualKeyLength(key));
             globalMethodNames.Add(name);
             groupNames[key] = name;
         }
@@ -320,7 +340,7 @@ internal sealed class Renamer
                         if (groupNames.TryGetValue(key, out string? g)) _newNames[m] = g;
                         continue;
                     }
-                    string name = _names.Create(s.Id, n => methodNames.Contains(n) || globalMethodNames.Contains(n), NameLength(s.OriginalName));
+                    string name = Pinned(s) ?? _names.Create(s.Id, n => methodNames.Contains(n) || globalMethodNames.Contains(n), NameLength(s.OriginalName));
                     methodNames.Add(name);
                     _newNames[m] = name;
                 }
@@ -328,7 +348,7 @@ internal sealed class Renamer
                 {
                     Symbol s = _catalog.Get(f)!;
                     if (!s.CanRename) continue;
-                    string name = _names.Create(s.Id, fieldNames.Contains, NameLength(s.OriginalName));
+                    string name = Pinned(s) ?? _names.Create(s.Id, fieldNames.Contains, NameLength(s.OriginalName));
                     fieldNames.Add(name);
                     _newNames[f] = name;
                 }
@@ -342,7 +362,7 @@ internal sealed class Renamer
                     foreach (MethodDefinition acc in accessors)
                         if (_analysis.VirtualKeys.TryGetValue(acc, out string? key) && groupNames.TryGetValue(key, out string? g)) name = g;
                     if (name == null && accessors.Any(acc => _analysis.VirtualKeys.ContainsKey(acc))) continue; // the group kept its name
-                    name ??= _names.Create(s.Id, n => propertyNames.Contains(n) || AccessorPrefixes.Any(pre => methodNames.Contains(pre + n)), NameLength(s.OriginalName));
+                    name ??= Pinned(s) ?? _names.Create(s.Id, n => propertyNames.Contains(n) || AccessorPrefixes.Any(pre => methodNames.Contains(pre + n)), NameLength(s.OriginalName));
                     propertyNames.Add(name);
                     _newNames[owner] = name;
                     foreach (MethodDefinition acc in accessors)
@@ -395,7 +415,11 @@ internal sealed class Renamer
             else ca.Properties[index] = new CustomAttributeNamedArgument(d.Name, ca.Properties[index].Argument);
         }
         foreach (Symbol s in _catalog.All)
-            if (_newNames.TryGetValue(s.Definition, out string? n)) s.NewName = n;
+            if (_newNames.TryGetValue(s.Definition, out string? n))
+            {
+                s.NewName = n;
+                if (n != s.OriginalName) FinalNames[s.Id] = n;
+            }
     }
 
     private void RecordEntries(Dictionary<TypeDefinition, string> originalTypeNames)

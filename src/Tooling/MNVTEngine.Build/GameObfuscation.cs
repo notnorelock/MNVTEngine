@@ -33,6 +33,7 @@ public sealed record ObfuscationOutcome(
     string ObfuscatedFile,
     IReadOnlyDictionary<string, string> TypeRenames,
     IReadOnlyDictionary<string, string> MemberRenames,
+    IReadOnlyDictionary<string, string> PinMap,
     string? MappingPath,
     IReadOnlyList<string> Errors,
     IReadOnlyList<string> Warnings);
@@ -68,25 +69,39 @@ public static class GameObfuscation
         string reportsDirectory,
         ObfuscationSettings settings,
         bool preserveTypeNames = false,
-        IReadOnlySet<string>? renameMemberTypes = null)
+        IReadOnlySet<string>? renameMemberTypes = null,
+        IReadOnlyList<string>? pinnedCompanions = null,
+        IReadOnlyDictionary<string, string>? pinnedNames = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(assemblyFile);
         ArgumentNullException.ThrowIfNull(settings);
         var inputDirectory = Path.GetDirectoryName(Path.GetFullPath(assemblyFile))
             ?? throw new ArgumentException("The assembly file has no directory.", nameof(assemblyFile));
         var fileName = Path.GetFileName(assemblyFile);
+        var primaryName = Path.GetFileNameWithoutExtension(fileName);
+        var companions = pinnedCompanions ?? [];
 
         var config = new ObfuscatorConfig
         {
             InputDirectory = inputDirectory,
             OutputDirectory = Path.GetFullPath(outputDirectory),
-            Assemblies = [fileName],
+            // The pinned companions (an already-obfuscated game) are protected too, so the primary's references into
+            // them are rewritten to the pinned names; only the primary's output ships.
+            Assemblies = [fileName, .. companions],
             ReferenceDirectories = referenceDirectories.Select(Path.GetFullPath).ToList(),
             Features = new FeatureOptions { RenameSymbols = true, ObfuscateStrings = settings.Strings, ControlFlow = settings.ControlFlow },
             // A game's assembly is closed: nothing else compiles against it, so names can go. The engine binds to it
             // through virtual overrides of Component (kept automatically) and serialized members (kept by name below).
             // Ahead-of-time builds keep type names (preserveTypeNames): their generated bootstrap names the types.
-            Renaming = new RenamingOptions { PreservePublicApi = preserveTypeNames, Scheme = settings.Scheme, Seed = settings.Seed, SeedEnvironmentVariable = settings.SeedEnvironmentVariable },
+            Renaming = new RenamingOptions
+            {
+                PreservePublicApi = preserveTypeNames,
+                Scheme = settings.Scheme,
+                Seed = settings.Seed,
+                SeedEnvironmentVariable = settings.SeedEnvironmentVariable,
+                PinnedAssemblies = companions.Select(Path.GetFileNameWithoutExtension).OfType<string>().ToHashSet(StringComparer.Ordinal),
+                PinnedNames = pinnedNames is null ? new(StringComparer.Ordinal) : new(pinnedNames, StringComparer.Ordinal),
+            },
             Preservation = new PreservationOptions
             {
                 PreserveSerializedFields = true,
@@ -98,24 +113,24 @@ public static class GameObfuscation
         };
 
         var result = new ObfuscationEngine(config).Protect();
-        var typeRenames = result.Mapping?.Entries
+        var entries = (result.Mapping?.Entries ?? []).Where(e => e.Assembly == primaryName).ToList();
+        var typeRenames = entries
             .Where(e => e.Kind == "Type")
-            .ToDictionary(e => e.Original, e => e.Obfuscated, StringComparer.Ordinal)
-            ?? new Dictionary<string, string>(StringComparer.Ordinal);
+            .ToDictionary(e => e.Original, e => e.Obfuscated, StringComparer.Ordinal);
 
         // Member renames keyed by "DeclaringTypeFullName::originalMemberName" -> new member name; the caller turns
         // these into per-component scene JSON key maps (see GameBuilder).
-        var memberRenames = result.Mapping?.Entries
+        var memberRenames = entries
             .Where(e => e.Kind is "Field" or "Property")
             .GroupBy(e => e.Original, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.First().NewName, StringComparer.Ordinal)
-            ?? new Dictionary<string, string>(StringComparer.Ordinal);
+            .ToDictionary(g => g.Key, g => g.First().NewName, StringComparer.Ordinal);
 
         return new ObfuscationOutcome(
             result.Success,
             Path.Combine(config.OutputDirectory!, fileName),
             typeRenames,
             memberRenames,
+            result.FinalNames,
             result.MappingPath,
             result.Diagnostics.Items.Where(d => d.Severity == Severity.Error).Select(d => d.ToString()).ToList(),
             result.Diagnostics.Items.Where(d => d.Severity == Severity.Warning).Select(d => d.ToString()).ToList());

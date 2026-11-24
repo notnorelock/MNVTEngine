@@ -71,6 +71,7 @@ internal sealed class Analyzer
         ApplyRules();
         if (_config.Preservation.PreserveReflectionTargets) ScanCodeAndAttributes();
         KeepReferencedFromOutside();
+        KeepPinnedReferences();
         Dictionary<MethodDefinition, string> virtualKeys = ResolveVirtualGroups();
         ReportUnresolved();
         return new AnalysisOutcome
@@ -220,6 +221,25 @@ internal sealed class Analyzer
     /// public instance fields unless <c>[DontSerialize]</c>, and non-public fields or read-write properties marked
     /// <c>[SerializeField]</c>. The component type itself is still renamed; export remaps the type id in scene data.
     /// </summary>
+    // A pinned assembly (an already-obfuscated game, referenced while obfuscating its DLC) keeps every name except the
+    // ones the earlier run renamed: those are forced to their recorded new names by the renamer, so references resolve.
+    private void KeepPinnedReferences()
+    {
+        var pinnedAssemblies = _config.Renaming.PinnedAssemblies;
+        if (pinnedAssemblies.Count == 0)
+        {
+            return;
+        }
+
+        foreach (Symbol s in _catalog.All)
+        {
+            if (pinnedAssemblies.Contains(s.Owner.Name) && !_config.Renaming.PinnedNames.ContainsKey(s.Id))
+            {
+                s.Preserve("pinned-reference");
+            }
+        }
+    }
+
     private void KeepMnvtSerializedMembers()
     {
         // Types whose serialized members the export will remap in scene data (components and the data types nested in

@@ -147,6 +147,41 @@ public sealed class DlcCodeTests : IDisposable
     }
 
     [Fact]
+    public async Task ObfuscatedDlc_CallsIntoAnObfuscatedGame_ViaPinnedNames()
+    {
+        Gpu.SkipWithoutVulkan14();
+        var directory = NewProject();
+        // Both the game and the DLC are obfuscated. The game renames its PlayerController; the DLC's ForestGreeter
+        // calls it by name, so only pinning the game's names (from its persisted map) keeps that reference resolving.
+        var options = new BuildOptions { ScriptingBackend = "jit", Obfuscation = new ObfuscationSettings { Seed = "pin-game" } };
+        var result = await new GameBuilder(NullLogger.Instance).BuildAsync(directory, options, TestContext.Current.CancellationToken);
+        Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics));
+        var output = result.OutputDirectory!;
+
+        var pinFile = Path.Combine(directory, "Library", "Build", "Obfuscation", "DlcTest.Scripts.pin.json");
+        Assert.True(File.Exists(pinFile), "pin file missing after the game build");
+        Assert.Contains("DlcTest.PlayerController", File.ReadAllText(pinFile), StringComparison.Ordinal);
+
+        var project = GameProject.Load(Directory.GetFiles(directory, "*" + GameProject.Extension).Single());
+        var diagnostics = new List<BuildDiagnostic>();
+        var profile = GameBuilder.ResolveProfile(project, options, diagnostics)!;
+        var dlc = await DlcBuilder.BuildAsync(project, profile, "Assets/DLC/Forest", "Forest", Path.Combine(_root, "dlc"), null, separateKey: false,
+            new ObfuscationSettings { Seed = "pin-dlc" }, TestContext.Current.CancellationToken);
+        Assert.False(dlc.Diagnostics.HasErrors(), string.Join("\n", dlc.Diagnostics));
+
+        var dlcFolder = Path.Combine(output, "DlcTest_Data", GameContent.DlcFolder);
+        Directory.CreateDirectory(dlcFolder);
+        File.Copy(dlc.PackageFile!, Path.Combine(dlcFolder, "Forest.mnvtpack"));
+
+        using var game = Process.Start(new ProcessStartInfo(Path.Combine(output, "DlcTest.exe"), "--frames 30") { WorkingDirectory = output, UseShellExecute = false })!;
+        Assert.True(game.WaitForExit(TimeSpan.FromMinutes(2)), "the game did not exit");
+        var log = File.ReadAllText(Path.Combine(output, "Logs", "game.log"));
+        Assert.True(game.ExitCode == 0, log);
+        // The greeter ran: it resolved the renamed PlayerController through the pinned names (a broken pin throws instead).
+        Assert.Contains("forest code runs next to ", log, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Generator_RegistersDlcComponents_OnlyForTheirDlc()
     {
         var source = AotBootstrap.Source([], [], new Dictionary<string, IReadOnlyList<Type>> { ["Forest"] = [typeof(Tilemap)] });
