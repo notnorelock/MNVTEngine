@@ -1,0 +1,82 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The gameplay SDK: a NuGet package bundling the engine's non-backend assemblies (with their XML docs) so a game
+    project can compile against the engine API and get IntelliSense without a copy of the engine source. The game
+    host ships the runtime copies, so a consumer references this package compile-only (ExcludeAssets="runtime").
+    Backend and host assemblies (Graphics.Vulkan, Platform, DebugUI, *.Rendering, Runtime, host, …) are excluded.
+  -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>MNVTEngine.Sdk</PackageId>
+    <Title>MNVTEngine Gameplay SDK</Title>
+    <Description>The MNVTEngine gameplay API for game projects: compile-time references with IntelliSense docs. The game host provides these assemblies at run time, so reference this package compile-only (ExcludeAssets="runtime").</Description>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IncludeSymbols>false</IncludeSymbols>
+    <!-- Engine assemblies are bundled into lib/ (below), not emitted as package dependencies. -->
+    <SuppressDependenciesWhenPacking>false</SuppressDependenciesWhenPacking>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);BundleEngineAssemblies</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <!-- Public-API types the gameplay assemblies expose (e.g. JSON): a real package dependency for consumers. -->
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" />
+  </ItemGroup>
+
+  <!-- The non-backend engine assemblies. PrivateAssets=all: their outputs are bundled here, not re-exported as deps. -->
+  <ItemGroup>
+    <ProjectReference Include="../../Engine/MNVTEngine.Assets.Models/MNVTEngine.Assets.Models.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Assets/MNVTEngine.Assets.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Audio/MNVTEngine.Audio.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Browser.Audio/MNVTEngine.Browser.Audio.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Browser.Protocol/MNVTEngine.Browser.Protocol.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Browser.World2D/MNVTEngine.Browser.World2D.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Browser.World3D/MNVTEngine.Browser.World3D.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Browser/MNVTEngine.Browser.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Core/MNVTEngine.Core.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.CrashReporting/MNVTEngine.CrashReporting.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Diagnostics/MNVTEngine.Diagnostics.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.ECS/MNVTEngine.ECS.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Graphics/MNVTEngine.Graphics.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Input/MNVTEngine.Input.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.IO/MNVTEngine.IO.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Mathematics/MNVTEngine.Mathematics.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Modules/MNVTEngine.Modules.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Particles/MNVTEngine.Particles.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Particles2D/MNVTEngine.Particles2D.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Particles3D/MNVTEngine.Particles3D.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Physics2D/MNVTEngine.Physics2D.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Physics3D/MNVTEngine.Physics3D.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Scenes/MNVTEngine.Scenes.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Scripting.Bindings/MNVTEngine.Scripting.Bindings.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Scripting.Missions/MNVTEngine.Scripting.Missions.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Scripting/MNVTEngine.Scripting.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Serialization/MNVTEngine.Serialization.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Terrain.Components/MNVTEngine.Terrain.Components.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.Terrain/MNVTEngine.Terrain.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.UI/MNVTEngine.UI.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.World2D/MNVTEngine.World2D.csproj" PrivateAssets="all" />
+    <ProjectReference Include="../../Engine/MNVTEngine.World3D/MNVTEngine.World3D.csproj" PrivateAssets="all" />
+  </ItemGroup>
+
+  <Target Name="BundleEngineAssemblies">
+    <ItemGroup>
+      <!-- Backend/host assemblies that could appear transitively, and this façade: never shipped in the gameplay SDK. -->
+      <_SdkExclude Include="
+        $(OutputPath)MNVTEngine.Sdk.dll;$(OutputPath)MNVTEngine.Sdk.xml;
+        $(OutputPath)MNVTEngine.Graphics.Vulkan.dll;$(OutputPath)MNVTEngine.Graphics.Vulkan.xml;
+        $(OutputPath)MNVTEngine.Graphics.Vulkan.ShaderCompiler.dll;$(OutputPath)MNVTEngine.Graphics.Vulkan.ShaderCompiler.xml;
+        $(OutputPath)MNVTEngine.Platform.dll;$(OutputPath)MNVTEngine.Platform.xml;
+        $(OutputPath)MNVTEngine.DebugUI.dll;$(OutputPath)MNVTEngine.DebugUI.xml;
+        $(OutputPath)MNVTEngine.World2D.Rendering.dll;$(OutputPath)MNVTEngine.World2D.Rendering.xml;
+        $(OutputPath)MNVTEngine.World3D.Rendering.dll;$(OutputPath)MNVTEngine.World3D.Rendering.xml;
+        $(OutputPath)MNVTEngine.Runtime.dll;$(OutputPath)MNVTEngine.Runtime.xml;
+        $(OutputPath)MNVTEngine.Audio.OpenAL.dll;$(OutputPath)MNVTEngine.Audio.OpenAL.xml;
+        $(OutputPath)MNVTEngine.GameAssemblies.dll;$(OutputPath)MNVTEngine.GameAssemblies.xml" />
+      <TfmSpecificPackageFile Include="$(OutputPath)MNVTEngine.*.dll" Exclude="@(_SdkExclude)" PackagePath="lib/$(TargetFramework)/" />
+      <TfmSpecificPackageFile Include="$(OutputPath)MNVTEngine.*.xml" Exclude="@(_SdkExclude)" PackagePath="lib/$(TargetFramework)/" />
+    </ItemGroup>
+  </Target>
+
+</Project>
