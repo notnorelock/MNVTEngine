@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-24.
 
 using System.Globalization;
 using Newtonsoft.Json;
@@ -56,7 +56,7 @@ public sealed class AssetTypeAttribute(string type) : Attribute
     public string Type { get; } = type;
 }
 
-/// <summary>Reads and writes <see cref="AssetRef"/> as <c>"asset:internal sealed class AssetRefConverter : JsonConverter<AssetRef>lt;guidinternal sealed class AssetRefConverter : JsonConverter<AssetRef>gt;"</c> or null; for JSON formats that hold asset references.</summary>
+/// <summary>Reads and writes <see cref="AssetRef"/> as <c>"asset:&lt;guid&gt;"</c> or null; for JSON formats that hold asset references.</summary>
 public sealed class AssetRefConverter : JsonConverter<AssetRef>
 {
     public override void WriteJson(JsonWriter writer, AssetRef value, JsonSerializer serializer)

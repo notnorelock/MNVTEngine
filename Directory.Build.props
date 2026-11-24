@@ -27,6 +27,15 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);bin/**;obj/**</DefaultItemExcludes>
   </PropertyGroup>
 
+  <!-- XML documentation for the engine assemblies, so game developers get IntelliSense tooltips for the gameplay
+       API (CS1591/CS1573 off: documenting every public member is not required, only the ones that already are). -->
+  <PropertyGroup Condition="$([MSBuild]::MakeRelative('$(MSBuildThisFileDirectory)', '$(MSBuildProjectDirectory)').Replace('\', '/').StartsWith('src/Engine/'))">
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Doc-quality notes (missing or imperfect cref/param tags) do not block; only CS1570 (malformed XML, which
+         would corrupt the whole .xml) stays an error. -->
+    <NoWarn>$(NoWarn);CS1591;CS1573;CS1574;CS1571;CS1572;CS1711;CS1712;CS0419</NoWarn>
+  </PropertyGroup>
+
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
     <IsPackable>false</IsPackable>
     <OutputType>Exe</OutputType>
