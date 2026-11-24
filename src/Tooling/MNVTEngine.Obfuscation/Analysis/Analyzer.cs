@@ -222,8 +222,16 @@ internal sealed class Analyzer
     /// </summary>
     private void KeepMnvtSerializedMembers()
     {
+        // When component members are renamed (KeepComponentMembers=false), only their JSON keys are remapped at
+        // export, so we keep serialized members of plain nested types (whose inline JSON has no type to remap by).
+        var keepComponents = _config.Preservation.KeepComponentMembers;
         foreach (Symbol s in _catalog.All)
         {
+            if (!keepComponents && s.Definition is IMemberDefinition { DeclaringType: { } declaring } && EngineKnowledge.IsComponentType(declaring))
+            {
+                continue;
+            }
+
             switch (s.Definition)
             {
                 case FieldDefinition f when !f.IsStatic && !f.IsLiteral &&

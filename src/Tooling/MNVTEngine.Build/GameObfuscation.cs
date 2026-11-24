@@ -32,6 +32,7 @@ public sealed record ObfuscationOutcome(
     bool Success,
     string ObfuscatedFile,
     IReadOnlyDictionary<string, string> TypeRenames,
+    IReadOnlyDictionary<string, string> MemberRenames,
     string? MappingPath,
     IReadOnlyList<string> Errors,
     IReadOnlyList<string> Warnings);
@@ -83,6 +84,8 @@ public static class GameObfuscation
             Preservation = new PreservationOptions
             {
                 PreserveSerializedFields = true,
+                // JIT renames component members and remaps the scene keys; AOT keeps names (its bootstrap scenes are not remapped).
+                KeepComponentMembers = preserveTypeNames,
                 Rules = preserveTypeNames ? [new() { Type = "*", Kind = "type", Features = ["rename"], Reason = "aot-type-name" }] : [],
             },
             Reporting = new ReportingOptions { ReportsDirectory = Path.GetFullPath(reportsDirectory), AllowReportsInOutput = false, GenerateMapping = true },
@@ -94,10 +97,19 @@ public static class GameObfuscation
             .ToDictionary(e => e.Original, e => e.Obfuscated, StringComparer.Ordinal)
             ?? new Dictionary<string, string>(StringComparer.Ordinal);
 
+        // Member renames keyed by "DeclaringTypeFullName::originalMemberName" -> new member name; the caller turns
+        // these into per-component scene JSON key maps (see GameBuilder).
+        var memberRenames = result.Mapping?.Entries
+            .Where(e => e.Kind is "Field" or "Property")
+            .GroupBy(e => e.Original, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().NewName, StringComparer.Ordinal)
+            ?? new Dictionary<string, string>(StringComparer.Ordinal);
+
         return new ObfuscationOutcome(
             result.Success,
             Path.Combine(config.OutputDirectory!, fileName),
             typeRenames,
+            memberRenames,
             result.MappingPath,
             result.Diagnostics.Items.Where(d => d.Severity == Severity.Error).Select(d => d.ToString()).ToList(),
             result.Diagnostics.Items.Where(d => d.Severity == Severity.Warning).Select(d => d.ToString()).ToList());

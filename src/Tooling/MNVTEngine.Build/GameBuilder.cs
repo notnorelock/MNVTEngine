@@ -234,6 +234,7 @@ public sealed partial class GameBuilder(ILogger logger)
         // and strings and private members are obfuscated, which still hides them in the native build's metadata. The
         // obfuscated copy replaces the original just before it ships (JIT) or is compiled into the native build (AOT).
         IReadOnlyDictionary<string, string>? sceneTypeRenames = null;
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? sceneMemberRenames = null;
         string? obfuscatedAssembly = null;
         if (scripts is not null && options.Obfuscation is { } obfuscation)
         {
@@ -252,7 +253,9 @@ public sealed partial class GameBuilder(ILogger logger)
             }
 
             obfuscatedAssembly = outcome.ObfuscatedFile;
-            sceneTypeRenames = aot ? null : outcome.TypeRenames; // AOT keeps type names, so scenes are not remapped
+            // AOT keeps type and member names (its bootstrap names them), so its scenes are not remapped.
+            sceneTypeRenames = aot ? null : outcome.TypeRenames;
+            sceneMemberRenames = aot ? null : SceneMemberKeys(registry.Types.Values.Distinct(), outcome.MemberRenames);
             LogObfuscated(logger, outcome.TypeRenames.Count, outcome.MappingPath);
         }
 
@@ -269,7 +272,7 @@ public sealed partial class GameBuilder(ILogger logger)
             try
             {
                 ApplyDevToolsDefault(project, profile);
-                content = ContentCompiler.Compile(project, registry, archive, scriptsAssemblyPath, sceneTypeRenames);
+                content = ContentCompiler.Compile(project, registry, archive, scriptsAssemblyPath, sceneTypeRenames, sceneMemberRenames);
                 compiled = content;
                 if (aot && content.Modules is { } resolved)
                 {
@@ -915,6 +918,47 @@ public sealed partial class GameBuilder(ILogger logger)
 
     [LoggerMessage(EventId = 8002, Level = LogLevel.Information, Message = "Compiled content: {Assets} assets, {Scripts} .mnvts scripts, {Shaders} shader stages precompiled")]
     private static partial void LogContent(ILogger logger, int assets, int scripts, int shaders);
+
+    /// <summary>
+    /// Turns the obfuscator's member renames ("DeclaringType::member" → new member) into per-component scene JSON key
+    /// maps (component type full name → old JSON key → new JSON key). Inherited members are included via
+    /// <see cref="ComponentTypeInfo.SerializableMembers"/>; a component with none renamed is left out.
+    /// </summary>
+    private static Dictionary<string, IReadOnlyDictionary<string, string>> SceneMemberKeys(
+        IEnumerable<Type> componentTypes, IReadOnlyDictionary<string, string> memberRenames)
+    {
+        static string JsonKey(string name)
+        {
+            var trimmed = name.TrimStart('_');
+            return trimmed.Length == 0 ? name : char.ToLowerInvariant(trimmed[0]) + trimmed[1..];
+        }
+
+        var result = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);
+        if (memberRenames.Count == 0)
+        {
+            return result;
+        }
+
+        foreach (var type in componentTypes)
+        {
+            Dictionary<string, string>? keys = null;
+            foreach (var member in ComponentTypeInfo.Get(type).SerializableMembers)
+            {
+                if (member.DeclaringType is { } declaring
+                    && memberRenames.TryGetValue(declaring.FullName + "::" + member.Name, out var newName))
+                {
+                    (keys ??= new(StringComparer.Ordinal))[JsonKey(member.Name)] = JsonKey(newName);
+                }
+            }
+
+            if (keys is not null && type.FullName is { } id)
+            {
+                result[id] = keys;
+            }
+        }
+
+        return result;
+    }
 
     [LoggerMessage(EventId = 8032, Level = LogLevel.Information, Message = "Obfuscated the game assembly: {Types} component types renamed. Rename map (keep private): {MappingPath}")]
     private static partial void LogObfuscated(ILogger logger, int types, string? mappingPath);
