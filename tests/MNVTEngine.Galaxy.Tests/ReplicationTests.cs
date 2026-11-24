@@ -5,6 +5,7 @@
 using System.Diagnostics;
 using MNVTEngine.Core.Timing;
 using MNVTEngine.Mathematics;
+using MNVTEngine.Scenes;
 
 namespace MNVTEngine.Galaxy.Tests;
 
@@ -70,6 +71,47 @@ public sealed class ReplicationTests
         Pump(serverStep, clientStep, dt, () => RemotePosition(clientScene).X > 4.5f, 3000);
 
         Assert.InRange(RemotePosition(clientScene).X, 4.5f, 5.5f);
+
+        ((IDisposable)server).Dispose();
+        ((IDisposable)client).Dispose();
+    }
+
+    [Fact]
+    public void AnAuthoredSceneObject_BindsBySceneId_WithoutAPrefab_AndFollowsTheServer()
+    {
+        ComponentRegistry registry = ComponentRegistry.CreateDefault().Register<NetworkObject>().Register<NetworkTransform>().Register<NetworkServer>().Register<NetworkClient>();
+        var serializer = new SceneSerializer(registry);
+
+        var authored = new Scene();
+        GameObject mover = authored.CreateGameObject("Mover");
+        mover.AddComponent<NetworkObject>(); // No prefab: it exists in the scene on both sides.
+        mover.AddComponent<NetworkTransform>();
+        string json = serializer.Serialize(authored);
+
+        Scene serverScene = serializer.Deserialize(json).Scene;
+        var serverStep = new Stepper(serverScene);
+        NetworkServer server = serverScene.CreateGameObject("Net").AddComponent<NetworkServer>();
+        server.Port = 0;
+        server.SnapshotRate = 60;
+        serverScene.Start();
+        serverStep.Step(0f);
+
+        Scene clientScene = serializer.Deserialize(json).Scene;
+        var clientStep = new Stepper(clientScene);
+        NetworkClient client = clientScene.CreateGameObject("Net").AddComponent<NetworkClient>();
+        client.Host = "127.0.0.1";
+        client.Port = server.BoundPort;
+        clientScene.Start();
+
+        NetworkObject clientMover = clientScene.Find("Mover")!.GetComponent<NetworkObject>()!;
+        const float dt = 1f / 60f;
+        Pump(serverStep, clientStep, dt, () => clientMover.Role == NetworkRole.Remote && clientMover.IsSpawned, 5000);
+        Assert.True(clientMover.IsSpawned);
+        Assert.Equal(NetworkRole.Remote, clientMover.Role);
+
+        serverScene.Find("Mover")!.Transform.Position = new Vector3(3f, 0f, 0f);
+        Pump(serverStep, clientStep, dt, () => clientMover.Transform.Position.X > 2.5f, 3000);
+        Assert.InRange(clientMover.Transform.Position.X, 2.5f, 3.5f);
 
         ((IDisposable)server).Dispose();
         ((IDisposable)client).Dispose();

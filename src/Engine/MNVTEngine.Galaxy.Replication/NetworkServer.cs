@@ -113,7 +113,9 @@ public sealed class NetworkServer : Component, IDisposable
     {
         foreach (NetworkObject networkObject in GameObject.Scene.FindObjectsOfType<NetworkObject>())
         {
-            if (networkObject.NetworkId == 0 && !networkObject.Prefab.IsNone && !networkObject.IsDestroyed)
+            // Register any networked object, whether it carries a prefab (clients instantiate it) or is authored in the
+            // scene (clients bind their own copy by scene id).
+            if (networkObject.NetworkId == 0 && !networkObject.IsDestroyed)
             {
                 networkObject.Role = NetworkRole.Authority;
                 Assign(networkObject);
@@ -205,7 +207,8 @@ public sealed class NetworkServer : Component, IDisposable
     {
         Message message = Message.Create(ReplicationProtocol.Spawn);
         message.Write(networkObject.NetworkId);
-        message.Write(networkObject.Prefab.Guid.ToByteArray());
+        message.Write(networkObject.GameObject.Id.ToByteArray()); // Scene id: bind an object the client already has from the same scene.
+        message.Write(networkObject.Prefab.Guid.ToByteArray());   // Prefab: instantiate when the client has no such scene object.
         Transform transform = networkObject.Transform;
         ReplicationProtocol.WriteState(
             message,

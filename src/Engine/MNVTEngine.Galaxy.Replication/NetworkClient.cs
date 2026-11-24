@@ -153,29 +153,44 @@ public sealed class NetworkClient : Component, IDisposable
     private void HandleSpawn(Message message)
     {
         uint networkId = message.ReadUInt();
-        byte[] guidBytes = message.ReadBytes();
+        byte[] sceneIdBytes = message.ReadBytes();
+        byte[] prefabBytes = message.ReadBytes();
         TransformState state = ReplicationProtocol.ReadState(message);
-        if (message.Failed || guidBytes.Length != 16 || _objects.ContainsKey(networkId))
+        if (message.Failed || sceneIdBytes.Length != 16 || prefabBytes.Length != 16 || _objects.ContainsKey(networkId))
         {
             return;
         }
 
-        var prefab = new AssetRef(new Guid(guidBytes));
-        GameObject instance;
-        try
+        // Prefer binding an object the client already has from the same scene; otherwise instantiate the prefab.
+        var sceneId = new Guid(sceneIdBytes);
+        var prefabGuid = new Guid(prefabBytes);
+        GameObject? instance = sceneId != Guid.Empty ? GameObject.Scene.FindById(sceneId) : null;
+        if (instance is null)
         {
-            instance = GameObject.Scene.Instantiate(prefab);
-        }
-        catch (InvalidOperationException ex)
-        {
-            Log.Error("Could not spawn a replicated prefab; is its asset present and a prefab?", ex);
-            return;
+            if (prefabGuid == Guid.Empty)
+            {
+                return; // Neither a known scene object nor a prefab to create.
+            }
+
+            try
+            {
+                instance = GameObject.Scene.Instantiate(new AssetRef(prefabGuid));
+            }
+            catch (InvalidOperationException ex)
+            {
+                Log.Error("Could not spawn a replicated prefab; is its asset present and a prefab?", ex);
+                return;
+            }
         }
 
         NetworkObject networkObject = instance.GetComponent<NetworkObject>() ?? instance.AddComponent<NetworkObject>();
         networkObject.NetworkId = networkId;
-        networkObject.Prefab = prefab;
         networkObject.Role = NetworkRole.Remote;
+        if (prefabGuid != Guid.Empty)
+        {
+            networkObject.Prefab = new AssetRef(prefabGuid);
+        }
+
         instance.Transform.Position = state.Position;
         instance.Transform.Rotation = state.Rotation;
         instance.Transform.LocalScale = state.Scale;
