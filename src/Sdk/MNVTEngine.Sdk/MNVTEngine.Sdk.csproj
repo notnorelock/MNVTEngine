@@ -13,6 +13,9 @@
     <Description>The MNVTEngine gameplay API for game projects: compile-time references with IntelliSense docs. The game host provides these assemblies at run time, so reference this package compile-only (ExcludeAssets="runtime").</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <IncludeSymbols>false</IncludeSymbols>
+    <!-- Every build refreshes the package in the engine's local feed, which game projects restore from. -->
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)../../../artifacts/nuget</PackageOutputPath>
     <!-- Engine assemblies are bundled into lib/ (below), not emitted as package dependencies. -->
     <SuppressDependenciesWhenPacking>false</SuppressDependenciesWhenPacking>
     <NoWarn>$(NoWarn);NU5128</NoWarn>

@@ -17,6 +17,9 @@
     </MSBuild>
     <PropertyGroup>
       <Version>@(_MnvtVersionInfo->'%(PackageVersion)')</Version>
+      <!-- Set at target time too: PackageVersion was already expanded from the default Version at evaluation, so a
+           NuGet pack (e.g. MNVTEngine.Sdk) would otherwise ship 1.0.0 instead of the build's version. -->
+      <PackageVersion>@(_MnvtVersionInfo->'%(PackageVersion)')</PackageVersion>
       <AssemblyVersion>@(_MnvtVersionInfo->'%(AssemblyVersion)')</AssemblyVersion>
       <FileVersion>@(_MnvtVersionInfo->'%(FileVersion)')</FileVersion>
       <InformationalVersion>@(_MnvtVersionInfo->'%(InformationalVersion)')</InformationalVersion>
