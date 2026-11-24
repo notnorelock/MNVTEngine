@@ -98,8 +98,38 @@ internal sealed class ControlFlowTransform
         Shuffle(stateOf);
         var dispatch = Instruction.Create(OpCodes.Ldloc, state);
 
-        List<Instruction> SetState(int blockIndex) =>
-            [Instruction.Create(OpCodes.Ldc_I4, stateOf[blockIndex]), Instruction.Create(OpCodes.Stloc, state), Instruction.Create(OpCodes.Br, dispatch)];
+        // Bogus states: extra switch cases, never reached (no real transition and no opaque predicate ever selects
+        // one), so they are pure dead code that thickens the recovered control-flow graph without running.
+        int bogus = Math.Clamp(n / 2, 1, 8);
+        int BogusState() => n + _random.Next(bogus);
+
+        // state = value; back to the dispatcher.
+        List<Instruction> SetStateValue(int value) =>
+            [Instruction.Create(OpCodes.Ldc_I4, value), Instruction.Create(OpCodes.Stloc, state), Instruction.Create(OpCodes.Br, dispatch)];
+
+        List<Instruction> SetState(int blockIndex) => SetStateValue(stateOf[blockIndex]);
+
+        // Some transitions are guarded by an opaque predicate: (r | 1) is always odd, so the branch to the real state
+        // is always taken, but the stream also carries a dead edge to a bogus state that a reader cannot rule out.
+        List<Instruction> Transition(int blockIndex)
+        {
+            if (_random.Next(2) == 0)
+            {
+                return SetState(blockIndex);
+            }
+
+            var real = SetState(blockIndex);
+            List<Instruction> list =
+            [
+                Instruction.Create(OpCodes.Ldc_I4, _random.Next() | 1),
+                Instruction.Create(OpCodes.Ldc_I4_1),
+                Instruction.Create(OpCodes.Or),
+                Instruction.Create(OpCodes.Brtrue, real[0]),
+            ];
+            list.AddRange(SetStateValue(BogusState())); // dead path: never taken, routes to a bogus case
+            list.AddRange(real);
+            return list;
+        }
 
         var emitted = new List<Instruction>[n]; // the stream for each block
         var entry = new Instruction[n];         // where the dispatcher jumps for that block
@@ -128,7 +158,7 @@ internal sealed class ControlFlowTransform
             else if (last.OpCode.Code is Code.Br)
             {
                 stream.AddRange(insns[..^1]); // drop the branch
-                stream.AddRange(SetState(index[(Instruction)last.Operand]));
+                stream.AddRange(Transition(index[(Instruction)last.Operand]));
             }
             else if (last.OpCode.FlowControl is FlowControl.Cond_Branch)
             {
@@ -137,11 +167,11 @@ internal sealed class ControlFlowTransform
                     return false;
                 }
 
-                var trueStub = SetState(index[(Instruction)last.Operand]);
-                stream.AddRange(insns);                     // keep the condition and its branch
-                stream.AddRange(SetState(index[last.Next])); // false path: fall through to here
-                stream.AddRange(trueStub);                  // true path:
-                last.Operand = trueStub[0];                 // retarget the branch to the true stub
+                var trueStub = Transition(index[(Instruction)last.Operand]);
+                stream.AddRange(insns);                       // keep the condition and its branch
+                stream.AddRange(Transition(index[last.Next])); // false path: fall through to here
+                stream.AddRange(trueStub);                    // true path:
+                last.Operand = trueStub[0];                   // retarget the branch to the true stub
             }
             else
             {
@@ -151,17 +181,37 @@ internal sealed class ControlFlowTransform
                 }
 
                 stream.AddRange(insns);
-                stream.AddRange(SetState(index[last.Next]));
+                stream.AddRange(Transition(index[last.Next]));
             }
 
             emitted[bi] = stream;
             entry[bi] = stream[0];
         }
 
-        var switchTargets = new Instruction[n];
+        // Bogus cases: junk that is stack-neutral, then a fake transition to some other (also unreachable) state.
+        var bogusStreams = new List<Instruction>[bogus];
+        for (int i = 0; i < bogus; i++)
+        {
+            List<Instruction> stream =
+            [
+                Instruction.Create(OpCodes.Ldc_I4, _random.Next()),
+                Instruction.Create(OpCodes.Ldc_I4, _random.Next()),
+                Instruction.Create(_random.Next(2) == 0 ? OpCodes.Xor : OpCodes.Add),
+                Instruction.Create(OpCodes.Pop),
+            ];
+            stream.AddRange(SetStateValue(_random.Next(n + bogus)));
+            bogusStreams[i] = stream;
+        }
+
+        var switchTargets = new Instruction[n + bogus];
         for (int i = 0; i < n; i++)
         {
             switchTargets[stateOf[i]] = entry[i];
+        }
+
+        for (int i = 0; i < bogus; i++)
+        {
+            switchTargets[n + i] = bogusStreams[i][0];
         }
 
         var instructions = body.Instructions;
@@ -169,6 +219,14 @@ internal sealed class ControlFlowTransform
         foreach (Instruction i in SetState(0)) // enter at the first block via the dispatcher
         {
             instructions.Add(i);
+        }
+
+        foreach (List<Instruction> stream in bogusStreams) // dead code, reachable only through the switch table
+        {
+            foreach (Instruction i in stream)
+            {
+                instructions.Add(i);
+            }
         }
 
         foreach (int bi in order)

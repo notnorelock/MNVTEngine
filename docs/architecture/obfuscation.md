@@ -15,7 +15,9 @@ The obfuscator ([`MNVTEngine.Obfuscation`](../../src/Tooling/MNVTEngine.Obfuscat
 - **Encrypts** string literals in method bodies into one per-module blob, decoded on first use.
 - **Flattens control flow**: every method it can prove safe is rewritten into a state machine — its basic blocks are
   emitted in a shuffled order with random state numbers, and a `switch` dispatcher on a `state` local drives them, so
-  the IL no longer follows the execution order while computing the same result. Always on.
+  the IL no longer follows the execution order while computing the same result. Some state transitions are guarded by
+  an opaque predicate (always true, so the real path is always taken) with a dead edge to a bogus state, and the
+  dispatcher carries extra bogus cases — unreachable junk that thickens the recovered graph but never runs. Always on.
 - **Hides integer constants**: each literal becomes a small arithmetic identity (`(v ^ k) ^ k`, `(v - k) + k` or
   `(v + k) - k`, varied per site) so the value is not a literal in the stream. Always on.
 
