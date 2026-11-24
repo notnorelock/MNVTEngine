@@ -66,6 +66,7 @@ internal sealed class Analyzer
         BuildCatalog();
         KeepRuntimeContracts();
         KeepSerialization();
+        if (_config.Preservation.PreserveSerializedFields) KeepMnvtSerializedMembers();
         ApplyAttributes();
         ApplyRules();
         if (_config.Preservation.PreserveReflectionTargets) ScanCodeAndAttributes();
@@ -211,6 +212,28 @@ internal sealed class Analyzer
             // BinaryFormatter and other [Serializable] serializers read these fields by name.
             foreach (FieldDefinition f in t.Fields)
                 if (!f.IsStatic && !f.IsLiteral && !f.IsNotSerialized) Keep(f, "serializable-field");
+        }
+    }
+
+    /// <summary>
+    /// Keeps the names of members MNVTEngine serializes into scenes and prefabs by name (<c>ComponentTypeInfo</c>):
+    /// public instance fields unless <c>[DontSerialize]</c>, and non-public fields or read-write properties marked
+    /// <c>[SerializeField]</c>. The component type itself is still renamed; export remaps the type id in scene data.
+    /// </summary>
+    private void KeepMnvtSerializedMembers()
+    {
+        foreach (Symbol s in _catalog.All)
+        {
+            switch (s.Definition)
+            {
+                case FieldDefinition f when !f.IsStatic && !f.IsLiteral &&
+                    ((f.IsPublic && !HasAttribute(f, EngineKnowledge.DontSerialize)) || HasAttribute(f, EngineKnowledge.SerializeField)):
+                    s.Preserve("mnvt-serialized-field");
+                    break;
+                case PropertyDefinition p when HasAttribute(p, EngineKnowledge.SerializeField) && p.GetMethod != null && p.SetMethod != null:
+                    s.Preserve("mnvt-serialized-field");
+                    break;
+            }
         }
     }
 

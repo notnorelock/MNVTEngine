@@ -18,10 +18,10 @@ internal sealed class NameGenerator
     private const string First = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
     private const string Rest = First + "0123456789";
 
-    // Glyphs for the "unicode" scheme: just these three — two Canadian syllabics and a Greek delta — all
-    // valid C# identifier letters. Variety comes from their order and the name length, giving names like
-    // ᐃᐄΔᐃΔΔ. A three-symbol alphabet needs more characters to stay unique, so unicode names run longer.
-    private const string Glyphs = "ᐃᐄΔ";
+    // Glyphs for the "unicode" scheme: the four accented capital I's (U+00CC–U+00CF), all valid C# identifier
+    // letters, so names look like ÌÍÌÎÍÌÍÍÍÍÏÌÎÎÎÎÎÌÏÌÌÏÎ. Variety comes from their order and the name length. A
+    // tiny alphabet needs more characters to stay unique, so unicode names run longer.
+    private const string Glyphs = "ÌÍÎÏ";
 
     private readonly HMACSHA256 _hmac;
     private readonly string _scheme;
@@ -99,8 +99,8 @@ internal sealed class NameGenerator
         var sb = new StringBuilder(length);
         if (_scheme == NamingSchemes.Unicode)
         {
-            // The alphabet is tiny (three glyphs), so each position carries little entropy. Use more positions
-            // than the ASCII scheme would — roughly log2(62)/log2(3) ≈ 3.75× — so names stay unique with room
+            // The alphabet is tiny (four glyphs), so each position carries little entropy. Use more positions
+            // than the ASCII scheme would — roughly log2(62)/log2(4) = 3× — so names stay unique with room
             // for the order to vary. Capped so they do not grow unreasonably.
             int glyphLength = Math.Clamp(length * 4, 8, 96);
             for (int i = 0; i < glyphLength && i < hash.Length; i++)

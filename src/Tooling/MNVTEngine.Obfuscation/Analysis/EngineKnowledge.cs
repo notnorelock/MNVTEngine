@@ -17,6 +17,11 @@ internal static class EngineKnowledge
     /// <summary>An attribute that means "keep this" by simple name; the analyzer also matches <c>PreserveAttribute</c>.</summary>
     public const string Preserve = "MNVTEngine.PreserveAttribute";
 
+    // MNVTEngine serialization: scene and prefab files store a component's serialized members by JSON name, so those
+    // member names are kept and only the component type name is renamed (and remapped in scene data at export).
+    public const string SerializeField = "MNVTEngine.SerializeFieldAttribute";
+    public const string DontSerialize = "MNVTEngine.DontSerializeAttribute";
+
     /// <summary>Attributes whose methods something invokes by reflection. MNVTEngine registers callbacks explicitly, so none.</summary>
     public static readonly HashSet<string> EntryPointAttributes = new(StringComparer.Ordinal);
 
