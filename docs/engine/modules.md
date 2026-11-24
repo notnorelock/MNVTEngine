@@ -37,7 +37,7 @@ The engine is a set of **modules**. A project has a module or does not. Which on
 | `runtime` | 2D, 3D | always | core, platform, graphics, assets | | Runtime, GameAssemblies, CrashReporting, logging |
 | `audio` | 2D, 3D | auto | core | | Audio, Audio.OpenAL, NVorbis; `soft_oal.dll` |
 | `scripting` | 2D, 3D | auto | core | | Scripting, Missions, Bindings |
-| `networking` | 2D, 3D | auto | core | | Galaxy (encrypted reliable-UDP client/server), Galaxy.Server (headless dedicated-server framework); see [Networking](../architecture/networking.md) |
+| `networking` | 2D, 3D | auto | core | | Galaxy (encrypted reliable-UDP client/server), Galaxy.Server (headless dedicated-server framework), Galaxy.Replication (scene state replication); see [Networking](../architecture/networking.md) |
 | `ui` | 2D, 3D | auto | core, graphics, runtime | | UI (screen-space, the same in both profiles) |
 | `devtools` | 2D, 3D | opt-in | runtime | | DebugUI, ImGui.NET; `cimgui.dll` |
 | `world.2d` | 2D | auto | core, graphics, runtime | | World2D (sprites, sprite animation, tilemaps, 2D lights), World2D.Rendering (the sprite pass, 2D lighting) |
