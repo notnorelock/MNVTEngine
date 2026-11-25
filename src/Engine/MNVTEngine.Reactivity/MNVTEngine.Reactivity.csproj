@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Fine-grained reactivity (signals, computed values, effects, scopes): plain C# with no engine dependencies, so UI,
+       gameplay code, tools and servers can share it. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.Reactivity.Tests" />
+  </ItemGroup>
+</Project>

@@ -49,6 +49,7 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.Core** | M0 | Game clock, fixed timestep, logging sinks, frame profiler (M8, see [profiling](../engine/profiling.md)), low-level utilities | nothing |
 | **MNVTEngine.Mathematics** | M0 | Vectors, quaternion, matrix, color, shapes | nothing |
 | **MNVTEngine.Modules** | Profiles | Project profiles (2D / 3D), their inference for older projects, the engine module catalog and the module resolver. See [project profiles](../engine/project-profiles.md) and [modules](../engine/modules.md) | nothing |
+| **MNVTEngine.Reactivity** | UI | Signals, computed values, effects, scopes, batching, the cross-thread dispatcher. See [reactivity](../ui/reactivity.md) | nothing |
 | **MNVTEngine.Serialization** | M0 | JSON settings, math converters, later: type registry, schema versions, migrations | Mathematics |
 | **MNVTEngine.Graphics** | M1 | Renderer2D, SpriteBatch (per-sprite materials), Camera2D, materials, resources, image decoding (no backend types). Material assets and 2D lighting: see [materials and lighting](../graphics/materials-and-lighting.md) | Core, Mathematics, StbImageSharp |
 | **MNVTEngine.Graphics.Vulkan** | M9 (replaced Graphics.OpenGL) | Vulkan 1.4 implementation of Graphics: device selection, swapchain, frames in flight, VMA memory, shaderc + SPIR-V reflection, pipelines and caches, GPU timing. See [Vulkan migration](../graphics/vulkan-migration.md) | Graphics, Silk.NET.Vulkan, Silk.NET.Shaderc, Vortice.VulkanMemoryAllocator |
@@ -99,7 +100,7 @@ Deviations from the original proposal, and why:
 ## Dependency rules (enforced)
 
 1. No project reference cycles.
-2. Core and Mathematics reference no projects and no packages.
+2. Core, Mathematics and Reactivity reference no projects and no packages.
 3. Engine projects never reference Editor or Tooling projects (transitively).
 4. Tooling never references Editor.
 5. Only Editor projects reference ImGui packages (transitively).

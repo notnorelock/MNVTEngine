@@ -56,6 +56,7 @@ public class DependencyRuleTests
     [Theory]
     [InlineData("MNVTEngine.Core")]
     [InlineData("MNVTEngine.Mathematics")]
+    [InlineData("MNVTEngine.Reactivity")] // shared by UI, gameplay code, tools and servers
     [InlineData("MNVTEngine.Modules")] // profiles and the module catalog are read by tooling, runtime and editor alike
     public void FoundationProjects_HaveNoEngineDependencies(string project)
     {
