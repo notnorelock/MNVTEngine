@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using System.Text;
 using MNVTEngine.Modules;
@@ -36,6 +36,7 @@ public static class ModuleBootstrap
         ["browser.2d"] = new("new global::MNVTEngine.Browser2DModule()", ["MNVTEngine.Browser.World2D"]),
         ["browser.3d"] = new("new global::MNVTEngine.Browser3DModule()", ["MNVTEngine.Browser.World3D"]),
         ["audio"] = new("new global::MNVTEngine.AudioModule(global::MNVTEngine.Audio.OpenAL.OpenALAudioDevice.Create, logger)", ["MNVTEngine.Audio", "MNVTEngine.Audio.OpenAL"]),
+        ["networking"] = new("new global::MNVTEngine.NetworkingModule()", ["MNVTEngine.Galaxy.Replication"]),
         ["particles"] = new("new global::MNVTEngine.Particles.ParticlesModule()", ["MNVTEngine.Particles"]),
         ["particles.2d"] = new("new global::MNVTEngine.Particles2D.Particles2DModule()", ["MNVTEngine.Particles2D"]),
         ["particles.3d"] = new("new global::MNVTEngine.Particles3D.Particles3DModule()", ["MNVTEngine.Particles3D"]),

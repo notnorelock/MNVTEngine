@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-12.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Scenes;
 
@@ -20,5 +20,6 @@ internal static class HostModules
         new Physics2DModule(),
         new Physics3DModule(),
         new TerrainModule(),
+        new NetworkingModule(),
     ];
 }
