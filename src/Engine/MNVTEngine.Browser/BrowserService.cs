@@ -317,10 +317,13 @@ public sealed partial class BrowserService : IDisposable
     {
         string reason;
         var exited = false;
-        _ = WatchExitAsync();
+        // Cancelled when the host exits. Disposing the pipe does not end a pending read (the read holds the handle), so
+        // a Chromium child that outlives the host and keeps the pipe open would hide the exit; cancelling does end it.
+        using var hostAlive = CancellationTokenSource.CreateLinkedTokenSource(cancel);
+        var watch = WatchExitAsync();
         try
         {
-            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel))
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(hostAlive.Token))
             {
                 timeout.CancelAfter(TimeSpan.FromSeconds(30));
                 await pipe.WaitForConnectionAsync(timeout.Token).ConfigureAwait(false);
@@ -331,7 +334,7 @@ public sealed partial class BrowserService : IDisposable
             (hello["cachePath"], hello["userAgent"], hello["remoteDebuggingPort"]) = (_options.CachePath, _options.UserAgent, _options.RemoteDebuggingPort);
             await BrowserProtocol.WriteAsync(pipe, hello, cancel).ConfigureAwait(false);
             var writer = WriteLoopAsync(pipe, outgoing, cancel);
-            while (await BrowserProtocol.ReadAsync(pipe, cancel).ConfigureAwait(false) is { } message)
+            while (await BrowserProtocol.ReadAsync(pipe, hostAlive.Token).ConfigureAwait(false) is { } message)
             {
                 if (message.Value<string>("type") == BrowserProtocol.Surface)
                 {
@@ -366,6 +369,7 @@ public sealed partial class BrowserService : IDisposable
 
         var lost = new JObject { ["type"] = HostLost, ["reason"] = reason };
         _incoming.Enqueue(lost);
+        await watch.ConfigureAwait(false); // it cancels hostAlive, so it must end before hostAlive is disposed
 
         string Exited() => $"The browser host exited (code {process.ExitCode}).";
 
@@ -392,6 +396,7 @@ public sealed partial class BrowserService : IDisposable
             }
 
             Volatile.Write(ref exited, true);
+            await hostAlive.CancelAsync().ConfigureAwait(false);
             pipe.Dispose();
         }
     }
