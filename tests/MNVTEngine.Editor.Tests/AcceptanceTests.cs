@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Assets;
 using MNVTEngine.Assets.Models;
@@ -165,7 +165,18 @@ public sealed class AcceptanceTests : IDisposable
         // 13, 14. Modified FBX and GLB files reimport; the scene's references, extracted textures and remaps stay valid.
         var fbxPath = Path.Combine(AssetsDir, "Crate", "wooden_crate_01_1k.fbx");
         AssimpConvert(fbxPath, fbxPath + ".tmp.fbx", 0, "fbx"); // a re-saved file: different bytes, same content
-        File.Move(fbxPath + ".tmp.fbx", fbxPath, overwrite: true);
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Move(fbxPath + ".tmp.fbx", fbxPath, overwrite: true);
+                break;
+            }
+            catch (IOException) when (attempt < 50)
+            {
+                Thread.Sleep(100); // a virus scanner (Defender on CI runners) briefly holds the freshly written file
+            }
+        }
         var glbPath = Path.Combine(AssetsDir, "Characters", "CesiumMan.glb");
         File.AppendAllBytes(glbPath, new byte[8]); // padding after the GLB chunks changes the file, not the content
         var sourceHashes = (db.Get(crateGuid)!.SourceHash, db.Get(characterGuid)!.SourceHash);

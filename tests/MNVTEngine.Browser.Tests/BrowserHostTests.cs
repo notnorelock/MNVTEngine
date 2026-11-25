@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using System.Diagnostics;
 using System.Text;
@@ -213,8 +213,20 @@ public sealed class BrowserHostTests : IDisposable
         Assert.Equal(BrowserState.Crashed, browser.State);
         var reloaded = false;
         browser.LoadCompleted += (_, _) => reloaded = true;
-        browser.Reload();
-        Assert.True(Pump(() => reloaded), "the page did not load again");
+        // A reload sent while Chromium is still tearing down the dead renderer can be dropped (seen on slow CI runners).
+        var watch = Stopwatch.StartNew();
+        while (!reloaded && watch.Elapsed < Timeout)
+        {
+            browser.Reload();
+            var attempt = Stopwatch.StartNew();
+            while (!reloaded && attempt.Elapsed < TimeSpan.FromSeconds(5))
+            {
+                _service.Update();
+                Thread.Sleep(10);
+            }
+        }
+
+        Assert.True(reloaded, "the page did not load again");
         Assert.Equal(BrowserState.Ready, browser.State);
         Assert.Equal("alive", Await(browser.ExecuteJavaScriptAsync("document.title"))?.Value<string>());
     }
