@@ -27,40 +27,27 @@
     <PackageReference Include="Newtonsoft.Json" />
   </ItemGroup>
 
-  <!-- The non-backend engine assemblies. PrivateAssets=all: their outputs are bundled here, not re-exported as deps. -->
+  <!--
+    The gameplay engine assemblies, discovered automatically: every engine project is referenced, then the backend,
+    host, rendering and development-tool projects are removed. A new gameplay module is picked up without editing this
+    list; a new backend/host module is the only thing that needs a line added below. PrivateAssets=all: their outputs
+    are bundled here (see BundleEngineAssemblies), not re-exported as package dependencies.
+  -->
   <ItemGroup>
-    <ProjectReference Include="../../Engine/MNVTEngine.Assets.Models/MNVTEngine.Assets.Models.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Assets/MNVTEngine.Assets.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Audio/MNVTEngine.Audio.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Browser.Audio/MNVTEngine.Browser.Audio.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Browser.Protocol/MNVTEngine.Browser.Protocol.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Browser.World2D/MNVTEngine.Browser.World2D.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Browser.World3D/MNVTEngine.Browser.World3D.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Browser/MNVTEngine.Browser.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Core/MNVTEngine.Core.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.CrashReporting/MNVTEngine.CrashReporting.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Diagnostics/MNVTEngine.Diagnostics.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.ECS/MNVTEngine.ECS.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Graphics/MNVTEngine.Graphics.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Input/MNVTEngine.Input.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.IO/MNVTEngine.IO.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Mathematics/MNVTEngine.Mathematics.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Modules/MNVTEngine.Modules.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Particles/MNVTEngine.Particles.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Particles2D/MNVTEngine.Particles2D.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Particles3D/MNVTEngine.Particles3D.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Physics2D/MNVTEngine.Physics2D.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Physics3D/MNVTEngine.Physics3D.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Scenes/MNVTEngine.Scenes.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Scripting.Bindings/MNVTEngine.Scripting.Bindings.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Scripting.Missions/MNVTEngine.Scripting.Missions.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Scripting/MNVTEngine.Scripting.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Serialization/MNVTEngine.Serialization.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Terrain.Components/MNVTEngine.Terrain.Components.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.Terrain/MNVTEngine.Terrain.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.UI/MNVTEngine.UI.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.World2D/MNVTEngine.World2D.csproj" PrivateAssets="all" />
-    <ProjectReference Include="../../Engine/MNVTEngine.World3D/MNVTEngine.World3D.csproj" PrivateAssets="all" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../Engine/**/MNVTEngine.*.csproj" PrivateAssets="all" />
+    <ProjectReference Remove="$(MSBuildThisFileDirectory)../../Engine/MNVTEngine.Audio.OpenAL/MNVTEngine.Audio.OpenAL.csproj" />
+    <ProjectReference Remove="$(MSBuildThisFileDirectory)../../Engine/MNVTEngine.Browser.Host/MNVTEngine.Browser.Host.csproj" />
+    <ProjectReference Remove="$(MSBuildThisFileDirectory)../../Engine/MNVTEngine.CrashHandler/MNVTEngine.CrashHandler.csproj" />
+    <ProjectReference Remove="$(MSBuildThisFileDirectory)../../Engine/MNVTEngine.DebugUI/MNVTEngine.DebugUI.csproj" />
+    <ProjectReference Remove="$(MSBuildThisFileDirectory)../../Engine/MNVTEngine.GameAssemblies/MNVTEngine.GameAssemblies.csproj" />
+    <ProjectReference Remove="$(MSBuildThisFileDirectory)../../Engine/MNVTEngine.GameHost/MNVTEngine.GameHost.csproj" />
+    <ProjectReference Remove="$(MSBuildThisFileDirectory)../../Engine/MNVTEngine.Galaxy.Server/MNVTEngine.Galaxy.Server.csproj" />
+    <ProjectReference Remove="$(MSBuildThisFileDirectory)../../Engine/MNVTEngine.Graphics.Vulkan/MNVTEngine.Graphics.Vulkan.csproj" />
+    <ProjectReference Remove="$(MSBuildThisFileDirectory)../../Engine/MNVTEngine.Graphics.Vulkan.ShaderCompiler/MNVTEngine.Graphics.Vulkan.ShaderCompiler.csproj" />
+    <ProjectReference Remove="$(MSBuildThisFileDirectory)../../Engine/MNVTEngine.Platform/MNVTEngine.Platform.csproj" />
+    <ProjectReference Remove="$(MSBuildThisFileDirectory)../../Engine/MNVTEngine.Runtime/MNVTEngine.Runtime.csproj" />
+    <ProjectReference Remove="$(MSBuildThisFileDirectory)../../Engine/MNVTEngine.World2D.Rendering/MNVTEngine.World2D.Rendering.csproj" />
+    <ProjectReference Remove="$(MSBuildThisFileDirectory)../../Engine/MNVTEngine.World3D.Rendering/MNVTEngine.World3D.Rendering.csproj" />
   </ItemGroup>
 
   <Target Name="BundleEngineAssemblies">

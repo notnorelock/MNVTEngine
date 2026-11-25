@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 namespace MNVTEngine.Architecture.Tests;
 
@@ -170,6 +170,31 @@ public class DependencyRuleTests
         }
 
         Assert.DoesNotContain(forbidden, Graph.TransitiveReferences(project));
+    }
+
+    [Fact]
+    public void Sdk_BundlesEveryGameplayAssembly_AndNoBackendOrHost()
+    {
+        // Backend, host, rendering and dev-tool assemblies the gameplay SDK must never ship.
+        string[] excluded =
+        [
+            "MNVTEngine.Graphics.Vulkan", "MNVTEngine.Graphics.Vulkan.ShaderCompiler", "MNVTEngine.Platform",
+            "MNVTEngine.DebugUI", "MNVTEngine.World2D.Rendering", "MNVTEngine.World3D.Rendering", "MNVTEngine.Runtime",
+            "MNVTEngine.Audio.OpenAL", "MNVTEngine.GameAssemblies", "MNVTEngine.GameHost", "MNVTEngine.CrashHandler",
+            "MNVTEngine.Browser.Host", "MNVTEngine.Galaxy.Server",
+        ];
+        var sdk = Graph["MNVTEngine.Sdk"].ProjectReferences;
+
+        Assert.DoesNotContain(sdk, excluded.Contains);
+        Assert.DoesNotContain(sdk, r => r.EndsWith(".Rendering", StringComparison.Ordinal) || r.Contains(".Vulkan", StringComparison.Ordinal) || r.EndsWith(".Host", StringComparison.Ordinal));
+
+        // Networking is part of the gameplay SDK.
+        Assert.Contains("MNVTEngine.Galaxy", sdk);
+        Assert.Contains("MNVTEngine.Galaxy.Replication", sdk);
+
+        // Every gameplay engine assembly is referenced, so a new module is bundled automatically (the SDK discovers them).
+        var gameplay = Graph.Projects.Where(p => p.Area == "Engine" && !excluded.Contains(p.Name)).Select(p => p.Name);
+        Assert.All(gameplay, name => Assert.Contains(name, sdk));
     }
 
     [Fact]

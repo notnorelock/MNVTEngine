@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using System.Xml.Linq;
 
@@ -32,9 +32,18 @@ public sealed class ProjectGraph
             var area = Path.GetRelativePath(src, path).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)[0];
 
             static bool DevelopmentOnly(XElement e) => ((string?)e.Attribute("Condition"))?.Contains("MnvtDevTools", StringComparison.Ordinal) == true;
-            static string ReferenceName(XElement e) => Path.GetFileNameWithoutExtension((string)e.Attribute("Include")!.Value.Replace('\\', '/'));
-            var references = xml.Descendants("ProjectReference").Where(e => !DevelopmentOnly(e)).Select(ReferenceName).ToList();
-            var development = xml.Descendants("ProjectReference").Where(DevelopmentOnly).Select(ReferenceName).ToList();
+            var directory = Path.GetDirectoryName(path)!;
+            var removed = xml.Descendants("ProjectReference")
+                .Where(e => e.Attribute("Remove") is not null)
+                .SelectMany(e => ExpandReference(directory, (string)e.Attribute("Remove")!))
+                .ToHashSet(StringComparer.Ordinal);
+            IEnumerable<string> Included(bool development) => xml.Descendants("ProjectReference")
+                .Where(e => e.Attribute("Include") is not null && DevelopmentOnly(e) == development)
+                .SelectMany(e => ExpandReference(directory, (string)e.Attribute("Include")!))
+                .Where(r => !removed.Contains(r))
+                .Distinct(StringComparer.Ordinal);
+            var references = Included(development: false).ToList();
+            var development = Included(development: true).ToList();
             var packages = xml.Descendants("PackageReference")
                 .Select(e => (string?)e.Attribute("Include") ?? (string)e.Attribute("Update")!)
                 .ToList();
@@ -43,6 +52,27 @@ public sealed class ProjectGraph
         }
 
         return new ProjectGraph(nodes);
+    }
+
+    // Resolves a ProjectReference Include/Remove to the referenced project names, expanding an MSBuild wildcard
+    // (e.g. "$(MSBuildThisFileDirectory)../../Engine/**/MNVTEngine.*.csproj") against the file system as MSBuild would.
+    private static IEnumerable<string> ExpandReference(string directory, string raw)
+    {
+        string text = raw.Replace("$(MSBuildThisFileDirectory)", directory + Path.DirectorySeparatorChar, StringComparison.Ordinal).Replace('\\', '/');
+        if (!text.Contains('*', StringComparison.Ordinal))
+        {
+            return [Path.GetFileNameWithoutExtension(text)];
+        }
+
+        int recursive = text.IndexOf("**/", StringComparison.Ordinal);
+        (string baseDirectory, string pattern, SearchOption option) = recursive >= 0
+            ? (text[..recursive], text[(recursive + 3)..], SearchOption.AllDirectories)
+            : (Path.GetDirectoryName(text) ?? string.Empty, Path.GetFileName(text), SearchOption.TopDirectoryOnly);
+
+        string full = Path.GetFullPath(baseDirectory, directory);
+        return Directory.Exists(full)
+            ? Directory.EnumerateFiles(full, Path.GetFileName(pattern), option).Select(f => Path.GetFileNameWithoutExtension(f))
+            : [];
     }
 
     public Node this[string name] => _nodes[name];
