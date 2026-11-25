@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-24.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using Mono.Cecil;
 using MNVTEngine.Obfuscation.Analysis;
@@ -98,7 +98,12 @@ internal sealed class Renamer
             // GetMemberReferences(); walk the bodies to catch them.
             foreach (TypeDefinition t in module.GetTypes())
                 foreach (MethodDefinition m in t.Methods)
+                {
                     TrackBody(m, a);
+                    // Explicit implementations name the method they implement in their own reference object
+                    // (IHost<Account>::Get), not the one GetMemberReferences() returns: rename it too.
+                    foreach (MethodReference implemented in m.Overrides) TrackMember(implemented);
+                }
             foreach (ICustomAttributeProvider p in AttributeWalker.Providers(module))
             {
                 if (!p.HasCustomAttributes) continue;
