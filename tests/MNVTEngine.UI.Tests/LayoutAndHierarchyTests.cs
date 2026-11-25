@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Mathematics;
 using MNVTEngine.UI.Widgets;
@@ -147,5 +147,24 @@ public sealed class LayoutAndHierarchyTests
         Assert.True(label.Bounds.Height > 40f);
         Assert.True(below.Bounds.Y >= 60f);
         Assert.Null(ui.Context.HitTest(new Vector2(10, below.Bounds.Y + 5))); // clipped away: not hittable
+    }
+
+    [Fact]
+    public void WrappedLabel_GrowingInARow_IsAsTallAsTheLinesItGets()
+    {
+        using var ui = new UIHarness();
+        var column = ui.Context.Root.AddChild(new Panel { Width = 200, Layout = LayoutMode.Column });
+        var row = column.AddChild(new Panel { Layout = LayoutMode.Row, Gap = 6 });
+        row.AddChild(new Label { Text = "Speaker" });
+        var text = row.AddChild(new Label { Text = "The quick brown fox jumps over the lazy dog, twice and then once more", Wrap = true, FlexGrow = 1 });
+        ui.Frame();
+
+        var alone = new Label { Text = text.Text, Wrap = true, Width = text.Bounds.Width };
+        column.AddChild(alone);
+        ui.Frame();
+
+        Assert.True(text.Bounds.Width < 200f); // the speaker took its share
+        Assert.Equal(alone.Bounds.Height, text.Bounds.Height); // as tall as the same text wrapped at that width
+        Assert.True(row.Bounds.Height >= text.Bounds.Height); // and the row holds all of it
     }
 }

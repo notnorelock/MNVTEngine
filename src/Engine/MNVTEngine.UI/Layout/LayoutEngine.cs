@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Mathematics;
 
@@ -63,7 +63,11 @@ public static class LayoutEngine
         {
             case LayoutMode.Row:
             {
-                var sizes = children.Select(c => MeasureOuter(c, availableWidth, availableHeight)).ToList();
+                // Growing children get the width the others leave, so wrapping text in them is as tall as it will be.
+                var others = children.Select(c => c.FlexGrow > 0 ? (Vector2?)null : MeasureOuter(c, availableWidth, availableHeight)).ToList();
+                var grow = children.Sum(c => c.FlexGrow);
+                var left = availableWidth - others.Sum(s => s?.X ?? 0f) - gaps;
+                var sizes = children.Select((c, i) => others[i] ?? MeasureOuter(c, float.IsFinite(left) ? Math.Max(0f, left * c.FlexGrow / grow) : availableWidth, availableHeight)).ToList();
                 return new Vector2(sizes.Sum(s => s.X) + gaps, sizes.Max(s => s.Y));
             }
 
@@ -192,6 +196,7 @@ public static class LayoutEngine
         // Main sizes: fixed, percent or measured; free space goes to flex-grow children.
         var stretch = children.Select(c => (c.AlignSelf ?? element.AlignItems) == Align.Stretch && (row ? c.Height : c.Width).IsAuto).ToList();
         var sizes = children.Select((c, i) => Size(c, content.Width, content.Height, !row && stretch[i], row && stretch[i])).ToList();
+        var measured = sizes.ToList();
         var margins = children.Select(c => row ? c.Margin.Horizontal : c.Margin.Vertical).ToList();
         var used = sizes.Select(Main).Sum() + margins.Sum() + (element.Gap * Math.Max(0, children.Count - 1));
         var free = mainSize - used;
@@ -230,6 +235,18 @@ public static class LayoutEngine
             }
 
             free = -deficit;
+        }
+
+        if (row)
+        {
+            // A child that grew or shrank is measured again at its width: wrapping text needs a different height.
+            for (var i = 0; i < children.Count; i++)
+            {
+                if (MathF.Abs(sizes[i].X - measured[i].X) > 0.01f && children[i].Height.IsAuto && !stretch[i])
+                {
+                    sizes[i] = new Vector2(sizes[i].X, Size(children[i], sizes[i].X + children[i].Margin.Horizontal, content.Height, true, false).Y);
+                }
+            }
         }
 
         var position = element.Justify switch
