@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-12.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using System.Globalization;
 using Microsoft.Extensions.Logging;
@@ -15,6 +15,7 @@ using MNVTEngine.Serialization;
 // Usage: MNVTEngine.Editor [project dir or .mnvtproj] [--play] [--gpu-validation]   (no project: the Project Hub opens)
 // Automation (tests, docs): [--select ObjectName] [--frames N] [--screenshot out.png]  Crash reporting off: [--no-crash-reporter]
 // Crashes leave a report (with editor.log) in %LOCALAPPDATA%/MNVTEngine/Crashes/Editor (docs/engine/crash-reporting.md).
+// DependencyLayout installs its assembly resolver from a module initializer, before this runs (the clean editor layout).
 var engineData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MNVTEngine");
 var editorLog = Path.Combine(engineData, "Logs", "editor.log");
 if (MNVTEngine.CrashReporting.CrashReporter.Run(args, new("MNVTEngine Editor", Path.Combine(engineData, "Crashes", "Editor"), editorLog)) is { } crashHandlerExit)
