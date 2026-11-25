@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-24.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 namespace MNVTEngine.Modules;
 
@@ -92,7 +92,7 @@ public static class BuiltinModules
     public static ModuleDefinition UI { get; } = new("ui", "UI", "Screen-space UI documents, drawn over the scene; the same in 2D and 3D projects.")
     {
         Requires = ["core", "graphics", "runtime"],
-        RuntimeAssemblies = ["MNVTEngine.UI"],
+        RuntimeAssemblies = ["MNVTEngine.UI", "MNVTEngine.Reactivity"],
         AssetTypes = ["UILayout"],
         Components = ["MNVTEngine.UIDocument"],
     };

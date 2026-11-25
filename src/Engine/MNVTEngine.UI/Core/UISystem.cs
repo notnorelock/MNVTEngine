@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-05.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.ECS;
 using MNVTEngine.Graphics;
@@ -35,6 +35,9 @@ public sealed class UISystem : GameSystem
         Scene = scene;
         Services = services;
         scene.Unloaded += _ => Dispose();
+
+        // A failing binding is logged instead of thrown out of the frame; the other effects still run.
+        Reactivity.ReactiveRuntime.Current.ErrorHandler ??= ex => Log.Error("A UI binding or effect failed.", ex);
     }
 
     public UIServices Services { get; }

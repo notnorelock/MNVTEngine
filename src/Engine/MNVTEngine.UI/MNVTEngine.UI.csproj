@@ -1,11 +1,16 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <!-- Game UI: elements, layout, input, widgets, styling, rendering through IGraphicsDevice. Never ImGui, never Vulkan types. -->
   <ItemGroup>
     <InternalsVisibleTo Include="MNVTEngine.UI.Tests" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The design theme's faces (DesignFonts); licences next to them. -->
+    <EmbeddedResource Include="Styling/Fonts/*.ttf;Styling/Fonts/*.txt" LogicalName="MNVTEngine.UI.Fonts.%(Filename)%(Extension)" /><!-- the licences travel with the fonts -->
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\MNVTEngine.Graphics\MNVTEngine.Graphics.csproj" />
     <ProjectReference Include="..\MNVTEngine.Input\MNVTEngine.Input.csproj" />
     <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Reactivity\MNVTEngine.Reactivity.csproj" />
   </ItemGroup>
 </Project>

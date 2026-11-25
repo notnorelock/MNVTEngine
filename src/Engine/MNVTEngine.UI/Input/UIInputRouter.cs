@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-05.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Mathematics;
 using MNVTEngine.UI.Widgets;
@@ -183,6 +183,7 @@ internal sealed class UIInputRouter(UIContext context)
     {
         var order = context.Overlay.Descendants().Concat(context.Root.Descendants())
             .Where(e => e.Focusable && e.IsEnabledInHierarchy && UIContext.IsShown(e))
+            .Where(e => context.FocusScope is not { } scope || UIContext.IsSelfOrAncestor(scope, e))
             .Select((e, i) => (Element: e, Index: i))
             .OrderBy(p => p.Element.TabIndex).ThenBy(p => p.Index)
             .Select(p => p.Element).ToList();

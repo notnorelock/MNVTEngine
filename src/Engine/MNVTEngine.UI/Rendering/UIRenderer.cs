@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using System.Runtime.CompilerServices;
 using MNVTEngine.Graphics;
@@ -135,6 +135,14 @@ public sealed class UIRenderer : IDisposable
         visible++;
         var style = element.ResolveStyle();
         painter.PushOpacity(style.Opacity);
+        var transformed = element.Translate != Vector2.Zero || element.RenderScale != 1f;
+        if (transformed)
+        {
+            // The element's own clip comes from its parent and stays put; what it draws and clips moves with it.
+            painter.PushClip(element.PaintClip);
+            painter.PushTransform(element.Translate, element.RenderScale, element.Bounds.Center);
+        }
+
         painter.PushClip(element.PaintClip);
         element.Paint(painter, style);
         painter.PopClip();
@@ -146,6 +154,12 @@ public sealed class UIRenderer : IDisposable
         painter.PushClip(element.PaintClip);
         element.PaintOver(painter, style);
         painter.PopClip();
+        if (transformed)
+        {
+            painter.PopTransform();
+            painter.PopClip();
+        }
+
         painter.PopOpacity();
     }
 

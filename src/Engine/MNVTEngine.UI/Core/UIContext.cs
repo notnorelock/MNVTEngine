@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-05.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Graphics.Text;
 using MNVTEngine.Graphics;
 using MNVTEngine.Mathematics;
+using MNVTEngine.Reactivity;
 using MNVTEngine.Serialization;
 
 namespace MNVTEngine.UI;
@@ -26,6 +27,8 @@ public sealed partial class UIContext : IDisposable
     private UITheme _theme = UITheme.Dark;
     private float _scale = 1f;
     private bool _layoutDirty = true;
+    private ReactiveScope? _mountScope;
+    private UIElement? _mounted;
 
     /// <summary>A context outside any scene (tests, loading screens). Scenes create theirs with <see cref="UI.CreateContext"/>.</summary>
     public UIContext(Font defaultFont)
@@ -46,6 +49,12 @@ public sealed partial class UIContext : IDisposable
     }
 
     public UIElement Root { get; }
+
+    /// <summary>
+    /// Brings work from other threads onto the UI: posted actions run at the start of the next <see cref="Update"/>,
+    /// in one reactive batch.
+    /// </summary>
+    public ReactiveDispatcher Dispatcher { get; } = new();
 
     /// <summary>Drawn above <see cref="Root"/>: popups and tooltips.</summary>
     public UIElement Overlay { get; }
@@ -95,6 +104,12 @@ public sealed partial class UIContext : IDisposable
 
     public UIElement? Focused { get; private set; }
 
+    /// <summary>
+    /// While set, Tab and Shift+Tab move focus only among its descendants (a modal dialog). Opening a dialog sets it;
+    /// closing restores the previous scope.
+    /// </summary>
+    public UIElement? FocusScope { get; set; }
+
     public UIElement? Hovered { get; internal set; }
 
     /// <summary>The element pressed and holding the pointer capture until release.</summary>
@@ -128,6 +143,7 @@ public sealed partial class UIContext : IDisposable
     internal void Update(InputView input, Vector2 windowSize, float framebufferScale, float deltaSeconds, bool pointerBlocked)
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
+        Dispatcher.Drain();
         var size = windowSize / _scale;
         if (size != Size || framebufferScale != FramebufferScale)
         {
@@ -142,9 +158,9 @@ public sealed partial class UIContext : IDisposable
             LayoutIfDirty(); // input may have changed the tree (opened a dropdown, typed text)
         }
 
-        foreach (var element in Root.Descendants().Concat(Overlay.Descendants()))
+        foreach (var element in Root.Descendants().Concat(Overlay.Descendants()).ToList()) // animations and ticks may change the tree
         {
-            if (element.Tick(deltaSeconds))
+            if (element.Tick(deltaSeconds) | element.StepAnimations(deltaSeconds))
             {
                 MarkVisualDirty();
             }
@@ -218,6 +234,25 @@ public sealed partial class UIContext : IDisposable
         _system?.Remove(this);
         Root.Attach(null);
         Overlay.Attach(null);
+        Root.Dispose(); // stops every binding, effect and animation in the trees
+        Overlay.Dispose();
+    }
+
+    /// <summary>
+    /// Builds content into <see cref="Root"/> (replacing what <see cref="Mount"/> built before) inside a reactive scope
+    /// owned by the root, so effects and computed values made while building stop with the context:
+    /// <code>ui.Mount(() => V.Column(V.Title("Settings"), V.Switch(music, "Music")));</code>
+    /// </summary>
+    public UIElement Mount(Func<UIElement> build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        _mounted?.Dispose();
+        _mountScope?.Dispose();
+        _mountScope = Reactive.CreateScope(detached: true);
+        Root.OnCleanup(_mountScope.Dispose);
+        _mounted = _mountScope.Run(build);
+        return Root.AddChild(_mounted);
     }
 
     internal void MarkLayoutDirty()
@@ -301,6 +336,7 @@ public sealed partial class UIContext : IDisposable
             return null;
         }
 
+        point -= element.Translate; // into the element's (visually moved) layout space
         var children = element.ChildrenInDrawOrder().ToList();
         for (var i = children.Count - 1; i >= 0; i--)
         {

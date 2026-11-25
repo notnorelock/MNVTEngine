@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Text;
@@ -21,8 +21,13 @@ public sealed class UIPainter
     private readonly List<UIDrawRun> _runs;
     private readonly Stack<Rect> _clips = new();
     private readonly Stack<float> _opacity = new();
+    private readonly Stack<(float Scale, Vector2 Offset)> _transforms = new();
     private Rect _clip;
     private float _alpha = 1f;
+
+    // Visual transform in framebuffer pixels: p' = p * _scale + _offset (element Translate and RenderScale).
+    private float _scale = 1f;
+    private Vector2 _offset;
 
     internal UIPainter(GlyphAtlas atlas, float pixelScale, List<SpriteVertex> vertices, List<UIDrawRun> runs, Rect viewport)
     {
@@ -42,10 +47,26 @@ public sealed class UIPainter
     public void PushClip(Rect logical)
     {
         _clips.Push(_clip);
-        _clip = LayoutEngine.Intersect(_clip, Scale(logical));
+        _clip = LayoutEngine.Intersect(_clip, Transform(Scale(logical)));
     }
 
     public void PopClip() => _clip = _clips.Pop();
+
+    /// <summary>
+    /// Moves and scales everything drawn (and clips pushed) until <see cref="PopTransform"/>: by
+    /// <paramref name="logicalOffset"/>, then by <paramref name="scale"/> around <paramref name="logicalPivot"/>.
+    /// Composes with the transforms already pushed.
+    /// </summary>
+    public void PushTransform(Vector2 logicalOffset, float scale, Vector2 logicalPivot)
+    {
+        _transforms.Push((_scale, _offset));
+        var pivot = logicalPivot * PixelScale;
+        var own = ((pivot * (1f - scale)) + (logicalOffset * PixelScale), scale);
+        _offset = (own.Item1 * _scale) + _offset;
+        _scale *= scale;
+    }
+
+    public void PopTransform() => (_scale, _offset) = _transforms.Pop();
 
     /// <summary>Multiplies the alpha of everything drawn until <see cref="PopOpacity"/>.</summary>
     public void PushOpacity(float opacity)
@@ -200,8 +221,13 @@ public sealed class UIPainter
         });
 
     /// <summary>Appends a quad, clipped to the current clip (trimming its texture coordinates to match).</summary>
+    private Rect Transform(Rect r) => _scale == 1f && _offset == Vector2.Zero
+        ? r
+        : new Rect((r.X * _scale) + _offset.X, (r.Y * _scale) + _offset.Y, r.Width * _scale, r.Height * _scale);
+
     private void Quad(Texture2D texture, Rect dest, Rect src, Color color)
     {
+        dest = Transform(dest);
         var x0 = MathF.Max(dest.X, _clip.X);
         var y0 = MathF.Max(dest.Y, _clip.Y);
         var x1 = MathF.Min(dest.X + dest.Width, _clip.X + _clip.Width);
