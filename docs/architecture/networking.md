@@ -141,9 +141,13 @@ The server's transforms are the source of truth; clients mirror them (`NetworkRo
 - **Owner authority:** `NetworkServer.AssignOwnership` gives a client authority over an object (e.g. its own avatar).
   The owner drives that object locally and sends it to the server at a fixed rate; the server accepts it only from the
   real owner and re-broadcasts it, and authority reverts to the server when the owner leaves.
-- **Bandwidth:** snapshots are **delta** — an object is sent only when its transform changed, with a periodic refresh so
-  a missed unreliable update is corrected. With `NetworkServer.RelevanceRadius > 0`, **interest management** sends a
-  client only the objects near its owned object (plus any `NetworkObject.AlwaysRelevant` or owned by it).
+- **Bandwidth:** snapshots are **per-field delta** — only the transform fields (position/rotation/scale) that actually
+  changed are sent, with a periodic refresh so a missed unreliable update is corrected; the client merges each delta
+  onto the last full state (seeded from the spawn) before interpolating. **Interest management** sends a client only
+  the relevant objects: by `NetworkServer.RelevanceRadius` around its owned object, or by a custom
+  `NetworkServer.RelevanceFilter` (zones, cells, teams), plus any `NetworkObject.AlwaysRelevant` or owned by it.
+- **Lag compensation:** the server keeps about a second of position history; `NetworkServer.TryGetPastPosition` rewinds
+  an object to where it was, so a hit-scan or similar action can be validated against what the firing client saw.
 
 The in-game debug overlay has a **Network** panel showing each `NetworkClient`'s connection state, replicated-object
 count and message counters.
@@ -158,18 +162,26 @@ does not affect networking. The payload is encrypted on the wire regardless.
 See [versioning](versioning.md) for how a build is identified and [obfuscation](obfuscation.md) for how a shipped
 build is protected.
 
+## Listen server
+
+A **listen server** — one process that is both the authoritative host and a player — needs no extra wiring: run a
+`NetworkServer` in a normal played (rendered) scene. The host's own objects are authoritative there and remote clients
+mirror them, exactly as with a dedicated server. The dedicated path simply runs that same scene headlessly instead.
+
 ## Limits and future work
 
 What the current milestone does not do yet, each a deliberate scope choice:
 
-- **No client-side prediction or lag compensation.** An owner's object is driven locally (so its own input feels
-  instant), but non-owned objects are shown interpolated in the past; there is no prediction/reconciliation of
-  server-authoritative objects, and the server does not rewind time to validate hits.
-- **Delta is per-object, not per-field.** A snapshot skips unchanged objects, but a changed object sends its whole
-  transform rather than only the changed fields, and there is no per-client baseline/ack delta encoding.
-- **Interest management is radius-only.** Relevance is distance from a client's owned object (or always-relevant);
-  there are no zones, cells or custom relevance rules, and spawn/despawn is not itself culled (only snapshot updates).
-- **No listen server.** A host either runs a dedicated server or is a client; running both in one process (a player
-  hosting) is not wired up.
+- **No generic client-side prediction/reconciliation of server-authoritative objects.** An object's *owner* drives it
+  locally, so a player's own avatar responds instantly, and others are shown smoothly interpolated slightly in the
+  past; the server also offers lag compensation (`TryGetPastPosition`) to validate actions. But predicting a
+  server-authoritative object on the client and reconciling it against the server requires replaying the game's own
+  movement and input logic, which is game-specific rather than something the engine can do for arbitrary code. The
+  engine provides the pieces (owner authority, interpolation, lag compensation); a predicted movement model is built on
+  top per game.
+- **Delta is unreliable + refresh, not ack-based.** Changed fields are sent unreliably and corrected by a periodic full
+  refresh, rather than a per-client acknowledged baseline that would never need the refresh.
+- **Interest culls snapshot updates, not spawn/despawn.** A distant object still exists on the client (frozen); it is
+  not despawned when it leaves relevance and respawned when it returns.
 
 See [the architecture overview](overview.md) for how modules fit together.
