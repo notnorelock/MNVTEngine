@@ -172,9 +172,11 @@ public sealed class AcceptanceTests : IDisposable
                 File.Move(fbxPath + ".tmp.fbx", fbxPath, overwrite: true);
                 break;
             }
-            catch (IOException) when (attempt < 50)
+            // A virus scanner (Defender on CI runners) briefly holds the freshly written file or the one it replaces:
+            // a sharing violation (IOException) or, for the replaced file, access denied.
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < 100)
             {
-                Thread.Sleep(100); // a virus scanner (Defender on CI runners) briefly holds the freshly written file
+                Thread.Sleep(100);
             }
         }
         var glbPath = Path.Combine(AssetsDir, "Characters", "CesiumMan.glb");
