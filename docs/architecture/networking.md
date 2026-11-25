@@ -44,8 +44,8 @@ recycled after its handler returns.
 
 ## The wire protocol
 
-Everything after the handshake is one frame per datagram, each at most 1200 bytes (under a typical path MTU, so IP never
-fragments it). A payload datagram is:
+Everything after the handshake rides in payload datagrams, each at most 1200 bytes (under a typical path MTU, so IP
+never fragments it). A datagram carries one or more length-prefixed frames (see [Efficiency](#efficiency-on-the-wire)):
 
 ```
 [type:1][connection id:4][counter:8][ AES-GCM( frame ) + tag:16 ]
@@ -99,6 +99,16 @@ reliable payload, or an acknowledgement.
   and reassembled by the receiver; a partial group is bounded so lost unreliable fragments cannot grow memory.
 
 Keep-alives are sent when a connection is idle; a connection with no datagram for the timeout is dropped.
+
+## Efficiency on the wire
+
+- **Coalescing.** A connection does not seal a separate datagram per message. It queues its frames and flushes them
+  packed into as few datagrams as fit the MTU, once per tick, so many small messages share one datagram's 13-byte
+  header and 16-byte tag instead of paying it each. Retransmits, acks and keep-alives ride along. (A message therefore
+  goes out on the next tick — at a 60 Hz tick, within ~16 ms — which is the normal batching model for game networking.)
+- **Compact encoding.** Network ids and counts use variable-length integers (one byte under 128, not four), and a
+  rotation is compressed to 4 bytes with the smallest-three quaternion scheme instead of 16. With per-field delta, a
+  moving object's per-snapshot cost is a handful of bytes, not tens.
 
 ## The dedicated server
 
