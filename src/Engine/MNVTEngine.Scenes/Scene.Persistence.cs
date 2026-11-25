@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-05.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using Microsoft.Extensions.Logging;
 
@@ -57,6 +57,10 @@ public sealed partial class Scene
         {
             MoveObject(gameObject, target);
         }
+
+        // Awaits and posted work of the moved objects continue in the new scene. Work of objects that stay is moved
+        // too: it cannot be told apart, and the alternative is silently losing the persistent objects' continuations.
+        Synchronization.MoveTo(target.Synchronization);
 
         // Destroys queued this frame still happen, in the new scene.
         foreach (var queued in _destroyQueue.ToList())

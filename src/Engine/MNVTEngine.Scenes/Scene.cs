@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-12.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -253,6 +253,11 @@ public sealed partial class Scene
         try
         {
             FrameTime = time;
+            using (Core.Diagnostics.Profiler.Sample("Scripts.Posted"))
+            {
+                RunPosted();
+            }
+
             using (Core.Diagnostics.Profiler.Sample("Scripts.Start"))
             {
                 RunPendingStarts();
@@ -292,6 +297,7 @@ public sealed partial class Scene
         var previous = SceneContext.Enter(this);
         try
         {
+            Synchronization.Clear();
             _destroyQueue.Clear();
             foreach (var root in _roots.ToArray())
             {
@@ -526,6 +532,37 @@ public sealed partial class Scene
         catch (Exception ex) when (!RethrowScriptExceptions)
         {
             Report(ex, component.GetType().Name, name, component.GameObject.Name);
+        }
+    }
+
+    /// <summary>The game-thread context that is current while this scene runs code.</summary>
+    internal SceneSynchronizationContext Synchronization { get; } = new();
+
+    /// <summary>
+    /// Runs <paramref name="action"/> on the game thread at the start of this scene's next <see cref="Update"/>, inside
+    /// the scene (so <c>Time</c>, <c>Input</c> and <c>SceneManager</c> work). Safe to call from any thread; an
+    /// exception is logged like a component callback's. Game code rarely needs it: <c>await</c> already comes back to
+    /// the game thread, through the same queue.
+    /// </summary>
+    public void Post(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        Synchronization.Post(static state => ((Action)state!)(), action);
+    }
+
+    /// <summary>Runs the work posted before this update; work posted meanwhile waits for the next one.</summary>
+    private void RunPosted()
+    {
+        for (var count = Synchronization.Pending; count > 0 && Synchronization.TryTake(out var work); count--)
+        {
+            try
+            {
+                work.Callback(work.State);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException && !RethrowScriptExceptions)
+            {
+                Report(ex, "Posted work", "continuation", Name);
+            }
         }
     }
 

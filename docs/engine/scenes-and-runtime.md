@@ -35,6 +35,13 @@ Callbacks run only while the scene is running (`scene.Start()`). In edit mode th
 - Exceptions from callbacks are logged (event 2000) with the component and object name, and the frame continues. Set `Scene.RethrowScriptExceptions` to make them propagate instead.
 - Only overridden update methods are called; the engine detects overrides once per type by reflection.
 - `Time` and `Input` are static facades over the scene that is currently executing on this thread. Scenes on different threads (editor, tests) don't interfere. Using them outside a callback throws.
+- **Async code returns to the game thread.**
+  - While a scene runs code (callbacks, UI events, physics callbacks), its game-thread `SynchronizationContext` is current.
+  - So `await` in game code resumes on the game thread, at the start of the scene's next `Update` and inside the scene, where `Time` and `Input` work.
+  - An exception after an `await` in an `async void` callback is logged like a callback's.
+  - `scene.Post(action)` queues work the same way from any thread.
+  - Pending work moves with `DontDestroyOnLoad` objects into the next scene. Unloading drops it, so it never keeps hot-reloaded game code alive.
+  - Never block the game thread on a task (`.Result`, `.Wait()`) whose continuation needs the game thread: it deadlocks.
 - `Time.TimeScale` (per scene, default 1, reset by a new scene) scales `Time.DeltaTime` and the fixed steps from the next frame:
   - At 0 the game is paused: `Update` still runs with a zero delta; `FixedUpdate` and physics do not.
   - `Time.UnscaledDeltaTime` and the game UI keep running, so pause menus work.

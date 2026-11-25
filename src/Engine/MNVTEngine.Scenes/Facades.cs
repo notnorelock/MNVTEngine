@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Core.Timing;
 using MNVTEngine.Mathematics;
@@ -10,12 +10,17 @@ namespace MNVTEngine;
 /// <summary>
 /// Per-thread pointer to the scene currently executing callbacks. It backs the static <see cref="Time"/> and
 /// <see cref="Input"/> facades so gameplay code reads like <c>Time.DeltaTime</c> while independent scenes
-/// (editor, tests) on different threads never see each other's state.
+/// (editor, tests) on different threads never see each other's state. Entering a scene also makes its
+/// <see cref="SceneSynchronizationContext"/> current, so awaits in game code resume on the game thread.
 /// </summary>
 internal static class SceneContext
 {
     [ThreadStatic]
     private static Scene? _current;
+
+    // The thread's own context before the outermost Enter, restored by the matching Exit.
+    [ThreadStatic]
+    private static SynchronizationContext? _outer;
 
     public static Scene Current => _current
         ?? throw new InvalidOperationException("Time and Input are only available inside scene callbacks (Awake, Start, Update, ...).");
@@ -23,11 +28,25 @@ internal static class SceneContext
     public static Scene? Enter(Scene scene)
     {
         var previous = _current;
+        if (previous is null)
+        {
+            _outer = SynchronizationContext.Current;
+        }
+
         _current = scene;
+        SynchronizationContext.SetSynchronizationContext(scene.Synchronization);
         return previous;
     }
 
-    public static void Exit(Scene? previous) => _current = previous;
+    public static void Exit(Scene? previous)
+    {
+        _current = previous;
+        SynchronizationContext.SetSynchronizationContext(previous?.Synchronization ?? _outer);
+        if (previous is null)
+        {
+            _outer = null;
+        }
+    }
 }
 
 /// <summary>Frame timing for gameplay code. Inside FixedUpdate, <see cref="DeltaTime"/> is the fixed step.</summary>
