@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -372,9 +372,19 @@ public sealed partial class BrowserService : IDisposable
         // The host's exit ends the connection even when a process it started still holds the pipe open.
         async Task WatchExitAsync()
         {
+            // The Exited event, not WaitForExitAsync: that also waits for the end of the redirected stderr, which a
+            // Chromium child process that outlives the host keeps open, so the exit would never be noticed.
+            var exit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            process.EnableRaisingEvents = true;
+            process.Exited += (_, _) => exit.TrySetResult();
+            if (process.HasExited)
+            {
+                exit.TrySetResult();
+            }
+
             try
             {
-                await process.WaitForExitAsync(cancel).ConfigureAwait(false);
+                await exit.Task.WaitAsync(cancel).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
