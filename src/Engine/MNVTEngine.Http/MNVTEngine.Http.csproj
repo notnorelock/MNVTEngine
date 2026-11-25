@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- MNVTEngine.Http: an HTTP client for game code (REST APIs, accounts, leaderboards), in the spirit of Axios:
+       instances with a base URL and defaults, JSON in and out (Newtonsoft), interceptors, timeouts, size limits and
+       results instead of exceptions. Headless (no scenes, graphics or platform): awaiting it in game code returns to
+       the game thread through the scene's synchronization context. Ships with the Networking module.
+       See docs/engine/http.md. -->
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" />
+  </ItemGroup>
+</Project>

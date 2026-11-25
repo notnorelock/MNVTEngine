@@ -10,6 +10,7 @@
     <ProjectReference Include="..\..\Engine\MNVTEngine.Particles2D\MNVTEngine.Particles2D.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Particles\MNVTEngine.Particles.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Galaxy.Replication\MNVTEngine.Galaxy.Replication.csproj" />
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Http\MNVTEngine.Http.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Graphics.Vulkan.ShaderCompiler\MNVTEngine.Graphics.Vulkan.ShaderCompiler.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.World3D.Rendering\MNVTEngine.World3D.Rendering.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Assets.Models\MNVTEngine.Assets.Models.csproj" />

@@ -123,6 +123,7 @@ published from a manual run of the same workflow ([versioning](docs/architecture
 - [Physics 2D](docs/engine/physics2d.md) and [Physics 3D](docs/engine/physics3d.md)
 - [Audio](docs/engine/audio.md), [sprite animation](docs/engine/animation.md), [tilemaps](docs/engine/tilemaps.md)
 - [Particles](docs/engine/particles.md) and [terrain](docs/engine/terrain.md)
+- [HTTP client for web APIs](docs/engine/http.md)
 - [Embedded browser](docs/engine/browser.md) ([architecture](docs/architecture/embedded-browser.md))
 - [Mathematics conventions](docs/engine/mathematics.md) and [JSON serialization](docs/serialization/json.md)
 

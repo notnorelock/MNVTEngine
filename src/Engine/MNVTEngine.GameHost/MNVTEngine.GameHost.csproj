@@ -65,6 +65,7 @@
     <ProjectReference Include="..\MNVTEngine.Browser.World2D\MNVTEngine.Browser.World2D.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Browser.World3D\MNVTEngine.Browser.World3D.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Galaxy.Replication\MNVTEngine.Galaxy.Replication.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.Http\MNVTEngine.Http.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Particles\MNVTEngine.Particles.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Particles2D\MNVTEngine.Particles2D.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Particles3D\MNVTEngine.Particles3D.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />

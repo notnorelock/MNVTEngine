@@ -163,6 +163,9 @@ public class DependencyRuleTests
     [InlineData("MNVTEngine.Audio", "MNVTEngine.Graphics")]
     [InlineData("MNVTEngine.Runtime", "MNVTEngine.Audio.OpenAL")]
     [InlineData("MNVTEngine.Scenes", "MNVTEngine.Audio")]
+    [InlineData("MNVTEngine.Http", "MNVTEngine.Scenes")]
+    [InlineData("MNVTEngine.Http", "MNVTEngine.Graphics")]
+    [InlineData("MNVTEngine.Http", "MNVTEngine.Platform")]
     public void ForbiddenDependency(string project, string forbidden)
     {
         if (!Graph.Contains(project))
