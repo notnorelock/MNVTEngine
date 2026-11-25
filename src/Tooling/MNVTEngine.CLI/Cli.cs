@@ -43,6 +43,9 @@ public static class Cli
                                 Open the project in the editor; without one, the Project Hub (--frames: close after N frames)
           run <project> [--frames N] [--screenshot file.png] [--profile report.txt]
                                 Play the project from its sources
+          server <project> [--port N] [--tick-rate N]
+                                Run the project's startup scene as a headless dedicated server (no window), hosting a
+                                NetworkServer for clients to connect to (default port 7777, 60 Hz); Ctrl+C stops it
           build <project> [--profile name] [--configuration debug|release] [--target win-x64]
                           [--output folder] [--signing-key key.pem] [--run [frames]]
                           [--obfuscate [--obfuscate-scheme letters|unicode]]
@@ -98,6 +101,7 @@ public static class Cli
                 "modules" => CommandLine.Parse(args, [], []),
                 "editor" => CommandLine.Parse(args, ["--frames"], []),
                 "run" => CommandLine.Parse(args, ["--frames", "--screenshot", "--profile"], ["--gpu-validation"]),
+                "server" => CommandLine.Parse(args, ["--port", "--tick-rate"], []),
                 "build" when args.Length > 1 && args[1] == "analyze" => CommandLine.Parse(["analyze", .. args[2..]], ["--profile", "--configuration", "--target", "--scripting-backend", "--json"], []),
                 "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--scripting-backend", "--signing-key", "--obfuscate-scheme"], ["--obfuscate"], optionalValues: ["--run"]),
                 "package" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--signing-key", "--project", "--trust", "--new-signing-key", "--folder", "--name", "--obfuscate-scheme"], ["--entries", "--rotate", "--no-repack", "--separate-key", "--obfuscate"]),
@@ -122,6 +126,7 @@ public static class Cli
                 "modules" => ModulesCommand(command, output),
                 "editor" => await EditorAsync(command, output, cancellationToken).ConfigureAwait(false),
                 "run" => Run(command, loggerFactory),
+                "server" => await ServerAsync(command, loggerFactory, cancellationToken).ConfigureAwait(false),
                 "build" => await BuildAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
                 "analyze" => await AnalyzeAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
                 "package" => await PackageCommand.RunAsync(command, output, loggerFactory, cancellationToken).ConfigureAwait(false),
@@ -282,6 +287,14 @@ public static class Cli
             loggerFactory,
             (window, log) => VulkanGraphicsDevice.Create(window.VulkanSurface, window.FramebufferWidth, window.FramebufferHeight, log, VulkanDeviceOptions.ForApplication("Player", window.Options.VSync, window.Options.GraphicsValidation).WithShaderc()),
             Audio.OpenAL.OpenALAudioDevice.Create) == 0 ? Ok : Failed;
+    }
+
+    private static async Task<int> ServerAsync(CommandLine command, ILoggerFactory loggerFactory, CancellationToken cancellationToken)
+    {
+        var project = command.Single("project");
+        int port = command.Value("--port") is { } p ? int.Parse(p, CultureInfo.InvariantCulture) : 7777;
+        int tickRate = command.Value("--tick-rate") is { } t ? int.Parse(t, CultureInfo.InvariantCulture) : 60;
+        return await DedicatedServerHost.RunAsync(project, port, tickRate, loggerFactory, cancellationToken).ConfigureAwait(false) == 0 ? Ok : Failed;
     }
 
     private static async Task<int> BuildAsync(CommandLine command, TextWriter output, ILoggerFactory loggerFactory, CancellationToken cancellationToken)

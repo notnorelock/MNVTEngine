@@ -21,6 +21,7 @@ public static class EngineModuleSet
         ["world.3d"] = (_, _) => new World3D.Rendering.World3DModule(),
         ["audio"] = (audio, logger) => new AudioModule(audio, logger),
         ["scripting"] = (_, _) => new ScriptingModule(),
+        ["networking"] = (_, _) => new NetworkingModule(),
         ["ui"] = (_, _) => new UI.UIModule(),
         ["physics.2d"] = (_, _) => new Physics2DModule(),
         ["physics.3d"] = (_, _) => new Physics3DModule(),
