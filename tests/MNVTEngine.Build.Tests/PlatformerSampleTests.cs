@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-12.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using Microsoft.Extensions.Logging.Abstractions;
 using MNVTEngine.Assets;
@@ -18,6 +18,7 @@ namespace MNVTEngine.Build.Tests;
 /// Plays samples/Platformer headlessly with simulated keys: the real scene, C# gameplay, physics, tilemap collision,
 /// triggers and mission script, without a window. Proves the sample is playable, not only loadable.
 /// </summary>
+[Collection("Platformer scripts")] // both compile samples/Platformer/Scripts: never at the same time
 public sealed class PlatformerSampleTests
 {
     private const float Step = 1f / 60f;

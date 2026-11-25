@@ -10,6 +10,7 @@ using MNVTEngine.Galaxy;
 namespace MNVTEngine.Build.Tests;
 
 /// <summary>The headless dedicated server runs a real game's scene with no window and accepts a client.</summary>
+[Collection("Platformer scripts")] // both compile samples/Platformer/Scripts: never at the same time
 public sealed class DedicatedServerTests
 {
     [Fact]

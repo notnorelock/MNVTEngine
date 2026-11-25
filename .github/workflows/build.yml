@@ -49,6 +49,11 @@ jobs:
           MNVT_BUILD_NUMBER: ${{ github.run_number }}
           MNVT_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.channel || 'development' }}
 
+      # Game script projects reference engine projects and build them in Debug. Built here once, so the test
+      # processes that compile scripts in parallel find them up to date instead of compiling the same obj/Debug.
+      - name: Engine for script builds
+        run: dotnet build src/Engine/MNVTEngine.GameHost/MNVTEngine.GameHost.csproj -c Debug
+
       - name: Test
         run: dotnet test --solution MNVTEngine.sln -c Release --no-build
 
