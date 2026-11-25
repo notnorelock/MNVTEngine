@@ -180,8 +180,10 @@ needs CoreCLR). Framework pruning keeps what the host and CefSharp reference. Le
 `en-US` (51 MB), and its `vulkan-1.dll` and SwiftShader (software WebGL), so CEF's Vulkan loader never stands in for the
 system's. Measured for `samples/Browser2D` (release, win-x64): whole game 445 MB with the JIT backend, 460 MB with AOT;
 `Dependencies/Native/Chromium` 350 MB (`libcef.dll` alone 281 MB). `MNVB406` when the host cannot be published or the
-package lacks it. Development runs (editor, Player, tests) use the engine's build output of
-`src/Engine/MNVTEngine.Browser.Host`, or `MNVT_BROWSER_HOST`.
+package lacks it. The editor published with `scripts/Publish-Editor.ps1` (and in releases) carries the host in the
+same layout next to `MNVTEngine.Editor.exe`, with every CEF locale and on the installed .NET. Other development runs
+(a `dotnet build` editor, Player, tests) use the engine's build output of `src/Engine/MNVTEngine.Browser.Host`, or
+`MNVT_BROWSER_HOST`.
 
 ## Limits
 
