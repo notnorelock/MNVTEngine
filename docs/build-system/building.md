@@ -303,12 +303,36 @@ The build uses deterministic compilation (`Deterministic`, `ContinuousIntegratio
 
 ## Engine location
 
-Tooling builds games from the engine **sources**, which it finds in one of two ways:
+Tooling finds the engine it builds with in one of two ways:
 
 - `MNVT_ENGINE_ROOT`, if set.
-- Otherwise, the first parent folder of the running tool that contains `MNVTEngine.sln`.
+- Otherwise, the first parent folder of the running tool that is the engine's source tree (`MNVTEngine.sln`) or an
+  installed engine (`Engine/version.json`).
 
-The first build of each project and profile compiles the engine into `Library/Build/<profile>/artifacts`. Later builds are incremental and take about 5–10 s.
+From the source tree, the first build of each project and profile compiles the engine into
+`Library/Build/<profile>/artifacts`. Later builds are incremental and take about 5–10 s.
+
+### Installed engine
+
+A release (`scripts/Package-Release.ps1`, run after `scripts\build.cmd Release`) holds no sources:
+
+| Path | Contents |
+|---|---|
+| `Editor/` | The editor in its clean layout, with the browser host |
+| `CLI/` | `mnvt` |
+| `Engine/version.json` | The engine build's metadata; marks the folder as an installed engine |
+| `Engine/Packages/` | The engine's libraries and `MNVTEngine.Sdk` as NuGet packages, a local feed |
+| `Engine/GameHost/` | The game host's startup project (3 files), with `Directory.Build.props`, `Directory.Packages.props` and `NuGet.config` beside it |
+| `Engine/CrashHandler/` | `MNVTCrashHandler`, published: `jit/` and `aot/` |
+| `Engine/BrowserHost/` | `MNVTBrowserHost` with CEF, published with a private runtime |
+| `templates/` | Project templates |
+
+Exports still compile the game host per game (its name, keys and modules), but against the packages
+(`MnvtEnginePackages=true` swaps its project references for package references). The crash handler and the browser
+host are copied as they are. Game scripts of projects created from an installed engine reference `MNVTEngine.Sdk`
+from `Engine/Packages`; created from the source tree, they reference the engine projects. The .NET SDK is still
+needed, and the first export restores the engine's third-party packages from nuget.org. `mnvt editor` starts
+`Editor/MNVTEngine.Editor.exe`.
 
 ## Limitations
 

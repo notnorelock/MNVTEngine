@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-12.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using System.Xml.Linq;
 using MNVTEngine.Modules;
@@ -37,7 +37,7 @@ public sealed class ModuleBootstrapTests
     public void TheHostsDevelopmentReferences_AreEveryModuleOfTheBootstrap()
     {
         var host = XDocument.Load(EngineLocation.GameHostProject(EngineLocation.FindRoot()));
-        var development = host.Descendants("ItemGroup").Single(g => (string?)g.Attribute("Condition") == "'$(MnvtBootstrap)' == ''")
+        var development = host.Descendants("ItemGroup").Single(g => (string?)g.Attribute("Condition") == "'$(MnvtBootstrap)' == '' and '$(MnvtEnginePackages)' != 'true'")
             .Elements("ProjectReference").Select(r => Path.GetFileNameWithoutExtension((string)r.Attribute("Include")!)).Order(StringComparer.Ordinal);
         Assert.Equal(ModuleBootstrap.Projects(ModuleBootstrap.ImplementedModules), development);
 

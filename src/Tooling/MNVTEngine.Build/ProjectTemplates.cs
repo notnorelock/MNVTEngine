@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-12.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Modules;
 using MNVTEngine.Runtime;
@@ -16,7 +16,7 @@ public sealed record ProjectTemplate(string Id, string Name, string Description,
 /// <summary>
 /// Project creation from <c>templates/*</c>. A template is a folder with a <c>template.json</c> (<c>id</c>, <c>name</c>,
 /// <c>description</c> and <c>profile</c>, "2d" or "3d", which its .mnvtproj must declare too). Tokens are replaced in file names (<c>__Name__</c>, <c>__Identifier__</c>) and in text files
-/// (<c>{{Name}}</c>, <c>{{Identifier}}</c>, <c>{{EngineRoot}}</c>). Every new project gets its own content encryption key.
+/// (<c>{{Name}}</c>, <c>{{Identifier}}</c>, <c>{{EngineRoot}}</c>, <c>{{EngineVersion}}</c>: an installed engine's package version). Every new project gets its own content encryption key.
 /// </summary>
 public static class ProjectTemplates
 {
@@ -90,6 +90,7 @@ public static class ProjectTemplates
             ["Name"] = name,
             ["Identifier"] = name.Replace('-', '_'),
             ["EngineRoot"] = Path.GetFullPath(engineRoot).Replace('\\', '/').TrimEnd('/'),
+            ["EngineVersion"] = EngineLocation.InstalledVersion(engineRoot)?.PackageVersion ?? "", // the SDK package of an installed engine
         };
 
         foreach (var file in System.IO.Directory.EnumerateFiles(template.Directory, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))

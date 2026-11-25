@@ -40,7 +40,16 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
-  <ItemGroup>
+  <!-- An installed engine (a release without sources, docs/build-system/building.md) sets MnvtEnginePackages in its
+       Directory.Build.props: the host then references the engine's packages from its local feed instead. -->
+  <ItemGroup Condition="'$(MnvtEnginePackages)' == 'true'">
+    <PackageReference Include="MNVTEngine.CrashReporting" />
+    <PackageReference Include="MNVTEngine.GameAssemblies" />
+    <PackageReference Include="MNVTEngine.Graphics.Vulkan" />
+    <PackageReference Include="MNVTEngine.Runtime" />
+    <PackageReference Include="MNVTEngine.DebugUI" Condition="'$(MnvtDevTools)' == 'true'" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MnvtEnginePackages)' != 'true'">
     <ProjectReference Include="..\MNVTEngine.CrashReporting\MNVTEngine.CrashReporting.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.GameAssemblies\MNVTEngine.GameAssemblies.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
@@ -48,7 +57,7 @@
     <ProjectReference Include="..\MNVTEngine.DebugUI\MNVTEngine.DebugUI.csproj" Condition="'$(MnvtDevTools)' == 'true'" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
   </ItemGroup>
   <!-- Every module, for development builds; keep in step with ModuleBootstrap (MNVTEngine.Build), which a test checks. -->
-  <ItemGroup Condition="'$(MnvtBootstrap)' == ''">
+  <ItemGroup Condition="'$(MnvtBootstrap)' == '' and '$(MnvtEnginePackages)' != 'true'">
     <ProjectReference Include="..\MNVTEngine.Audio.OpenAL\MNVTEngine.Audio.OpenAL.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Audio\MNVTEngine.Audio.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Browser\MNVTEngine.Browser.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />

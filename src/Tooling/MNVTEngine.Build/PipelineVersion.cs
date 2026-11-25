@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Versioning;
 
@@ -50,7 +50,10 @@ public sealed class PipelineVersion
         string? Environment(string name) => overrides is not null && overrides.TryGetValue(name, out var value) ? value : System.Environment.GetEnvironmentVariable(name);
         try
         {
-            var info = VersionResolver.Resolve(new VersionRequest(engineRoot) { Allocate = true, Kind = kind, Context = context, Environment = Environment });
+            // An installed engine is already built: its assemblies carry the release's version, so games report that one.
+            var info = EngineLocation.IsInstalled(engineRoot)
+                ? (EngineLocation.InstalledVersion(engineRoot) ?? throw new InvalidDataException("Engine/version.json of the installed engine is unreadable.")) with { Context = context }
+                : VersionResolver.Resolve(new VersionRequest(engineRoot) { Allocate = true, Kind = kind, Context = context, Environment = Environment });
             if (info.Source.Problem is { } problem)
             {
                 diagnostics.Add(BuildDiagnostic.Warning("MNVB121", $"Engine version {info.Version}: {problem}"));
@@ -79,7 +82,7 @@ public sealed class PipelineVersion
     /// <returns>Null, or why the record could not be written (for the caller's log: the build's own result stands).</returns>
     public string? Complete(string result)
     {
-        if (Info.BuildNumberSource != "counter")
+        if (Info.BuildNumberSource != "counter" || EngineLocation.IsInstalled(_engineRoot)) // an installed engine allocated nothing
         {
             return null;
         }

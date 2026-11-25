@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Build;
 using MNVTEngine.Versioning;
@@ -49,6 +49,12 @@ public static class VersionCommand
         catch (DirectoryNotFoundException ex)
         {
             output.WriteLine($"Next build: no engine source tree ({ex.Message})");
+            return Cli.Ok;
+        }
+
+        if (EngineLocation.InstalledVersion(root) is { } installed)
+        {
+            output.WriteLine($"Installed engine {root}: {installed.Version} (games are built with it; it allocates no build numbers)");
             return Cli.Ok;
         }
 

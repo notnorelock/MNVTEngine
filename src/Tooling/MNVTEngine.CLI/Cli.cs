@@ -265,10 +265,12 @@ public static class Cli
     {
         // Without a project the editor opens its Project Hub (recent, new, open).
         string[] project = command.Positional.Count == 0 ? [] : [GameProject.Load(command.Single("project")).RootDirectory];
-        var editor = EngineLocation.EditorProject(EngineLocation.FindRoot());
-        var start = new ProcessStartInfo("dotnet") { UseShellExecute = false };
+        var root = EngineLocation.FindRoot();
+        var installed = EngineLocation.IsInstalled(root); // an installed engine has the published editor, not its sources
+        var start = new ProcessStartInfo(installed ? EngineLocation.EditorExecutable(root) : "dotnet") { UseShellExecute = false };
         start.Environment["MSBUILDDISABLENODEREUSE"] = "1"; // the build before the run leaves no idle MSBuild nodes
-        foreach (var argument in new[] { "run", "--project", editor, "-c", "Debug", "--" }.Concat(project).Concat(command.Passthrough("--frames")))
+        string[] run = installed ? [] : ["run", "--project", EngineLocation.EditorProject(root), "-c", "Debug", "--"];
+        foreach (var argument in run.Concat(project).Concat(command.Passthrough("--frames")))
         {
             start.ArgumentList.Add(argument);
         }

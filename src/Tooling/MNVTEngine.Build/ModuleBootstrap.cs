@@ -94,8 +94,10 @@ public static class ModuleBootstrap
             .Append("    <Compile Include=\"").Append(System.Security.SecurityElement.Escape(sourcePath)).Append("\" />\n");
         foreach (var project in Projects(resolution.Modules.Select(m => m.Id)))
         {
+            // The engine's sources, or its packages in an installed engine (MnvtEnginePackages, see the host's csproj).
             text.Append("    <ProjectReference Include=\"$(MSBuildProjectDirectory)\\..\\").Append(project).Append('\\').Append(project)
-                .Append(".csproj\" GlobalPropertiesToRemove=\"$(MnvtGameProperties)\" />\n");
+                .Append(".csproj\" GlobalPropertiesToRemove=\"$(MnvtGameProperties)\" Condition=\"'$(MnvtEnginePackages)' != 'true'\" />\n")
+                .Append("    <PackageReference Include=\"").Append(project).Append("\" Condition=\"'$(MnvtEnginePackages)' == 'true'\" />\n");
         }
 
         if (aot is not null)

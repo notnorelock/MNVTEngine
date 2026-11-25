@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-24.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using System.Globalization;
 using System.Reflection;
@@ -104,7 +104,52 @@ public static class GamePackager
         string engineRoot, BuildProfile profile, string workDirectory, string packageDirectory, bool aot, PipelineVersion? version = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        var output = Path.Combine(workDirectory, "CrashHandler");
+        string output;
+        if (EngineLocation.IsInstalled(engineRoot))
+        {
+            output = EngineLocation.PrebuiltCrashHandler(engineRoot, aot); // published with the release
+            if (!Directory.Exists(output))
+            {
+                return [BuildDiagnostic.Error("MNVB405", $"The installed engine has no prebuilt crash handler in {output}.")];
+            }
+        }
+        else
+        {
+            output = Path.Combine(workDirectory, "CrashHandler");
+            if (await PublishCrashHandlerFromSourceAsync(engineRoot, profile, workDirectory, output, aot, version, cancellationToken).ConfigureAwait(false) is { Count: > 0 } failed)
+            {
+                return failed;
+            }
+        }
+
+        var managed = Path.Combine(packageDirectory, GamePackage.ManagedFolder);
+        foreach (var file in Directory.EnumerateFiles(output))
+        {
+            var name = Path.GetFileName(file);
+            if (name.EndsWith(".deps.json", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var handlerFile = name.StartsWith("MNVTCrashHandler.", StringComparison.OrdinalIgnoreCase);
+            var target = handlerFile ? Path.Combine(packageDirectory, name) : Path.Combine(managed, name);
+            if (!handlerFile && File.Exists(target))
+            {
+                continue; // a dependency the game ships already (MNVTEngine.CrashReporting)
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target, overwrite: true);
+        }
+
+        return [];
+    }
+
+    /// <summary>Publishes MNVTCrashHandler.exe from the engine sources into <paramref name="output"/>; the errors, if any.</summary>
+    public static async Task<IReadOnlyList<BuildDiagnostic>> PublishCrashHandlerFromSourceAsync(
+        string engineRoot, BuildProfile profile, string workDirectory, string output, bool aot, PipelineVersion? version = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
         if (Directory.Exists(output))
         {
             Directory.Delete(output, recursive: true);
@@ -144,26 +189,6 @@ public static class GamePackager
             return [BuildDiagnostic.Error("MNVB405", $"The crash handler could not be published (exit code {result.ExitCode}).\n{result.Output.Trim()}")];
         }
 
-        var managed = Path.Combine(packageDirectory, GamePackage.ManagedFolder);
-        foreach (var file in Directory.EnumerateFiles(output))
-        {
-            var name = Path.GetFileName(file);
-            if (name.EndsWith(".deps.json", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var handlerFile = name.StartsWith("MNVTCrashHandler.", StringComparison.OrdinalIgnoreCase);
-            var target = handlerFile ? Path.Combine(packageDirectory, name) : Path.Combine(managed, name);
-            if (!handlerFile && File.Exists(target))
-            {
-                continue; // a dependency the game ships already (MNVTEngine.CrashReporting)
-            }
-
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            File.Copy(file, target, overwrite: true);
-        }
-
         return [];
     }
 
@@ -190,37 +215,24 @@ public static class GamePackager
         string engineRoot, BuildProfile profile, string workDirectory, string packageDirectory, string locale = "en-US", PipelineVersion? version = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        var output = Path.Combine(workDirectory, "BrowserHost");
-        if (Directory.Exists(output))
-        {
-            Directory.Delete(output, recursive: true);
-        }
-
         var needsRuntime = FrameworkDirectory(packageDirectory) is null;
-        List<string> arguments =
-        [
-            "publish", EngineLocation.BrowserHostProject(engineRoot),
-            "-c", profile.Configuration,
-            "-r", profile.Target,
-            "--self-contained", "false",
-            "-o", output,
-            "--artifacts-path", Path.Combine(workDirectory, "artifacts-browser-host"),
-            "-nologo", "-v:q", "-clp:NoSummary;ForceNoAlign",
-            "-p:Deterministic=true",
-            "-p:ContinuousIntegrationBuild=true",
-            "-p:DebugType=none",
-            $"-p:MnvtPrivateRuntime={(needsRuntime ? "true" : "false")}",
-            .. version is null ? Array.Empty<string>() : [version.MsBuildProperty],
-        ];
-        var result = await DotnetCli.RunAsync(arguments, engineRoot, PublishTimeout, cancellationToken).ConfigureAwait(false);
-        if (result.StartError is { } error)
+        string output;
+        if (EngineLocation.IsInstalled(engineRoot))
         {
-            return ([BuildDiagnostic.Error("MNVB402", error)], 0);
+            // Published with the release, with a private runtime: used only for AOT games, which have none of their own.
+            output = EngineLocation.PrebuiltBrowserHost(engineRoot);
+            if (!Directory.Exists(output))
+            {
+                return ([BuildDiagnostic.Error("MNVB406", $"The installed engine has no prebuilt browser host in {output}.")], 0);
+            }
         }
-
-        if (result.ExitCode != 0)
+        else
         {
-            return ([BuildDiagnostic.Error("MNVB406", $"The browser host (MNVTBrowserHost.exe, CEF) could not be published (exit code {result.ExitCode}).\n{result.Output.Trim()}")], 0);
+            output = Path.Combine(workDirectory, "BrowserHost");
+            if (await PublishBrowserHostFromSourceAsync(engineRoot, profile, workDirectory, output, privateRuntime: needsRuntime, version, cancellationToken).ConfigureAwait(false) is { Count: > 0 } failed)
+            {
+                return (failed, 0);
+            }
         }
 
         long bytes = 0;
@@ -243,7 +255,10 @@ public static class GamePackager
             var name = Path.GetFileName(file);
             if (relative.StartsWith(GamePackage.RuntimeFolder + "/", StringComparison.OrdinalIgnoreCase))
             {
-                Place(file, relative, keepExisting: true);
+                if (needsRuntime)
+                {
+                    Place(file, relative, keepExisting: true); // a JIT game's own runtime serves the host
+                }
             }
             else if (BrowserHostExcluded.Contains(name, StringComparer.OrdinalIgnoreCase) || name.EndsWith(".deps.json", StringComparison.OrdinalIgnoreCase)
                 || name.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
@@ -273,6 +288,45 @@ public static class GamePackager
         }
 
         return ([], bytes);
+    }
+
+    /// <summary>
+    /// Publishes MNVTBrowserHost.exe with CEF from the engine sources into <paramref name="output"/>, with a private
+    /// runtime in Dependencies/Runtime when <paramref name="privateRuntime"/>; the errors, if any.
+    /// </summary>
+    public static async Task<IReadOnlyList<BuildDiagnostic>> PublishBrowserHostFromSourceAsync(
+        string engineRoot, BuildProfile profile, string workDirectory, string output, bool privateRuntime, PipelineVersion? version = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        if (Directory.Exists(output))
+        {
+            Directory.Delete(output, recursive: true);
+        }
+
+        List<string> arguments =
+        [
+            "publish", EngineLocation.BrowserHostProject(engineRoot),
+            "-c", profile.Configuration,
+            "-r", profile.Target,
+            "--self-contained", "false",
+            "-o", output,
+            "--artifacts-path", Path.Combine(workDirectory, "artifacts-browser-host"),
+            "-nologo", "-v:q", "-clp:NoSummary;ForceNoAlign",
+            "-p:Deterministic=true",
+            "-p:ContinuousIntegrationBuild=true",
+            "-p:DebugType=none",
+            $"-p:MnvtPrivateRuntime={(privateRuntime ? "true" : "false")}",
+            .. version is null ? Array.Empty<string>() : [version.MsBuildProperty],
+        ];
+        var result = await DotnetCli.RunAsync(arguments, engineRoot, PublishTimeout, cancellationToken).ConfigureAwait(false);
+        if (result.StartError is { } error)
+        {
+            return [BuildDiagnostic.Error("MNVB402", error)];
+        }
+
+        return result.ExitCode != 0
+            ? [BuildDiagnostic.Error("MNVB406", $"The browser host (MNVTBrowserHost.exe, CEF) could not be published (exit code {result.ExitCode}).\n{result.Output.Trim()}")]
+            : [];
     }
 
     /// <summary>The private runtime's shared/Microsoft.NETCore.App/&lt;version&gt; folder of a staged game; null when there is none.</summary>

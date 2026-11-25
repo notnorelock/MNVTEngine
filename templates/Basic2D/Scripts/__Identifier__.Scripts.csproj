@@ -1,13 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- The game's C# components. Compiled by the editor, `mnvt run` and `mnvt build`; references the engine's gameplay API only. -->
+  <!-- The game's C# components. Compiled by the editor, `mnvt run` and `mnvt build`; references the engine's gameplay API only:
+       the engine's projects in its source tree, or the MNVTEngine.Sdk package of an installed engine (from its local feed). -->
   <PropertyGroup>
     <TargetFramework>net11.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <RestoreAdditionalProjectSources Condition="!Exists('{{EngineRoot}}/MNVTEngine.sln')">{{EngineRoot}}/Engine/Packages</RestoreAdditionalProjectSources>
   </PropertyGroup>
-  <ItemGroup>
+  <ItemGroup Condition="Exists('{{EngineRoot}}/MNVTEngine.sln')">
     <ProjectReference Include="{{EngineRoot}}/src/Engine/MNVTEngine.Scenes/MNVTEngine.Scenes.csproj" Private="false" />
     <ProjectReference Include="{{EngineRoot}}/src/Engine/MNVTEngine.World2D/MNVTEngine.World2D.csproj" Private="false" />
     <ProjectReference Include="{{EngineRoot}}/src/Engine/MNVTEngine.UI/MNVTEngine.UI.csproj" Private="false" />
+  </ItemGroup>
+  <ItemGroup Condition="!Exists('{{EngineRoot}}/MNVTEngine.sln')">
+    <PackageReference Include="MNVTEngine.Sdk" Version="{{EngineVersion}}" ExcludeAssets="runtime" />
   </ItemGroup>
 </Project>
