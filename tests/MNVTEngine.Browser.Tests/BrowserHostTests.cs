@@ -208,25 +208,13 @@ public sealed class BrowserHostTests : IDisposable
         using var browser = Open("<title>alive</title>");
         var crashes = new List<string>();
         browser.Crashed += crashes.Add;
-        browser.SimulateRendererCrash();
-        Assert.True(Pump(() => crashes.Count > 0), "no crash event");
+        // On slow CI runners both commands can be lost: the DevTools crash request before the renderer answers it, and a
+        // reload sent while Chromium still tears down the dead renderer. Each is resent until it takes effect.
+        Assert.True(Retry(browser.SimulateRendererCrash, () => crashes.Count > 0), "no crash event");
         Assert.Equal(BrowserState.Crashed, browser.State);
         var reloaded = false;
         browser.LoadCompleted += (_, _) => reloaded = true;
-        // A reload sent while Chromium is still tearing down the dead renderer can be dropped (seen on slow CI runners).
-        var watch = Stopwatch.StartNew();
-        while (!reloaded && watch.Elapsed < Timeout)
-        {
-            browser.Reload();
-            var attempt = Stopwatch.StartNew();
-            while (!reloaded && attempt.Elapsed < TimeSpan.FromSeconds(5))
-            {
-                _service.Update();
-                Thread.Sleep(10);
-            }
-        }
-
-        Assert.True(reloaded, "the page did not load again");
+        Assert.True(Retry(() => browser.Reload(), () => reloaded), "the page did not load again");
         Assert.Equal(BrowserState.Ready, browser.State);
         Assert.Equal("alive", Await(browser.ExecuteJavaScriptAsync("document.title"))?.Value<string>());
     }
@@ -332,6 +320,29 @@ public sealed class BrowserHostTests : IDisposable
             }
 
             Thread.Sleep(10);
+        }
+
+        return false;
+    }
+
+    /// <summary>Sends <paramref name="command"/> every 5 s until <paramref name="condition"/> holds, within <see cref="Timeout"/>.</summary>
+    private bool Retry(Action command, Func<bool> condition)
+    {
+        var watch = Stopwatch.StartNew();
+        while (watch.Elapsed < Timeout)
+        {
+            command();
+            var attempt = Stopwatch.StartNew();
+            while (attempt.Elapsed < TimeSpan.FromSeconds(5))
+            {
+                _service.Update();
+                if (condition())
+                {
+                    return true;
+                }
+
+                Thread.Sleep(10);
+            }
         }
 
         return false;
