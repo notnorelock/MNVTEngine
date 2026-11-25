@@ -108,6 +108,18 @@ guard that logs and swallows exceptions (except out-of-memory): a malformed mess
 and the server keeps serving. Because the framework depends only on the networking layer, a dedicated server has no
 graphics, window or asset files to go wrong. Set `GameServerOptions.Identity` to authenticate it to pinning clients.
 
+### Standalone servers
+
+Two ways to run a server as its own process, outside the editor:
+
+- **Run the game's own scene headlessly:** `mnvt server <project> [--port N] [--tick-rate N]` loads the project's
+  content and C# code, simulates its startup scene — physics, scripts, everything — with no window, graphics device or
+  audio, and hosts a `NetworkServer` (adding one if the scene has none). This is the dedicated server for a game built
+  on the engine ([`DedicatedServerHost`](../../src/Tooling/MNVTEngine.Build/DedicatedServerHost.cs)).
+- **Write your own:** a server is a plain console app subclassing `GameServer`. See
+  [`samples/GalaxyServer`](../../samples/GalaxyServer) — a standalone relay server that references only the networking
+  layer and nothing else of the engine.
+
 ## State replication
 
 `MNVTEngine.Galaxy.Replication` replicates scene state, server-authoritative, as engine components:
@@ -122,8 +134,19 @@ graphics, window or asset files to go wrong. Set `GameServerOptions.Identity` to
   **interpolation**, which hides jitter and the loss of the unreliable snapshots. Game messages that are not replication
   are raised through its `MessageReceived` event.
 
-The server's transforms are the source of truth; clients mirror them (`NetworkRole.Remote`). The in-game debug overlay
-has a **Network** panel showing each `NetworkClient`'s connection state, replicated-object count and message counters.
+The server's transforms are the source of truth; clients mirror them (`NetworkRole.Remote`). Beyond that:
+
+- **Authored scene objects** replicate without a prefab: the spawn carries the object's scene id, and a client binds the
+  object it already has from the same scene by that id, instantiating the prefab only when it has no such object.
+- **Owner authority:** `NetworkServer.AssignOwnership` gives a client authority over an object (e.g. its own avatar).
+  The owner drives that object locally and sends it to the server at a fixed rate; the server accepts it only from the
+  real owner and re-broadcasts it, and authority reverts to the server when the owner leaves.
+- **Bandwidth:** snapshots are **delta** — an object is sent only when its transform changed, with a periodic refresh so
+  a missed unreliable update is corrected. With `NetworkServer.RelevanceRadius > 0`, **interest management** sends a
+  client only the objects near its owned object (plus any `NetworkObject.AlwaysRelevant` or owned by it).
+
+The in-game debug overlay has a **Network** panel showing each `NetworkClient`'s connection state, replicated-object
+count and message counters.
 
 ## Obfuscation
 
@@ -139,13 +162,14 @@ build is protected.
 
 What the current milestone does not do yet, each a deliberate scope choice:
 
-- **Server authority only.** Transforms are owned by the server; there is no client-side prediction or
-  owner-authoritative input yet (`NetworkObject.Owner` is reserved for it).
-- **No delta compression or interest management.** Every snapshot carries every networked object to every client, so
-  bandwidth grows with object × client count. Delta encoding and per-client relevance are future work.
-- **Spawned objects need a prefab.** A networked object is replicated by instantiating its `Prefab` on clients; there is
-  no automatic matching of scene-placed objects that exist on both sides without one.
-- **Replication runs in the engine runtime/host**, which simulates the scene; folding it into the transport-only
-  dedicated `GameServer` (a headless scene runner) is future work.
+- **No client-side prediction or lag compensation.** An owner's object is driven locally (so its own input feels
+  instant), but non-owned objects are shown interpolated in the past; there is no prediction/reconciliation of
+  server-authoritative objects, and the server does not rewind time to validate hits.
+- **Delta is per-object, not per-field.** A snapshot skips unchanged objects, but a changed object sends its whole
+  transform rather than only the changed fields, and there is no per-client baseline/ack delta encoding.
+- **Interest management is radius-only.** Relevance is distance from a client's owned object (or always-relevant);
+  there are no zones, cells or custom relevance rules, and spawn/despawn is not itself culled (only snapshot updates).
+- **No listen server.** A host either runs a dedicated server or is a client; running both in one process (a player
+  hosting) is not wired up.
 
 See [the architecture overview](overview.md) for how modules fit together.
