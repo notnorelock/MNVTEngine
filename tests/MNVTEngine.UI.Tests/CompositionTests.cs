@@ -250,4 +250,96 @@ public sealed class CompositionTests
         var title = ui.Context.Root.AddChild(V.Title("Zażółć"));
         Assert.Same(DesignFonts.DisplayStrong, title.ResolveStyle().Font);
     }
+
+    [Fact]
+    public void HitTesting_AndPointerPositions_FollowTranslateAndScale()
+    {
+        using var ui = new UIHarness();
+        var panel = ui.Context.Root.AddChild(new Panel { Width = 200, Height = 100, Left = 100, Top = 100, BackgroundColor = Color.Black });
+        var slider = panel.AddChild(new Slider { Width = 200, Height = 20, Minimum = 0, Maximum = 100 });
+        ui.Frame();
+        panel.Translate = new Vector2(300, 0);
+        panel.RenderScale = 2f;
+        ui.Frame();
+
+        // Drawn at 2x around the panel centre, then moved 300 right.
+        var start = slider.ToContext(new Vector2(slider.Bounds.X, slider.Bounds.Center.Y));
+        Assert.Equal(panel.Bounds.Center.X + ((slider.Bounds.X - panel.Bounds.Center.X) * 2f) + 300f, start.X, 2);
+        Assert.Equal(slider.Bounds.X, slider.ToLayout(start).X, 2);
+        Assert.Same(slider, ui.Context.HitTest(start + new Vector2(2, 0)));
+        Assert.NotSame(slider, ui.Context.HitTest(new Vector2(slider.Bounds.Center.X, slider.Bounds.Center.Y))); // the untransformed place is empty
+
+        // Clicking three quarters along the drawn slider sets three quarters of the range.
+        ui.Click(slider.ToContext(new Vector2(slider.Bounds.X + (slider.Bounds.Width * 0.75f), slider.Bounds.Center.Y)));
+        Assert.InRange(slider.Value, 70f, 80f); // the thumb's inset moves the exact value a little
+    }
+
+    [Fact]
+    public void AButtonThatShrinksWhilePressed_StillClicksNearItsEdge()
+    {
+        using var ui = new UIHarness();
+        var clicks = 0;
+        var button = ui.Context.Root.AddChild(new Button { Text = "Go", Width = 100, Height = 40, PressScale = 0.8f, ScaleMotion = Motion.Instant });
+        button.Clicked += () => clicks++;
+        ui.Frame();
+        var edge = new Vector2(button.Bounds.X + 2, button.Bounds.Center.Y);
+
+        ui.Input.SetMousePosition(edge);
+        ui.Input.SetMouseButton(MouseButton.Left, true);
+        ui.Frame();
+        ui.Frame();
+        Assert.Equal(0.8f, button.RenderScale);
+        Assert.NotSame(button, ui.Context.HitTest(edge)); // the shrunk button no longer covers the edge
+        ui.Input.SetMouseButton(MouseButton.Left, false);
+        ui.Frame();
+        Assert.Equal(1, clicks);
+    }
+
+    [Fact]
+    public void LayoutDocuments_BindByName_BothWays_AndRoundTripTheBindBlock()
+    {
+        using var ui = new UIHarness();
+        const string Json = """
+            { "schemaVersion": 1, "root": { "type": "Panel", "properties": { "layout": "column" }, "children": [
+              { "type": "Label", "name": "Score", "text": "-", "bind": { "text": "score", "visible": "showScore" } },
+              { "type": "TextField", "name": "Name", "bind": { "text": "playerName" } },
+              { "type": "Toggle", "name": "Sound", "text": "Sound", "bind": { "checked": "sound" } } ] } }
+            """;
+        var root = ui.Context.Root.AddChild(UILayoutSerializer.Load(Json, "test.mnvtui"));
+        var data = new UIData();
+        var score = Signal.Create(3);
+        var name = Signal.Create("Ann");
+        var sound = Signal.Create(false);
+        data.Apply(root);
+        var label = (Label)root.Find("Score")!;
+        Assert.Equal("-", label.Text); // unset names keep the authored value
+
+        data.Set("score", () => score.Value * 10).Set("showScore", () => score.Value > 0).Set("playerName", name).Set("sound", sound);
+        Assert.Equal("30", label.Text);
+        score.Value = 0;
+        Assert.False(label.Visible);
+
+        var field = (TextField)root.Find("Name")!;
+        Assert.Equal("Ann", field.Text);
+        ui.Frame();
+        ui.Click(field);
+        ui.Type("e");
+        Assert.Equal("Anne", name.Value);
+        var toggle = (Toggle)root.Find("Sound")!;
+        ui.Click(toggle);
+        Assert.True(sound.Value);
+
+        var saved = UILayoutSerializer.Save(root);
+        Assert.Contains("\"playerName\"", saved, StringComparison.Ordinal);
+        Assert.Equal("score", UILayoutSerializer.Load(saved, "saved").Find("Score")!.DataBindings["Text"]);
+    }
+
+    [Fact]
+    public void LayoutDocuments_RejectBindingsOfUnknownProperties()
+    {
+        const string Json = """{ "schemaVersion": 1, "root": { "type": "Label", "bind": { "nope": "x", "text": 5 } } }""";
+        var error = Assert.Throws<Serialization.SerializationException>(() => UILayoutSerializer.Load(Json, "bad.mnvtui"));
+        Assert.Contains("root.bind.nope", error.Message, StringComparison.Ordinal);
+        Assert.Contains("root.bind.text", error.Message, StringComparison.Ordinal);
+    }
 }

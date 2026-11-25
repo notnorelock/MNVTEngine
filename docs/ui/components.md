@@ -72,8 +72,13 @@ panel.AnimateOpacity(1f, Motion.Tween(0.2f, Easing.CubicOut))
   - background color.
 - A new animation of the same property replaces the running one.
 - `After(seconds, action)` runs on UI time and is cancelled when the element is disposed.
-- `RenderScale` and `Translate` are visual only: they move the drawing and clips, not the layout. Hit testing follows
-  `Translate` but not the scale. Widgets that read pointer positions (`Slider`, text selection) assume no translate.
+- `RenderScale` and `Translate` are visual only: they move the drawing and clips, not the layout.
+- **Pointer.** Hit testing follows both transforms, so the pointer hits what is drawn. `PointerEventArgs.Position` is
+  in the layout space of the element handling the event, with the transforms of that element and its ancestors undone.
+  Sliders, text selection and scroll bars therefore work inside moved or scaled panels. `ContextPosition` is the raw
+  context point. `UIElement.ToLayout` and `ToContext` convert between the two.
+- **Shrinking buttons.** A press counts as a click when released inside the button's unscaled bounds, so a button
+  that shrinks while pressed keeps a click released near its edge.
 - **Buttons** from `V.Button`:
   - spring to `Design.Tokens.HoverScale` on hover and to `PressScale` on press;
   - draw a ripple from the point pressed;
@@ -98,6 +103,37 @@ panel.AnimateOpacity(1f, Motion.Tween(0.2f, Easing.CubicOut))
 - **`V.FormField(label, field, error)`** adds a label above the field and an error message below it. The field gets
   the `.invalid` class while the error function returns text.
 - **`V.EmptyState(glyph, title, text, action)`** and **`V.Spinner()`** cover empty and loading content.
+
+## Data in layout documents
+
+A `.mnvtui` element can bind its properties to names:
+
+```json
+{ "type": "Label", "name": "Score", "text": "0", "bind": { "text": "score", "visible": "showScore" } }
+```
+
+Game code provides the names through `UIDocument.Data`, a `UIData`:
+
+```csharp
+var data = GetComponent<UIDocument>()!.Data;
+data.Set("score", () => coins.Value * 10)        // computed, one-way
+    .Set("showScore", () => !paused.Value)
+    .Set("playerName", playerName);             // Signal<string>: a bound text field writes edits back
+```
+
+- Names can be set before or after the layout loads, replaced, or removed. A property whose name is not set keeps
+  its authored value.
+- Values are converted to the property's type: numbers, text, booleans and enums. A failed conversion is logged like
+  any failing binding.
+- **Two-way binding.** A writable `Signal<T>` bound to the value of an input receives the user's edits. The inputs
+  are a text field's `text`, a checkbox's or toggle's `checked`, a slider's `value` and a dropdown's `selectedIndex`.
+- Bindable properties:
+  - `text` and `placeholder`;
+  - every serializable property (`visible`, `enabled`, `width`, `value`...);
+  - the style shortcuts (`backgroundColor`, `textColor`, `opacity`...).
+- Unknown properties or empty names are load errors with their JSON path.
+- The editor's UI Editor shows the block under **Data bindings**, one `property = name` per line.
+- Layouts loaded by hand bind with `new UIData().Apply(root)`.
 
 ## Design system
 
@@ -141,9 +177,5 @@ The defaults are `DesignTokens.Midnight()`, a dark violet-blue theme, and `Midni
 
 ## Known limits
 
-- **Pointer and scale.** Hit testing ignores `RenderScale`; buttons only scale by a few percent, so the difference is
-  invisible.
-- **Documents.** `.mnvtui` documents do not bind to signals yet. Build reactive screens in code, or set document
-  widgets from code with `Bind`.
 - **Threads.** Everything UI and reactive runs on the main thread. Work from other threads comes back through
   `UIContext.Dispatcher.Post`, which runs at the start of the next UI update.

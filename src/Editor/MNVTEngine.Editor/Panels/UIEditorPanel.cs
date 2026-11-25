@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-05.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using System.Globalization;
 using System.Reflection;
@@ -42,6 +42,8 @@ internal sealed class UIEditorPanel : IDisposable
     private string _addType = "Button";
     private UIState _stateStyle = UIState.Hover;
     private string? _error;
+    private UIElement? _bindingsFor;
+    private string _bindings = "";
     private bool _visible;
     private int _focusFrames;
 
@@ -353,6 +355,23 @@ internal sealed class UIEditorPanel : IDisposable
                     UILayoutDocument.SetProperty(element, property, value);
                 }
             }
+        }
+
+        if (ImGui.CollapsingHeader("Data bindings"))
+        {
+            if (_bindingsFor != element)
+            {
+                (_bindingsFor, _bindings) = (element, UILayoutDocument.BindingsText(element));
+            }
+
+            ImGui.InputTextMultiline("##bindings", ref _bindings, 4096, new SysVector2(-1f, 80f));
+            if (ImGui.IsItemDeactivatedAfterEdit() && UILayoutDocument.SetBindings(element, _bindings) is { } problem)
+            {
+                _error = problem;
+                _bindings = UILayoutDocument.BindingsText(element);
+            }
+
+            Hint("One per line: property = data name (text = playerName). Game code sets the names with UIDocument.Data.Set.");
         }
 
         if (ImGui.CollapsingHeader("Style", ImGuiTreeNodeFlags.DefaultOpen))

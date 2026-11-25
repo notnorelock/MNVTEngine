@@ -137,6 +137,9 @@ var ui = GetComponent<UIDocument>()!.Context!;
 ui.OnAction("resume", _ => ui.Visible = false);
 ```
 
+- **Binding data.** `"bind"` entries map properties to names that game code sets with `UIDocument.Data.Set(...)`; see
+  [data in layout documents](components.md#data-in-layout-documents).
+
 Examples:
 
 - `samples/UIShowcase/Assets/UI/PauseMenu.mnvtui`, shown by the "Pause Menu" object and bound in `Scripts/PauseMenu.cs`. Press P in the game to open it.

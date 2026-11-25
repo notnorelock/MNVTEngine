@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Editor.Services;
 using MNVTEngine.Graphics.Text;
@@ -114,5 +114,22 @@ public sealed class UILayoutDocumentTests : IDisposable
         var document = new UILayoutDocument(path, _ => _font);
         var actions = document.Root.Descendants().Select(e => e.Action).OfType<string>().ToList();
         Assert.Equal(["resume", "quit"], actions);
+    }
+
+    [Fact]
+    public void DataBindings_ParseFromLines_RejectUnknownProperties_AndRoundTrip()
+    {
+        var label = new Label();
+        Assert.Null(UILayoutDocument.SetBindings(label, "text = score" + Environment.NewLine + " visible=showScore "));
+        Assert.Equal("score", label.DataBindings["Text"]);
+        Assert.Equal("showScore", label.DataBindings["Visible"]);
+        Assert.Equal("text = score\nvisible = showScore", UILayoutDocument.BindingsText(label));
+
+        Assert.NotNull(UILayoutDocument.SetBindings(label, "nope = x"));
+        Assert.NotNull(UILayoutDocument.SetBindings(label, "text ="));
+        Assert.Equal(2, label.DataBindings.Count); // a wrong line changes nothing
+
+        var loaded = UILayoutSerializer.Load(UILayoutSerializer.Save(label), "test");
+        Assert.Equal("showScore", loaded.DataBindings["Visible"]);
     }
 }

@@ -118,6 +118,7 @@ The UI Editor edits game UI layouts (`.mnvtui`, see [game UI](../ui/ui-system.md
   - name, text, placeholder, and font (an asset path such as `Fonts/Title.ttf`, or `asset:<guid>`);
   - every stored property of the widget, including the **Action** name that game code binds;
   - style values (a checkbox sets or clears each one), and per-state styles (hover, pressed, focused, disabled, checked).
+  - **Data bindings**: one `property = name` per line (`text = score`), applied when the box loses focus. Game code sets the names with `UIDocument.Data` ([data in layouts](../ui/components.md#data-in-layout-documents)).
   - Units take `120`, `50%` or `auto`, and asset fields take a path; press Enter to apply.
 - **Saving and undo:** Ctrl+S saves and Ctrl+Z / Ctrl+Y undo and redo while the window has focus. A drag or a typed value becomes one step. **Save*** marks unsaved changes.
 - **Limitations:** no drag and drop in the tree or preview, and quitting the editor does not ask about an unsaved layout.

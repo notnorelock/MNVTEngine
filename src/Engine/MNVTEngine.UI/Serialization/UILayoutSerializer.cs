@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using System.Globalization;
 using System.Reflection;
@@ -27,6 +27,8 @@ namespace MNVTEngine.UI;
 /// ("asset:&lt;guid&gt;") and string lists.</item>
 /// <item><b>Fonts.</b> They are font asset references, resolved through a callback.</item>
 /// <item><b>Behaviour.</b> It is bound by <see cref="UIElement.Action"/> names, never by serialized code.</item>
+/// <item><b>Data.</b> <c>"bind": { "text": "playerName" }</c> maps properties to names that game code provides
+/// through <see cref="UIData"/> (<see cref="UIDocument.Data"/>).</item>
 /// <item><b>Errors.</b> Unknown types, unknown properties and bad values are errors with their JSON path. Saving writes
 /// only values that differ from a new element of the type.</item>
 /// </list>
@@ -137,9 +139,9 @@ public static class UILayoutSerializer
         element.Name = item.Value<string>("name") ?? "";
         foreach (var property in item.Properties())
         {
-            if (property.Name is not ("type" or "name" or "properties" or "style" or "states" or "children" or "text" or "placeholder" or "font"))
+            if (property.Name is not ("type" or "name" or "properties" or "bind" or "style" or "states" or "children" or "text" or "placeholder" or "font"))
             {
-                Error($"{path}.{property.Name}", "Unknown key (expected type, name, text, placeholder, font, properties, style, states, children).");
+                Error($"{path}.{property.Name}", "Unknown key (expected type, name, text, placeholder, font, properties, bind, style, states, children).");
             }
         }
 
@@ -182,6 +184,11 @@ public static class UILayoutSerializer
                     Error($"{path}.properties.{property.Name}", problem);
                 }
             }
+        }
+
+        if (item["bind"] is { } bind)
+        {
+            ReadBindings(element, bind, path + ".bind", Error);
         }
 
         if (item["style"] is JObject style)
@@ -270,6 +277,11 @@ public static class UILayoutSerializer
             item["properties"] = properties;
         }
 
+        if (element.HasDataBindings)
+        {
+            item["bind"] = new JObject(element.DataBindings.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => new JProperty(Camel(p.Key), p.Value)));
+        }
+
         if (WriteStyle(element.Style) is { Count: > 0 } style)
         {
             item["style"] = style;
@@ -306,6 +318,43 @@ public static class UILayoutSerializer
             else
             {
                 info.SetValue(element, value);
+            }
+        }
+    }
+
+    /// <summary>The property a <c>bind</c> entry sets: text, placeholder, or any serializable property; null when none.</summary>
+    public static PropertyInfo? BindableProperty(Type type, string name)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        return string.Equals(name, "text", StringComparison.OrdinalIgnoreCase) ? TextProperty(type)
+            : string.Equals(name, "placeholder", StringComparison.OrdinalIgnoreCase) ? PlaceholderPropertyOf(type)
+            : FindProperty(type, name) is { } p && p.PropertyType != typeof(List<string>) ? p
+            : type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase) is { CanWrite: true } shortcut && IsStyleShortcut(shortcut) && IsSupportedType(shortcut.PropertyType) ? shortcut
+            : null;
+    }
+
+    private static void ReadBindings(UIElement element, JToken bind, string path, Action<string, string> error)
+    {
+        if (bind is not JObject entries)
+        {
+            error(path, "Expected an object of property names to data names.");
+            return;
+        }
+
+        foreach (var entry in entries.Properties())
+        {
+            var name = entry.Value.Type == JTokenType.String ? entry.Value.Value<string>() : null;
+            if (BindableProperty(element.GetType(), entry.Name) is not { } info)
+            {
+                error($"{path}.{entry.Name}", $"{element.GetType().Name} has no bindable property '{entry.Name}'.");
+            }
+            else if (string.IsNullOrWhiteSpace(name) || name.Length > 128)
+            {
+                error($"{path}.{entry.Name}", "Expected a data name (1 to 128 characters).");
+            }
+            else
+            {
+                element.DataBindings[info.Name] = name;
             }
         }
     }

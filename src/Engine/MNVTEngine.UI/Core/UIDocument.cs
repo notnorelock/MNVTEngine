@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-12.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Scenes;
 using MNVTEngine.Serialization;
@@ -9,7 +9,8 @@ namespace MNVTEngine.UI;
 
 /// <summary>
 /// Shows a UI layout asset (<c>.mnvtui</c>, made in the editor's UI Editor) in its own context while the component is
-/// active. Game code binds behaviour by action name: <c>GetComponent&lt;UIDocument&gt;().Context!.OnAction("play", ...)</c>.
+/// active. Game code binds behaviour by action name (<c>GetComponent&lt;UIDocument&gt;().Context!.OnAction("play", ...)</c>)
+/// and data by name (<c>.Data.Set("score", score)</c>, for the layout's <c>bind</c> entries).
 /// Without a UI system in the scene (the editor's edit mode) it shows nothing.
 /// </summary>
 [ComponentId("MNVTEngine.UIDocument")]
@@ -33,6 +34,9 @@ public sealed class UIDocument : Component
     /// <summary>The loaded layout's root element; null when not loaded.</summary>
     public UIElement? Root { get; private set; }
 
+    /// <summary>Values for the layout's <c>bind</c> entries; set them any time (before Start is fine).</summary>
+    public UIData Data { get; } = new();
+
     /// <summary>Loaded in Awake, so other components can bind actions in their Start.</summary>
     public override void Awake()
     {
@@ -53,8 +57,9 @@ public sealed class UIDocument : Component
         try
         {
             Root = Context.Root.AddChild(system.LoadLayout(Layout));
+            Data.Apply(Root);
         }
-        catch (Exception ex) when (ex is SerializationException or IOException or KeyNotFoundException)
+        catch (Exception ex) when (ex is SerializationException or IOException or KeyNotFoundException or InvalidOperationException)
         {
             Log.Error($"UIDocument on '{GameObject.Name}': layout {Layout} could not be loaded.", ex);
         }

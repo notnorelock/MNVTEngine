@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using System.Reflection;
 using MNVTEngine.Graphics.Text;
@@ -177,6 +177,44 @@ public sealed class UILayoutDocument
         ArgumentNullException.ThrowIfNull(property);
         property.SetValue(element, value);
         element.InvalidateLayout();
+    }
+
+    /// <summary>An element's data bindings as <c>property = name</c> lines (the layout's <c>bind</c> block).</summary>
+    public static string BindingsText(UIElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        return string.Join('\n', element.DataBindings.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{char.ToLowerInvariant(p.Key[0])}{p.Key[1..]} = {p.Value}"));
+    }
+
+    /// <summary>Replaces an element's data bindings from <c>property = name</c> lines; returns the problem (and changes nothing) when a line is wrong.</summary>
+    public static string? SetBindings(UIElement element, string text)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        ArgumentNullException.ThrowIfNull(text);
+        var parsed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in text.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0))
+        {
+            var parts = line.Split('=', 2, StringSplitOptions.TrimEntries);
+            if (parts.Length != 2 || parts[1].Length is 0 or > 128)
+            {
+                return $"'{line}': expected property = name.";
+            }
+
+            if (UILayoutSerializer.BindableProperty(element.GetType(), parts[0]) is not { } property)
+            {
+                return $"{element.GetType().Name} has no bindable property '{parts[0]}'.";
+            }
+
+            parsed[property.Name] = parts[1];
+        }
+
+        element.DataBindings.Clear();
+        foreach (var (property, name) in parsed)
+        {
+            element.DataBindings[property] = name;
+        }
+
+        return null;
     }
 
     /// <summary>Sets a style property of <paramref name="style"/> (the element's own or a state style) and updates it.</summary>
