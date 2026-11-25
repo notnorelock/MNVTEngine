@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A standalone dedicated game server, written outside the engine: a plain .NET console app that references only
+       the networking layer (MNVTEngine.Galaxy and MNVTEngine.Galaxy.Server). Copy this to start your own server.
+       For a server that runs your game's actual scene instead, use `mnvt server <project>`. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>GalaxyServerSample</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Galaxy\MNVTEngine.Galaxy.csproj" />
+    <ProjectReference Include="..\..\src\Engine\MNVTEngine.Galaxy.Server\MNVTEngine.Galaxy.Server.csproj" />
+  </ItemGroup>
+</Project>
