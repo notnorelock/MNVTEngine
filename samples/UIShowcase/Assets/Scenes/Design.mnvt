@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "name": "Design",
+  "gameObjects": [
+    {
+      "id": "a0000000-0000-0000-0000-000000000101",
+      "name": "Design Gallery",
+      "active": true,
+      "parent": null,
+      "transform": { "localPosition": { "x": 0.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "components": [
+        { "type": "UIShowcase.DesignGallery", "id": "b0000000-0000-0000-0000-000000000101", "enabled": true, "data": {} }
+      ]
+    },
+    {
+      "id": "a0000000-0000-0000-0000-000000000102",
+      "name": "Main Camera",
+      "active": true,
+      "parent": null,
+      "transform": { "localPosition": { "x": 0.0, "y": 0.0 }, "localRotation": 0.0, "localScale": { "x": 1.0, "y": 1.0 } },
+      "components": [
+        { "type": "MNVTEngine.Camera", "id": "b0000000-0000-0000-0000-000000000102", "enabled": true,
+          "data": { "orthographicSize": 5.0, "backgroundColor": { "r": 0.035, "g": 0.04, "b": 0.08, "a": 1.0 } } }
+      ]
+    }
+  ]
+}

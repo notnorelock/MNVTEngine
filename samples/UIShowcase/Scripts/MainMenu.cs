@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine;
 using MNVTEngine.Graphics.Text;
@@ -51,7 +51,9 @@ public sealed class MainMenu : Component
         var buttons = _menu.AddChild(new Panel { Layout = LayoutMode.Row, Gap = 8, Justify = Justify.Center });
         var play = buttons.AddChild(new Button { Text = "Play", StyleClass = "primary", Width = 140, Height = 40, Tooltip = "Hide the menu and move with WASD" });
         var reset = buttons.AddChild(new Button { Text = "Start timer", Width = 140, Height = 40 });
+        var design = buttons.AddChild(new Button { Text = "Design system", Width = 140, Height = 40, Tooltip = "Screens built with the V builder (F1 comes back)" });
         var quit = buttons.AddChild(new Button { Text = "Quit", Width = 100, Height = 40 });
+        design.Clicked += () => SceneManager.LoadScene("Scenes/Design.mnvt");
         quit.Clicked += Application.Quit;
         play.Clicked += () =>
         {
