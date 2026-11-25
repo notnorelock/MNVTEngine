@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Graphics.Text;
 using MNVTEngine.Mathematics;
@@ -323,7 +323,15 @@ public partial class UIElement
         }
 
         OnAttached();
+        if (context is not null && WhenAttached is { } pending)
+        {
+            WhenAttached = null;
+            pending();
+        }
     }
+
+    /// <summary>Runs once when the element next joins a context (entrance animations).</summary>
+    internal Action? WhenAttached { get; set; }
 
     /// <summary>Called when the element joins or leaves a context tree.</summary>
     protected virtual void OnAttached()

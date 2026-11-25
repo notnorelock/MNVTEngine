@@ -165,6 +165,47 @@ public static class UIAnimations
     }
 
     /// <summary>
+    /// An entrance: the element starts transparent and moved by <paramref name="offset"/>, then fades and slides to its
+    /// place over <paramref name="seconds"/>, once it joins a UI context (when mounted, or when a region builds it
+    /// later) and <paramref name="delay"/> has passed. Increasing delays stagger a list. Already in a context: starts now.
+    /// </summary>
+    public static T Appear<T>(this T element, Vector2 offset = default, float delay = 0f, float seconds = 0.45f)
+        where T : UIElement
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        var opacity = element.Opacity ?? 1f;
+        (element.Opacity, element.Translate) = (0f, offset);
+        void Play()
+        {
+            var motion = Motion.Tween(seconds, Easing.CubicOut);
+            element.AnimateOpacity(opacity, motion).AnimateTranslate(Vector2.Zero, motion);
+        }
+
+        void Start()
+        {
+            if (delay > 0f)
+            {
+                element.After(delay, Play);
+            }
+            else
+            {
+                Play();
+            }
+        }
+
+        if (element.Context is null)
+        {
+            element.WhenAttached += Start;
+        }
+        else
+        {
+            Start();
+        }
+
+        return element;
+    }
+
+    /// <summary>
     /// Runs <paramref name="action"/> after <paramref name="seconds"/> of UI time, unless the element is disposed (or
     /// its animations stopped) first. Without a context it runs at once.
     /// </summary>

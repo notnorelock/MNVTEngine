@@ -72,6 +72,9 @@ panel.AnimateOpacity(1f, Motion.Tween(0.2f, Easing.CubicOut))
   - background color.
 - A new animation of the same property replaces the running one.
 - `After(seconds, action)` runs on UI time and is cancelled when the element is disposed.
+- `Appear(offset, delay, seconds)` is an entrance: the element starts transparent and moved by `offset`, then fades and
+  slides into place once it joins a context, also when a region (`Keyed`, `For`, `Show`) builds it later. Increasing
+  delays stagger a list: `row.Appear(new Vector2(0, 12), delay: index * 0.05f)`.
 - `RenderScale` and `Translate` are visual only: they move the drawing and clips, not the layout.
 - **Pointer.** Hit testing follows both transforms, so the pointer hits what is drawn. `PointerEventArgs.Position` is
   in the layout space of the element handling the event, with the transforms of that element and its ancestors undone.

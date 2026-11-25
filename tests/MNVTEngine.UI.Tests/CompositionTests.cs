@@ -173,6 +173,26 @@ public sealed class CompositionTests
     }
 
     [Fact]
+    public void Appear_WaitsForTheContext_ThenFadesAndSlidesIn()
+    {
+        using var ui = new UIHarness();
+        var box = new Panel { Width = 10, Height = 10 }.Appear(new Vector2(0f, 20f), delay: 0.05f, seconds: 0.1f);
+        Assert.Equal(0f, box.Opacity);
+        Assert.False(box.IsAnimating()); // not mounted yet: nothing runs
+
+        ui.Context.Root.AddChild(box);
+        Assert.True(box.IsAnimating());
+        for (var i = 0; i < 30; i++)
+        {
+            ui.Frame();
+        }
+
+        Assert.Equal(1f, box.Opacity);
+        Assert.Equal(Vector2.Zero, box.Translate);
+        Assert.False(box.IsAnimating());
+    }
+
+    [Fact]
     public void Springs_Settle_AtTheTarget()
     {
         using var ui = new UIHarness();
