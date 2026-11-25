@@ -121,6 +121,10 @@ public static class ElementExtensions
     public static T Anchor<T>(this T e, Vector2 anchor, Vector2? pivot = null, float left = 0f, float top = 0f)
         where T : UIElement => Set(e, x => (x.Anchor, x.Pivot, x.Left, x.Top) = (anchor, pivot ?? anchor, left, top));
 
+    /// <summary>A nine-sliced texture background (<see cref="UIElement.BackgroundAsset"/>): frame in texels, drawn at <paramref name="scale"/> pixels per texel.</summary>
+    public static T BackgroundImage<T>(this T e, AssetRef texture, Thickness slice, float scale = 1f)
+        where T : UIElement => Set(e, x => (x.BackgroundAsset, x.BackgroundSlice, x.BackgroundScale) = (texture, slice, scale));
+
     public static T Clip<T>(this T e, bool clip = true)
         where T : UIElement => Set(e, x => x.Overflow = clip ? Overflow.Clip : Overflow.Visible);
 

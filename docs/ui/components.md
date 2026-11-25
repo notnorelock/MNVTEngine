@@ -32,7 +32,7 @@ context.Mount(() => V.Card(
   - control flow: `Show`, `Keyed`, `For`, `Pages`.
 - **Fluent setters** (`ElementExtensions`) return the element with its own type:
   - layout: `Width`, `Height`, `Size`, `Fill`, `Grow`, `Padding`, `Margin`, `Gap`, `AlignItems`, `Justify`, `Center`, `Anchor`;
-  - look: `Background`, `Border`, `Radius`, `Opacity`, `Foreground`, `Font`, `Class`;
+  - look: `Background`, `BackgroundImage`, `Border`, `Radius`, `Opacity`, `Foreground`, `Font`, `Class`;
   - state: `Visible`, `Enabled`, `Tooltip`;
   - events: `OnClick`, `OnKey`, `OnFocus`, `OnBlur`, `Action`.
 - **Bindings.** Overloads that take a `Func<T>` or an `IReadable<T>` follow the signals they read. They stop when the
@@ -183,3 +183,18 @@ The defaults are `DesignTokens.Midnight()`, a dark violet-blue theme, and `Midni
 
 - **Threads.** Everything UI and reactive runs on the main thread. Work from other threads comes back through
   `UIContext.Dispatcher.Post`, which runs at the start of the next UI update.
+
+## Nine-slice backgrounds
+
+`BackgroundImage(texture, slice, scale)` draws a texture asset behind any element instead of its background colour
+(the colour, when set, tints it). `slice` is the frame on each side in texels: the corners keep their size, the edges
+stretch along one axis and the centre both ways, so one small frame fits any box (speech bubbles, panels, pixel-art
+windows). `scale` is logical pixels per texel; use a whole number and a point-filtered texture for pixel art. When the
+box is smaller than the frame, the corners shrink evenly. The math is `NineSlice.Pieces`; the painter draws it with
+`UIPainter.DrawNineSlice`.
+
+```csharp
+V.Row(V.Text("Hi!")).Padding(8, 4)
+    .BackgroundImage(new AssetRef(bubbleGuid), Thickness.All(4), scale: 2);
+```
+

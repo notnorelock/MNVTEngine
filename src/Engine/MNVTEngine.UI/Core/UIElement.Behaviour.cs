@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Mathematics;
 
@@ -36,7 +36,17 @@ public partial class UIElement
     protected internal virtual void ArrangeChildren() => LayoutEngine.ArrangeChildren(this);
 
     /// <summary>Draws the element (not its children). The default draws background, border and shadow from the style.</summary>
-    protected internal virtual void Paint(UIPainter painter, in ResolvedStyle style) => painter.DrawBox(Bounds, style);
+    protected internal virtual void Paint(UIPainter painter, in ResolvedStyle style)
+    {
+        ArgumentNullException.ThrowIfNull(painter);
+        if (BackgroundAsset is { } asset && Context?.LoadTexture(asset) is { } texture)
+        {
+            painter.DrawNineSlice(texture, Bounds, BackgroundSlice, BackgroundScale, BackgroundColor ?? Color.White);
+            return;
+        }
+
+        painter.DrawBox(Bounds, style);
+    }
 
     /// <summary>Drawn after the children (scroll bars, focus rings).</summary>
     protected internal virtual void PaintOver(UIPainter painter, in ResolvedStyle style)

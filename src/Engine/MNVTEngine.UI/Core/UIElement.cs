@@ -23,6 +23,9 @@ public partial class UIElement
     private float _minWidth, _minHeight, _maxWidth = float.PositiveInfinity, _maxHeight = float.PositiveInfinity;
     private Thickness _margin;
     private Vector2 _anchor, _pivot;
+    private AssetRef? _backgroundAsset;
+    private Thickness _backgroundSlice;
+    private float _backgroundScale = 1f;
     private LayoutMode _layout;
     private float _gap, _flexGrow;
     private Justify _justify;
@@ -136,6 +139,19 @@ public partial class UIElement
     public float? BorderWidth { get => Style.BorderWidth; set { Style.BorderWidth = value; InvalidateLayout(); } }
 
     public float? CornerRadius { get => Style.CornerRadius; set { Style.CornerRadius = value; InvalidateVisual(); } }
+
+    /// <summary>
+    /// A texture asset drawn as the background instead of the colour (which then tints it, white when unset), nine-sliced
+    /// by <see cref="BackgroundSlice"/>: speech bubbles, pixel-art panels and frames. Set the texture's filter to point
+    /// for pixel art.
+    /// </summary>
+    public AssetRef? BackgroundAsset { get => _backgroundAsset; set => SetVisual(ref _backgroundAsset, value); }
+
+    /// <summary>The frame of <see cref="BackgroundAsset"/> on each side, in texels; zero stretches the whole texture.</summary>
+    public Thickness BackgroundSlice { get => _backgroundSlice; set => SetVisual(ref _backgroundSlice, value); }
+
+    /// <summary>Logical pixels per texel of the background's frame (2 draws pixel art at double size).</summary>
+    public float BackgroundScale { get => _backgroundScale; set => SetVisual(ref _backgroundScale, value); }
 
     public Thickness? Padding { get => Style.Padding; set { Style.Padding = value; InvalidateLayout(); } }
 

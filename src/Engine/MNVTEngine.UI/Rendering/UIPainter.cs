@@ -147,6 +147,19 @@ public sealed class UIPainter
         Quad(texture, Scale(logical), src, tint);
     }
 
+    /// <summary>
+    /// Draws a texture nine-sliced into <paramref name="logical"/> (<see cref="NineSlice"/>): <paramref name="slice"/>
+    /// is the frame in texels, <paramref name="scale"/> logical pixels per texel of the frame.
+    /// </summary>
+    public void DrawNineSlice(Texture2D texture, Rect logical, Thickness slice, float scale, Color tint)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+        foreach (var (dest, source) in NineSlice.Pieces(logical, texture.Width, texture.Height, slice, scale))
+        {
+            DrawImage(texture, dest, tint, source);
+        }
+    }
+
     /// <summary>Draws text laid out at this painter's pixel scale (see <see cref="TextBlock"/>) with its top-left at <paramref name="logicalTopLeft"/>.</summary>
     public void DrawText(TextLayout layout, Vector2 logicalTopLeft, Color color)
     {
