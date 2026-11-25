@@ -28,6 +28,10 @@ internal sealed partial class Connection : IDisposable
     private readonly List<byte[]> _delivered = [];
     private readonly ILogger _logger;
 
+    private const int PlaintextBudget = GalaxyConstants.MaxDatagramSize - HeaderSize - SessionCrypto.TagSize;
+
+    private readonly byte[] _outgoing = new byte[PlaintextBudget]; // frames queued this tick, each length-prefixed
+    private int _outgoingLength;
     private long _lastReceiveMs;
     private long _lastSendMs;
     private ushort _fragmentGroup;
@@ -122,13 +126,14 @@ internal sealed partial class Connection : IDisposable
         }
     }
 
-    /// <summary>Sends a graceful disconnect to the peer (best effort).</summary>
+    /// <summary>Sends a graceful disconnect to the peer (best effort), flushing immediately.</summary>
     public void SendDisconnect(long nowMs)
     {
         Span<byte> inner = stackalloc byte[2];
         inner[0] = (byte)FrameKind.Control;
         inner[1] = (byte)ControlOpcode.Disconnect;
-        SealAndSend(inner, nowMs);
+        EnqueueFrame(inner, nowMs);
+        Flush(nowMs);
     }
 
     /// <summary>Advances timers: retransmits, pending acknowledgements, keep-alive. Returns false when the peer has
@@ -149,14 +154,15 @@ internal sealed partial class Connection : IDisposable
             SendAckFrame(ackLatest, ackBits, nowMs);
         }
 
-        if (nowMs - _lastSendMs >= GalaxyConstants.HeartbeatMilliseconds)
+        if (_outgoingLength == 0 && nowMs - _lastSendMs >= GalaxyConstants.HeartbeatMilliseconds)
         {
             Span<byte> inner = stackalloc byte[2];
             inner[0] = (byte)FrameKind.Control;
             inner[1] = (byte)ControlOpcode.KeepAlive;
-            SealAndSend(inner, nowMs);
+            EnqueueFrame(inner, nowMs);
         }
 
+        Flush(nowMs); // Send everything queued this tick, coalesced into as few datagrams as fit.
         return nowMs - _lastReceiveMs < GalaxyConstants.TimeoutMilliseconds;
     }
 
@@ -179,7 +185,22 @@ internal sealed partial class Connection : IDisposable
         }
 
         _lastReceiveMs = nowMs;
-        ParseFrame(plaintext[..length], inbound, ref remoteClosed);
+
+        // A datagram may carry several length-prefixed frames coalesced together.
+        ReadOnlySpan<byte> plain = plaintext[..length];
+        int offset = 0;
+        while (offset + 2 <= plain.Length)
+        {
+            int frameLength = BinaryPrimitives.ReadUInt16LittleEndian(plain.Slice(offset, 2));
+            offset += 2;
+            if (frameLength == 0 || offset + frameLength > plain.Length)
+            {
+                break; // Malformed framing: stop rather than read past the end.
+            }
+
+            ParseFrame(plain.Slice(offset, frameLength), inbound, ref remoteClosed);
+            offset += frameLength;
+        }
     }
 
     private void ParseFrame(ReadOnlySpan<byte> frame, List<Message> inbound, ref bool remoteClosed)
@@ -269,7 +290,7 @@ internal sealed partial class Connection : IDisposable
         inner[0] = (byte)FrameKind.Reliable;
         BinaryPrimitives.WriteUInt16LittleEndian(inner.Slice(1, 2), sequence);
         app.CopyTo(inner[3..]);
-        SealAndSend(inner, nowMs);
+        EnqueueFrame(inner, nowMs);
     }
 
     private void SendUnreliableFrame(ReadOnlySpan<byte> app, long nowMs)
@@ -277,7 +298,7 @@ internal sealed partial class Connection : IDisposable
         Span<byte> inner = stackalloc byte[1 + app.Length];
         inner[0] = (byte)FrameKind.Unreliable;
         app.CopyTo(inner[1..]);
-        SealAndSend(inner, nowMs);
+        EnqueueFrame(inner, nowMs);
     }
 
     private void SendAckFrame(ushort ackLatest, uint ackBits, long nowMs)
@@ -286,18 +307,44 @@ internal sealed partial class Connection : IDisposable
         inner[0] = (byte)FrameKind.Ack;
         BinaryPrimitives.WriteUInt16LittleEndian(inner.Slice(1, 2), ackLatest);
         BinaryPrimitives.WriteUInt32LittleEndian(inner.Slice(3, 4), ackBits);
-        SealAndSend(inner, nowMs);
+        EnqueueFrame(inner, nowMs);
     }
 
-    private void SealAndSend(ReadOnlySpan<byte> inner, long nowMs)
+    // Appends a frame to this tick's outgoing buffer, flushing first if it would not fit, so many small messages ride
+    // in one encrypted datagram instead of paying the header-and-tag cost each.
+    private void EnqueueFrame(ReadOnlySpan<byte> frame, long nowMs)
     {
-        Span<byte> datagram = stackalloc byte[HeaderSize + inner.Length + SessionCrypto.TagSize];
+        int needed = 2 + frame.Length;
+        if (needed > _outgoing.Length)
+        {
+            return; // A single frame larger than a datagram cannot be sent (fragmentation keeps frames under the MTU).
+        }
+
+        if (_outgoingLength + needed > _outgoing.Length)
+        {
+            Flush(nowMs);
+        }
+
+        BinaryPrimitives.WriteUInt16LittleEndian(_outgoing.AsSpan(_outgoingLength, 2), (ushort)frame.Length);
+        frame.CopyTo(_outgoing.AsSpan(_outgoingLength + 2));
+        _outgoingLength += needed;
+    }
+
+    private void Flush(long nowMs)
+    {
+        if (_outgoingLength == 0)
+        {
+            return;
+        }
+
+        Span<byte> datagram = stackalloc byte[HeaderSize + _outgoingLength + SessionCrypto.TagSize];
         datagram[0] = (byte)PacketType.Payload;
         BinaryPrimitives.WriteUInt32LittleEndian(datagram.Slice(1, 4), ConnectionId);
-        int sealedLength = _crypto.Seal(inner, datagram[HeaderSize..], datagram[..5], out ulong counter);
+        int sealedLength = _crypto.Seal(_outgoing.AsSpan(0, _outgoingLength), datagram[HeaderSize..], datagram[..5], out ulong counter);
         BinaryPrimitives.WriteUInt64BigEndian(datagram.Slice(5, 8), counter);
         _transport.Send(datagram[..(HeaderSize + sealedLength)], Remote);
         _lastSendMs = nowMs;
+        _outgoingLength = 0;
     }
 
     public void Dispose() => _crypto.Dispose();

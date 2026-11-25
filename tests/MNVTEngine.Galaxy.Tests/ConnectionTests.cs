@@ -68,6 +68,7 @@ public sealed class ConnectionTests
             client.Send(message, DeliveryMethod.Unreliable, 0);
         }
 
+        client.Tick(0); // Flush the queued frames (sends are coalesced and flushed on tick).
         var received = new List<int>();
         var inbound = new List<Message>();
         Drain(serverTransport, server, 0, inbound, received);
@@ -122,6 +123,34 @@ public sealed class ConnectionTests
 
         Assert.NotNull(got);
         Assert.Equal(big, got);
+    }
+
+    [Fact]
+    public void ManySmallMessages_AreCoalesced_IntoOneDatagram()
+    {
+        var net = new TestNetwork(seed: 3);
+        (SessionCrypto clientCrypto, _) = Handshakes.Pair();
+        ITransport clientTransport = net.Host(ClientAddress);
+        ITransport serverTransport = net.Host(ServerAddress);
+        var client = new Connection(1, ServerAddress, clientTransport, clientCrypto, 0, NullLogger.Instance);
+
+        for (int i = 0; i < 5; i++)
+        {
+            Message message = Message.Create(i);
+            message.Write(i);
+            client.Send(message, DeliveryMethod.Unreliable, 0);
+        }
+
+        client.Tick(0); // Flush: the five frames ride in one datagram.
+
+        int datagrams = 0;
+        byte[] buffer = new byte[GalaxyConstants.MaxDatagramSize];
+        while (serverTransport.TryReceive(buffer, out _, out _))
+        {
+            datagrams++;
+        }
+
+        Assert.Equal(1, datagrams);
     }
 
     [Fact]

@@ -8,7 +8,7 @@ namespace MNVTEngine.Galaxy;
 public static class GalaxyConstants
 {
     /// <summary>Bumped whenever the wire format changes; a client and server must match to connect.</summary>
-    public const int ProtocolVersion = 2;
+    public const int ProtocolVersion = 3;
 
     /// <summary>Most simultaneous connections accepted from one IP address; a basic per-source flood limit.</summary>
     public const int MaxConnectionsPerAddress = 16;
