@@ -176,6 +176,42 @@ public sealed class Message
         return this;
     }
 
+    /// <summary>Writes an unsigned integer as a variable-length (LEB128) value: 1 byte for values under 128, growing
+    /// to 5. Small ids and counts cost far less than a fixed 4 bytes.</summary>
+    public Message WriteVarUInt(uint value)
+    {
+        while (value >= 0x80)
+        {
+            Write((byte)(value | 0x80));
+            value >>= 7;
+        }
+
+        return Write((byte)value);
+    }
+
+    /// <summary>Reads a variable-length unsigned integer; sets <see cref="Failed"/> on a truncated or overlong value.</summary>
+    public uint ReadVarUInt()
+    {
+        uint result = 0;
+        for (int shift = 0; shift < 35; shift += 7)
+        {
+            byte b = ReadByte();
+            if (Failed)
+            {
+                return 0;
+            }
+
+            result |= (uint)(b & 0x7F) << shift;
+            if ((b & 0x80) == 0)
+            {
+                return result;
+            }
+        }
+
+        Failed = true;
+        return 0;
+    }
+
     /// <summary>Writes a length-prefixed byte block (prefix is a 2-byte count, so at most 65535 bytes).</summary>
     public Message Write(ReadOnlySpan<byte> value)
     {

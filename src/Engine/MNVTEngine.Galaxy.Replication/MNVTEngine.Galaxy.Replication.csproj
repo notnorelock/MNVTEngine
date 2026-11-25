@@ -6,4 +6,7 @@
     <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
     <ProjectReference Include="..\MNVTEngine.Galaxy\MNVTEngine.Galaxy.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.Galaxy.Tests" />
+  </ItemGroup>
 </Project>

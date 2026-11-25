@@ -4,10 +4,42 @@
 
 using System.Diagnostics;
 using MNVTEngine.Core.Timing;
+using MNVTEngine.Galaxy.Replication;
 using MNVTEngine.Mathematics;
 using MNVTEngine.Scenes;
 
 namespace MNVTEngine.Galaxy.Tests;
+
+public sealed class QuaternionCodecTests
+{
+    [Fact]
+    public void Compress_RoundTrips_EveryRotation_WithinTolerance()
+    {
+        var random = new Random(7);
+        for (int i = 0; i < 500; i++)
+        {
+            Quaternion q = RandomUnit(random);
+            Quaternion back = QuaternionCodec.Decompress(QuaternionCodec.Compress(q));
+            float dot = (q.X * back.X) + (q.Y * back.Y) + (q.Z * back.Z) + (q.W * back.W);
+            Assert.True(MathF.Abs(dot) > 0.999f, $"rotation error too large: dot={dot}");
+        }
+    }
+
+    private static Quaternion RandomUnit(Random random)
+    {
+        float Component() => (float)((random.NextDouble() * 2) - 1);
+        Quaternion q;
+        float length;
+        do
+        {
+            q = new Quaternion(Component(), Component(), Component(), Component());
+            length = MathF.Sqrt((q.X * q.X) + (q.Y * q.Y) + (q.Z * q.Z) + (q.W * q.W));
+        }
+        while (length < 0.2f);
+
+        return new Quaternion(q.X / length, q.Y / length, q.Z / length, q.W / length);
+    }
+}
 
 /// <summary>Two engine scenes over a real UDP loopback: the server spawns and moves a networked object, the client
 /// instantiates it from its prefab and follows the server's transform through interpolation.</summary>

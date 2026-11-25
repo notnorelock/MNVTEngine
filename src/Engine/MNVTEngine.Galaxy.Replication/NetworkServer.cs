@@ -260,7 +260,7 @@ public sealed class NetworkServer : Component, IDisposable
             return;
         }
 
-        uint networkId = message.ReadUInt();
+        uint networkId = message.ReadVarUInt();
         TransformState state = ReplicationProtocol.ReadState(message);
         if (message.Failed || !_objects.TryGetValue(networkId, out NetworkObject? networkObject) || networkObject.Owner != clientId || networkObject.IsDestroyed)
         {
@@ -287,7 +287,7 @@ public sealed class NetworkServer : Component, IDisposable
     private void SendOwnerAssign(uint clientId, uint networkId, bool owned)
     {
         Message message = Message.Create(ReplicationProtocol.OwnerAssign);
-        message.Write(networkId);
+        message.WriteVarUInt(networkId);
         message.Write(owned);
         _server!.Send(clientId, message, DeliveryMethod.Reliable);
         message.Release();
@@ -303,7 +303,7 @@ public sealed class NetworkServer : Component, IDisposable
     private void BroadcastDespawn(uint networkId)
     {
         Message message = Message.Create(ReplicationProtocol.Despawn);
-        message.Write(networkId);
+        message.WriteVarUInt(networkId);
         _server!.SendToAll(message, DeliveryMethod.Reliable);
         message.Release();
     }
@@ -513,7 +513,7 @@ public sealed class NetworkServer : Component, IDisposable
     private static void WriteObject(Message message, NetworkObject networkObject, byte flags)
     {
         Transform current = networkObject.Transform;
-        message.Write(networkObject.NetworkId);
+        message.WriteVarUInt(networkObject.NetworkId);
         ReplicationProtocol.WriteState(message, flags, current.Position, current.Rotation, current.LocalScale);
     }
 
@@ -555,7 +555,7 @@ public sealed class NetworkServer : Component, IDisposable
     private static Message BuildSpawn(NetworkObject networkObject)
     {
         Message message = Message.Create(ReplicationProtocol.Spawn);
-        message.Write(networkObject.NetworkId);
+        message.WriteVarUInt(networkObject.NetworkId);
         message.Write(networkObject.GameObject.Id.ToByteArray()); // Scene id: bind an object the client already has from the same scene.
         message.Write(networkObject.Prefab.Guid.ToByteArray());   // Prefab: instantiate when the client has no such scene object.
         Transform transform = networkObject.Transform;

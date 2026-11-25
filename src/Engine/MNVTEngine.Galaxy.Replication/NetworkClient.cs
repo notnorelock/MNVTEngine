@@ -136,7 +136,7 @@ public sealed class NetworkClient : Component, IDisposable
 
             Transform current = networkObject.Transform;
             Message message = Message.Create(ReplicationProtocol.OwnerState);
-            message.Write(networkObject.NetworkId);
+            message.WriteVarUInt(networkObject.NetworkId);
             ReplicationProtocol.WriteState(message, transform.Flags, current.Position, current.Rotation, current.LocalScale);
             _client!.Send(message, DeliveryMethod.Unreliable);
         }
@@ -198,7 +198,7 @@ public sealed class NetworkClient : Component, IDisposable
 
     private void HandleSpawn(Message message)
     {
-        uint networkId = message.ReadUInt();
+        uint networkId = message.ReadVarUInt();
         byte[] sceneIdBytes = message.ReadBytes();
         byte[] prefabBytes = message.ReadBytes();
         TransformState state = ReplicationProtocol.ReadState(message);
@@ -246,7 +246,7 @@ public sealed class NetworkClient : Component, IDisposable
 
     private void HandleOwnerAssign(Message message)
     {
-        uint networkId = message.ReadUInt();
+        uint networkId = message.ReadVarUInt();
         bool owned = message.ReadBool();
         if (message.Failed || !_objects.TryGetValue(networkId, out NetworkObject? networkObject))
         {
@@ -263,7 +263,7 @@ public sealed class NetworkClient : Component, IDisposable
 
     private void HandleDespawn(Message message)
     {
-        uint networkId = message.ReadUInt();
+        uint networkId = message.ReadVarUInt();
         if (!message.Failed && _objects.Remove(networkId, out NetworkObject? networkObject) && !networkObject.IsDestroyed)
         {
             networkObject.GameObject.Destroy();
@@ -276,7 +276,7 @@ public sealed class NetworkClient : Component, IDisposable
         float now = Time.TimeSinceStart;
         for (int i = 0; i < count; i++)
         {
-            uint networkId = message.ReadUInt();
+            uint networkId = message.ReadVarUInt();
             TransformState state = ReplicationProtocol.ReadState(message);
             if (message.Failed)
             {

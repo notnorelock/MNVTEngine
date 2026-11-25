@@ -41,6 +41,21 @@ public sealed class MessageTests
         Assert.True(message.Failed);
     }
 
+    [Theory]
+    [InlineData(0u)]
+    [InlineData(1u)]
+    [InlineData(127u)]
+    [InlineData(128u)]
+    [InlineData(60_005u)]
+    [InlineData(uint.MaxValue)]
+    public void VarUInt_RoundTrips(uint value)
+    {
+        Message message = Message.Create();
+        message.WriteVarUInt(value);
+        Assert.Equal(value, message.ReadVarUInt());
+        Assert.False(message.Failed);
+    }
+
     [Fact]
     public void Release_RecyclesAndResets()
     {

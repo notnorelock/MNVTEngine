@@ -35,16 +35,6 @@ internal static class ReplicationProtocol
 
     public static Vector3 ReadVector(Message message) => new(message.ReadFloat(), message.ReadFloat(), message.ReadFloat());
 
-    public static void WriteQuaternion(Message message, Quaternion value)
-    {
-        message.Write(value.X);
-        message.Write(value.Y);
-        message.Write(value.Z);
-        message.Write(value.W);
-    }
-
-    public static Quaternion ReadQuaternion(Message message) => new(message.ReadFloat(), message.ReadFloat(), message.ReadFloat(), message.ReadFloat());
-
     public static void WriteState(Message message, byte flags, Vector3 position, Quaternion rotation, Vector3 scale)
     {
         message.Write(flags);
@@ -55,7 +45,7 @@ internal static class ReplicationProtocol
 
         if ((flags & TransformState.RotationBit) != 0)
         {
-            WriteQuaternion(message, rotation);
+            message.Write(QuaternionCodec.Compress(rotation)); // 4 bytes instead of 16
         }
 
         if ((flags & TransformState.ScaleBit) != 0)
@@ -68,10 +58,84 @@ internal static class ReplicationProtocol
     {
         byte flags = message.ReadByte();
         Vector3 position = (flags & TransformState.PositionBit) != 0 ? ReadVector(message) : default;
-        Quaternion rotation = (flags & TransformState.RotationBit) != 0 ? ReadQuaternion(message) : Quaternion.Identity;
+        Quaternion rotation = (flags & TransformState.RotationBit) != 0 ? QuaternionCodec.Decompress(message.ReadUInt()) : Quaternion.Identity;
         Vector3 scale = (flags & TransformState.ScaleBit) != 0 ? ReadVector(message) : Vector3.One;
         return new TransformState(flags, position, rotation, scale);
     }
+}
+
+/// <summary>
+/// Compresses a unit quaternion to four bytes with the "smallest three" scheme: the largest-magnitude component is
+/// dropped (reconstructed from the other three, since the quaternion is unit length) and its index stored in two bits,
+/// and the remaining three are each quantized to ten bits over their range. A rotation costs 4 bytes instead of 16,
+/// with error far below what gameplay notices. q and -q are the same rotation, so the dropped component is taken
+/// positive.
+/// </summary>
+internal static class QuaternionCodec
+{
+    private const float Range = 0.70710677f; // 1 / sqrt(2): the largest the smaller components can be.
+
+    public static uint Compress(Quaternion value)
+    {
+        float length = MathF.Sqrt((value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z) + (value.W * value.W));
+        if (length < 1e-8f)
+        {
+            return Pack(3, Quantize(0), Quantize(0), Quantize(0)); // Degenerate: treat as identity.
+        }
+
+        Span<float> c = [value.X / length, value.Y / length, value.Z / length, value.W / length];
+        int largest = 0;
+        for (int i = 1; i < 4; i++)
+        {
+            if (MathF.Abs(c[i]) > MathF.Abs(c[largest]))
+            {
+                largest = i;
+            }
+        }
+
+        float sign = c[largest] < 0f ? -1f : 1f;
+        Span<int> quantized = stackalloc int[3];
+        int next = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            if (i != largest)
+            {
+                quantized[next++] = Quantize(c[i] * sign);
+            }
+        }
+
+        return Pack(largest, quantized[0], quantized[1], quantized[2]);
+    }
+
+    public static Quaternion Decompress(uint packed)
+    {
+        int largest = (int)((packed >> 30) & 0x3);
+        float a = Dequantize((int)(packed & 0x3FF));
+        float b = Dequantize((int)((packed >> 10) & 0x3FF));
+        float cc = Dequantize((int)((packed >> 20) & 0x3FF));
+        float reconstructed = MathF.Sqrt(MathF.Max(0f, 1f - ((a * a) + (b * b) + (cc * cc))));
+
+        Span<float> smalls = [a, b, cc];
+        Span<float> components = stackalloc float[4];
+        int next = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            components[i] = i == largest ? reconstructed : smalls[next++];
+        }
+
+        return new Quaternion(components[0], components[1], components[2], components[3]);
+    }
+
+    private static uint Pack(int index, int a, int b, int c) =>
+        (uint)((a & 0x3FF) | ((b & 0x3FF) << 10) | ((c & 0x3FF) << 20) | ((index & 0x3) << 30));
+
+    private static int Quantize(float value)
+    {
+        float normalized = Math.Clamp(value / Range, -1f, 1f);
+        return (int)MathF.Round(((normalized * 0.5f) + 0.5f) * 1023f);
+    }
+
+    private static float Dequantize(int quantized) => (((quantized / 1023f) * 2f) - 1f) * Range;
 }
 
 /// <summary>
