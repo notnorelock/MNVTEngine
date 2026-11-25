@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using System.Globalization;
 using System.Text;
@@ -259,7 +259,7 @@ internal sealed class BrowserSession : IDisposable
                 RunBridge($"window.gameApi && window.gameApi.__resolve({message.Value<int>("id").ToString(CultureInfo.InvariantCulture)}, {(message.Value<bool>("ok") ? "true" : "false")}, {message["value"]?.ToString(Formatting.None) ?? "null"});");
                 break;
             case BrowserProtocol.CrashRenderer:
-                _ = CrashRendererAsync();
+                CrashRenderer();
                 break;
             default:
                 throw new InvalidOperationException($"Unknown browser command '{type}'.");
@@ -543,20 +543,12 @@ internal sealed class BrowserSession : IDisposable
         _host.Send(result);
     }
 
-    /// <summary>DevTools Page.crash: the renderer dies, the page's URL stays (so Reload brings it back).</summary>
-    private async Task CrashRendererAsync()
-    {
-        try
-        {
-            using var devTools = _browser.GetDevToolsClient();
-            await devTools.Page.CrashAsync().ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
-        {
-            // The renderer usually dies before DevTools answers; anything else is reported.
-            Console.Error.WriteLine($"Browser {Id}: crash request: {ex.Message}");
-        }
-    }
+    /// <summary>
+    /// chrome://crash: a renderer debug URL, handled by the browser process before any navigation (no request handler,
+    /// no history entry), so the renderer dies and the page's URL stays for Reload. DevTools Page.crash was lost on
+    /// slow CI runners: it needs a DevTools session attached to the renderer first.
+    /// </summary>
+    private void CrashRenderer() => _browser.GetMainFrame().LoadUrl("chrome://crash");
 
     private void RunBridge(string script)
     {
