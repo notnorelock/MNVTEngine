@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 // Part of MNVTEngine. Last modified 2026-11-25.
 
+using MNVTEngine.Mathematics;
 using MNVTEngine.Reactivity;
 
 namespace MNVTEngine.UI;
@@ -324,7 +325,8 @@ public sealed class ForRegion<T> : UIElement
 
 /// <summary>
 /// Pages by index (tabs, navigation): each page is built the first time it is shown and kept, so switching back is a
-/// visibility change and its state (scroll position, typed text) stays.
+/// visibility change and its state (scroll position, typed text) stays. With <see cref="Slide"/> switches animate like
+/// a navigation stack: the new page slides in, the old one slides out, and the region's height follows smoothly.
 /// </summary>
 public sealed class PagesRegion : UIElement
 {
@@ -332,6 +334,9 @@ public sealed class PagesRegion : UIElement
     private readonly Func<UIElement>[] _pages;
     private readonly UIElement?[] _built;
     private int _shown = -1;
+    private float _slideSeconds, _slideDistance, _progress, _fromHeight, _direction;
+    private UIElement? _leaving;
+    private bool? _leavingHitTest;
 
     public PagesRegion(Func<int> index, Func<UIElement>[] pages)
     {
@@ -345,6 +350,77 @@ public sealed class PagesRegion : UIElement
 
     public int BuiltCount => _built.Count(p => p is not null);
 
+    /// <summary>Whether a slide is running.</summary>
+    public bool IsSliding => _leaving is not null;
+
+    /// <summary>
+    /// Animates switches over <paramref name="seconds"/>: a higher index comes in from the right (forward), a lower one
+    /// from the left (back), each moving <paramref name="distance"/> pixels while fading; the old page leaves the
+    /// opposite way and stops taking the pointer at once. The region's height eases from the old page's to the new
+    /// one's. The region drives its pages' <see cref="UIElement.Translate"/> and <see cref="UIElement.Opacity"/> while
+    /// sliding; give the parent <see cref="Overflow.Clip"/> to keep the pages inside it.
+    /// </summary>
+    public PagesRegion Slide(float seconds = 0.35f, float distance = 56f)
+    {
+        (_slideSeconds, _slideDistance) = (MathF.Max(0f, seconds), MathF.Max(0f, distance));
+        return this;
+    }
+
+    protected internal override Vector2 MeasureContent(float availableWidth, float availableHeight)
+    {
+        var size = base.MeasureContent(availableWidth, availableHeight); // both pages are visible while sliding
+        if (_leaving is null || Current is not { } page)
+        {
+            return size;
+        }
+
+        var target = LayoutEngine.MeasureOuter(page, availableWidth, availableHeight).Y;
+        return size with { Y = _fromHeight + ((target - _fromHeight) * Motion.Ease(Easing.CubicOut, _progress)) };
+    }
+
+    protected internal override void ArrangeChildren()
+    {
+        if (_leaving is null)
+        {
+            base.ArrangeChildren();
+            return;
+        }
+
+        // Layered at the top while sliding, each its own height: the region's height is the eased one.
+        var content = ContentBounds;
+        foreach (var child in Children.Where(c => c.Visible))
+        {
+            var size = LayoutEngine.Size(child, content.Width - child.Margin.Horizontal, float.PositiveInfinity, stretchWidth: child.Width.IsAuto, stretchHeight: false);
+            LayoutEngine.Arrange(child, new Rect(content.X + child.Margin.Left, content.Y + child.Margin.Top, size.X, size.Y), ChildClip);
+        }
+    }
+
+    protected internal override bool Tick(float deltaSeconds)
+    {
+        if (_leaving is not { } leaving)
+        {
+            return false;
+        }
+
+        _progress = MathF.Min(1f, _progress + (deltaSeconds / _slideSeconds));
+        var eased = Motion.Ease(Easing.CubicOut, _progress);
+        (leaving.Translate, leaving.Opacity) = (new Vector2(-_direction * _slideDistance * eased, 0f), 1f - eased);
+        if (Current is { } page)
+        {
+            (page.Translate, page.Opacity) = (new Vector2(_direction * _slideDistance * (1f - eased), 0f), eased);
+        }
+
+        if (_progress >= 1f)
+        {
+            FinishSlide();
+        }
+
+        InvalidateLayout();
+        return true;
+    }
+
+    private UIElement? Current => _shown >= 0 && _shown < _built.Length ? _built[_shown] : null;
+
     private void Update()
     {
         var index = _index();
@@ -356,11 +432,15 @@ public sealed class PagesRegion : UIElement
 
     private void Show(int index)
     {
-        if (_shown >= 0 && _shown < _built.Length && _built[_shown] is { } previous)
+        var height = ContentBounds.Height; // mid-slide this is the eased height, so a quick back-and-forth does not jump
+        FinishSlide();
+        var previous = Current;
+        if (previous is not null)
         {
             previous.Visible = false;
         }
 
+        var from = _shown;
         _shown = index;
         if (index < 0 || index >= _pages.Length)
         {
@@ -369,5 +449,29 @@ public sealed class PagesRegion : UIElement
 
         var page = _built[index] ??= AddChild(Scope.Run(_pages[index]));
         page.Visible = true;
+        if (previous is null || previous == page || _slideSeconds <= 0f || Context is null)
+        {
+            return;
+        }
+
+        (_leaving, _leavingHitTest, _progress, _fromHeight, _direction) = (previous, previous.HitTestVisible, 0f, height, index > from ? 1f : -1f);
+        previous.Visible = true;
+        previous.HitTestVisible = false;
+        (page.Translate, page.Opacity) = (new Vector2(_direction * _slideDistance, 0f), 0f);
+    }
+
+    private void FinishSlide()
+    {
+        if (_leaving is not { } leaving)
+        {
+            return;
+        }
+
+        _leaving = null;
+        (leaving.Visible, leaving.HitTestVisible, leaving.Translate, leaving.Opacity) = (false, _leavingHitTest, Vector2.Zero, null);
+        if (Current is { } page)
+        {
+            (page.Translate, page.Opacity) = (Vector2.Zero, null);
+        }
     }
 }

@@ -116,6 +116,42 @@ public sealed class CompositionTests
     }
 
     [Fact]
+    public void Pages_Slide_ByDirection_AndEaseTheHeight()
+    {
+        using var ui = new UIHarness();
+        var index = Signal.Create(0);
+        var pages = V.Pages(() => index.Value, () => new Panel { Height = 40 }, () => new Panel { Height = 100 }).Slide(0.2f, 50f);
+        ui.Context.Root.AddChild(pages);
+        ui.Frame();
+        var a = pages.Children[0];
+
+        index.Value = 1; // forward: B comes in from the right
+        var b = pages.Children[1];
+        Assert.True(pages.IsSliding);
+        Assert.Equal(new Vector2(50f, 0f), b.Translate);
+        Assert.False(a.HitTestVisible);
+        ui.Frame();
+        ui.Frame();
+        Assert.True(a.Visible); // still leaving
+        Assert.True(a.Translate.X < 0f);
+        Assert.InRange(pages.Bounds.Height, 40.5f, 99.5f);
+
+        for (var i = 0; i < 30; i++)
+        {
+            ui.Frame();
+        }
+
+        Assert.False(pages.IsSliding);
+        Assert.False(a.Visible);
+        Assert.Null(a.HitTestVisible);
+        Assert.Equal((Vector2.Zero, (float?)null), (b.Translate, b.Opacity));
+        Assert.Equal(100f, pages.Bounds.Height);
+
+        index.Value = 0; // back: A comes in from the left
+        Assert.Equal(new Vector2(-50f, 0f), a.Translate);
+    }
+
+    [Fact]
     public void Keyed_RebuildsWhenTheKeyChanges()
     {
         using var ui = new UIHarness();

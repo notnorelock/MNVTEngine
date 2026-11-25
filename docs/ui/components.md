@@ -51,7 +51,7 @@ context.Mount(() => V.Card(
 | `V.Show(when, then, otherwise)` | Only the shown branch exists. A change disposes the old branch and builds the other once; the same answer again does nothing. Takes no space when it shows nothing. |
 | `V.Keyed(key, build)` | Rebuilds when the key changes (a screen, a loaded result). `.Crossfade()` fades the old content out and the new in; contents fill the region. |
 | `V.For(items, key, build)` | Keyed list. A key keeps its element while it stays: reordering moves elements, and an item replaced under the same key updates through its item signal. New keys build; removed keys are disposed. Duplicate or null keys are errors. |
-| `V.Pages(index, pages...)` | Each page is built on first show and kept, so switching back keeps its state (scroll, typed text). |
+| `V.Pages(index, pages...)` | Each page is built on first show and kept, so switching back keeps its state (scroll, typed text). `.Slide(seconds, distance)` animates switches like a navigation stack: a higher index slides in from the right, a lower one from the left, the old page slides out the other way and the height eases between them (clip the parent to keep pages inside it). |
 
 ## Motion
 
@@ -71,7 +71,8 @@ panel.AnimateOpacity(1f, Motion.Tween(0.2f, Easing.CubicOut))
   - `Translate`, an offset in logical pixels;
   - background color.
 - A new animation of the same property replaces the running one.
-- `After(seconds, action)` runs on UI time and is cancelled when the element is disposed.
+- `After(seconds, action)` runs on UI time and is cancelled when the element is disposed. Like events, the action runs
+  in the scene's context (`SceneManager.LoadScene` after a fade works), and a throwing action is logged, not fatal.
 - `Appear(offset, delay, seconds)` is an entrance: the element starts transparent and moved by `offset`, then fades and
   slides into place once it joins a context, also when a region (`Keyed`, `For`, `Show`) builds it later. Increasing
   delays stagger a list: `row.Appear(new Vector2(0, 12), delay: index * 0.05f)`.
