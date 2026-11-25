@@ -135,7 +135,7 @@ published from a manual run of the same workflow ([versioning](docs/architecture
 - [Vulkan 1.4 backend: decisions and synchronization](docs/graphics/vulkan-migration.md)
 - [Meshes, 3D cameras and 3D rendering](docs/graphics/meshes.md) ([3D plan](docs/graphics/3d-plan.md), [acceptance](docs/graphics/3d-acceptance.md))
 - [Materials, lighting and shadows](docs/graphics/materials-and-lighting.md)
-- [Game UI, text, fonts, splash and loading screens](docs/ui/ui-system.md) and [reactivity](docs/ui/reactivity.md)
+- [Game UI, text, fonts, splash and loading screens](docs/ui/ui-system.md) [reactivity](docs/ui/reactivity.md) and [components and the design system](docs/ui/components.md)
 
 </details>
 

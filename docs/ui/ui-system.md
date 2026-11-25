@@ -1,5 +1,8 @@
 # Game UI, text and window
 
+The code builder, reactive control flow, motion, design system and higher-level components are in
+[components.md](components.md).
+
 This document starts with the Phase 0 audit and plan, then describes the system as it is built.
 
 ## Audit (Phase 0, 2026-11-04)
