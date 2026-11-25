@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-24.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using System.Text;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -46,6 +46,7 @@ public sealed class ObfuscationExportTests(TestBuildState state) : IDisposable
     [Fact]
     public async Task Jit_RenamesTheComponentClass_AndTheRemappedSceneStillLoads()
     {
+        Gpu.SkipWithoutVulkan14(); // the test run starts the exported game
         var directory = NewProject("ObfJit");
         var result = await new GameBuilder(NullLogger.Instance).BuildAsync(directory, Options("jit"), TestContext.Current.CancellationToken);
         Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics));
@@ -65,6 +66,7 @@ public sealed class ObfuscationExportTests(TestBuildState state) : IDisposable
     [Fact]
     public async Task Aot_KeepsTypeNames_ObfuscatesStrings_AndRuns()
     {
+        Gpu.SkipWithoutVulkan14(); // the test run starts the exported game
         var directory = NewProject("ObfAot");
         var result = await new GameBuilder(NullLogger.Instance).BuildAsync(directory, Options("aot"), TestContext.Current.CancellationToken);
         Assert.True(result.Succeeded, string.Join("\n", result.Diagnostics));
