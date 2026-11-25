@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-05.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Mathematics;
 
@@ -20,8 +20,22 @@ public abstract class UIEventArgs : EventArgs
 
 public sealed class PointerEventArgs : UIEventArgs
 {
-    /// <summary>Pointer position in the context's logical coordinates (origin top-left of the UI viewport).</summary>
+    /// <summary>
+    /// Pointer position in the layout space of the element handling the event (the space of its
+    /// <see cref="UIElement.Bounds"/>): visual transforms (<see cref="UIElement.Translate"/>,
+    /// <see cref="UIElement.RenderScale"/>) of it and its ancestors are undone. Changes as the event bubbles.
+    /// </summary>
     public Vector2 Position { get; internal set; }
+
+    /// <summary>Pointer position in the context's logical coordinates (origin top-left of the UI viewport).</summary>
+    public Vector2 ContextPosition { get; internal set; }
+
+    /// <summary>Sets <see cref="Position"/> for <paramref name="element"/> and returns the event.</summary>
+    internal PointerEventArgs For(UIElement element)
+    {
+        Position = element.ToLayout(ContextPosition);
+        return this;
+    }
 
     public MouseButton Button { get; internal set; }
 

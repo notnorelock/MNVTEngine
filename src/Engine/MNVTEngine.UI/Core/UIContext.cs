@@ -336,7 +336,7 @@ public sealed partial class UIContext : IDisposable
             return null;
         }
 
-        point -= element.Translate; // into the element's (visually moved) layout space
+        point = element.UndoOwnTransform(point); // into the element's layout space (it may be moved or scaled)
         var children = element.ChildrenInDrawOrder().ToList();
         for (var i = children.Count - 1; i >= 0; i--)
         {

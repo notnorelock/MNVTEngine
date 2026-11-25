@@ -82,7 +82,10 @@ public class Button : UIElement
     protected internal override void OnPointerExit(PointerEventArgs e)
     {
         base.OnPointerExit(e);
-        ScaleTo(1f);
+        if (Context?.Pressed != this)
+        {
+            ScaleTo(1f); // a held press keeps its scale, or a shrinking button near the pointer would flicker
+        }
     }
 
     protected internal override void OnPointerDown(PointerEventArgs e)

@@ -70,14 +70,14 @@ internal sealed class UIInputRouter(UIContext context)
             var previous = context.Hovered;
             context.Hovered = hit;
             _hoverTime = 0f;
-            previous?.OnPointerExit(args);
-            hit?.OnPointerEnter(args);
+            previous?.OnPointerExit(args.For(previous));
+            hit?.OnPointerEnter(args.For(hit));
             context.MarkVisualDirty();
         }
 
         if (context.Pressed is { } captured && pointer != _lastPointer && input.IsMouseButtonDown(MouseButton.Left))
         {
-            captured.OnPointerDrag(Pointer(pointer, MouseButton.Left));
+            captured.OnPointerDrag(Pointer(pointer, MouseButton.Left).For(captured));
         }
 
         _lastPointer = pointer;
@@ -105,22 +105,37 @@ internal sealed class UIInputRouter(UIContext context)
         {
             context.Pressed = null;
             var up = Pointer(pointer, MouseButton.Left);
-            pressed.OnPointerUp(up);
-            if (hit is not null && UIContext.IsSelfOrAncestor(pressed, hit) && pressed.IsEnabledInHierarchy)
+            pressed.OnPointerUp(up.For(pressed));
+            if (ReleasedOver(pressed, hit, pointer) && pressed.IsEnabledInHierarchy)
             {
                 var count = _lastClicked == pressed && _sinceClick < DoubleClickSeconds ? 2 : 1;
                 (_lastClicked, _sinceClick) = (pressed, 0f);
                 var click = Pointer(pointer, MouseButton.Left);
                 (click.ClickCount, click.Target) = (count, pressed);
-                pressed.OnClick(click);
+                pressed.OnClick(click.For(pressed));
             }
 
             context.MarkVisualDirty();
         }
     }
 
+    /// <summary>
+    /// A release counts as a click over the pressed element, or inside its unscaled bounds: a button that shrinks while
+    /// pressed keeps a click released near its edge.
+    /// </summary>
+    private static bool ReleasedOver(UIElement pressed, UIElement? hit, Vector2 pointer)
+    {
+        if (hit is not null && UIContext.IsSelfOrAncestor(pressed, hit))
+        {
+            return true;
+        }
+
+        var inParent = pressed.Parent is { } parent ? parent.ToLayout(pointer) : pointer;
+        return pressed.ClipBounds.Contains(inParent - pressed.Translate);
+    }
+
     private PointerEventArgs Pointer(Vector2 position, MouseButton button = default) =>
-        new() { Position = position, Button = button, Shift = _modifiers.Shift, Control = _modifiers.Control, Alt = _modifiers.Alt };
+        new() { Position = position, ContextPosition = position, Button = button, Shift = _modifiers.Shift, Control = _modifiers.Control, Alt = _modifiers.Alt };
 
     private void ProcessKeys(InputView input, float dt)
     {
@@ -170,7 +185,7 @@ internal sealed class UIInputRouter(UIContext context)
                 MoveFocus(shift ? -1 : 1);
                 break;
             case Key.Enter or Key.Space when context.Focused is { } target && !repeat:
-                target.OnClick(new PointerEventArgs { Position = target.Bounds.Center, Button = MouseButton.Left, ClickCount = 1, Target = target });
+                target.OnClick(new PointerEventArgs { Position = target.Bounds.Center, ContextPosition = target.ToContext(target.Bounds.Center), Button = MouseButton.Left, ClickCount = 1, Target = target });
                 context.MarkVisualDirty();
                 break;
             case Key.Escape:
@@ -233,6 +248,7 @@ internal sealed class UIInputRouter(UIContext context)
         args.Target = target;
         for (var e = target; e is not null && !args.Handled; e = e.Parent)
         {
+            (args as PointerEventArgs)?.For(e);
             invoke(e, args);
         }
     }

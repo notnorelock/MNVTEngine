@@ -13,6 +13,7 @@ public partial class UIElement
     private List<UIAnimation>? _animations;
     private Vector2 _translate;
     private float _renderScale = 1f;
+    private Dictionary<string, string>? _dataBindings;
 
     /// <summary>
     /// Owns this element's bindings, effects and cleanups (see <see cref="Bindings"/>). Created on first use; disposed
@@ -36,8 +37,49 @@ public partial class UIElement
     /// </summary>
     public Vector2 Translate { get => _translate; set => SetVisual(ref _translate, value); }
 
-    /// <summary>Visual scale around the element's centre (1 = none), applied after layout; hit testing ignores it.</summary>
+    /// <summary>Visual scale around the element's centre (1 = none), applied after layout; hit testing follows it.</summary>
     public float RenderScale { get => _renderScale; set => SetVisual(ref _renderScale, MathF.Max(0f, value)); }
+
+    /// <summary>
+    /// Data bindings of a layout document (its <c>bind</c> block): property name to data name, resolved by
+    /// <see cref="UIData"/>.
+    /// </summary>
+    public IDictionary<string, string> DataBindings => _dataBindings ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    internal bool HasDataBindings => _dataBindings is { Count: > 0 };
+
+    /// <summary>
+    /// A point in context coordinates (where the pointer is) in this element's layout space (where its
+    /// <see cref="Bounds"/> are), undoing the <see cref="Translate"/> and <see cref="RenderScale"/> of the element and
+    /// its ancestors. NaN when a scale of zero hides it.
+    /// </summary>
+    public Vector2 ToLayout(Vector2 contextPoint) => UndoOwnTransform(Parent is { } parent ? parent.ToLayout(contextPoint) : contextPoint);
+
+    /// <summary>The inverse of <see cref="ToLayout"/>: where a point of this element's layout space is drawn.</summary>
+    public Vector2 ToContext(Vector2 layoutPoint)
+    {
+        var drawn = HasTransform ? Bounds.Center + ((layoutPoint - Bounds.Center) * RenderScale) + Translate : layoutPoint;
+        return Parent is { } parent ? parent.ToContext(drawn) : drawn;
+    }
+
+    internal bool HasTransform => _translate != Vector2.Zero || _renderScale != 1f;
+
+    /// <summary>A point in the parent's layout space into this element's (its own transform undone).</summary>
+    internal Vector2 UndoOwnTransform(Vector2 point)
+    {
+        if (!HasTransform)
+        {
+            return point;
+        }
+
+        if (_renderScale <= 1e-6f)
+        {
+            return new Vector2(float.NaN, float.NaN);
+        }
+
+        var pivot = Bounds.Center;
+        return pivot + ((point - _translate - pivot) / _renderScale);
+    }
 
     /// <summary>
     /// Removes the element from its parent and disposes it and its descendants: their bindings, effects and animations
