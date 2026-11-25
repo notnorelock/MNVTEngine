@@ -27,6 +27,11 @@ public sealed class NetworkObject : Component
     [SerializeField]
     public AssetRef Prefab { get; set; }
 
+    /// <summary>When the server uses interest management (a relevance radius), this object is still sent to every
+    /// client regardless of distance (e.g. a boss, an objective).</summary>
+    [SerializeField]
+    public bool AlwaysRelevant { get; set; }
+
     /// <summary>The server-assigned id, unique within a session; 0 until the object is spawned on the network.</summary>
     public uint NetworkId { get; internal set; }
 

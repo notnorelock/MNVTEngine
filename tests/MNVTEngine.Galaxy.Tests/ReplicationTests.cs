@@ -165,6 +165,58 @@ public sealed class ReplicationTests
         ((IDisposable)client).Dispose();
     }
 
+    [Fact]
+    public void InterestManagement_SendsNearObjects_ButCullsFarOnes()
+    {
+        ComponentRegistry registry = ComponentRegistry.CreateDefault().Register<NetworkObject>().Register<NetworkTransform>().Register<NetworkServer>().Register<NetworkClient>();
+        var serializer = new SceneSerializer(registry);
+
+        var authored = new Scene();
+        foreach ((string name, Vector3 position) in new[] { ("Me", Vector3.Zero), ("Near", new Vector3(2f, 0f, 0f)), ("Far", new Vector3(100f, 0f, 0f)) })
+        {
+            GameObject go = authored.CreateGameObject(name);
+            go.AddComponent<NetworkObject>();
+            go.AddComponent<NetworkTransform>();
+            go.Transform.Position = position;
+        }
+
+        string json = serializer.Serialize(authored);
+
+        Scene serverScene = serializer.Deserialize(json).Scene;
+        var serverStep = new Stepper(serverScene);
+        NetworkServer server = serverScene.CreateGameObject("Net").AddComponent<NetworkServer>();
+        server.Port = 0;
+        server.SnapshotRate = 60;
+        server.RelevanceRadius = 5f;
+        uint? joined = null;
+        server.ClientConnected += id => joined = id;
+        serverScene.Start();
+        serverStep.Step(0f);
+
+        Scene clientScene = serializer.Deserialize(json).Scene;
+        var clientStep = new Stepper(clientScene);
+        NetworkClient client = clientScene.CreateGameObject("Net").AddComponent<NetworkClient>();
+        client.Host = "127.0.0.1";
+        client.Port = server.BoundPort;
+        clientScene.Start();
+
+        NetworkObject clientMe = clientScene.Find("Me")!.GetComponent<NetworkObject>()!;
+        const float dt = 1f / 60f;
+        Pump(serverStep, clientStep, dt, () => joined is not null && clientMe.IsSpawned, 5000);
+        server.AssignOwnership(serverScene.Find("Me")!.GetComponent<NetworkObject>()!, joined!.Value);
+        Pump(serverStep, clientStep, dt, () => clientMe.Role == NetworkRole.Authority, 3000);
+
+        serverScene.Find("Near")!.Transform.Position = new Vector3(2f, 3f, 0f);  // within the radius
+        serverScene.Find("Far")!.Transform.Position = new Vector3(100f, 9f, 0f); // far outside it
+        Pump(serverStep, clientStep, dt, () => clientScene.Find("Near")!.Transform.Position.Y > 2.5f, 3000);
+
+        Assert.InRange(clientScene.Find("Near")!.Transform.Position.Y, 2.5f, 3.5f); // near object updated
+        Assert.InRange(clientScene.Find("Far")!.Transform.Position.Y, -0.5f, 0.5f);  // far object culled: still at its spawn state
+
+        ((IDisposable)server).Dispose();
+        ((IDisposable)client).Dispose();
+    }
+
     private static Vector3 RemotePosition(Scene scene)
     {
         foreach (NetworkObject networkObject in scene.FindObjectsOfType<NetworkObject>())

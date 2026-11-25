@@ -17,7 +17,18 @@ namespace MNVTEngine;
 [ComponentId("MNVTEngine.NetworkServer")]
 public sealed class NetworkServer : Component, IDisposable
 {
+    private sealed class Baseline
+    {
+        public Vector3 Position;
+        public Quaternion Rotation;
+        public Vector3 Scale;
+        public int FramesSinceSent;
+        public bool Has;
+    }
+
     private readonly Dictionary<uint, NetworkObject> _objects = [];
+    private readonly Dictionary<uint, Baseline> _baselines = [];
+    private readonly Dictionary<uint, HashSet<uint>> _known = []; // clientId -> netIds it currently tracks (interest culling)
     private GalaxyServer? _server;
     private uint _nextId = 1;
     private float _accumulator;
@@ -33,6 +44,19 @@ public sealed class NetworkServer : Component, IDisposable
     /// <summary>Transform snapshots sent per second.</summary>
     [SerializeField]
     public int SnapshotRate { get; set; } = 20;
+
+    /// <summary>Only objects within this distance of a client's owned object are sent to it (interest management);
+    /// 0 disables culling and sends every object to every client. An object marked
+    /// <see cref="NetworkObject.AlwaysRelevant"/>, or owned by the client, is always sent.</summary>
+    [SerializeField]
+    public float RelevanceRadius { get; set; }
+
+    /// <summary>How often an unchanged object is resent anyway, in seconds, so a client that missed its last update
+    /// (snapshots are unreliable) does not hold a stale transform.</summary>
+    [SerializeField]
+    public float RefreshSeconds { get; set; } = 1f;
+
+    private int RefreshFrames => Math.Max(1, (int)(RefreshSeconds * Math.Max(1, SnapshotRate)));
 
     /// <summary>Whether the server socket is open.</summary>
     public bool IsRunning => _server is not null;
@@ -137,6 +161,7 @@ public sealed class NetworkServer : Component, IDisposable
         ArgumentNullException.ThrowIfNull(networkObject);
         if (_objects.Remove(networkObject.NetworkId))
         {
+            _baselines.Remove(networkObject.NetworkId);
             BroadcastDespawn(networkObject.NetworkId);
         }
 
@@ -172,6 +197,7 @@ public sealed class NetworkServer : Component, IDisposable
         foreach (uint id in dead)
         {
             _objects.Remove(id);
+            _baselines.Remove(id);
             BroadcastDespawn(id);
         }
     }
@@ -208,6 +234,7 @@ public sealed class NetworkServer : Component, IDisposable
             }
         }
 
+        _known.Remove(clientId);
         ClientDisconnected?.Invoke(clientId);
     }
 
@@ -272,7 +299,7 @@ public sealed class NetworkServer : Component, IDisposable
         List<NetworkObject> replicated = [];
         foreach (NetworkObject networkObject in _objects.Values)
         {
-            if (networkObject.GetComponent<NetworkTransform>() is not null)
+            if (!networkObject.IsDestroyed && networkObject.GetComponent<NetworkTransform>() is not null)
             {
                 replicated.Add(networkObject);
             }
@@ -283,18 +310,143 @@ public sealed class NetworkServer : Component, IDisposable
             return;
         }
 
-        Message message = Message.Create(ReplicationProtocol.Snapshot);
-        message.Write((ushort)replicated.Count);
+        // Delta: send an object only when its transform changed since last sent, or when it is due for a periodic
+        // refresh. A newly connected client gets every object's state in the spawn, so this never starves one.
+        var dirty = new Dictionary<uint, bool>(replicated.Count);
         foreach (NetworkObject networkObject in replicated)
         {
+            Baseline baseline = _baselines.TryGetValue(networkObject.NetworkId, out Baseline? existing) ? existing : (_baselines[networkObject.NetworkId] = new Baseline());
+            dirty[networkObject.NetworkId] = !baseline.Has || baseline.FramesSinceSent >= RefreshFrames || Changed(baseline, networkObject.Transform);
+        }
+
+        if (RelevanceRadius <= 0f)
+        {
+            List<NetworkObject> included = replicated.Where(o => dirty[o.NetworkId]).ToList();
+            if (included.Count > 0)
+            {
+                Message message = BuildSnapshot(included);
+                _server!.SendToAll(message, DeliveryMethod.Unreliable);
+                message.Release();
+            }
+        }
+        else
+        {
+            SendCulledSnapshots(replicated, dirty);
+        }
+
+        foreach (NetworkObject networkObject in replicated)
+        {
+            Baseline baseline = _baselines[networkObject.NetworkId];
+            if (dirty[networkObject.NetworkId])
+            {
+                Store(baseline, networkObject.Transform);
+            }
+            else
+            {
+                baseline.FramesSinceSent++;
+            }
+        }
+    }
+
+    private void SendCulledSnapshots(List<NetworkObject> replicated, Dictionary<uint, bool> dirty)
+    {
+        float radiusSquared = RelevanceRadius * RelevanceRadius;
+        foreach (uint clientId in _server!.Clients)
+        {
+            Vector3? view = ViewPosition(clientId);
+            HashSet<uint> known = _known.TryGetValue(clientId, out HashSet<uint>? set) ? set : (_known[clientId] = []);
+            var next = new HashSet<uint>();
+            List<NetworkObject> included = [];
+            foreach (NetworkObject networkObject in replicated)
+            {
+                if (!IsRelevant(networkObject, clientId, view, radiusSquared))
+                {
+                    continue;
+                }
+
+                next.Add(networkObject.NetworkId);
+                if (dirty[networkObject.NetworkId] || !known.Contains(networkObject.NetworkId))
+                {
+                    included.Add(networkObject); // Dirty, or newly relevant to this client, so send it fresh.
+                }
+            }
+
+            _known[clientId] = next;
+            if (included.Count > 0)
+            {
+                Message message = BuildSnapshot(included);
+                _server.Send(clientId, message, DeliveryMethod.Unreliable);
+                message.Release();
+            }
+        }
+    }
+
+    private static bool IsRelevant(NetworkObject networkObject, uint clientId, Vector3? view, float radiusSquared)
+    {
+        if (networkObject.AlwaysRelevant || networkObject.Owner == clientId || view is not { } center)
+        {
+            return true;
+        }
+
+        Vector3 delta = networkObject.Transform.Position - center;
+        return (delta.X * delta.X) + (delta.Y * delta.Y) + (delta.Z * delta.Z) <= radiusSquared;
+    }
+
+    private Vector3? ViewPosition(uint clientId)
+    {
+        foreach (NetworkObject networkObject in _objects.Values)
+        {
+            if (networkObject.Owner == clientId && !networkObject.IsDestroyed && networkObject.GetComponent<NetworkTransform>() is not null)
+            {
+                return networkObject.Transform.Position;
+            }
+        }
+
+        return null; // The client owns nothing to view from: treat every object as relevant.
+    }
+
+    private static Message BuildSnapshot(List<NetworkObject> objects)
+    {
+        Message message = Message.Create(ReplicationProtocol.Snapshot);
+        message.Write((ushort)objects.Count);
+        foreach (NetworkObject networkObject in objects)
+        {
             NetworkTransform transform = networkObject.GetComponent<NetworkTransform>()!;
-            message.Write(networkObject.NetworkId);
             Transform current = networkObject.Transform;
+            message.Write(networkObject.NetworkId);
             ReplicationProtocol.WriteState(message, transform.Flags, current.Position, current.Rotation, current.LocalScale);
         }
 
-        _server!.SendToAll(message, DeliveryMethod.Unreliable);
-        message.Release();
+        return message;
+    }
+
+    private static bool Changed(Baseline baseline, Transform transform)
+    {
+        const float epsilon = 1e-4f;
+        Vector3 position = transform.Position;
+        if (MathF.Abs(position.X - baseline.Position.X) > epsilon || MathF.Abs(position.Y - baseline.Position.Y) > epsilon || MathF.Abs(position.Z - baseline.Position.Z) > epsilon)
+        {
+            return true;
+        }
+
+        Quaternion rotation = transform.Rotation;
+        float dot = (rotation.X * baseline.Rotation.X) + (rotation.Y * baseline.Rotation.Y) + (rotation.Z * baseline.Rotation.Z) + (rotation.W * baseline.Rotation.W);
+        if (MathF.Abs(dot) < 0.99999f)
+        {
+            return true;
+        }
+
+        Vector3 scale = transform.LocalScale;
+        return MathF.Abs(scale.X - baseline.Scale.X) > epsilon || MathF.Abs(scale.Y - baseline.Scale.Y) > epsilon || MathF.Abs(scale.Z - baseline.Scale.Z) > epsilon;
+    }
+
+    private static void Store(Baseline baseline, Transform transform)
+    {
+        baseline.Position = transform.Position;
+        baseline.Rotation = transform.Rotation;
+        baseline.Scale = transform.LocalScale;
+        baseline.FramesSinceSent = 0;
+        baseline.Has = true;
     }
 
     private static Message BuildSpawn(NetworkObject networkObject)
