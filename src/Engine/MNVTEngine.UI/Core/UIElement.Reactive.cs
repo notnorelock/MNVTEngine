@@ -130,11 +130,13 @@ public partial class UIElement
             return false;
         }
 
-        for (var i = animations.Count - 1; i >= 0; i--)
+        // A step can change the list (an After action starts, replaces or stops animations of this element): step a
+        // snapshot, skip what was removed meanwhile, and remove finished ones by reference, not by a stale index.
+        foreach (var animation in animations.ToArray())
         {
-            if (!animations[i].Step(deltaSeconds) && i < animations.Count)
+            if (animations.Contains(animation) && !animation.Step(deltaSeconds))
             {
-                animations.RemoveAt(i);
+                animations.Remove(animation);
             }
         }
 

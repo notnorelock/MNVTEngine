@@ -229,6 +229,29 @@ public sealed class CompositionTests
     }
 
     [Fact]
+    public void AnAfterAction_ThatChangesTheElementsAnimations_DoesNotBreakTheStep()
+    {
+        using var ui = new UIHarness();
+        var box = ui.Context.Root.AddChild(new Panel { Width = 10, Height = 10 });
+        var cycles = 0;
+        void Cycle()
+        {
+            cycles++;
+            box.StopAnimations(); // drops the running fade too
+            box.AnimateOpacity(cycles % 2, Motion.Tween(0.05f)).After(0.05f, Cycle); // a pulse restarting itself
+        }
+
+        box.AnimateScale(1.2f, Motion.Tween(1f)).AnimateOpacity(0.5f, Motion.Tween(1f)).After(0.02f, Cycle);
+        for (var i = 0; i < 30; i++)
+        {
+            ui.Frame();
+        }
+
+        Assert.True(cycles > 3);
+        Assert.True(box.IsAnimating());
+    }
+
+    [Fact]
     public void Springs_Settle_AtTheTarget()
     {
         using var ui = new UIHarness();
