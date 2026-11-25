@@ -91,6 +91,7 @@ dotnet build MNVTEngine.sln            # development build
 dotnet test --solution MNVTEngine.sln  # the whole test suite
 scripts\build.cmd Release              # pipeline build with a build number
 scripts\Publish-Editor.ps1             # editor in a clean layout: the exe on top, libraries in Dependencies/Managed
+scripts\Package-Release.ps1 -Zip       # release without sources (after build.cmd Release): editor, mnvt, engine packages
 ```
 
 GPU tests need a Vulkan 1.4 device and skip without one. Every push builds and tests on GitHub Actions. Releases are

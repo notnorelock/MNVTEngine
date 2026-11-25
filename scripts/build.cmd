@@ -21,5 +21,10 @@ dotnet "%ROOT%\artifacts\versioning-tool\MNVTEngine.Versioning.dll" resolve --al
 dotnet build "%ROOT%\MNVTEngine.sln" -c %CONFIGURATION% "-p:MnvtVersionSession=%SESSION%" %ARGS%
 set RESULT=%ERRORLEVEL%
 if %RESULT%==0 (set "OUTCOME=succeeded") else (set "OUTCOME=failed")
+rem The last successful build's version session: scripts\Package-Release.ps1 stamps what it publishes with it.
+if %RESULT%==0 (
+  if exist "%ROOT%\artifacts\version\last-build" rmdir /s /q "%ROOT%\artifacts\version\last-build"
+  xcopy /e /i /q /y "%SESSION%" "%ROOT%\artifacts\version\last-build" >nul
+)
 dotnet "%ROOT%\artifacts\versioning-tool\MNVTEngine.Versioning.dll" complete --root "%ROOT%" --session "%SESSION%" --result %OUTCOME%
 exit /b %RESULT%
