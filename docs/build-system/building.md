@@ -59,7 +59,11 @@ Inside this repository, a project's scripts reference the engine's gameplay `.cs
 engine (no source checkout), the engine also publishes **`MNVTEngine.Sdk`** — its non-backend assemblies and their docs
 bundled as a NuGet package, versioned as the engine (`MAJOR.DDMM.PATCH`) and refreshed into the local feed
 `artifacts/nuget` on every build. A game references it compile-only (`ExcludeAssets="runtime"`); the game host provides
-the engine at run time.
+the engine at run time. The package includes the gameplay API of every module — including networking
+([`MNVTEngine.Galaxy`](../architecture/networking.md) and its `NetworkClient`/`NetworkObject` components) — and
+discovers the assemblies to bundle automatically: it references every engine project and removes only the backend, host,
+rendering and dev-tool ones, so a new gameplay module is picked up without editing the SDK (an architecture test guards
+that nothing backend leaks in and nothing gameplay is left out).
 
 ## Build profiles
 
