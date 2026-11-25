@@ -207,7 +207,8 @@ public static class UIAnimations
 
     /// <summary>
     /// Runs <paramref name="action"/> after <paramref name="seconds"/> of UI time, unless the element is disposed (or
-    /// its animations stopped) first. Without a context it runs at once.
+    /// its animations stopped) first. Without a context it runs at once. Like events, it runs in the scene's context
+    /// (<c>SceneManager</c>, <c>Time</c> and <c>Input</c> work) and a throwing action is logged instead of breaking the UI.
     /// </summary>
     public static T After<T>(this T element, float seconds, Action action)
         where T : UIElement
@@ -217,7 +218,7 @@ public static class UIAnimations
         {
             if (v[0] >= 1f)
             {
-                action();
+                element.RaiseEvent("After", action); // game code: scene context, and a throw is logged, not fatal
             }
         });
     }

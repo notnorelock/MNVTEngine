@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-05.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using MNVTEngine.Mathematics;
 using MNVTEngine.Scenes;
@@ -112,6 +112,26 @@ public sealed class UIDocumentTests
         Assert.Equal(["Scenes/Next.mnvt"], loader.Requests);
         Assert.Equal(1, scene.ScriptExceptionCount);
         Assert.Equal(("Button", "Clicked", "Play"), (scene.RecentScriptErrors.Single().Component, scene.RecentScriptErrors.Single().Callback, scene.RecentScriptErrors.Single().GameObject));
+    }
+
+    [Fact]
+    public void After_RunsInTheScenesContext()
+    {
+        var scene = new Scene();
+        var loader = new RecordingLoader();
+        scene.Loader = loader;
+        var system = UISystem.Attach(scene, new UIServices(UIHarness.Font, null, _ => System.Text.Encoding.UTF8.GetBytes(Menu()), null));
+        var document = scene.CreateGameObject("HUD").AddComponent<UIDocument>();
+        document.Layout = Layout;
+        scene.Start();
+        var input = new InputState();
+        system.Update(input, new Vector2(800, 600), 1f, 0.016f);
+
+        document.Root!.After(0.01f, () => SceneManager.LoadScene("Scenes/Next.mnvt")); // a fade out, then leave
+        system.Update(input, new Vector2(800, 600), 1f, 0.016f);
+
+        Assert.Equal(["Scenes/Next.mnvt"], loader.Requests);
+        Assert.Equal(0, scene.ScriptExceptionCount);
     }
 
     private sealed class RecordingLoader : ISceneLoader
