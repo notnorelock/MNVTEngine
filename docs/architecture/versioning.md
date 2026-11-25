@@ -251,8 +251,9 @@ The repository's own CI is `.github/workflows/build.yml` (windows-latest). Every
 request runs `scripts\build.cmd Release` with `MNVT_BUILD_NUMBER` set to the run number, then the test suite. The
 hosted runners have no Vulkan 1.4 GPU, so GPU tests and the export tests that launch the game skip there. Running
 the workflow by hand (Actions, "Build", "Run workflow") also publishes a GitHub release `v<version>` on the chosen
-channel. Its asset `MNVTEngine-<version>-win-x64.zip` holds the source tree at that commit plus the prebuilt editor and
-CLI (`bin/Release`). Exports compile GameHost from those sources, so users still need the .NET SDK. The zip has no
+channel. Its asset `MNVTEngine-<version>-win-x64.zip` holds the source tree at that commit, the prebuilt CLI
+(`bin/Release`) and the editor in its clean layout: `Editor/MNVTEngine.Editor.exe` with its libraries in
+`Editor/Dependencies` (`scripts/Publish-Editor.ps1 -NoBuild`, so it is the tested build). Exports compile GameHost from those sources, so users still need the .NET SDK. The zip has no
 `.git` folder, so engine builds made from it get PATCH 0 unless they set `MNVT_PATCH` ([Without Git metadata](#without-git-metadata)).
 Releases are made only by hand: nothing tags or publishes on its own.
 

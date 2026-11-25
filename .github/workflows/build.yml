@@ -60,7 +60,8 @@ jobs:
           "version=$($info.version)" >> $env:GITHUB_OUTPUT
           Write-Host "MNVTEngine $($info.informationalVersion), build $($info.buildId)"
 
-      # The engine ships as its source tree (exports compile GameHost from it) plus prebuilt editor and CLI.
+      # The engine ships as its source tree (exports compile GameHost from it) plus the prebuilt CLI and the editor in
+      # its clean layout (Editor/MNVTEngine.Editor.exe, libraries in Editor/Dependencies; scripts/Publish-Editor.ps1).
       - name: Package
         if: github.event_name == 'workflow_dispatch' && inputs.release
         shell: pwsh
@@ -71,9 +72,9 @@ jobs:
           git archive --format=tar -o "$env:RUNNER_TEMP/source.tar" HEAD
           # Windows bsdtar (zip support), not the GNU tar of Git for Windows
           & "$env:SystemRoot/System32/tar.exe" -x -f "$env:RUNNER_TEMP/source.tar" -C $stage
-          foreach ($project in 'src/Editor/MNVTEngine.Editor', 'src/Tooling/MNVTEngine.CLI') {
-            Copy-Item -Recurse "$project/bin/Release" (New-Item -ItemType Directory -Force "$stage/$project/bin").FullName
-          }
+          Copy-Item -Recurse src/Tooling/MNVTEngine.CLI/bin/Release (New-Item -ItemType Directory -Force "$stage/src/Tooling/MNVTEngine.CLI/bin").FullName
+          ./scripts/Publish-Editor.ps1 -NoBuild # the tested build, with its version stamp
+          Copy-Item -Recurse artifacts/editor "$stage/Editor"
           & "$env:SystemRoot/System32/tar.exe" -a -c -f "$env:RUNNER_TEMP/$name.zip" -C $env:RUNNER_TEMP $name
           "ZIP=$env:RUNNER_TEMP/$name.zip" >> $env:GITHUB_ENV
 

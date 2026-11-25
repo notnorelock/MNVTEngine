@@ -6,11 +6,14 @@
 # them through DependencyLayout, as an exported game does through HostLayout. Framework-dependent: it uses the
 # installed .NET (the editor is a developer tool, not a shipped game).
 #
-#   scripts\Publish-Editor.ps1 [-Configuration Release] [-Output artifacts\editor]
+#   scripts\Publish-Editor.ps1 [-Configuration Release] [-Output artifacts\editor] [-NoBuild]
+#
+# -NoBuild publishes the existing build (e.g. after scripts\build.cmd Release), keeping its version stamp.
 
 param(
     [string]$Configuration = "Release",
-    [string]$Output = "artifacts/editor"
+    [string]$Output = "artifacts/editor",
+    [switch]$NoBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,7 +24,7 @@ $out = if ([IO.Path]::IsPathRooted($Output)) { $Output } else { Join-Path $root 
 if (Test-Path $out) { Remove-Item -Recurse -Force $out }
 # Portable (no RID): a RID publish duplicates the transitively-referenced versioning tool's apphost. The native
 # libraries then sit under runtimes/<rid>/native; the win-x64 ones move into Dependencies/Native below.
-dotnet publish $project -c $Configuration -o $out
+dotnet publish $project -c $Configuration -o $out $(if ($NoBuild) { "--no-build" })
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed." }
 
 $managed = Join-Path $out "Dependencies/Managed"
