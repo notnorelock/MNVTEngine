@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: MIT
 #
 # Publishes the editor as a clean, game-like layout: MNVTEngine.Editor.exe at the top with every library tucked into
-# Dependencies/Managed (native libraries stay in runtimes/<rid>/native), instead of the flat pile a `dotnet build`
-# produces. The editor resolves them through DependencyLayout, as an exported game does through HostLayout. Framework-dependent: it uses the installed
-# .NET (the editor is a developer tool, not a shipped game).
+# Dependencies/Managed and Dependencies/Native, instead of the flat pile a `dotnet build` produces. The editor resolves
+# them through DependencyLayout, as an exported game does through HostLayout. Framework-dependent: it uses the
+# installed .NET (the editor is a developer tool, not a shipped game).
 #
 #   scripts\Publish-Editor.ps1 [-Configuration Release] [-Output artifacts\editor]
 
@@ -20,7 +20,7 @@ $out = if ([IO.Path]::IsPathRooted($Output)) { $Output } else { Join-Path $root 
 
 if (Test-Path $out) { Remove-Item -Recurse -Force $out }
 # Portable (no RID): a RID publish duplicates the transitively-referenced versioning tool's apphost. The native
-# libraries then sit under runtimes/<rid>/native, where they stay.
+# libraries then sit under runtimes/<rid>/native; the win-x64 ones move into Dependencies/Native below.
 dotnet publish $project -c $Configuration -o $out
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed." }
 
@@ -28,7 +28,7 @@ $managed = Join-Path $out "Dependencies/Managed"
 New-Item -ItemType Directory -Force -Path $managed | Out-Null
 
 # Only the managed pile (the mess) moves to Dependencies/Managed; the two executables' entry assemblies stay by their
-# .exe, and native libraries stay under runtimes/<rid>/native where Silk.NET's loaders look for them.
+# .exe. Native libraries at the root are left alone; the package ones come from runtimes/win-x64/native below.
 $keepAtRoot = @("MNVTEngine.Editor.dll", "MNVTCrashHandler.dll")
 
 foreach ($dll in Get-ChildItem -Path $out -Filter *.dll -File) {
@@ -45,14 +45,16 @@ foreach ($dll in Get-ChildItem -Path $out -Filter *.dll -File) {
     }
 }
 
-# Keep only the Windows native libraries (the editor runs on Windows); drop the other operating systems' copies.
+# The editor runs as a 64-bit Windows process: its native libraries go to Dependencies/Native (DependencyLayout preloads
+# them) and the other platforms' copies are dropped with the runtimes folder.
+$native = Join-Path $out "Dependencies/Native"
 $runtimes = Join-Path $out "runtimes"
-if (Test-Path $runtimes) {
-    Get-ChildItem -Path $runtimes -Directory | Where-Object { $_.Name -notlike "win*" } | Remove-Item -Recurse -Force
-}
+New-Item -ItemType Directory -Force -Path $native | Out-Null
+Get-ChildItem -Path (Join-Path $runtimes "win-x64/native") -File | Move-Item -Destination $native -Force
+Remove-Item -Recurse -Force $runtimes
 
 # Without a deps.json the host resolves the app's managed assemblies through DependencyLayout (and the crash handler
-# through its own resolver); native libraries stay in runtimes/win-x64/native.
+# through its own resolver).
 Get-ChildItem -Path $out -Filter *.deps.json -File | Remove-Item -Force
 
 # The versioning build tool is dragged in transitively but is not a runtime dependency; drop it from the clean output.
