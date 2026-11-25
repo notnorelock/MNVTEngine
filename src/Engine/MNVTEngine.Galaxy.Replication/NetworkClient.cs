@@ -240,6 +240,7 @@ public sealed class NetworkClient : Component, IDisposable
         instance.Transform.Position = state.Position;
         instance.Transform.Rotation = state.Rotation;
         instance.Transform.LocalScale = state.Scale;
+        networkObject.GetComponent<NetworkTransform>()?.SetInitialState(state); // Base for per-field delta merging.
         _objects[networkId] = networkObject;
     }
 

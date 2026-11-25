@@ -17,6 +17,8 @@ public sealed class NetworkTransform : Component
 {
     private readonly SnapshotInterpolator _interpolator = new();
     private NetworkObject? _networkObject;
+    private TransformState _full;
+    private bool _hasFull;
 
     /// <summary>Replicate world position.</summary>
     [SerializeField]
@@ -42,10 +44,33 @@ public sealed class NetworkTransform : Component
 
     public override void Awake() => _networkObject = GetComponent<NetworkObject>();
 
-    /// <summary>Called by the client with each received snapshot for this object.</summary>
-    internal void ReceiveState(float time, TransformState state) => _interpolator.Push(time, state);
+    /// <summary>Seeds the full transform from a spawn, so later per-field deltas have a complete base to merge onto.</summary>
+    internal void SetInitialState(TransformState full)
+    {
+        _full = full;
+        _hasFull = true;
+    }
 
-    internal void ClearBuffer() => _interpolator.Clear();
+    /// <summary>Called by the client with each received snapshot. A snapshot carries only the fields that changed, so
+    /// they are merged onto the last full state before interpolating (interpolation needs complete states).</summary>
+    internal void ReceiveState(float time, TransformState delta)
+    {
+        _full = _hasFull ? Merge(_full, delta) : delta;
+        _hasFull = true;
+        _interpolator.Push(time, _full with { Flags = Flags });
+    }
+
+    private static TransformState Merge(TransformState full, TransformState delta) => new(
+        full.Flags,
+        (delta.Flags & TransformState.PositionBit) != 0 ? delta.Position : full.Position,
+        (delta.Flags & TransformState.RotationBit) != 0 ? delta.Rotation : full.Rotation,
+        (delta.Flags & TransformState.ScaleBit) != 0 ? delta.Scale : full.Scale);
+
+    internal void ClearBuffer()
+    {
+        _interpolator.Clear();
+        _hasFull = false;
+    }
 
     public override void Update()
     {

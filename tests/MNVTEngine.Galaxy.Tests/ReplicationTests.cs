@@ -217,6 +217,83 @@ public sealed class ReplicationTests
         ((IDisposable)client).Dispose();
     }
 
+    [Fact]
+    public void ACustomRelevanceFilter_DecidesWhichObjectsAClientGets()
+    {
+        ComponentRegistry registry = ComponentRegistry.CreateDefault().Register<NetworkObject>().Register<NetworkTransform>().Register<NetworkServer>().Register<NetworkClient>();
+        var serializer = new SceneSerializer(registry);
+
+        var authored = new Scene();
+        foreach (string name in new[] { "Visible", "Blocked" })
+        {
+            GameObject go = authored.CreateGameObject(name);
+            go.AddComponent<NetworkObject>();
+            go.AddComponent<NetworkTransform>();
+        }
+
+        string json = serializer.Serialize(authored);
+
+        Scene serverScene = serializer.Deserialize(json).Scene;
+        var serverStep = new Stepper(serverScene);
+        NetworkServer server = serverScene.CreateGameObject("Net").AddComponent<NetworkServer>();
+        server.Port = 0;
+        server.SnapshotRate = 60;
+        server.RelevanceFilter = (_, networkObject) => networkObject.GameObject.Name != "Blocked";
+        serverScene.Start();
+        serverStep.Step(0f);
+
+        Scene clientScene = serializer.Deserialize(json).Scene;
+        var clientStep = new Stepper(clientScene);
+        NetworkClient client = clientScene.CreateGameObject("Net").AddComponent<NetworkClient>();
+        client.Host = "127.0.0.1";
+        client.Port = server.BoundPort;
+        clientScene.Start();
+
+        const float dt = 1f / 60f;
+        Pump(serverStep, clientStep, dt, () => clientScene.Find("Visible")!.GetComponent<NetworkObject>()!.IsSpawned, 5000);
+
+        serverScene.Find("Visible")!.Transform.Position = new Vector3(0f, 4f, 0f);
+        serverScene.Find("Blocked")!.Transform.Position = new Vector3(0f, 7f, 0f);
+        Pump(serverStep, clientStep, dt, () => clientScene.Find("Visible")!.Transform.Position.Y > 3.5f, 3000);
+
+        Assert.InRange(clientScene.Find("Visible")!.Transform.Position.Y, 3.5f, 4.5f);
+        Assert.InRange(clientScene.Find("Blocked")!.Transform.Position.Y, -0.5f, 0.5f); // filtered out: never updated
+
+        ((IDisposable)server).Dispose();
+        ((IDisposable)client).Dispose();
+    }
+
+    [Fact]
+    public void LagCompensation_ReturnsAPastPosition()
+    {
+        var scene = new Scene();
+        var step = new Stepper(scene);
+        NetworkServer server = scene.CreateGameObject("Net").AddComponent<NetworkServer>();
+        server.Port = 0;
+        GameObject target = scene.CreateGameObject("Target");
+        target.AddComponent<NetworkObject>();
+        target.AddComponent<NetworkTransform>();
+        scene.Start();
+        step.Step(0f); // assigns the network id
+
+        uint id = target.GetComponent<NetworkObject>()!.NetworkId;
+        Assert.True(id != 0);
+
+        const float dt = 1f / 60f;
+        for (int i = 1; i <= 60; i++)
+        {
+            target.Transform.Position = new Vector3(i, 0f, 0f);
+            step.Step(dt);
+        }
+
+        Assert.True(server.TryGetPastPosition(id, secondsAgo: 0f, out Vector3 now));
+        Assert.InRange(now.X, 59f, 60f);
+        Assert.True(server.TryGetPastPosition(id, secondsAgo: 0.5f, out Vector3 past));
+        Assert.InRange(past.X, 28f, 32f); // about half a second ago
+
+        ((IDisposable)server).Dispose();
+    }
+
     private static Vector3 RemotePosition(Scene scene)
     {
         foreach (NetworkObject networkObject in scene.FindObjectsOfType<NetworkObject>())
