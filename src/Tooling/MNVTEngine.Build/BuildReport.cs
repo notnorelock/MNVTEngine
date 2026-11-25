@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-25.
 
 using System.Globalization;
 using System.Text;
@@ -245,9 +245,10 @@ public static class BuildReport
 
     private static long? SizeOf(string file) => File.Exists(file) ? new FileInfo(file).Length : null;
 
-    /// <summary>A native library of this engine build: next to the tool, or in its runtimes/&lt;rid&gt;/native folder.</summary>
+    /// <summary>A native library of this engine build: next to the tool, in Dependencies/Native (the published editor) or in its runtimes/&lt;rid&gt;/native folder.</summary>
     private static long? NativeSize(string name) =>
         SizeOf(Path.Combine(AppContext.BaseDirectory, name))
+        ?? SizeOf(Path.Combine(AppContext.BaseDirectory, GamePackage.NativeFolder, name))
         ?? (Directory.Exists(Path.Combine(AppContext.BaseDirectory, "runtimes"))
             ? Directory.EnumerateFiles(Path.Combine(AppContext.BaseDirectory, "runtimes"), name, SearchOption.AllDirectories).Select(f => (long?)new FileInfo(f).Length).FirstOrDefault()
             : null);
