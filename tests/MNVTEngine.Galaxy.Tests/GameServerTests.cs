@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-24.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Diagnostics;
 using MNVTEngine.Galaxy.Server;
@@ -31,6 +31,34 @@ public sealed class GameServerTests
             reply.Write("echo:" + text);
             Send(clientId, reply);
         }
+    }
+
+    private sealed class SlowServer(GameServerOptions options) : GameServer(options)
+    {
+        public int SleepMs { get; set; }
+
+        protected override void OnTick(float deltaSeconds) => Thread.Sleep(SleepMs);
+    }
+
+    [Fact]
+    public void Timings_MeasureEachTick_AgainstTheTickRate()
+    {
+        using var server = new SlowServer(new GameServerOptions { Port = 0, MaxClients = 1, TickRate = 50 }); // 20 ms a tick
+        server.Start();
+        Assert.Equal((0L, 20.0), (server.Timings.Ticks, server.Timings.BudgetMs));
+
+        server.TickOnce(0.02f);
+        server.SleepMs = 30;
+        server.TickOnce(0.02f);
+
+        var timings = server.Timings;
+        Assert.Equal(2, timings.Ticks);
+        Assert.Equal(1, timings.OverBudget);
+        Assert.True(timings.MaxMs >= 30 && timings.LastMs == timings.MaxMs);
+        Assert.InRange(timings.AverageMs, timings.MaxMs / 2, timings.MaxMs);
+
+        server.ResetTimings();
+        Assert.Equal(0, server.Timings.Ticks);
     }
 
     [Fact]

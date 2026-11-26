@@ -133,6 +133,9 @@ not echo one of this side's recent pings is ignored.
 guard that logs and swallows exceptions (except out-of-memory): a malformed message or a bug in one handler is isolated
 and the server keeps serving. Because the framework depends only on the networking layer, a dedicated server has no
 graphics, window or asset files to go wrong. Set `GameServerOptions.Identity` to authenticate it to pinning clients.
+`Timings` (`ServerTickStats`: ticks, last, mean and longest tick in ms, and how many went over one tick at the tick
+rate) measures every tick, network pump included; it is a snapshot safe to read from another thread, and
+`ResetTimings` starts it over after a warm-up.
 
 ### Standalone servers
 

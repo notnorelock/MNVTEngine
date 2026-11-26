@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-24.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Diagnostics;
 using System.Net;
@@ -22,6 +22,8 @@ public abstract class GameServer : IDisposable
     private readonly GameServerOptions _options;
     private readonly GalaxyServer _server;
     private bool _running;
+    private ServerTickStats _timings;
+    private double _totalMs;
 
     protected GameServer(GameServerOptions options, ILoggerFactory? loggerFactory = null)
     {
@@ -34,6 +36,7 @@ public abstract class GameServer : IDisposable
         _server.ClientConnected += id => Guard(() => OnClientConnected(id), "OnClientConnected");
         _server.ClientDisconnected += (id, reason) => Guard(() => OnClientDisconnected(id, reason), "OnClientDisconnected");
         _server.MessageReceived += (id, message) => Guard(() => OnMessage(id, message), "OnMessage");
+        _timings = ServerTickStats.Empty(1000.0 / options.TickRate);
     }
 
     /// <summary>A logger named after the concrete server type.</summary>
@@ -41,6 +44,19 @@ public abstract class GameServer : IDisposable
 
     /// <summary>The server options.</summary>
     protected GameServerOptions Options => _options;
+
+    /// <summary>
+    /// How long ticks take (network pump and <see cref="OnTick"/>) since the start or <see cref="ResetTimings"/>. A
+    /// snapshot replaced after every tick, so another thread (a health endpoint, a load test) may read it.
+    /// </summary>
+    public ServerTickStats Timings => Volatile.Read(ref _timings);
+
+    /// <summary>Starts the <see cref="Timings"/> over, e.g. after a warm-up; call it on the thread that ticks.</summary>
+    public void ResetTimings()
+    {
+        _totalMs = 0;
+        Volatile.Write(ref _timings, ServerTickStats.Empty(1000.0 / _options.TickRate));
+    }
 
     /// <summary>The connected clients' ids.</summary>
     protected IReadOnlyCollection<uint> Clients => _server.Clients;
@@ -64,8 +80,21 @@ public abstract class GameServer : IDisposable
     /// <see cref="OnTick"/>. For embedding in an external loop or in tests.</summary>
     public void TickOnce(float deltaSeconds)
     {
+        long start = Stopwatch.GetTimestamp();
         _server.Tick();
         Guard(() => OnTick(deltaSeconds), "OnTick");
+        double ms = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        ServerTickStats before = _timings;
+        _totalMs += ms;
+        long ticks = before.Ticks + 1;
+        Volatile.Write(ref _timings, before with
+        {
+            Ticks = ticks,
+            LastMs = ms,
+            AverageMs = _totalMs / ticks,
+            MaxMs = Math.Max(before.MaxMs, ms),
+            OverBudget = before.OverBudget + (ms > before.BudgetMs ? 1 : 0),
+        });
     }
 
     /// <summary>Runs the fixed-rate loop until <paramref name="cancellationToken"/> is cancelled, then stops.</summary>
