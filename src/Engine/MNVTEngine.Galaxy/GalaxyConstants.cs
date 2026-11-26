@@ -10,6 +10,15 @@ public static class GalaxyConstants
     /// <summary>Bumped whenever the wire format changes; a client and server must match to connect.</summary>
     public const int ProtocolVersion = 3;
 
+    /// <summary>
+    /// Default for <see cref="GalaxyServer.MaxMessagesPerSecond"/>: messages a server takes from one client in a second.
+    /// Beyond it they are dropped; at <see cref="FloodFactor"/> times it the client is disconnected.
+    /// </summary>
+    public const int MaxMessagesPerSecond = 600;
+
+    /// <summary>How many times <see cref="GalaxyServer.MaxMessagesPerSecond"/> in one second ends a client's connection.</summary>
+    public const int FloodFactor = 4;
+
     /// <summary>Most simultaneous connections accepted from one IP address; a basic per-source flood limit.</summary>
     public const int MaxConnectionsPerAddress = 16;
 

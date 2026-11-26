@@ -35,6 +35,7 @@ public sealed partial class GalaxyServer : IDisposable
     private readonly Dictionary<uint, Peer> _peers = [];
     private readonly Dictionary<IPEndPoint, uint> _byEndpoint = [];
     private readonly Dictionary<IPAddress, int> _perAddress = [];
+    private readonly Dictionary<uint, (long SecondStartMs, int Count)> _inboundBudget = [];
     private readonly List<uint> _scratchIds = [];
     private readonly byte[] _cookieSecret = RandomNumberGenerator.GetBytes(32);
 
@@ -59,6 +60,16 @@ public sealed partial class GalaxyServer : IDisposable
 
     /// <summary>The connected clients' ids.</summary>
     public IReadOnlyCollection<uint> Clients => _peers.Keys;
+
+    /// <summary>
+    /// Messages taken from one client in a second; more are dropped before <see cref="MessageReceived"/>, and a client
+    /// sending <see cref="GalaxyConstants.FloodFactor"/> times as many is disconnected (<see cref="DisconnectReason.ProtocolError"/>).
+    /// Raise it for games that send more than ~600 small messages a second per player.
+    /// </summary>
+    public int MaxMessagesPerSecond { get; set; } = GalaxyConstants.MaxMessagesPerSecond;
+
+    /// <summary>Messages dropped for going over <see cref="MaxMessagesPerSecond"/> since the start.</summary>
+    public long DroppedOverBudget { get; private set; }
 
     /// <summary>Binds the server to <paramref name="port"/> and returns the actual local endpoint. Pass an
     /// <paramref name="identity"/> to authenticate the server to clients that pin its public key. Pass a custom
@@ -270,13 +281,36 @@ public sealed partial class GalaxyServer : IDisposable
         }
 
         peer.Connection.Receive(datagram, now, _inbound, out bool remoteClosed);
+        var (secondStart, count) = _inboundBudget.GetValueOrDefault(connectionId);
+        if (now - secondStart >= 1000)
+        {
+            (secondStart, count) = (now, 0);
+        }
+
         foreach (Message message in _inbound)
         {
-            MessageReceived?.Invoke(connectionId, message);
+            if (++count <= MaxMessagesPerSecond)
+            {
+                MessageReceived?.Invoke(connectionId, message);
+            }
+            else
+            {
+                DroppedOverBudget++;
+            }
+
             message.Release();
         }
 
         _inbound.Clear();
+        _inboundBudget[connectionId] = (secondStart, count);
+        if (count > (long)MaxMessagesPerSecond * GalaxyConstants.FloodFactor && _peers.ContainsKey(connectionId))
+        {
+            LogFlooding(_logger, connectionId, count);
+            peer.Connection.SendDisconnect(now);
+            Remove(connectionId, peer, DisconnectReason.ProtocolError);
+            return;
+        }
+
         if (remoteClosed)
         {
             Remove(connectionId, peer, DisconnectReason.RemoteRequest);
@@ -324,6 +358,7 @@ public sealed partial class GalaxyServer : IDisposable
     private void Remove(uint connectionId, Peer peer, DisconnectReason reason)
     {
         _peers.Remove(connectionId);
+        _inboundBudget.Remove(connectionId);
         _byEndpoint.Remove(peer.Connection.Remote);
         IPAddress address = peer.Connection.Remote.Address;
         int remaining = _perAddress.GetValueOrDefault(address) - 1;
@@ -374,6 +409,9 @@ public sealed partial class GalaxyServer : IDisposable
 
     [LoggerMessage(EventId = 9122, Level = LogLevel.Information, Message = "Client {ClientId} disconnected: {Reason}")]
     private static partial void LogClientDisconnected(ILogger logger, uint clientId, DisconnectReason reason);
+
+    [LoggerMessage(EventId = 9124, Level = LogLevel.Warning, Message = "Client {ClientId} sent {Count} messages within a second; disconnected for flooding")]
+    private static partial void LogFlooding(ILogger logger, uint clientId, int count);
 
     [LoggerMessage(EventId = 9123, Level = LogLevel.Error, Message = "A handshake failed while deriving session keys")]
     private static partial void LogHandshakeFailed(ILogger logger, Exception exception);

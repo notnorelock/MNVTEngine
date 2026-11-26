@@ -81,6 +81,10 @@ parse, it never throws on the hot path, and a datagram that does not authenticat
 - **Validation and limits.** Strict size and field checks everywhere, a fixed datagram ceiling, a per-second handshake
   cap, a per-source connection cap, and a connected client's payload accepted only from the source address its
   handshake came from.
+- **Message budget.** A server takes at most `GalaxyServer.MaxMessagesPerSecond` (600) messages from one client in a
+  second; the rest are dropped before `MessageReceived` (counted in `DroppedOverBudget`), so a flooding client cannot
+  stall the tick with handler work. A client sending four times the budget in a second is disconnected
+  (`ProtocolError`). Game rules (chat, voice, movement) still check their own rates.
 - **No home-grown cryptography.** Every primitive is from the .NET base class library.
 
 Cryptography is handled by the transport, below the message layer, so game code never sees it.

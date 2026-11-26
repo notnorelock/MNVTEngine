@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-24.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Diagnostics;
 
@@ -49,6 +49,44 @@ public sealed class EndToEndTests
         Pump(server, client, () => disconnected is not null, 5000);
         Assert.NotNull(disconnected);
         Assert.Empty(server.Clients);
+    }
+
+    [Fact]
+    public void AClient_OverItsMessageBudget_IsCutShort_AndAFloodingOneIsDisconnected()
+    {
+        using var server = new GalaxyServer { MaxMessagesPerSecond = 10 };
+        int port = server.Start(0, maxClients: 8).Port;
+        var received = 0;
+        server.MessageReceived += (_, _) => received++;
+        DisconnectReason? dropped = null;
+        server.ClientDisconnected += (_, reason) => dropped = reason;
+
+        using var client = new GalaxyClient();
+        bool connected = false;
+        client.Connected += () => connected = true;
+        Assert.True(client.Connect("127.0.0.1", port));
+        Pump(server, client, () => connected, 5000);
+
+        void Burst(int count)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                Message message = Message.Create(1);
+                message.Write(i);
+                client.Send(message, DeliveryMethod.Unreliable);
+            }
+        }
+
+        Burst(30); // three times the budget: cut to it, still connected
+        Pump(server, client, () => received + server.DroppedOverBudget >= 30, 2000);
+        Assert.Equal(10, received);
+        Assert.Equal(20, server.DroppedOverBudget);
+        Assert.Null(dropped);
+
+        Burst(30); // over four times it within the second: a flood
+        Pump(server, client, () => dropped is not null, 2000);
+        Assert.Equal(DisconnectReason.ProtocolError, dropped);
+        Assert.Equal(10, received);
     }
 
     [Fact]
