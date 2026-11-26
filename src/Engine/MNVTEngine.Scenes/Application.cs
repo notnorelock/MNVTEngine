@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-26.
+
+using System.Diagnostics;
 
 namespace MNVTEngine;
 
@@ -58,6 +60,32 @@ public static class Application
 
     /// <summary>Ends the game after the current frame.</summary>
     public static void Quit() => QuitRequested?.Invoke();
+
+    /// <summary>
+    /// Opens a web page in the player's default browser (a download page, a store, a help page). Only absolute http
+    /// and https addresses: never files, programs or other schemes, so game data cannot launch anything else.
+    /// </summary>
+    /// <returns>False when the address is refused or no browser could be started.</returns>
+    public static bool OpenUrl(Uri url)
+    {
+        if (!IsWebAddress(url))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo(url.AbsoluteUri) { UseShellExecute = true });
+            return true;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return false; // no browser registered for the scheme
+        }
+    }
+
+    /// <summary>Whether <see cref="OpenUrl"/> accepts <paramref name="url"/>.</summary>
+    public static bool IsWebAddress(Uri? url) => url is { IsAbsoluteUri: true } && (url.Scheme == Uri.UriSchemeHttps || url.Scheme == Uri.UriSchemeHttp) && url.Host.Length > 0;
 
     /// <summary>Set by the game host when its window exists, and cleared when it closes.</summary>
     public static void SetHostWindow(IApplicationWindow? window) => _window = window;

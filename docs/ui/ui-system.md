@@ -162,6 +162,8 @@ They are validated when the project loads. At runtime, `Application.Window` expo
 - `Width`/`Height` and `FramebufferWidth`/`FramebufferHeight`;
 - `SetSize`, `Center` and `SetIcon(asset)`.
 
+`Application.OpenUrl(uri)` opens an http or https page in the player's default browser (anything else is refused and returns false).
+
 `Application.Quit()` closes the game; in the editor, it stops Play Mode. Play Mode has no game window of its own (`Application.HasWindow` is false), so game code checks it before using `Application.Window`.
 
 ## Splash and loading screens
