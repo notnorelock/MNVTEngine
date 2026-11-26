@@ -11,6 +11,7 @@
     <ProjectReference Include="..\..\Engine\MNVTEngine.Particles\MNVTEngine.Particles.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Galaxy.Replication\MNVTEngine.Galaxy.Replication.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Http\MNVTEngine.Http.csproj" />
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Security\MNVTEngine.Security.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Galaxy.WebSockets\MNVTEngine.Galaxy.WebSockets.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Graphics.Vulkan.ShaderCompiler\MNVTEngine.Graphics.Vulkan.ShaderCompiler.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.World3D.Rendering\MNVTEngine.World3D.Rendering.csproj" />

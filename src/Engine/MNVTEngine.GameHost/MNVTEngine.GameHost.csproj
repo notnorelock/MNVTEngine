@@ -54,6 +54,7 @@
     <ProjectReference Include="..\MNVTEngine.GameAssemblies\MNVTEngine.GameAssemblies.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.Security\MNVTEngine.Security.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.DebugUI\MNVTEngine.DebugUI.csproj" Condition="'$(MnvtDevTools)' == 'true'" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
   </ItemGroup>
   <!-- Every module, for development builds; keep in step with ModuleBootstrap (MNVTEngine.Build), which a test checks. -->

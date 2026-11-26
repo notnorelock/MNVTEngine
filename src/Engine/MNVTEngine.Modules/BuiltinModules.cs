@@ -15,7 +15,7 @@ public static class BuiltinModules
     private static readonly ProjectProfile[] TwoD = [ProjectProfile.TwoD];
     private static readonly ProjectProfile[] ThreeD = [ProjectProfile.ThreeD];
 
-    public static ModuleDefinition Core { get; } = new("core", "Core", "Foundation: timing, logging, math, ECS, scenes, serialization, input and diagnostics.")
+    public static ModuleDefinition Core { get; } = new("core", "Core", "Foundation: timing, logging, math, ECS, scenes, serialization, input, diagnostics and local data protection.")
     {
         Activation = ModuleActivation.Always,
         RuntimeAssemblies =
@@ -23,6 +23,7 @@ public static class BuiltinModules
             "MNVTEngine.Core", "MNVTEngine.Mathematics", "MNVTEngine.ECS", "MNVTEngine.Serialization", "MNVTEngine.Modules",
             "MNVTEngine.Scenes", "MNVTEngine.Input", "MNVTEngine.Diagnostics", "Newtonsoft.Json", "Silk.NET.Core", "Silk.NET.Maths",
             "MNVTEngine.IO", "MNVTEngine.Bundles", "ZstdSharp", "K4os.Compression.LZ4", // scenes load content bundles; bundles are packages
+            "MNVTEngine.Security", "System.Security.Cryptography.ProtectedData", // games keep sign-in tokens protected
         ],
         Components = ["MNVTEngine.Transform", "MNVTEngine.Camera", "MNVTEngine.HierarchyStyle"],
     };

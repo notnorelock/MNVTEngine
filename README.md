@@ -124,6 +124,7 @@ published from a manual run of the same workflow ([versioning](docs/architecture
 - [Audio](docs/engine/audio.md), [sprite animation](docs/engine/animation.md), [tilemaps](docs/engine/tilemaps.md)
 - [Particles](docs/engine/particles.md) and [terrain](docs/engine/terrain.md)
 - [HTTP client for web APIs](docs/engine/http.md)
+- [Local data protection (session tokens)](docs/engine/local-protection.md)
 - [WebSocket client for live backend updates](docs/engine/websockets.md)
 - [Embedded browser](docs/engine/browser.md) ([architecture](docs/architecture/embedded-browser.md))
 - [Mathematics conventions](docs/engine/mathematics.md) and [JSON serialization](docs/serialization/json.md)

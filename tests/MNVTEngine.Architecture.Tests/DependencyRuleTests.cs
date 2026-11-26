@@ -65,6 +65,14 @@ public class DependencyRuleTests
     }
 
     [Fact]
+    public void Security_HasNoEngineDependencies_AndOnlyDpapi()
+    {
+        // Servers and tools may protect secrets too: nothing of the engine comes along.
+        Assert.Empty(Graph["MNVTEngine.Security"].ProjectReferences);
+        Assert.Equal(["System.Security.Cryptography.ProtectedData"], Graph["MNVTEngine.Security"].Packages);
+    }
+
+    [Fact]
     public void VirtualFileSystem_HasNoEngineDependencies_AndOnlyManagedCodecs()
     {
         // The VFS and package format sit below everything that reads content; codecs must stay pure managed (AOT, any platform).

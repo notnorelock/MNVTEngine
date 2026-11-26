@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Protection of small secrets a game keeps on the player's machine (docs/engine/local-protection.md): Windows DPAPI
+    for the current user. Foundation library: no engine references, headless (servers and tools may use it too).
+  -->
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+  </ItemGroup>
+</Project>
