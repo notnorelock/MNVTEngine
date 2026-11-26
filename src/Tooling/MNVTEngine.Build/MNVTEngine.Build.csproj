@@ -22,6 +22,7 @@
     <!-- Every module, for development hosts (EngineModuleSet) and usage analysis. -->
     <ProjectReference Include="..\..\Engine\MNVTEngine.World2D.Rendering\MNVTEngine.World2D.Rendering.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Audio\MNVTEngine.Audio.csproj" />
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Audio.Voice\MNVTEngine.Audio.Voice.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.UI\MNVTEngine.UI.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Scripting.Bindings\MNVTEngine.Scripting.Bindings.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Physics2D\MNVTEngine.Physics2D.csproj" />

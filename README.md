@@ -121,7 +121,7 @@ published from a manual run of the same workflow ([versioning](docs/architecture
 - [Assets: metas, GUIDs, importers, prefabs](docs/engine/assets.md) and [model import](docs/engine/models.md)
 - [C# scripting and hot reload](docs/engine/csharp-scripting.md)
 - [Physics 2D](docs/engine/physics2d.md) and [Physics 3D](docs/engine/physics3d.md)
-- [Audio](docs/engine/audio.md), [sprite animation](docs/engine/animation.md), [tilemaps](docs/engine/tilemaps.md)
+- [Audio](docs/engine/audio.md) and [microphones and voice](docs/engine/voice.md), [sprite animation](docs/engine/animation.md), [tilemaps](docs/engine/tilemaps.md)
 - [Particles](docs/engine/particles.md) and [terrain](docs/engine/terrain.md)
 - [HTTP client for web APIs](docs/engine/http.md)
 - [Local data protection (session tokens)](docs/engine/local-protection.md)

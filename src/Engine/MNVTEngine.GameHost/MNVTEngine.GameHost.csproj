@@ -61,6 +61,7 @@
   <ItemGroup Condition="'$(MnvtBootstrap)' == '' and '$(MnvtEnginePackages)' != 'true'">
     <ProjectReference Include="..\MNVTEngine.Audio.OpenAL\MNVTEngine.Audio.OpenAL.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Audio\MNVTEngine.Audio.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
+    <ProjectReference Include="..\MNVTEngine.Audio.Voice\MNVTEngine.Audio.Voice.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Browser\MNVTEngine.Browser.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Browser.Audio\MNVTEngine.Browser.Audio.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />
     <ProjectReference Include="..\MNVTEngine.Browser.World2D\MNVTEngine.Browser.World2D.csproj" GlobalPropertiesToRemove="$(MnvtGameProperties)" />

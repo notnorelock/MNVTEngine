@@ -65,6 +65,14 @@ public class DependencyRuleTests
     }
 
     [Fact]
+    public void Voice_HasNoEngineDependencies_AndOnlyTheManagedOpusCodec()
+    {
+        // Codec, jitter buffer and voice activity serve clients and servers alike; devices and transport stay outside.
+        Assert.Empty(Graph["MNVTEngine.Audio.Voice"].ProjectReferences);
+        Assert.Equal(["Concentus"], Graph["MNVTEngine.Audio.Voice"].Packages);
+    }
+
+    [Fact]
     public void Security_HasNoEngineDependencies_AndOnlyDpapi()
     {
         // Servers and tools may protect secrets too: nothing of the engine comes along.

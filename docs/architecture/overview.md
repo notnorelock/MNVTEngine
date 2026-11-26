@@ -73,6 +73,7 @@ Only boundaries with real ownership or dependency value are planned. Sub-areas l
 | **MNVTEngine.World2D.Rendering** | Modules | The world.2d module: the sprite pass (sprites, tilemaps, 2D lighting) | World2D, Runtime |
 | **MNVTEngine.World3D** | Modules | The 3D world's components: meshes, lights, environment, model animation, and their scene services | Scenes |
 | **MNVTEngine.World3D.Rendering** | Modules | The world.3d module: 3D renderer, meshes, skinning, lighting and shadows, mesh shaders, model artifacts and cache, model instantiation, the 3D pass | World3D, Runtime |
+| **MNVTEngine.Audio.Voice** | Audio | Voice chat building blocks: Opus `VoiceEncoder`/`VoiceDecoder` (Concentus, FEC), `VoiceJitterBuffer`/`VoiceReceiver` (reordering, loss, adaptive 40-120 ms delay), `VoiceActivity`, `VoiceFramer`. See [voice](../engine/voice.md) | Concentus only; no device, no transport |
 | **MNVTEngine.Audio** | M8 | Audio device abstraction, WAV/Ogg/MP3 decoding, AudioSource/AudioListener, per-scene AudioSystem, silent device. See [audio](../engine/audio.md) | Scenes, NVorbis, NLayer; never OpenAL (enforced) |
 | **MNVTEngine.Audio.OpenAL** | M8 | OpenAL Soft backend, chosen by hosts | Audio, Silk.NET.OpenAL |
 | **MNVTEngine.Galaxy** | Networking | Client/server networking: a from-scratch reliable-UDP transport with an encrypted, authenticated wire protocol (ECDH + AES-GCM) and a byte message API. See [networking](networking.md) | Microsoft.Extensions.Logging only; never Graphics, Platform or Assets (headless) |

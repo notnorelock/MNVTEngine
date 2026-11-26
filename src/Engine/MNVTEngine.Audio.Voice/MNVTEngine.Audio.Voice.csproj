@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Voice chat building blocks (docs/engine/voice.md): Opus encoding and decoding (Concentus, managed), a jitter buffer
+    with packet-loss concealment, and voice activity detection. Headless: no device, no transport.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Concentus" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.Audio.Voice.Tests" />
+  </ItemGroup>
+</Project>

@@ -67,10 +67,10 @@ public static class BuiltinModules
         ],
     };
 
-    public static ModuleDefinition Audio { get; } = new("audio", "Audio", "Audio sources, listener and mixer (OpenAL Soft, Ogg Vorbis).")
+    public static ModuleDefinition Audio { get; } = new("audio", "Audio", "Audio sources, listener and mixer (OpenAL Soft, Ogg Vorbis); microphones and voice chat building blocks (Opus).")
     {
         Requires = ["core"],
-        RuntimeAssemblies = ["MNVTEngine.Audio", "MNVTEngine.Audio.OpenAL", "Silk.NET.OpenAL", "NVorbis"],
+        RuntimeAssemblies = ["MNVTEngine.Audio", "MNVTEngine.Audio.OpenAL", "Silk.NET.OpenAL", "NVorbis", "MNVTEngine.Audio.Voice", "Concentus"],
         NativeLibraries = ["soft_oal.dll"],
         AssetTypes = ["Audio"],
         Components = ["MNVTEngine.AudioSource", "MNVTEngine.AudioListener", "MNVTEngine.AudioMixer"],

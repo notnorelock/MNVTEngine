@@ -19,6 +19,8 @@
     <PackageVersion Include="NVorbis" Version="0.10.5" />
     <!-- Audio: MP3 decoding, fully managed (MIT) -->
     <PackageVersion Include="NLayer" Version="1.16.0" />
+    <!-- Voice: Opus encoding and decoding, fully managed (BSD-3) -->
+    <PackageVersion Include="Concentus" Version="2.2.2" />
     <!-- Model import (edit time only; exported games read artifacts): Assimp 6 for FBX (BSD-3, natives via Ultz.Native.Assimp), SharpGLTF for glTF (MIT) -->
     <PackageVersion Include="SharpGLTF.Core" Version="1.0.7" />
     <PackageVersion Include="Silk.NET.Assimp" Version="2.23.0" />
