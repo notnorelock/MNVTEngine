@@ -81,7 +81,7 @@ public sealed class WebSocketConnection : IDisposable
         }
 
         _options = options;
-        _connect = connect ?? ConnectClientAsync;
+        _connect = connect ?? ((url, headers, cancellationToken) => ConnectClientAsync(url, headers, options.KeepAlive, cancellationToken));
     }
 
     /// <summary>Each time a connection opens (after a reconnect too).</summary>
@@ -138,11 +138,12 @@ public sealed class WebSocketConnection : IDisposable
         _stop.Dispose();
     }
 
-    private static async Task<WebSocket> ConnectClientAsync(Uri url, IReadOnlyDictionary<string, string> headers, CancellationToken cancellationToken)
+    private static async Task<WebSocket> ConnectClientAsync(Uri url, IReadOnlyDictionary<string, string> headers, TimeSpan keepAlive, CancellationToken cancellationToken)
     {
         var socket = new ClientWebSocket();
         try
         {
+            socket.Options.KeepAliveInterval = keepAlive;
             foreach (var (name, value) in headers)
             {
                 socket.Options.SetRequestHeader(name, value);
