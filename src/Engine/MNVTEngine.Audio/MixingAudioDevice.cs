@@ -54,10 +54,13 @@ public class MixingAudioDevice : IAudioDevice
     /// <summary>The backend's microphones, set by the backend that creates the device; null without.</summary>
     public IAudioCaptureSource? Capture { get; init; }
 
+    public PlaybackTap Playback { get; }
+
     public MixingAudioDevice(IAudioOutput? output, int sampleRate = 48000)
     {
         _output = output;
         SampleRate = output?.SampleRate ?? sampleRate;
+        Playback = new PlaybackTap(SampleRate);
         SetBuses([]);
         output?.Start(Render);
     }
@@ -505,6 +508,8 @@ public class MixingAudioDevice : IAudioDevice
         {
             output[i] = Math.Clamp(mix[i], -1f, 1f);
         }
+
+        Playback.Write(output);
     }
 
     private Bus BusOf(string name, Bus master) => string.IsNullOrEmpty(name) ? master : _buses.GetValueOrDefault(name) ?? master;

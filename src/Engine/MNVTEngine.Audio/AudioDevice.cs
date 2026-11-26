@@ -157,6 +157,9 @@ public interface IAudioDevice : IDisposable
 
     /// <summary>The backend's microphones; null when it cannot record (the silent device, a backend without capture).</summary>
     IAudioCaptureSource? Capture { get; }
+
+    /// <summary>A mono copy of the output for echo cancellation; off until enabled.</summary>
+    PlaybackTap Playback { get; }
 }
 
 /// <summary>

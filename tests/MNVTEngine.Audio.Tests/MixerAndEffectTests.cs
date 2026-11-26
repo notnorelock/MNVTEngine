@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using MNVTEngine.Audio;
 using MNVTEngine.Mathematics;
@@ -124,6 +124,33 @@ public sealed class MixingDeviceTests
     {
         Assert.True(device.TryGetMeter(bus, out meter));
         return Math.Max(meter.PeakLeft, meter.PeakRight);
+    }
+
+    [Fact]
+    public void ThePlaybackTap_CopiesTheOutputInMono_OnlyWhileEnabled()
+    {
+        using var device = new NullAudioDevice();
+        using var buffer = device.CreateBuffer(Tone());
+        var voice = device.CreateVoice();
+        voice.Loop = true;
+        voice.Play(buffer);
+
+        device.Update(0.05f);
+        Assert.Equal(0, device.Playback.Available);
+
+        device.Playback.Enabled = true;
+        device.Update(0.1f);
+        var mono = new float[device.Playback.Available];
+        Assert.InRange(mono.Length, 4000, 5500); // about 100 ms
+        device.Playback.Read(mono);
+        Assert.InRange(mono.Max(), 0.2f, 1f);
+        Assert.Equal(0, device.Playback.Available);
+
+        device.Update(0.1f);
+        device.Playback.Trim(100);
+        Assert.Equal(100, device.Playback.Available);
+        device.Playback.Enabled = false;
+        Assert.Equal(0, device.Playback.Available);
     }
 
     [Fact]

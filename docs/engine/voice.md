@@ -50,8 +50,39 @@ order, sequence numbers wrapping at 65536); `Next(frame)` every 20 ms of playbac
 Feed the frames to an `IStreamingVoice` (`IAudioDevice.CreateStreamingVoice(1, VoiceFormat.SampleRate)`, bus `Voice`),
 keeping a little queued (`QueuedSeconds` around 40-60 ms) so the output never starves between game frames.
 
+## Echo cancellation
+
+With speakers instead of headphones the microphone hears the other players again, and they hear themselves. Turn
+on the device's `PlaybackTap` (`IAudioDevice.Playback.Enabled = true`): the mixer copies its output, mixed to mono,
+into it (a second at most, nothing while off). Each time you read the microphone, read as many samples from the
+tap, and give each frame of both to an `EchoCanceller` before encoding:
+
+```csharp
+device.Playback.Enabled = true;
+var read = mic.Read(buffer);
+var got = device.Playback.Read(reference.AsSpan(0, read)); // zeros for the rest when fewer wait
+device.Playback.Trim(VoiceFormat.SampleRate / 50);          // keep the reference from falling behind the microphone
+// per frame: canceller.Process(micFrame, referenceFrame, cleanFrame); encode cleanFrame
+```
+
+- The canceller learns the path from the speakers to the microphone, delay and room, up to `TailMilliseconds`
+  (200 ms) with a partitioned-block frequency-domain NLMS filter (256-sample blocks), and subtracts the echo it
+  predicts. It needs the tap and the microphone at `VoiceFormat.SampleRate`.
+- While the player talks over the speakers the error is not explained by the prediction, so learning slows down
+  and the voice does not teach the filter. A filter that makes the microphone louder resets itself; a block it got
+  wrong passes unchanged.
+- `Suppression` (on) turns down what the filter leaves, by up to 20 dB, while the speakers play and the player is
+  quiet, so voice activity is not set off by the remaining echo.
+- The output lags the microphone by `LatencySamples` (256, 5 ms). `EchoReductionDb` tells how much it takes out.
+- The reference must not lag the microphone: the echo of a sample is recorded after it is played, so the filter can
+  only look back. Trimming the tap after each read keeps it current; a jump (the trim, a device change) is learned
+  again within a second or two. `Reset` forgets the room.
+- `EchoCancellerTests` expect, on synthetic rooms (noise, 30 ms delay), over 15 dB from the filter and over 25 dB with
+  suppression. Real rooms,
+  speakers that distort and clocks that drift apart do worse; headphones remain best.
+
 ## Limits
 
 - The capture device is fixed when opened; a microphone unplugged while recording stops delivering samples.
-- No echo cancellation or noise suppression: players use headphones, or the threshold of `VoiceActivity`.
+- No noise suppression: background noise is kept out only by the threshold of `VoiceActivity`.
 - Streaming voices are not positioned; a game attenuates a speaker by distance with the voice's `Volume`.
