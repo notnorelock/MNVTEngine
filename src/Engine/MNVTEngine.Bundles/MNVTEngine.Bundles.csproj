@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Content bundles (.mnvtbundle, docs/architecture/content-bundles.md): packages of assets made by players or creators,
+    loaded at run time as untrusted content. Reads and checks a bundle; no rendering, scenes or runtime, so servers and
+    backends can validate bundles too.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.IO\MNVTEngine.IO.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Serialization\MNVTEngine.Serialization.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="MNVTEngine.Bundles.Tests" />
+  </ItemGroup>
+</Project>

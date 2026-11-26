@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Core.Logging;
@@ -103,6 +103,9 @@ internal sealed class EditorContext
 
     /// <summary>Set by panels; handled by <see cref="EditorApp"/> with an unsaved-changes check.</summary>
     public string? OpenSceneRequest { get; set; }
+
+    /// <summary>A content bundle to package (Project panel, prefab menu); the editor starts it when no build runs.</summary>
+    public MNVTEngine.Build.BundleRequest? BundleRequest { get; set; }
 
     /// <summary>Dock node of the Game view (the central area); windows new to a saved layout dock there.</summary>
     public uint CenterDockId { get; set; }

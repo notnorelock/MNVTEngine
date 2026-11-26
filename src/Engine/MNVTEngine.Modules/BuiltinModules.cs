@@ -22,6 +22,7 @@ public static class BuiltinModules
         [
             "MNVTEngine.Core", "MNVTEngine.Mathematics", "MNVTEngine.ECS", "MNVTEngine.Serialization", "MNVTEngine.Modules",
             "MNVTEngine.Scenes", "MNVTEngine.Input", "MNVTEngine.Diagnostics", "Newtonsoft.Json", "Silk.NET.Core", "Silk.NET.Maths",
+            "MNVTEngine.IO", "MNVTEngine.Bundles", "ZstdSharp", "K4os.Compression.LZ4", // scenes load content bundles; bundles are packages
         ],
         Components = ["MNVTEngine.Transform", "MNVTEngine.Camera", "MNVTEngine.HierarchyStyle"],
     };
@@ -47,11 +48,11 @@ public static class BuiltinModules
         BuildAssets = ["shader:sprite"],
     };
 
-    public static ModuleDefinition Assets { get; } = new("assets", "Assets", "Asset database, virtual file system, .mnvtpack packages and importers.")
+    public static ModuleDefinition Assets { get; } = new("assets", "Assets", "Asset database and importers (the virtual file system and packages are in core).")
     {
         Activation = ModuleActivation.Always,
         Requires = ["core", "graphics"],
-        RuntimeAssemblies = ["MNVTEngine.Assets", "MNVTEngine.IO", "ZstdSharp", "K4os.Compression.LZ4"],
+        RuntimeAssemblies = ["MNVTEngine.Assets"],
     };
 
     public static ModuleDefinition Runtime { get; } = new("runtime", "Runtime", "Game host: project loading, the frame loop, rendering of scenes, crash reporting and game code loading.")

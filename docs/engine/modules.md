@@ -30,10 +30,10 @@ The engine is a set of **modules**. A project has a module or does not. Which on
 
 | Module | Profiles | Activation | Requires | Optional | Ships |
 |---|---|---|---|---|---|
-| `core` | 2D, 3D | always | | | Core, Mathematics, ECS, Serialization, Modules, Scenes, Input, Diagnostics, Newtonsoft.Json, Silk.NET.Core/Maths |
+| `core` | 2D, 3D | always | | | Core, Mathematics, ECS, Serialization, Modules, Scenes, Input, Diagnostics, IO (virtual file system, packages), Bundles ([content bundles](../architecture/content-bundles.md)), Newtonsoft.Json, Silk.NET.Core/Maths, Zstandard, LZ4 |
 | `platform` | 2D, 3D | always | core | | Platform, Silk.NET GLFW/windowing/input; `glfw3.dll` |
 | `graphics` | 2D, 3D | always | core | | Graphics, Graphics.Vulkan, Silk.NET Vulkan, Vortice VMA, Stb image/font; `vma.dll`; the sprite shader. Not the shader compiler: games run on precompiled SPIR-V |
-| `assets` | 2D, 3D | always | core, graphics | | Assets, IO (database, virtual file system, packages, core importers) |
+| `assets` | 2D, 3D | always | core, graphics | | Assets (database, core importers) |
 | `runtime` | 2D, 3D | always | core, platform, graphics, assets | | Runtime, GameAssemblies, CrashReporting, logging |
 | `audio` | 2D, 3D | auto | core | | Audio, Audio.OpenAL, NVorbis, NLayer; `soft_oal.dll` |
 | `scripting` | 2D, 3D | auto | core | | Scripting, Missions, Bindings |

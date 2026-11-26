@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-24.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Build;
@@ -95,6 +95,21 @@ internal static class PackageCommand
                 return result.PackageFile is null ? Cli.Failed : Cli.Ok;
             }
 
+            case "bundle":
+            {
+                const string usage = "Use: mnvt package bundle <project> --root <Assets/...prefab> --kind <kind> --name <Name> [--provided <folder>[,<folder>...]] [--output <folder>].";
+                var request = new BundleRequest(
+                    command.Value("--root") ?? throw new FormatException(usage),
+                    command.Value("--kind") ?? throw new FormatException(usage),
+                    command.Value("--name") ?? throw new FormatException(usage),
+                    command.Value("--output"),
+                    command.Value("--provided")?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                var result = BundleBuilder.Build(GameProject.Load(target), request);
+                Cli.Report(output, result.Diagnostics);
+                output.WriteLine(result.File is null ? "Bundle packaging FAILED." : $"{result.Assets} assets in {result.File}.");
+                return result.File is null ? Cli.Failed : Cli.Ok;
+            }
+
             case "benchmark":
             {
                 var data = GamePackage.FindDataDirectory(target) ?? target;
@@ -103,7 +118,7 @@ internal static class PackageCommand
             }
 
             default:
-                throw new FormatException($"Unknown package command '{verb}'; use build, inspect, verify, analyze, extract, keys, dlc or benchmark.");
+                throw new FormatException($"Unknown package command '{verb}'; use build, inspect, verify, analyze, extract, keys, dlc, bundle or benchmark.");
         }
     }
 

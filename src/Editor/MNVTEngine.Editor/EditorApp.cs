@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-24.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Diagnostics.CodeAnalysis;
 using ImGuiNET;
@@ -277,6 +277,11 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _mixerPanel.Draw();
         _preferences.Draw();
         _build.Update();
+        if (_context.BundleRequest is { } bundle && !_build.IsBusy)
+        {
+            _context.BundleRequest = null;
+            _build.StartBundle(bundle);
+        }
         DrawBuildSettings();
         _diagnosticsWindow.Draw();
         _about.Draw();

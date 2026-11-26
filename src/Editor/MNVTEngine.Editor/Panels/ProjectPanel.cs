@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using ImGuiNET;
 using MNVTEngine.Assets;
@@ -28,6 +28,11 @@ internal sealed class ProjectPanel(EditorContext context)
     private string _renameText = "";
     private Guid? _deleteTarget;
     private bool _openRename;
+    private bool _openBundle;
+    private string _bundleRoot = "";
+    private string _bundleName = "";
+    private string _bundleKind = "";
+    private string _bundleProvided = "";
     private bool _openDelete;
     private bool _inScripts;
     private string _scriptsDirectory = "";
@@ -304,6 +309,11 @@ internal sealed class ProjectPanel(EditorContext context)
                     ImGui.Separator();
                 }
 
+                if (record.Type == AssetTypes.Prefab && ImGui.MenuItem("Build content bundle..."))
+                {
+                    (_bundleRoot, _bundleName, _openBundle) = (record.Path, Path.GetFileNameWithoutExtension(record.Path), true);
+                }
+
                 if (ImGui.MenuItem("Rename..."))
                 {
                     _renameTarget = guid;
@@ -386,7 +396,45 @@ internal sealed class ProjectPanel(EditorContext context)
             _openDelete = false;
         }
 
+        if (_openBundle)
+        {
+            ImGui.OpenPopup("Build content bundle");
+            _openBundle = false;
+        }
+
         var open = true;
+        if (ImGui.BeginPopupModal("Build content bundle", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.TextUnformatted($"Root prefab: Assets/{_bundleRoot}");
+            Gui.Muted("No code: scripts cannot go in a bundle. The game decides which components its prefabs may create.");
+            ImGui.SetNextItemWidth(320f);
+            ImGui.InputText("Name", ref _bundleName, 128);
+            ImGui.SetNextItemWidth(320f);
+            ImGui.InputText("Kind", ref _bundleKind, 64);
+            Gui.Tooltip("What the bundle is for, as the game expects it (for example borealise.world).");
+            ImGui.SetNextItemWidth(320f);
+            ImGui.InputText("Provided folders", ref _bundleProvided, 512);
+            Gui.Tooltip("Folders (relative to Assets, comma separated) whose assets the game already ships, such as an SDK's: referenced, not packaged.");
+            var ready = _bundleName.Trim().Length > 0 && _bundleKind.Trim().Length > 0;
+            ImGui.BeginDisabled(!ready);
+            if (ImGui.Button("Build", new SysVector2(100f, 0f)))
+            {
+                context.BundleRequest = new MNVTEngine.Build.BundleRequest(_bundleRoot, _bundleKind.Trim(), _bundleName.Trim(),
+                    Provided: _bundleProvided.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                ImGui.CloseCurrentPopup();
+            }
+
+            ImGui.EndDisabled();
+            ImGui.SameLine();
+            if (ImGui.Button("Cancel", new SysVector2(100f, 0f)))
+            {
+                ImGui.CloseCurrentPopup();
+            }
+
+            ImGui.EndPopup();
+        }
+
+        open = true;
         if (ImGui.BeginPopupModal("Rename asset", ref open, ImGuiWindowFlags.AlwaysAutoResize))
         {
             ImGui.SetNextItemWidth(300f);

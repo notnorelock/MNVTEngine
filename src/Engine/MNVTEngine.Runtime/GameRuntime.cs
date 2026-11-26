@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Assets;
@@ -128,6 +128,7 @@ public sealed partial class GameRuntime(
 
         _serializer = new SceneSerializer(registry, _assets);
         _prefabs = new PrefabProvider(_serializer, _assets, loggerFactory.CreateLogger("Prefabs"));
+        ContentBundles.SetHost(new ContentBundleHost(_assets, registry, loggerFactory.CreateLogger("Bundles")));
         if (_options.Content is { } packaged)
         {
             DownloadableContent.SetHost(new DownloadableContentHost(packaged, _assets, waiting, _logger));
@@ -298,6 +299,7 @@ public sealed partial class GameRuntime(
         Application.QuitRequested -= OnQuitRequested;
         Application.SetHostWindow(null);
         DownloadableContent.SetHost(null);
+        ContentBundles.SetHost(null);
 
         _options.Overlay?.Dispose();
         _options.Diagnostics?.Uninstall();

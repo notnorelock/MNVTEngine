@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-12.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Reflection;
 
@@ -65,6 +65,22 @@ public sealed class ComponentRegistry
         }
 
         return this;
+    }
+
+    /// <summary>
+    /// A registry with only the types <paramref name="allow"/> accepts (and <see cref="Transform"/>, which every object has):
+    /// scenes read with it create no other component, so untrusted files (content bundles) cannot choose code to run.
+    /// </summary>
+    public ComponentRegistry Where(Func<Type, bool> allow)
+    {
+        ArgumentNullException.ThrowIfNull(allow);
+        var restricted = new ComponentRegistry().Register<Transform>();
+        foreach (var type in _byId.Values.Where(t => t != typeof(Transform) && allow(t)))
+        {
+            restricted.Register(type);
+        }
+
+        return restricted;
     }
 
     /// <summary>Registers every public concrete component type in <paramref name="assembly"/>.</summary>

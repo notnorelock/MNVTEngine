@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
+using MNVTEngine.Bundles;
 using MNVTEngine.IO;
+using MNVTEngine.IO.Packages;
 using MNVTEngine.Serialization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -53,6 +55,11 @@ public sealed class AssetDatabase : IAssetLookup
     private List<SerializationDiagnostic> _diagnostics = [];
     private readonly IVirtualFileSystem _content;
     private readonly bool _packaged;
+
+    // Content bundles: their own layer over the database's records, so refreshes and the cache never see them.
+    private readonly Lock _bundleLock = new();
+    private BundleLayer _bundles = BundleLayer.Empty;
+    private long _bundleSequence;
 
     // Background imports: the latest scheduled import per asset; results of older ones are dropped.
     private readonly Lock _backgroundLock = new();
@@ -316,7 +323,12 @@ public sealed class AssetDatabase : IAssetLookup
         try
         {
             // Packaged games have no Assets folder on disk: their paths are only canonicalized.
-            return _byPath.TryGetValue(_packaged ? AssetPaths.Canonical(relativePath) : AssetPaths.Normalize(_assetsDirectory, relativePath), out guid);
+            if (AssetPaths.Canonical(relativePath) is var canonical && VirtualPath.IsUnder(canonical, BundlesFolder))
+            {
+                return Volatile.Read(ref _bundles).ByPath.TryGetValue(canonical, out guid);
+            }
+
+            return _byPath.TryGetValue(_packaged ? canonical : AssetPaths.Normalize(_assetsDirectory, relativePath), out guid);
         }
         catch (ArgumentException)
         {
@@ -326,25 +338,112 @@ public sealed class AssetDatabase : IAssetLookup
 
     public bool TryGetPath(Guid guid, [NotNullWhen(true)] out string? relativePath)
     {
-        relativePath = _records.TryGetValue(guid, out var record) ? record.Path : null;
+        relativePath = Get(guid)?.Path;
         return relativePath is not null;
     }
 
-    public string? GetAssetType(Guid guid) => _records.GetValueOrDefault(guid)?.Type;
+    public string? GetAssetType(Guid guid) => Get(guid)?.Type;
 
-    public AssetRecord? Get(Guid guid) => _records.GetValueOrDefault(guid);
+    /// <summary>The asset's record: the game's, or one of a mounted content bundle (<see cref="MountBundle"/>).</summary>
+    public AssetRecord? Get(Guid guid) => _records.GetValueOrDefault(guid) ?? Volatile.Read(ref _bundles).Records.GetValueOrDefault(guid);
 
     /// <exception cref="InvalidOperationException">Packaged games have no asset files; use <see cref="ReadAllBytes(Guid)"/>.</exception>
-    public string FullPath(Guid guid) => _packaged
-        ? throw new InvalidOperationException("Exported games have no asset files; read assets with ReadAllBytes.")
+    public string FullPath(Guid guid) => _packaged || (!_records.ContainsKey(guid) && Get(guid) is not null)
+        ? throw new InvalidOperationException("Exported games and content bundles have no asset files; read assets with ReadAllBytes.")
         : TryGetPath(guid, out var path)
         ? AssetPaths.Resolve(_assetsDirectory, path)
         : throw new KeyNotFoundException($"Asset {guid} is not in the database.");
 
-    public JObject GetSettings(Guid guid) => (JObject)(_settings.GetValueOrDefault(guid) ?? []).DeepClone();
+    public JObject GetSettings(Guid guid) => (JObject)(SettingsOf(guid) ?? []).DeepClone();
 
     public TextureImportSettings GetTextureSettings(Guid guid) =>
-        _settings.TryGetValue(guid, out var settings) ? TextureImporter.Read(settings) : new TextureImportSettings();
+        SettingsOf(guid) is { } settings ? TextureImporter.Read(settings) : new TextureImportSettings();
+
+    private JObject? SettingsOf(Guid guid) => _settings.GetValueOrDefault(guid) ?? Volatile.Read(ref _bundles).Settings.GetValueOrDefault(guid);
+
+    /// <summary>Virtual folder under <c>Assets/</c> where mounted content bundles' assets appear (<c>Bundles/&lt;name&gt;/...</c>).</summary>
+    public const string BundlesFolder = "Bundles";
+
+    /// <summary>The content bundles mounted now.</summary>
+    public IReadOnlyList<BundleMount> Bundles => Volatile.Read(ref _bundles).Mounts;
+
+    /// <summary>
+    /// Mounts a content bundle (<see cref="ContentBundleFile"/>, already checked against its policy): its assets load by
+    /// GUID like the game's, under <c>Bundles/&lt;name&gt;/</c>. A bundle never replaces anything: one that lists an asset
+    /// the database already has (the game's or another bundle's) is refused. The database owns the bundle file from now
+    /// on; <see cref="UnmountBundle"/> removes its assets and closes it.
+    /// </summary>
+    /// <exception cref="ContentBundleException">The bundle lists assets that are already loaded.</exception>
+    /// <exception cref="InvalidOperationException">This database's content cannot take more mounts.</exception>
+    public BundleMount MountBundle(ContentBundleFile bundle)
+    {
+        ArgumentNullException.ThrowIfNull(bundle);
+        if (_content is not VirtualFileSystem files)
+        {
+            throw new InvalidOperationException("This asset database's content cannot mount bundles.");
+        }
+
+        lock (_bundleLock)
+        {
+            var layer = _bundles;
+            var clashes = bundle.Assets.Where(a => _records.ContainsKey(a.Guid) || layer.Records.ContainsKey(a.Guid)).ToList();
+            if (clashes.Count > 0)
+            {
+                throw new ContentBundleException(bundle.Manifest.Name, [.. clashes.Select(a => $"{a.Path}: asset {a.Guid} is already loaded (bundles never replace assets)")]);
+            }
+
+            var name = "b" + (++_bundleSequence).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var folder = $"{BundlesFolder}/{name}";
+            var provider = new PrefixedFileSystemProvider(new PackageFileSystemProvider(bundle.Package), new Dictionary<string, string>
+            {
+                [AssetsEntryFolder + folder] = ContentBundleFile.AssetsFolder,
+                [ContentBundleFile.ArtifactsFolder] = ContentBundleFile.ArtifactsFolder, // only artifacts of the bundle's own (new) GUIDs, checked when it opened
+            });
+            var handle = files.Mount(provider, new MountOptions(Priority: -100, Trust: MountTrust.Untrusted, Name: $"{folder} ({bundle.Manifest.Name})"));
+            var records = new Dictionary<Guid, AssetRecord>(layer.Records);
+            var settings = new Dictionary<Guid, JObject>(layer.Settings);
+            var byPath = new Dictionary<string, Guid>(layer.ByPath, AssetPaths.Comparer);
+            foreach (var asset in bundle.Assets)
+            {
+                var record = new AssetRecord { Guid = asset.Guid, Path = $"{folder}/{asset.Path}", Type = asset.Type, Importer = asset.Importer, Status = AssetImportStatus.Imported };
+                (records[asset.Guid], settings[asset.Guid], byPath[record.Path]) = (record, asset.Settings, asset.Guid);
+            }
+
+            var mount = new BundleMount(name, folder, bundle.Manifest, [.. bundle.Assets.Select(a => a.Guid)], handle);
+            _bundles = new BundleLayer([.. layer.Mounts, mount], records, settings, byPath);
+            return mount;
+        }
+    }
+
+    /// <summary>Removes a bundle's assets and closes it (once streams read from it are closed). False when it was not mounted.</summary>
+    public bool UnmountBundle(BundleMount mount)
+    {
+        ArgumentNullException.ThrowIfNull(mount);
+        lock (_bundleLock)
+        {
+            var layer = _bundles;
+            if (!layer.Mounts.Contains(mount))
+            {
+                return false;
+            }
+
+            var gone = mount.Assets.ToHashSet();
+            _bundles = new BundleLayer(
+                [.. layer.Mounts.Where(m => m != mount)],
+                layer.Records.Where(r => !gone.Contains(r.Key)).ToDictionary(),
+                layer.Settings.Where(r => !gone.Contains(r.Key)).ToDictionary(),
+                new Dictionary<string, Guid>(layer.ByPath.Where(r => !gone.Contains(r.Value)), AssetPaths.Comparer));
+            ((VirtualFileSystem)_content).Unmount(mount.Handle);
+        }
+
+        AssetsChanged?.Invoke(mount.Assets); // caches drop what they hold of it
+        return true;
+    }
+
+    private sealed record BundleLayer(IReadOnlyList<BundleMount> Mounts, Dictionary<Guid, AssetRecord> Records, Dictionary<Guid, JObject> Settings, Dictionary<string, Guid> ByPath)
+    {
+        public static readonly BundleLayer Empty = new([], [], [], new Dictionary<string, Guid>(AssetPaths.Comparer));
+    }
 
     /// <summary>Assets that reference <paramref name="guid"/> directly.</summary>
     public IReadOnlyList<AssetRecord> GetDependents(Guid guid) =>

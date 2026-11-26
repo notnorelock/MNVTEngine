@@ -48,7 +48,7 @@
 | UI | Game UI, text and fonts, splash and loading screens, and an embedded Chromium browser that renders pages onto sprites and meshes |
 | Editor | ImGui editor with Play Mode, gizmos, inspectors, undo and redo, hot reload, script debugging |
 | Diagnostics | In-game HUD, profiler with GPU timings, console, budgets, debug drawing, crash handler with dumps and reports |
-| Shipping | `mnvt` CLI, build profiles, build validator, signed packages, DLC packages (including DLC code), build reports |
+| Shipping | `mnvt` CLI, build profiles, build validator, signed packages, DLC packages (including DLC code), content bundles for user-made content, build reports |
 
 ## Quick start
 
@@ -153,6 +153,7 @@ published from a manual run of the same workflow ([versioning](docs/architecture
 <summary><strong>Shipping and operations</strong></summary>
 
 - [Virtual file system and `.mnvtpack` packages](docs/architecture/virtual-filesystem.md)
+- [Content bundles (`.mnvtbundle`): untrusted content loaded at run time](docs/architecture/content-bundles.md)
 - [Code obfuscation (`mnvt build --obfuscate`)](docs/architecture/obfuscation.md)
 - [Ahead-of-time compilation (NativeAOT backend)](docs/architecture/il2cpp-aot-pipeline.md)
 - [Engine composition audit](docs/architecture/engine-composition-audit.md)

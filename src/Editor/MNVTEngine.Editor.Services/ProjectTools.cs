@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-24.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -57,6 +57,7 @@ public sealed partial class BuildController(GameProject project, ILoggerFactory 
     private readonly Stopwatch _clock = new();
     private Task<IReadOnlyList<BuildDiagnostic>>? _validation;
     private Task<BuildResult>? _build;
+    private Task<BundleResult>? _bundle;
     private bool _runWhenDone;
 
     /// <summary>Profile used by <see cref="StartBuild"/>; defaults to "release" (or the first profile).</summary>
@@ -78,10 +79,16 @@ public sealed partial class BuildController(GameProject project, ILoggerFactory 
     public string EffectiveScriptingBackend =>
         ScriptingBackend ?? project.EffectiveBuildProfiles.FirstOrDefault(p => p.Name == Profile)?.ScriptingBackend ?? "jit";
 
-    public bool IsBusy => _build is not null || _validation is not null;
+    public bool IsBusy => _build is not null || _validation is not null || _bundle is not null;
 
     /// <summary>"Building (12 s)", "Validating (2 s)", or null when idle.</summary>
-    public string? Status => _build is not null ? $"Building ({_clock.Elapsed.TotalSeconds:0} s)" : _validation is not null ? $"Validating ({_clock.Elapsed.TotalSeconds:0} s)" : null;
+    public string? Status => _build is not null ? $"Building ({_clock.Elapsed.TotalSeconds:0} s)"
+        : _validation is not null ? $"Validating ({_clock.Elapsed.TotalSeconds:0} s)"
+        : _bundle is not null ? $"Packaging bundle ({_clock.Elapsed.TotalSeconds:0} s)"
+        : null;
+
+    /// <summary>The last content bundle built (<see cref="StartBundle"/>).</summary>
+    public BundleResult? LastBundle { get; private set; }
 
     public BuildResult? LastBuild { get; private set; }
 
@@ -101,6 +108,16 @@ public sealed partial class BuildController(GameProject project, ILoggerFactory 
         var obfuscation = Obfuscate ? new ObfuscationSettings { Scheme = ObfuscationScheme } : null;
         _clock.Restart();
         _build = Task.Run(() => new GameBuilder(_logger).BuildAsync(project.ProjectFile, new BuildOptions { Profile = profile, ScriptingBackend = backend, Obfuscation = obfuscation }));
+    }
+
+    /// <summary>Packages a prefab as a content bundle (<see cref="BundleBuilder"/>) in the background.</summary>
+    /// <exception cref="InvalidOperationException">A build or validation is already running.</exception>
+    public void StartBundle(BundleRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        EnsureIdle();
+        _clock.Restart();
+        _bundle = Task.Run(() => BundleBuilder.Build(project, request));
     }
 
     /// <exception cref="InvalidOperationException">A build or validation is already running.</exception>
@@ -137,6 +154,29 @@ public sealed partial class BuildController(GameProject project, ILoggerFactory 
             else
             {
                 LogBuildFailed(_logger, result.Diagnostics.Count(d => d.Severity == BuildSeverity.Error));
+            }
+
+            return true;
+        }
+
+        if (_bundle is { IsCompleted: true } bundle)
+        {
+            _bundle = null;
+            if (bundle.IsFaulted)
+            {
+                LogCrashed(_logger, bundle.Exception!.GetBaseException());
+                return true;
+            }
+
+            LastBundle = bundle.Result;
+            Report(bundle.Result.Diagnostics);
+            if (bundle.Result.File is { } file)
+            {
+                LogBundled(_logger, bundle.Result.Assets, file);
+            }
+            else
+            {
+                LogBuildFailed(_logger, bundle.Result.Diagnostics.Count(d => d.Severity == BuildSeverity.Error));
             }
 
             return true;
@@ -219,6 +259,9 @@ public sealed partial class BuildController(GameProject project, ILoggerFactory 
 
     [LoggerMessage(EventId = 5404, Level = LogLevel.Error, Message = "The build tooling crashed")]
     private static partial void LogCrashed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 5406, Level = LogLevel.Information, Message = "Content bundle built: {Assets} assets in {File}")]
+    private static partial void LogBundled(ILogger logger, int assets, string file);
 
     [LoggerMessage(EventId = 5405, Level = LogLevel.Error, Message = "Could not start {Executable}")]
     private static partial void LogRunFailed(ILogger logger, Exception exception, string executable);

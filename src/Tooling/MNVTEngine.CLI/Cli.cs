@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Diagnostics;
 using System.Globalization;
@@ -66,6 +66,9 @@ public static class Cli
           package dlc <project> --folder <Assets/...> --name <Name> [--output dir] [--signing-key key.pem] [--separate-key] [--obfuscate [--obfuscate-scheme letters|unicode]]
                                 Package one folder's assets as DLC for <Game>_Data/DLC (own key with --separate-key, for a server)
                                 --obfuscate renames the DLC's own code (JIT DLC; the DLC must target the engine API, not the game's renamed script types)
+          package bundle <project> --root <Assets/...prefab> --kind <kind> --name <Name> [--provided folder,...] [--output dir]
+                                Package a prefab and what it references as a content bundle (.mnvtbundle: no code, loaded at run time)
+                                --provided: folders whose assets the game already ships (an SDK's shared assets): referenced, not packaged
           package benchmark <exported game> [--project <project>] [--no-repack]
                                 Read times from the packages against the same files on disk, and each compression profile
           validate <project | exported game folder> [--run [frames]]
@@ -104,7 +107,7 @@ public static class Cli
                 "server" => CommandLine.Parse(args, ["--port", "--tick-rate"], []),
                 "build" when args.Length > 1 && args[1] == "analyze" => CommandLine.Parse(["analyze", .. args[2..]], ["--profile", "--configuration", "--target", "--scripting-backend", "--json"], []),
                 "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--scripting-backend", "--signing-key", "--obfuscate-scheme"], ["--obfuscate"], optionalValues: ["--run"]),
-                "package" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--signing-key", "--project", "--trust", "--new-signing-key", "--folder", "--name", "--obfuscate-scheme"], ["--entries", "--rotate", "--no-repack", "--separate-key", "--obfuscate"]),
+                "package" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--signing-key", "--project", "--trust", "--new-signing-key", "--folder", "--name", "--obfuscate-scheme", "--root", "--kind", "--provided"], ["--entries", "--rotate", "--no-repack", "--separate-key", "--obfuscate"]),
                 "validate" => CommandLine.Parse(args, [], [], optionalValues: ["--run"]),
                 "version" => CommandLine.Parse(args, [], ["--json", "--verbose"]),
                 _ => throw new FormatException($"Unknown command '{args[0]}'."),
