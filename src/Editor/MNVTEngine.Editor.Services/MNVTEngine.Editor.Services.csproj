@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Editor logic without UI: unit-testable, and reusable by future tooling. Must not reference ImGui. -->
   <ItemGroup>
+    <!-- DPAPI for extensions' secrets (EditorSecretStore). -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MNVTEngine.Editor.Extensions\MNVTEngine.Editor.Extensions.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Particles\MNVTEngine.Particles.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Browser\MNVTEngine.Browser.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Runtime\MNVTEngine.Runtime.csproj" />

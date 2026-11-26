@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The API projects extend the editor with (docs/editor/extensions.md): windows, Tools menu items, inspector sections
+       and editor services. No ImGui types: extensions draw through IEditorGui, which the editor implements. Referenced
+       only by a project's editor code (scripts.editorProject), which exports never contain. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />
+    <ProjectReference Include="..\..\Engine\MNVTEngine.Bundles\MNVTEngine.Bundles.csproj" />
+  </ItemGroup>
+</Project>

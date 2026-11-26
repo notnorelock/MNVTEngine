@@ -23,5 +23,6 @@
     <ProjectReference Include="..\..\Engine\MNVTEngine.DebugUI\MNVTEngine.DebugUI.csproj" />
     <ProjectReference Include="..\..\Engine\MNVTEngine.Graphics.Vulkan\MNVTEngine.Graphics.Vulkan.csproj" />
     <ProjectReference Include="..\MNVTEngine.Editor.Services\MNVTEngine.Editor.Services.csproj" />
+    <ProjectReference Include="..\MNVTEngine.Editor.Extensions\MNVTEngine.Editor.Extensions.csproj" />
   </ItemGroup>
 </Project>

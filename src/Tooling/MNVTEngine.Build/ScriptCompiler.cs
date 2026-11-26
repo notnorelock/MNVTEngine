@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Globalization;
 using System.Security.Cryptography;
@@ -20,11 +20,20 @@ public sealed record ScriptBuildResult(bool Succeeded, string? AssemblyPath, IRe
 /// <summary>The game's C# scripts project as configured in the .mnvtproj (<c>"scripts": { "project": ... }</c>).</summary>
 public sealed class ScriptProject
 {
-    private ScriptProject(string projectFile, string outputDirectory)
+    private ScriptProject(string projectFile, string outputDirectory, string? gameProjectFile = null)
     {
         ProjectFile = projectFile;
         OutputDirectory = outputDirectory;
-        AssemblyName = ReadAssemblyName(projectFile);
+        AssemblyName = ReadAssemblyName(gameProjectFile ?? projectFile);
+        if (gameProjectFile is not null)
+        {
+            EditorAssemblyName = ReadAssemblyName(projectFile);
+            SourceDirectories = [SourceDirectory, Path.GetDirectoryName(gameProjectFile)!];
+        }
+        else
+        {
+            SourceDirectories = [SourceDirectory];
+        }
     }
 
     public string ProjectFile { get; }
@@ -34,9 +43,16 @@ public sealed class ScriptProject
     /// <summary><c>Library/ScriptAssemblies</c>: build output, never committed.</summary>
     public string OutputDirectory { get; }
 
+    /// <summary>The game code's assembly (also for <see cref="ForEditor"/>: the editor extensions build it with theirs).</summary>
     public string AssemblyName { get; }
 
     public string AssemblyPath => Path.Combine(OutputDirectory, AssemblyName + ".dll");
+
+    /// <summary>The editor extensions' assembly (<see cref="ForEditor"/>), loaded next to the game code; null otherwise.</summary>
+    public string? EditorAssemblyName { get; }
+
+    /// <summary>Every folder whose sources go into the build (the editor project's and the game scripts').</summary>
+    public IReadOnlyList<string> SourceDirectories { get; }
 
     private string StampFile => Path.Combine(OutputDirectory, ".sourcestamp");
 
@@ -54,6 +70,26 @@ public sealed class ScriptProject
         return File.Exists(file)
             ? new ScriptProject(file, Path.Combine(project.RootDirectory, "Library", "ScriptAssemblies"))
             : throw new FileNotFoundException($"Scripts project '{relative}' not found.", file);
+    }
+
+    /// <summary>
+    /// What the editor builds: the editor extensions' project (<c>scripts.editorProject</c>), which references the game
+    /// scripts and so builds both into <c>Library/EditorAssemblies</c>; null when the project has none. Exports and the
+    /// Player use <see cref="For"/>, so extensions never ship.
+    /// </summary>
+    /// <exception cref="FileNotFoundException">A configured project file does not exist.</exception>
+    public static ScriptProject? ForEditor(GameProject project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        if (project.Scripts?.EditorProject is not { Length: > 0 } relative || For(project) is not { } game)
+        {
+            return null;
+        }
+
+        var file = project.ResolveProjectFile(relative);
+        return File.Exists(file)
+            ? new ScriptProject(file, Path.Combine(project.RootDirectory, "Library", "EditorAssemblies"), game.ProjectFile)
+            : throw new FileNotFoundException($"Editor project '{relative}' not found.", file);
     }
 
     /// <summary>The C# project of DLC <paramref name="dlc"/> (<c>content.dlcCode</c>); null when the DLC has no code.</summary>
@@ -85,14 +121,17 @@ public sealed class ScriptProject
             builder.Append(CultureInfo.InvariantCulture, $"engine:{engine}\n");
         }
 
-        var files = Directory.EnumerateFiles(SourceDirectory, "*", SearchOption.AllDirectories)
-            .Where(f => Path.GetExtension(f).ToUpperInvariant() is ".CS" or ".CSPROJ" or ".PROPS" or ".TARGETS")
-            .Where(f => !IsUnder(f, "bin") && !IsUnder(f, "obj"))
-            .Order(StringComparer.Ordinal);
-        foreach (var file in files)
+        foreach (var directory in SourceDirectories)
         {
-            var info = new FileInfo(file);
-            builder.Append(CultureInfo.InvariantCulture, $"{Path.GetRelativePath(SourceDirectory, file)}|{info.Length}|{info.LastWriteTimeUtc.Ticks}\n");
+            var files = Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
+                .Where(f => Path.GetExtension(f).ToUpperInvariant() is ".CS" or ".CSPROJ" or ".PROPS" or ".TARGETS")
+                .Where(f => !IsUnder(directory, f, "bin") && !IsUnder(directory, f, "obj"))
+                .Order(StringComparer.Ordinal);
+            foreach (var file in files)
+            {
+                var info = new FileInfo(file);
+                builder.Append(CultureInfo.InvariantCulture, $"{Path.GetRelativePath(SourceDirectory, file)}|{info.Length}|{info.LastWriteTimeUtc.Ticks}\n");
+            }
         }
 
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
@@ -119,12 +158,13 @@ public sealed class ScriptProject
 
     /// <summary>True if the last successful build used exactly the current sources.</summary>
     public bool IsBuildUpToDate() =>
-        File.Exists(AssemblyPath) && File.Exists(StampFile) && File.ReadAllText(StampFile) == ComputeSourceStamp();
+        File.Exists(AssemblyPath) && (EditorAssemblyName is null || File.Exists(Path.Combine(OutputDirectory, EditorAssemblyName + ".dll")))
+        && File.Exists(StampFile) && File.ReadAllText(StampFile) == ComputeSourceStamp();
 
     internal void WriteStamp(string stamp) => File.WriteAllText(StampFile, stamp);
 
-    private bool IsUnder(string file, string folder) =>
-        Path.GetRelativePath(SourceDirectory, file).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+    private static bool IsUnder(string directory, string file, string folder) =>
+        Path.GetRelativePath(directory, file).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
             .Contains(folder, StringComparer.OrdinalIgnoreCase);
 
     private static string ReadAssemblyName(string projectFile) =>
@@ -165,7 +205,8 @@ public static partial class ScriptCompiler
 
         var assemblyPath = Path.Combine(outputDirectory, project.AssemblyName + ".dll");
         var diagnostics = ParseDiagnostics(result.Output);
-        var succeeded = result.ExitCode == 0 && File.Exists(assemblyPath);
+        var succeeded = result.ExitCode == 0 && File.Exists(assemblyPath)
+            && (project.EditorAssemblyName is null || File.Exists(Path.Combine(outputDirectory, project.EditorAssemblyName + ".dll")));
         if (!succeeded && !diagnostics.Any(d => d.Severity == ScriptDiagnosticSeverity.Error))
         {
             diagnostics = [.. diagnostics, new ScriptDiagnostic(ScriptDiagnosticSeverity.Error, "BUILD", $"dotnet build exited with code {result.ExitCode}.\n{result.Output.Trim()}")];

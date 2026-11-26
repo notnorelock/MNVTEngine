@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using Microsoft.Extensions.Logging;
 
@@ -35,4 +35,10 @@ internal static partial class EditorLog
 
     [LoggerMessage(EventId = 5208, Level = LogLevel.Warning, Message = "Could not open {File} in the external editor: {Error}")]
     public static partial void ExternalEditorFailed(ILogger logger, string file, string error);
+
+    [LoggerMessage(EventId = 5209, Message = "{Extension}: {Message}")]
+    public static partial void Extension(ILogger logger, LogLevel level, string extension, string message);
+
+    [LoggerMessage(EventId = 5210, Level = LogLevel.Error, Message = "{Extension} failed in {Where}; it is skipped until the code reloads")]
+    public static partial void ExtensionFailed(ILogger logger, Exception exception, string extension, string where);
 }

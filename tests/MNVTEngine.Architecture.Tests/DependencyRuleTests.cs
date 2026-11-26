@@ -209,6 +209,14 @@ public class DependencyRuleTests
         Assert.DoesNotContain(Graph.TransitivePackages("MNVTEngine.Editor.Services"), p => EditorUiPackages.Any(ui => p.StartsWith(ui, StringComparison.OrdinalIgnoreCase)));
 
     [Fact]
+    public void TheEditorExtensionApi_DependsOnTheEngineOnly()
+    {
+        // Projects' editor code compiles against it: no ImGui, and nothing of the editor's or the tooling's own.
+        Assert.DoesNotContain(Graph.TransitivePackages("MNVTEngine.Editor.Extensions"), p => EditorUiPackages.Any(ui => p.StartsWith(ui, StringComparison.OrdinalIgnoreCase)));
+        Assert.DoesNotContain(Graph.TransitiveReferences("MNVTEngine.Editor.Extensions"), r => Graph.Contains(r) && Graph[r].Area is "Editor" or "Tooling");
+    }
+
+    [Fact]
     public void ScriptingProjects_DoNotUseBackendPackages()
     {
         var violations = Graph.Projects

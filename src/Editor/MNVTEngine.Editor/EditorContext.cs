@@ -107,6 +107,9 @@ internal sealed class EditorContext
     /// <summary>A content bundle to package (Project panel, prefab menu); the editor starts it when no build runs.</summary>
     public MNVTEngine.Build.BundleRequest? BundleRequest { get; set; }
 
+    /// <summary>Draws the project's extension sections for a component (<see cref="ExtensionHost.DrawInspectors"/>).</summary>
+    public Action<Component>? ExtensionInspectors { get; set; }
+
     /// <summary>Dock node of the Game view (the central area); windows new to a saved layout dock there.</summary>
     public uint CenterDockId { get; set; }
 

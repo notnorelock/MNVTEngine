@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using ImGuiNET;
 using Microsoft.Extensions.Logging;
@@ -324,6 +324,8 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
             {
                 DrawMember(component, member);
             }
+
+            context.ExtensionInspectors?.Invoke(component);
 
             if (component is ParticleSystem particleSystem)
             {

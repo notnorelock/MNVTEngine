@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-03.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -53,7 +53,7 @@ public sealed partial class ScriptReloadController : IDisposable
         _logger = logger;
         try
         {
-            _project = ScriptProject.For(session.Project);
+            _project = ScriptProject.ForEditor(session.Project) ?? ScriptProject.For(session.Project); // editor extensions build with the scripts
         }
         catch (FileNotFoundException ex)
         {
@@ -82,6 +82,12 @@ public sealed partial class ScriptReloadController : IDisposable
     public IReadOnlyList<ScriptDiagnostic> Diagnostics { get; private set; } = [];
 
     public GameCode? Code => _host.Current;
+
+    /// <summary>
+    /// The editor extensions of the loaded generation (<c>scripts.editorProject</c>, docs/editor/extensions.md); empty
+    /// without one. Replaced before <see cref="Reloaded"/>: hold no instances of the old ones past it.
+    /// </summary>
+    public ExtensionCatalog Extensions { get; private set; } = ExtensionCatalog.Empty;
 
     /// <summary>Result of the last unload verification: true once the previous generation was collected; null until checked.</summary>
     public bool? LastUnloadCollected { get; private set; }
@@ -225,6 +231,19 @@ public sealed partial class ScriptReloadController : IDisposable
         }
 
         var diagnostics = load.Diagnostics.Concat(GameAssemblyHost.Register(_session.Registry, previous, load.Code)).ToList();
+        Extensions = ExtensionCatalog.Empty;
+        if (_project!.EditorAssemblyName is { } editor)
+        {
+            // into the same generation: extensions see the game's types and unload with them
+            var extensions = GameAssemblyHost.LoadInto(load.Code, editor + ".dll");
+            diagnostics.AddRange(extensions.Diagnostics);
+            if (extensions.Code is { } code)
+            {
+                Extensions = ExtensionCatalog.From(code.MainAssembly);
+                diagnostics.AddRange(Extensions.Problems.Select(p => new ScriptDiagnostic(ScriptDiagnosticSeverity.Warning, "EXT001", p)));
+            }
+        }
+
         foreach (var diagnostic in diagnostics)
         {
             LogDiagnostic(_logger, diagnostic.Severity == ScriptDiagnosticSeverity.Error ? LogLevel.Error : LogLevel.Warning, diagnostic);

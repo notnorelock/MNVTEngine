@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using MNVTEngine.Assets;
 using MNVTEngine.Modules;
@@ -14,6 +14,13 @@ public sealed class ScriptSettings
 {
     /// <summary>C# class library with the game's components, relative to the project root, e.g. "Scripts/MyGame.Scripts.csproj".</summary>
     public string? Project { get; set; }
+
+    /// <summary>
+    /// C# class library with the project's editor extensions (docs/editor/extensions.md), referencing <see cref="Project"/>
+    /// and <c>MNVTEngine.Editor.Extensions</c>, e.g. "Editor/MyGame.Editor.csproj". Only the editor builds and loads it;
+    /// exported games never contain it.
+    /// </summary>
+    public string? EditorProject { get; set; }
 }
 
 public sealed class WindowSettings

@@ -62,6 +62,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private int _focusSceneFrames;
     private readonly Core.Diagnostics.FrameProfiler _profiler = new();
     private ScriptReloadController _scripts = null!;
+    private ExtensionHost _extensions = null!;
     private Graphics.Text.Font _gameUIFont = null!;
     private string _iniPath = "";
     private bool _resetLayout;
@@ -173,6 +174,9 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         // Opened once the first script load settles, so components resolve to real types instead of MissingComponent.
         _startupScene = project.StartupScene;
         _scripts.Reloaded += _inspector.ClearCaches;
+        _extensions = new ExtensionHost(_context);
+        _context.ExtensionInspectors = _extensions.DrawInspectors;
+        _scripts.Reloaded += () => _extensions.Load(_scripts.Extensions, _scripts.Extensions.Name);
         _scriptEditor = new ScriptEditorPanel(_context, _scripts);
         _uiEditor = new UIEditorPanel(_context, gameUIServices);
         _animator = new AnimatorEditorPanel(_context);
@@ -320,6 +324,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         }
 
         _animator.Draw();
+        _extensions.Draw();
         if (options.BuildProfile is { } buildProfile && _frames == 30 && !_build.IsBusy)
         {
             _build.Profile = buildProfile;
@@ -618,6 +623,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
                 new("Open Build Folder", Action: () => OpenFolder(_build.OutputDirectory), Enabled: Directory.Exists(_build.OutputDirectory)),
             ];
         }),
+        new("Tools", () => _extensions.MenuEntries()),
         new("Window", () =>
         [
             new("Diagnostics Settings", Action: () => _diagnosticsWindow.Open = !_diagnosticsWindow.Open, Checked: _diagnosticsWindow.Open),
