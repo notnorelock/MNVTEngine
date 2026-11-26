@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Net;
 using System.Text;
@@ -112,6 +112,19 @@ public sealed class HttpApiTests
         var response = await api.GetAsync<string>("big", cancellationToken: Token);
 
         Assert.Equal(HttpErrorKind.TooLarge, response.Error!.Kind);
+    }
+
+    [Fact]
+    public async Task Bytes_ComeRaw_WithTheirOwnSizeLimit()
+    {
+        var body = new byte[] { 0, 0xFF, 0x80, 7 }; // not text
+        var handler = new StubHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(body) }));
+        using var api = Api(handler, o => o.MaxResponseBytes = 2);
+
+        Assert.Equal(HttpErrorKind.TooLarge, (await api.GetAsync<byte[]>("file", cancellationToken: Token)).Error!.Kind);
+        var response = await api.GetAsync<byte[]>("file", r => r.MaxResponseBytes = 4, Token);
+        Assert.True(response.Ok);
+        Assert.Equal(body, response.Data);
     }
 
     [Fact]

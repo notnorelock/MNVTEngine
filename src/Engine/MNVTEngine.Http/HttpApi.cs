@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Net;
 using System.Text;
@@ -71,7 +71,10 @@ public sealed class HttpApi : IDisposable
     public Task<HttpResponse<T>> DeleteAsync<T>(string url, Action<HttpRequest>? configure = null, CancellationToken cancellationToken = default) =>
         SendAsync<T>(Build(HttpMethod.Delete, url, null, configure), cancellationToken);
 
-    /// <summary>Sends <paramref name="request"/> and reads the body as <typeparamref name="T"/> (<see cref="string"/> gives the text).</summary>
+    /// <summary>
+    /// Sends <paramref name="request"/> and reads the body as <typeparamref name="T"/> (<see cref="string"/> gives the text,
+    /// <see cref="byte"/>[] the raw bytes).
+    /// </summary>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
     public async Task<HttpResponse<T>> SendAsync<T>(HttpRequest request, CancellationToken cancellationToken = default)
     {
@@ -137,9 +140,17 @@ public sealed class HttpApi : IDisposable
             using var answer = await _client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
             var headers = answer.Headers.Concat(answer.Content.Headers).GroupBy(h => h.Key, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => string.Join(", ", g.SelectMany(h => h.Value)), StringComparer.OrdinalIgnoreCase);
-            if (await ReadLimitedAsync(answer.Content, Options.MaxResponseBytes, timeout.Token).ConfigureAwait(false) is not { } text)
+            var limit = request.MaxResponseBytes ?? Options.MaxResponseBytes;
+            if (await ReadLimitedAsync(answer.Content, limit, timeout.Token).ConfigureAwait(false) is not { } bytes)
             {
-                return Fail(HttpErrorKind.TooLarge, $"The response is larger than {Options.MaxResponseBytes} bytes.", status: answer.StatusCode, headers: headers);
+                return Fail(HttpErrorKind.TooLarge, $"The response is larger than {limit} bytes.", status: answer.StatusCode, headers: headers);
+            }
+
+            var binary = typeof(T) == typeof(byte[]) && answer.IsSuccessStatusCode;
+            var text = binary ? "" : Charset(answer.Content.Headers.ContentType?.CharSet).GetString(bytes);
+            if (binary)
+            {
+                return new HttpResponse<T>(request, answer.StatusCode, headers, text, null, Options.Json, (T)(object)bytes);
             }
 
             if (!answer.IsSuccessStatusCode)
@@ -185,8 +196,8 @@ public sealed class HttpApi : IDisposable
         return true;
     }
 
-    /// <summary>The body as text, or null when it exceeds <paramref name="limit"/> bytes (checked while reading, not only from Content-Length).</summary>
-    private static async Task<string?> ReadLimitedAsync(HttpContent content, long limit, CancellationToken cancellationToken)
+    /// <summary>The body, or null when it exceeds <paramref name="limit"/> bytes (checked while reading, not only from Content-Length).</summary>
+    private static async Task<byte[]?> ReadLimitedAsync(HttpContent content, long limit, CancellationToken cancellationToken)
     {
         if (content.Headers.ContentLength > limit)
         {
@@ -207,7 +218,7 @@ public sealed class HttpApi : IDisposable
             buffer.Write(chunk, 0, read);
         }
 
-        return Charset(content.Headers.ContentType?.CharSet).GetString(buffer.GetBuffer(), 0, (int)buffer.Length);
+        return buffer.ToArray();
     }
 
     private static Encoding Charset(string? name)

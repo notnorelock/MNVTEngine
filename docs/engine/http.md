@@ -50,7 +50,8 @@ public sealed class Leaderboard : Component
   default one.
 - JSON uses Newtonsoft with camelCase names and `TypeNameHandling.None` (`HttpOptions.Json` can be changed, but never
   enable type names: responses are untrusted input).
-- `T = string` returns the raw body.
+- `T = string` returns the raw body, `T = byte[]` its bytes (a download; `Text` stays empty on success).
+- `MaxResponseBytes` on the request overrides the option for one call, for a download larger than the API's answers.
 
 ## Responses
 

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Net;
 using Newtonsoft.Json;
@@ -49,6 +49,9 @@ public sealed class HttpRequest(HttpMethod method, string url)
 
     /// <summary>Overrides <see cref="HttpOptions.Timeout"/> for this request.</summary>
     public TimeSpan? Timeout { get; set; }
+
+    /// <summary>Overrides <see cref="HttpOptions.MaxResponseBytes"/> for this request (a download larger than the API's answers).</summary>
+    public long? MaxResponseBytes { get; set; }
 
     /// <summary>Sets the <c>Authorization: Bearer</c> header.</summary>
     public HttpRequest WithBearer(string token)
