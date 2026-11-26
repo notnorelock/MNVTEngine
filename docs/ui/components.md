@@ -186,6 +186,9 @@ The defaults are `DesignTokens.Midnight()`, a dark violet-blue theme, and `Midni
 
 ## Nine-slice backgrounds
 
+`Image(asset, source)` shows a texture asset; `source` (texels from the top-left) picks one frame of a sprite sheet,
+and the image measures and keeps the aspect of that frame.
+
 `BackgroundImage(texture, slice, scale)` draws a texture asset behind any element instead of its background colour
 (the colour, when set, tints it). `slice` is the frame on each side in texels: the corners keep their size, the edges
 stretch along one axis and the centre both ways, so one small frame fits any box (speech bubbles, panels, pixel-art

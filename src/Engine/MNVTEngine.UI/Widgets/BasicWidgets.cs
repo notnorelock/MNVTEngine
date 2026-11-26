@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Text;
@@ -84,6 +84,7 @@ public class Image : UIElement
     private AssetRef? _asset;
     private ImageScaleMode _scaleMode = ImageScaleMode.Fit;
     private Color _tint = Color.White;
+    private Rect? _sourceRect;
 
     public Texture2D? Texture { get => _texture; set => SetLayout(ref _texture, value); }
 
@@ -94,11 +95,16 @@ public class Image : UIElement
 
     public Color Tint { get => _tint; set => SetVisual(ref _tint, value); }
 
+    /// <summary>Part of the texture to show, in texels from its top-left (one frame of a sprite sheet); null shows all of it.</summary>
+    public Rect? SourceRect { get => _sourceRect; set => SetLayout(ref _sourceRect, value); }
+
     /// <summary>The texture that is drawn: <see cref="Texture"/>, else the loaded <see cref="Asset"/>.</summary>
     public Texture2D? Resolved => _texture ?? (_asset is { } asset && Context is { } context ? context.LoadTexture(asset) : null);
 
     protected internal override Vector2 MeasureContent(float availableWidth, float availableHeight) =>
-        Resolved is { } texture ? new Vector2(texture.Width, texture.Height) : Vector2.Zero;
+        Resolved is { } texture ? SourceSize(texture) : Vector2.Zero;
+
+    private Vector2 SourceSize(Texture2D texture) => _sourceRect is { } source ? new Vector2(source.Width, source.Height) : new Vector2(texture.Width, texture.Height);
 
     protected internal override void Paint(UIPainter painter, in ResolvedStyle style)
     {
@@ -109,7 +115,8 @@ public class Image : UIElement
         }
 
         var box = ContentBounds;
-        var aspect = (float)texture.Width / texture.Height;
+        var size0 = SourceSize(texture);
+        var aspect = size0.Y > 0 ? size0.X / size0.Y : 1f;
         var rect = box;
         if (ScaleMode != ImageScaleMode.Stretch && box.Height > 0)
         {
@@ -119,7 +126,7 @@ public class Image : UIElement
         }
 
         painter.PushClip(ClipBounds);
-        painter.DrawImage(texture, rect, Tint);
+        painter.DrawImage(texture, rect, Tint, _sourceRect);
         painter.PopClip();
     }
 }

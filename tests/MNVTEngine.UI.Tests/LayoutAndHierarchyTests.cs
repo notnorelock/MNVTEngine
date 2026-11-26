@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using MNVTEngine.Mathematics;
 using MNVTEngine.UI.Widgets;
@@ -166,5 +166,24 @@ public sealed class LayoutAndHierarchyTests
         Assert.True(text.Bounds.Width < 200f); // the speaker took its share
         Assert.Equal(alone.Bounds.Height, text.Bounds.Height); // as tall as the same text wrapped at that width
         Assert.True(row.Bounds.Height >= text.Bounds.Height); // and the row holds all of it
+    }
+
+    [Fact]
+    public void AnImageWithASourceRect_MeasuresThatFrame()
+    {
+        using var ui = new UIHarness();
+        using var sheet = new SheetTexture(48, 80);
+        var whole = ui.Context.Root.AddChild(new Image { Texture = sheet });
+        var frame = ui.Context.Root.AddChild(new Image { Texture = sheet, SourceRect = new Rect(16, 20, 16, 20) });
+        ui.Frame();
+        Assert.Equal(new Vector2(48, 80), whole.Bounds.Size);
+        Assert.Equal(new Vector2(16, 20), frame.Bounds.Size);
+    }
+
+    private sealed class SheetTexture(int width, int height) : MNVTEngine.Graphics.Texture2D(null, "sheet", width, height, MNVTEngine.Graphics.SamplerState.PointClamp)
+    {
+        protected override void ReleaseCore()
+        {
+        }
     }
 }

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using MNVTEngine.Reactivity;
 using MNVTEngine.UI.Widgets;
@@ -85,6 +85,9 @@ public static class V
     public static Icon Icon(string glyph) => new() { Text = glyph };
 
     public static Image Image(Graphics.Texture2D texture) => new() { Texture = texture };
+
+    /// <summary>A texture asset, or one frame of it (<paramref name="source"/> in texels from its top-left).</summary>
+    public static Image Image(AssetRef asset, Mathematics.Rect? source = null) => new() { Asset = asset, SourceRect = source };
 
     // Controls.
 
