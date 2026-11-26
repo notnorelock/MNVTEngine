@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Buffers.Binary;
 using System.Net;
@@ -34,6 +34,7 @@ internal sealed partial class Connection : IDisposable
     private int _outgoingLength;
     private long _lastReceiveMs;
     private long _lastSendMs;
+    private long _nextPingMs;
     private ushort _fragmentGroup;
 
     public Connection(uint connectionId, IPEndPoint remote, ITransport transport, SessionCrypto crypto, long nowMs, ILogger logger)
@@ -45,9 +46,13 @@ internal sealed partial class Connection : IDisposable
         _logger = logger;
         _lastReceiveMs = nowMs;
         _lastSendMs = nowMs;
+        _nextPingMs = nowMs; // the first tick measures the link
     }
 
     public uint ConnectionId { get; }
+
+    /// <summary>Round trip and the peer's clock, from this side's pings.</summary>
+    public LinkTiming Timing { get; } = new();
 
     public IPEndPoint Remote { get; }
 
@@ -154,6 +159,16 @@ internal sealed partial class Connection : IDisposable
             SendAckFrame(ackLatest, ackBits, nowMs);
         }
 
+        if (nowMs >= _nextPingMs)
+        {
+            Span<byte> ping = stackalloc byte[10];
+            ping[0] = (byte)FrameKind.Control;
+            ping[1] = (byte)ControlOpcode.Ping;
+            BinaryPrimitives.WriteInt64LittleEndian(ping[2..], nowMs);
+            EnqueueFrame(ping, nowMs);
+            _nextPingMs = nowMs + GalaxyConstants.PingMilliseconds;
+        }
+
         if (_outgoingLength == 0 && nowMs - _lastSendMs >= GalaxyConstants.HeartbeatMilliseconds)
         {
             Span<byte> inner = stackalloc byte[2];
@@ -198,12 +213,12 @@ internal sealed partial class Connection : IDisposable
                 break; // Malformed framing: stop rather than read past the end.
             }
 
-            ParseFrame(plain.Slice(offset, frameLength), inbound, ref remoteClosed);
+            ParseFrame(plain.Slice(offset, frameLength), nowMs, inbound, ref remoteClosed);
             offset += frameLength;
         }
     }
 
-    private void ParseFrame(ReadOnlySpan<byte> frame, List<Message> inbound, ref bool remoteClosed)
+    private void ParseFrame(ReadOnlySpan<byte> frame, long nowMs, List<Message> inbound, ref bool remoteClosed)
     {
         if (frame.IsEmpty)
         {
@@ -216,6 +231,24 @@ internal sealed partial class Connection : IDisposable
                 if (frame.Length >= 2 && (ControlOpcode)frame[1] == ControlOpcode.Disconnect)
                 {
                     remoteClosed = true;
+                }
+                else if (frame.Length == 10 && (ControlOpcode)frame[1] == ControlOpcode.Ping)
+                {
+                    Span<byte> pong = stackalloc byte[18];
+                    pong[0] = (byte)FrameKind.Control;
+                    pong[1] = (byte)ControlOpcode.Pong;
+                    frame[2..10].CopyTo(pong[2..]);
+                    BinaryPrimitives.WriteInt64LittleEndian(pong[10..], DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                    EnqueueFrame(pong, nowMs);
+                    Flush(nowMs); // answered now: waiting for this side's next tick would add to the peer's round trip
+                }
+                else if (frame.Length == 18 && (ControlOpcode)frame[1] == ControlOpcode.Pong)
+                {
+                    var sent = BinaryPrimitives.ReadInt64LittleEndian(frame[2..]);
+                    if (sent <= nowMs && nowMs - sent <= GalaxyConstants.TimeoutMilliseconds) // only an echo of a recent ping of ours
+                    {
+                        Timing.Observe(sent, nowMs, BinaryPrimitives.ReadInt64LittleEndian(frame[10..]), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                    }
                 }
 
                 break;

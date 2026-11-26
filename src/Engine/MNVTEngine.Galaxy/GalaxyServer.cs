@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-24.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Diagnostics;
 using System.Net;
@@ -100,6 +100,9 @@ public sealed partial class GalaxyServer : IDisposable
     }
 
     /// <summary>Disconnects one client, telling it best-effort.</summary>
+    /// <summary>The smoothed round trip to a client in milliseconds; null for an unknown client or before the first measurement.</summary>
+    public double? RoundTripMs(uint clientId) => _peers.TryGetValue(clientId, out Peer? peer) ? peer.Connection.Timing.RoundTripMs : null;
+
     public void Disconnect(uint clientId)
     {
         if (_peers.TryGetValue(clientId, out Peer? peer))

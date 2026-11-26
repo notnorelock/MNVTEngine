@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-24.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 namespace MNVTEngine.Galaxy;
 
@@ -70,6 +70,12 @@ internal enum ControlOpcode : byte
 {
     KeepAlive = 0,
     Disconnect = 1,
+
+    /// <summary>The sender's monotonic time (8 bytes); answered at once with a <see cref="Pong"/>.</summary>
+    Ping = 2,
+
+    /// <summary>The ping's time echoed (8 bytes), then the answering side's UTC time in Unix milliseconds (8 bytes).</summary>
+    Pong = 3,
 }
 
 /// <summary>The first byte of an application chunk inside a reliable or unreliable frame: a whole small message, or

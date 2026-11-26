@@ -87,7 +87,7 @@ Cryptography is handled by the transport, below the message layer, so game code 
 
 ## Reliability and fragmentation
 
-Inside each encrypted datagram is one frame: a control message (keep-alive, disconnect), an unreliable payload, a
+Inside each encrypted datagram is one frame: a control message (keep-alive, disconnect, ping, pong), an unreliable payload, a
 reliable payload, or an acknowledgement.
 
 - **Unreliable** — sent once, may be lost or reordered. For state replaced every tick (positions, inputs).
@@ -99,6 +99,22 @@ reliable payload, or an acknowledgement.
   and reassembled by the receiver; a partial group is bounded so lost unreliable fragments cannot grow memory.
 
 Keep-alives are sent when a connection is idle; a connection with no datagram for the timeout is dropped.
+
+## Round-trip time and clock
+
+Each side pings the other once a second (`GalaxyConstants.PingMilliseconds`): a ping carries the sender's monotonic
+time, and the peer answers at once (flushed, not left for its next tick) with that time echoed and its own UTC time in
+Unix milliseconds. `LinkTiming` turns the answers into:
+
+- **`RoundTripMs`**: smoothed as TCP does (1/8 of each new sample), plus `LastRoundTripMs`.
+- **`ClockOffsetMs`**: the peer's UTC time minus this machine's, from the sample with the shortest round trip of the
+  last 8 (its half-RTT guess of the one-way delay is the least wrong); the window lets drift and route changes in.
+
+`GalaxyClient.RoundTripMs`, `ServerClockOffsetMs` and `ServerUnixTimeMs` (the server's time now) are known within a
+second of connecting; `GalaxyServer.RoundTripMs(clientId)` gives each client's. A game that stamps its messages with
+the server's Unix milliseconds compares them with `ServerUnixTimeMs` (interpolation delay, event timers). The local
+clock is the wall clock: if it is changed while connected the estimate is off until the next pings. A pong that does
+not echo one of this side's recent pings is ignored.
 
 ## Efficiency on the wire
 

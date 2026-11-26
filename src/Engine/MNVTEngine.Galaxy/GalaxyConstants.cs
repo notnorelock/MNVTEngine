@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 namespace MNVTEngine.Galaxy;
 
@@ -36,6 +36,9 @@ public static class GalaxyConstants
 
     /// <summary>When otherwise idle, a keep-alive is sent this often so the peer's timeout does not trip.</summary>
     public const int HeartbeatMilliseconds = 1000;
+
+    /// <summary>Each side pings the other this often to measure the round trip and the peer's clock (<see cref="LinkTiming"/>).</summary>
+    public const int PingMilliseconds = 1000;
 
     /// <summary>A reliable message with no acknowledgement after this long is retransmitted.</summary>
     public const int RetransmitMilliseconds = 100;

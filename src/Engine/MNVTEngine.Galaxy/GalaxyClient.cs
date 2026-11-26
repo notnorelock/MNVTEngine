@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-24.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Diagnostics;
 using System.Net;
@@ -60,6 +60,15 @@ public sealed partial class GalaxyClient : IDisposable
     public event Action<Message>? MessageReceived;
 
     public GalaxyClientState State { get; private set; } = GalaxyClientState.Disconnected;
+
+    /// <summary>The smoothed round trip to the server in milliseconds; null until measured (within a second of connecting).</summary>
+    public double? RoundTripMs => _connection?.Timing.RoundTripMs;
+
+    /// <summary>The server's UTC time minus this machine's, in milliseconds; null until measured.</summary>
+    public double? ServerClockOffsetMs => _connection?.Timing.ClockOffsetMs;
+
+    /// <summary>The server's UTC time now, in Unix milliseconds (this machine's clock plus the measured offset); null until measured.</summary>
+    public long? ServerUnixTimeMs => ServerClockOffsetMs is { } offset ? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + (long)Math.Round(offset) : null;
 
     /// <summary>Begins connecting to <paramref name="host"/>:<paramref name="port"/>. Pass the server's pinned
     /// identity public key (<see cref="GalaxyIdentity.PublicKey"/>) to require the server to prove it — the connection
