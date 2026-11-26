@@ -3,6 +3,8 @@
 A content bundle is content made outside the game (by players or creators) and loaded while the game runs: a world,
 an avatar, a decoration. It is the engine's counterpart of a Unity asset bundle, built for untrusted content: it
 carries no code, cannot replace anything the game ships, and its prefabs create only the components the game allows.
+The same file type also carries [editor packages](../editor/packages.md) (kind `mnvt.package`): kits with code that
+people import into projects in the editor, never loaded by games.
 
 Code: `src/Engine/MNVTEngine.Bundles` (`ContentBundleFile`: format, policy, checks; no rendering or scenes, so servers
 and backends can check bundles), `MNVTEngine.IO.PrefixedFileSystemProvider`, `MNVTEngine.Assets.AssetDatabase.MountBundle`,

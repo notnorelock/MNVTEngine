@@ -24,7 +24,8 @@ the scripts do). It may reference anything else it needs (HTTP contracts, say); 
   sees the game's types (`ComponentInspector<Health>`) and unloads with them. Its components are not registered.
 - **Never shipped.** Exports, `mnvt run` and the Player build `scripts.project` only (`ScriptProject.For`), so the
   editor code and what it references never reach a game.
-- A project without `editorProject` works as before.
+- A project without `editorProject` works as before. Importing an [editor package](packages.md) with editor code
+  creates one.
 
 ## API (`MNVTEngine.Editor.Extensions`)
 

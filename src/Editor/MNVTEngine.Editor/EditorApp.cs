@@ -63,6 +63,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
     private readonly Core.Diagnostics.FrameProfiler _profiler = new();
     private ScriptReloadController _scripts = null!;
     private ExtensionHost _extensions = null!;
+    private PackageImportDialog _packageImport = null!;
     private Graphics.Text.Font _gameUIFont = null!;
     private string _iniPath = "";
     private bool _resetLayout;
@@ -175,6 +176,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _startupScene = project.StartupScene;
         _scripts.Reloaded += _inspector.ClearCaches;
         _extensions = new ExtensionHost(_context);
+        _packageImport = new PackageImportDialog(_context, _scripts);
         _context.ExtensionInspectors = _extensions.DrawInspectors;
         _scripts.Reloaded += () => _extensions.Load(_scripts.Extensions, _scripts.Extensions.Name);
         _scriptEditor = new ScriptEditorPanel(_context, _scripts);
@@ -454,6 +456,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _nativeMenu?.Dispose();
         SaveLayout();
         _context.PlayMode.Stop();
+        _packageImport.Dispose();
         _scripts.Dispose();
         _uiEditor.Dispose();
         _inspector.Dispose();
@@ -574,6 +577,8 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
             new("Open Scene...", "Ctrl+O", () => _openScenePicker = true),
             new("Save Scene", "Ctrl+S", () => Save(), Enabled: !_context.PlayMode.IsPlaying),
             new("Save Scene As...", Action: () => _openSaveAs = true, Enabled: !_context.PlayMode.IsPlaying),
+            MenuEntry.Separator,
+            new("Import Package...", Action: () => _packageImport.Open(), Enabled: !_context.PlayMode.IsPlaying),
             MenuEntry.Separator,
             new("Project Hub...", Action: OpenProjectHub),
             MenuEntry.Separator,
@@ -701,6 +706,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
 
     private void DrawDialogs()
     {
+        _packageImport.Draw();
         if (_openUnsavedPrompt)
         {
             ImGui.OpenPopup("Unsaved changes");

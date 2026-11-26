@@ -111,7 +111,7 @@ published from a manual run of the same workflow ([versioning](docs/architecture
 ## Documentation
 
 **Start here:** [Getting started](docs/getting-started.md) · [Architecture overview](docs/architecture/overview.md) ·
-[Building and exporting](docs/build-system/building.md) · [Editor](docs/editor/editor.md) · [Editor extensions](docs/editor/extensions.md)
+[Building and exporting](docs/build-system/building.md) · [Editor](docs/editor/editor.md) · [Editor extensions](docs/editor/extensions.md) · [Editor packages](docs/editor/packages.md)
 
 <details>
 <summary><strong>Engine</strong></summary>

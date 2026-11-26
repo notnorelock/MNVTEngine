@@ -69,6 +69,10 @@ public static class Cli
           package bundle <project> --root <Assets/...prefab> --kind <kind> --name <Name> [--provided folder,...] [--output dir]
                                 Package a prefab and what it references as a content bundle (.mnvtbundle: no code, loaded at run time)
                                 --provided: folders whose assets the game already ships (an SDK's shared assets): referenced, not packaged
+          package editor <folder> --name <Name> --version <v> [--description text] [--output file.mnvtbundle]
+                                Package a kit for the editor (.mnvtbundle of kind mnvt.package): the folder's Assets/<Name>, Scripts/<Name>, Editor/<Name>
+          package import <project> --file <package.mnvtbundle>
+                                Import an editor package into a project (its C# code runs in the editor: only packages you trust)
           package benchmark <exported game> [--project <project>] [--no-repack]
                                 Read times from the packages against the same files on disk, and each compression profile
           validate <project | exported game folder> [--run [frames]]
@@ -107,7 +111,7 @@ public static class Cli
                 "server" => CommandLine.Parse(args, ["--port", "--tick-rate"], []),
                 "build" when args.Length > 1 && args[1] == "analyze" => CommandLine.Parse(["analyze", .. args[2..]], ["--profile", "--configuration", "--target", "--scripting-backend", "--json"], []),
                 "build" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--scripting-backend", "--signing-key", "--obfuscate-scheme"], ["--obfuscate"], optionalValues: ["--run"]),
-                "package" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--signing-key", "--project", "--trust", "--new-signing-key", "--folder", "--name", "--obfuscate-scheme", "--root", "--kind", "--provided"], ["--entries", "--rotate", "--no-repack", "--separate-key", "--obfuscate"]),
+                "package" => CommandLine.Parse(args, ["--profile", "--configuration", "--target", "--output", "--signing-key", "--project", "--trust", "--new-signing-key", "--folder", "--name", "--obfuscate-scheme", "--root", "--kind", "--provided", "--version", "--description", "--file"], ["--entries", "--rotate", "--no-repack", "--separate-key", "--obfuscate"]),
                 "validate" => CommandLine.Parse(args, [], [], optionalValues: ["--run"]),
                 "version" => CommandLine.Parse(args, [], ["--json", "--verbose"]),
                 _ => throw new FormatException($"Unknown command '{args[0]}'."),

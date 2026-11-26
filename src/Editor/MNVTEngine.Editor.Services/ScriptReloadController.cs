@@ -35,7 +35,7 @@ public sealed partial class ScriptReloadController : IDisposable
     private readonly EditorSession _session;
     private readonly PlayModeController _playMode;
     private readonly ILogger _logger;
-    private readonly ScriptProject? _project;
+    private ScriptProject? _project;
     private readonly GameAssemblyHost _host = new();
     private readonly CancellationTokenSource _shutdown = new();
     private Task<ScriptBuildResult>? _build;
@@ -146,6 +146,26 @@ public sealed partial class ScriptReloadController : IDisposable
             {
                 LogNotCollected(_logger);
             }
+        }
+    }
+
+    /// <summary>
+    /// Picks up changed script settings of the project (an editor project an imported package created) and builds with
+    /// them. A build already running finishes first; its sources then differ, so the next poll builds again.
+    /// </summary>
+    /// <exception cref="FileNotFoundException">A configured project file does not exist.</exception>
+    public void ReloadProjectSettings()
+    {
+        var project = ScriptProject.ForEditor(_session.Project) ?? ScriptProject.For(_session.Project);
+        if (project is null || project.ProjectFile == _project?.ProjectFile)
+        {
+            return;
+        }
+
+        _project = project;
+        if (_build is null)
+        {
+            StartBuild();
         }
     }
 

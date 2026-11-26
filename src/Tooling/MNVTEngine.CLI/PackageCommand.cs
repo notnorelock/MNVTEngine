@@ -13,8 +13,8 @@ internal static class PackageCommand
 {
     public static async Task<int> RunAsync(CommandLine command, TextWriter output, ILoggerFactory loggerFactory, CancellationToken cancellationToken)
     {
-        var verb = command.Positional.Count > 0 ? command.Positional[0] : throw new FormatException("Use: mnvt package build|inspect|verify|analyze|extract|keys|dlc|benchmark ...");
-        var target = command.Positional.Count == 2 ? command.Positional[1] : throw new FormatException($"Use: mnvt package {verb} <{(verb is "build" or "analyze" or "keys" or "dlc" ? "project" : "file.mnvtpack")}>.");
+        var verb = command.Positional.Count > 0 ? command.Positional[0] : throw new FormatException("Use: mnvt package build|inspect|verify|analyze|extract|keys|dlc|bundle|editor|import|benchmark ...");
+        var target = command.Positional.Count == 2 ? command.Positional[1] : throw new FormatException($"Use: mnvt package {verb} <{(verb is "build" or "analyze" or "keys" or "dlc" or "bundle" or "import" ? "project" : verb == "editor" ? "folder" : "file.mnvtpack")}>.");
         var project = command.Value("--project") is { } projectPath ? GameProject.Load(projectPath) : null;
         switch (verb)
         {
@@ -110,6 +110,40 @@ internal static class PackageCommand
                 return result.File is null ? Cli.Failed : Cli.Ok;
             }
 
+            case "editor":
+            {
+                const string usage = "Use: mnvt package editor <folder with Assets/, Scripts/, Editor/> --name <Name> --version <version> [--description <text>] [--output <file.mnvtbundle>].";
+                var name = command.Value("--name") ?? throw new FormatException(usage);
+                var file = EditorPackageFile.Write(target, new EditorPackageManifest(name, command.Value("--version") ?? throw new FormatException(usage), command.Value("--description")),
+                    command.Value("--output") ?? Path.Combine(target, name + Bundles.ContentBundleFile.Extension));
+                using var written = EditorPackageFile.Open(file);
+                output.WriteLine($"Editor package {name} {written.Manifest.Version}: {written.Entries.Count} files in {file}.");
+                return Cli.Ok;
+            }
+
+            case "import":
+            {
+                const string usage = "Use: mnvt package import <project> --file <package.mnvtbundle>. The package's C# code runs in the editor: import only packages you trust.";
+                var destination = GameProject.Load(target);
+                using var package = EditorPackageFile.Open(command.Value("--file") ?? throw new FormatException(usage));
+                var plan = EditorPackageImporter.Plan(destination, package);
+                foreach (var problem in plan.Problems)
+                {
+                    output.WriteLine("error: " + problem);
+                }
+
+                if (!plan.CanImport)
+                {
+                    output.WriteLine("Import FAILED; nothing was changed.");
+                    return Cli.Failed;
+                }
+
+                EditorPackageImporter.Import(destination, package, EngineLocation.FindRoot());
+                output.WriteLine($"Imported {plan.Manifest.Name} {plan.Manifest.Version}{(plan.InstalledVersion is { } old ? $" (was {old})" : "")}: {plan.Files.Count} files"
+                    + $"{(plan.Removed.Count > 0 ? $", {plan.Removed.Count} old files removed" : "")}{(plan.CreatesScriptsProject ? ", scripts project created" : "")}{(plan.CreatesEditorProject ? ", editor project created" : "")}.");
+                return Cli.Ok;
+            }
+
             case "benchmark":
             {
                 var data = GamePackage.FindDataDirectory(target) ?? target;
@@ -118,7 +152,7 @@ internal static class PackageCommand
             }
 
             default:
-                throw new FormatException($"Unknown package command '{verb}'; use build, inspect, verify, analyze, extract, keys, dlc, bundle or benchmark.");
+                throw new FormatException($"Unknown package command '{verb}'; use build, inspect, verify, analyze, extract, keys, dlc, bundle, editor, import or benchmark.");
         }
     }
 

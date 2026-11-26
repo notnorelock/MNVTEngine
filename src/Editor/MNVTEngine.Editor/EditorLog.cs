@@ -41,4 +41,7 @@ internal static partial class EditorLog
 
     [LoggerMessage(EventId = 5210, Level = LogLevel.Error, Message = "{Extension} failed in {Where}; it is skipped until the code reloads")]
     public static partial void ExtensionFailed(ILogger logger, Exception exception, string extension, string where);
+
+    [LoggerMessage(EventId = 5211, Level = LogLevel.Information, Message = "Imported package {Package} {Version}: {Files} files, {Removed} old files removed, editor project created: {CreatedEditorProject}")]
+    public static partial void PackageImported(ILogger logger, string package, string version, int files, int removed, bool createdEditorProject);
 }
