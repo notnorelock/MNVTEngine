@@ -70,11 +70,20 @@ public sealed partial class EditorPackageFile : IDisposable
     public static bool IsValidName(string? name) => name is { Length: > 0 and <= 64 } && NamePattern().IsMatch(name);
 
     /// <summary>Opens and checks a package.</summary>
-    /// <exception cref="EditorPackageException">Not an editor package (every problem is listed).</exception>
+    /// <exception cref="EditorPackageException">No such file, or not an editor package (every problem is listed).</exception>
     /// <exception cref="IOException">The file cannot be read.</exception>
     public static EditorPackageFile Open(string file)
     {
-        ArgumentNullException.ThrowIfNull(file);
+        if (string.IsNullOrWhiteSpace(file))
+        {
+            throw new EditorPackageException("The package", ["no file was given: choose a .mnvtbundle file"]);
+        }
+
+        if (!File.Exists(file)) // also false for paths with invalid characters
+        {
+            throw new EditorPackageException(file, ["the file does not exist"]);
+        }
+
         MnvtPackage package;
         try
         {

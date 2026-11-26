@@ -75,10 +75,14 @@ internal sealed class PackageImportDialog(EditorContext context, ScriptReloadCon
         ImGui.SetNextItemWidth(-90f);
         var submitted = ImGui.InputText("##package", ref _path, 1024, ImGuiInputTextFlags.EnterReturnsTrue);
         ImGui.SameLine();
-        if (ImGui.Button("Open", new SysVector2(80f, 0f)) || submitted)
+        var path = _path.Trim().Trim('"');
+        ImGui.BeginDisabled(path.Length == 0);
+        if ((ImGui.Button("Open", new SysVector2(80f, 0f)) || submitted) && path.Length > 0)
         {
-            Load(_path.Trim().Trim('"'));
+            Load(path);
         }
+
+        ImGui.EndDisabled();
 
         if (_found.Count > 0)
         {

@@ -33,6 +33,20 @@ public sealed class EditorPackageTests : IDisposable
         Assert.Throws<ContentBundleException>(() => ContentBundleFile.Open(file).Dispose()); // code: never loaded by a game
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("missing.mnvtbundle")]
+    [InlineData("bad|name.mnvtbundle")]
+    public void OpeningNoFile_IsAPackageProblem_NotACrash(string name)
+    {
+        var file = name.Trim().Length == 0 ? name : Path.Combine(_root, name);
+
+        var error = Assert.Throws<EditorPackageException>(() => EditorPackageFile.Open(file).Dispose());
+
+        Assert.Single(error.Problems);
+    }
+
     [Fact]
     public void Packages_KeepToTheirFolders_AndCarryNoProjects()
     {
