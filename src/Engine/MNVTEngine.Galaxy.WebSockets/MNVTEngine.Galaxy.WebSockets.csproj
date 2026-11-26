@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- MNVTEngine.Galaxy.WebSockets: a text WebSocket client for game code (live updates from a backend: notifications,
+       presence, chat) with reconnects, keep-alive pings and size limits; JSON through Newtonsoft. Headless (no scenes,
+       graphics or platform): events arrive on the game thread through the scene's synchronization context. Ships with
+       the Networking module. See docs/engine/websockets.md. -->
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" />
+  </ItemGroup>
+</Project>

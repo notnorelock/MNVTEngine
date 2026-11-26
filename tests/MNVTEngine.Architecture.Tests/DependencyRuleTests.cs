@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 namespace MNVTEngine.Architecture.Tests;
 
@@ -166,6 +166,9 @@ public class DependencyRuleTests
     [InlineData("MNVTEngine.Http", "MNVTEngine.Scenes")]
     [InlineData("MNVTEngine.Http", "MNVTEngine.Graphics")]
     [InlineData("MNVTEngine.Http", "MNVTEngine.Platform")]
+    [InlineData("MNVTEngine.Galaxy.WebSockets", "MNVTEngine.Scenes")]
+    [InlineData("MNVTEngine.Galaxy.WebSockets", "MNVTEngine.Graphics")]
+    [InlineData("MNVTEngine.Galaxy.WebSockets", "MNVTEngine.Platform")]
     public void ForbiddenDependency(string project, string forbidden)
     {
         if (!Graph.Contains(project))

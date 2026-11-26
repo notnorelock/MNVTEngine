@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 namespace MNVTEngine.Modules;
 
@@ -82,10 +82,10 @@ public static class BuiltinModules
         Components = ["MNVTEngine.MissionRunner"],
     };
 
-    public static ModuleDefinition Networking { get; } = new("networking", "Networking", "Client/server networking (MNVTEngine.Galaxy): an encrypted reliable-UDP transport, a headless dedicated-server framework and scene state replication; and an HTTP client for web APIs (MNVTEngine.Http).")
+    public static ModuleDefinition Networking { get; } = new("networking", "Networking", "Client/server networking (MNVTEngine.Galaxy): an encrypted reliable-UDP transport, a headless dedicated-server framework and scene state replication; an HTTP client for web APIs (MNVTEngine.Http) and a WebSocket client for live backend updates (MNVTEngine.Galaxy.WebSockets).")
     {
         Requires = ["core"],
-        RuntimeAssemblies = ["MNVTEngine.Galaxy", "MNVTEngine.Galaxy.Server", "MNVTEngine.Galaxy.Replication", "MNVTEngine.Http"],
+        RuntimeAssemblies = ["MNVTEngine.Galaxy", "MNVTEngine.Galaxy.Server", "MNVTEngine.Galaxy.Replication", "MNVTEngine.Galaxy.WebSockets", "MNVTEngine.Http"],
         Components = ["MNVTEngine.NetworkObject", "MNVTEngine.NetworkTransform", "MNVTEngine.NetworkClient", "MNVTEngine.NetworkServer"],
     };
 
