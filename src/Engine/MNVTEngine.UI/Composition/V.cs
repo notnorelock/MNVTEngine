@@ -142,6 +142,15 @@ public static class V
 
     public static Checkbox Checkbox(Signal<bool> value, string text = "") => TwoWay(new Checkbox { Text = text }, value);
 
+    /// <summary>
+    /// A switch over state kept elsewhere: it shows <paramref name="isOn"/> (following the signals it reads) and calls
+    /// <paramref name="set"/> when the player flips it, for settings objects and lists that are not one signal.
+    /// </summary>
+    public static Toggle Switch(Func<bool> isOn, Action<bool> set, string text = "") => Controlled(new Toggle { Text = text }, isOn, set);
+
+    /// <summary>A checkbox over state kept elsewhere, like <see cref="Switch(Func{bool}, Action{bool}, string)"/>.</summary>
+    public static Checkbox Checkbox(Func<bool> isOn, Action<bool> set, string text = "") => Controlled(new Checkbox { Text = text }, isOn, set);
+
     public static Slider Slider(Signal<float> value, float minimum = 0f, float maximum = 1f, float step = 0f)
     {
         ArgumentNullException.ThrowIfNull(value);
@@ -208,6 +217,37 @@ public static class V
         new(items, key, build);
 
     public static PagesRegion Pages(Func<int> index, params Func<UIElement>[] pages) => new(index, pages);
+
+    private static T Controlled<T>(T box, Func<bool> isOn, Action<bool> set)
+        where T : Widgets.Checkbox
+    {
+        ArgumentNullException.ThrowIfNull(isOn);
+        ArgumentNullException.ThrowIfNull(set);
+        var applying = false; // Checked raises CheckedChanged for every change; only the player's flips go to set
+        void Show(bool on)
+        {
+            applying = true;
+            try
+            {
+                box.Checked = on;
+            }
+            finally
+            {
+                applying = false;
+            }
+        }
+
+        box.Bind(isOn, (_, v) => Show(v));
+        box.CheckedChanged += v =>
+        {
+            if (!applying)
+            {
+                set(v);
+                Show(Reactive.Untrack(isOn)); // a setter that refused leaves the box as the state is
+            }
+        };
+        return box;
+    }
 
     private static T TwoWay<T>(T box, Signal<bool> value)
         where T : Widgets.Checkbox

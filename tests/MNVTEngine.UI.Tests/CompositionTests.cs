@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using MNVTEngine.Mathematics;
 using MNVTEngine.Reactivity;
@@ -188,6 +188,34 @@ public sealed class CompositionTests
         Assert.True(on.Value);
         on.Value = false;
         Assert.False(toggle.Checked);
+    }
+
+    [Fact]
+    public void ControlledSwitches_ShowOutsideState_AndHandFlipsToTheSetter()
+    {
+        using var ui = new UIHarness();
+        var picked = Signal.Create<IReadOnlyList<string>>([]);
+        var refuse = false;
+        var toggle = V.Switch(() => picked.Value.Contains("nova"), on =>
+        {
+            if (!refuse)
+            {
+                picked.Value = on ? [.. picked.Value, "nova"] : [.. picked.Value.Where(n => n != "nova")];
+            }
+        });
+        ui.Context.Root.AddChild(V.Column(toggle).Width(300));
+        ui.Frame();
+
+        ui.Click(toggle);
+        Assert.Equal(["nova"], picked.Value);
+        Assert.True(toggle.Checked);
+
+        picked.Value = []; // changed elsewhere
+        Assert.False(toggle.Checked);
+
+        refuse = true;
+        ui.Click(toggle);
+        Assert.False(toggle.Checked); // the setter refused: the box shows the state
     }
 
     [Fact]
