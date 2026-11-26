@@ -13,7 +13,7 @@ and backends can check bundles), `MNVTEngine.IO.PrefixedFileSystemProvider`, `MN
 
 ## Format
 
-A `.mnvtpack` package (see [virtual file system](virtual-filesystem.md)), unencrypted and unsigned, with exactly:
+A `.mnvtpack` package (see [virtual file system](virtual-filesystem.md)), unsigned, with exactly:
 
 | Entry | Contents |
 |---|---|
@@ -26,6 +26,15 @@ A `.mnvtpack` package (see [virtual file system](virtual-filesystem.md)), unencr
 - **Root** is the prefab the content starts from; the game instantiates it.
 - **Properties** are up to 64 short strings (names up to 64 characters, values up to 256), for tools and games: SDK
   version, author, a game-specific format version.
+
+## Encryption
+
+Creators build plain bundles; the server that delivers them may encrypt them (AES-256-GCM, the package format's own
+encryption: index and every chunk, so names, structure and data are unreadable, and any change fails to open).
+`ContentBundleFile.Write(..., key)` writes one, `ContentBundleFile.Open(file, policy, key)` and
+`ContentBundles.Load(file, options, key)` read one: the file stays encrypted on disk and is decrypted as it is read.
+`ContentBundlePolicy.RequireEncrypted` refuses plain bundles, for games whose server always encrypts. How keys reach
+the game is the game's business (Borealise: a key per version, given to signed-in players by its backend).
 
 ## What a bundle may hold
 
@@ -86,6 +95,7 @@ bundle gives the same file; the builder opens the written file with the policy b
 
 ## Not implemented
 
-- Signatures for bundles (a creator key): games trust a bundle's origin through the server that delivered it.
+- Signatures for bundles (a creator or server key): games trust a bundle's origin through the server that delivered it
+  (and, when it encrypts, through its key: GCM refuses changed data).
 - Per-type limits (texture dimensions, audio length) beyond the total size.
 - Editor-side validation of components against what a particular game allows (the game reports them when loading).

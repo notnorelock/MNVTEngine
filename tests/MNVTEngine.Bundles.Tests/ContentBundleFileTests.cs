@@ -43,6 +43,24 @@ public sealed class ContentBundleFileTests : IDisposable
     }
 
     [Fact]
+    public void AnEncryptedBundle_OpensOnlyWithItsKey()
+    {
+        var key = PackageEncryptionKey.Create();
+        var file = File("sealed");
+        ContentBundleFile.Write(file, Manifest(), [Asset(Prefab, "Lounge.prefab", AssetTypes.Prefab)], Guid.NewGuid(), Guid.NewGuid(), key: key);
+
+        Assert.Equal(-1, System.IO.File.ReadAllBytes(file).AsSpan().IndexOf("Lounge"u8)); // the manifest and index are not readable
+        using (var bundle = ContentBundleFile.Open(file, new ContentBundlePolicy { RequireEncrypted = true }, key))
+        {
+            Assert.Equal("{}", Encoding.UTF8.GetString(bundle.ReadAsset(Prefab)));
+        }
+
+        Assert.Throws<ContentBundleException>(() => ContentBundleFile.Open(file));
+        Assert.Throws<ContentBundleException>(() => ContentBundleFile.Open(file, key: PackageEncryptionKey.Create()));
+        Assert.Contains("not encrypted", Assert.Throws<ContentBundleException>(() => ContentBundleFile.Open(WriteValid(), new ContentBundlePolicy { RequireEncrypted = true })).Problems.Single(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Bundles_OfAnotherKind_OrTooLarge_AreRefused()
     {
         var file = WriteValid();

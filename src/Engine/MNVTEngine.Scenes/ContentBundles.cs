@@ -22,7 +22,7 @@ public interface IContentBundleHost
 {
     /// <exception cref="ContentBundleException">Not a bundle the options accept, or it lists assets already loaded.</exception>
     /// <exception cref="IOException">The file cannot be read.</exception>
-    ContentBundle Load(string file, ContentBundleLoadOptions options);
+    ContentBundle Load(string file, ContentBundleLoadOptions options, MNVTEngine.IO.Packages.PackageEncryptionKey? key = null);
 }
 
 /// <summary>
@@ -68,15 +68,15 @@ public static class ContentBundles
 {
     private static IContentBundleHost? _host;
 
-    /// <summary>Loads a bundle file.</summary>
-    /// <exception cref="ContentBundleException">Not a bundle the options accept (every problem is listed), or it lists assets already loaded.</exception>
+    /// <summary>Loads a bundle file; an encrypted one with its <paramref name="key"/> (it stays encrypted on disk and is read through the key).</summary>
+    /// <exception cref="ContentBundleException">Not a bundle the options accept (every problem is listed), the key does not open it, or it lists assets already loaded.</exception>
     /// <exception cref="IOException">The file cannot be read.</exception>
     /// <exception cref="InvalidOperationException">No game is running.</exception>
-    public static ContentBundle Load(string file, ContentBundleLoadOptions options)
+    public static ContentBundle Load(string file, ContentBundleLoadOptions options, MNVTEngine.IO.Packages.PackageEncryptionKey? key = null)
     {
         ArgumentNullException.ThrowIfNull(file);
         ArgumentNullException.ThrowIfNull(options);
-        return (_host ?? throw new InvalidOperationException("Content bundles load only while a game runs.")).Load(file, options);
+        return (_host ?? throw new InvalidOperationException("Content bundles load only while a game runs.")).Load(file, options, key);
     }
 
     /// <summary>Set by the game host while a game runs; null clears it.</summary>

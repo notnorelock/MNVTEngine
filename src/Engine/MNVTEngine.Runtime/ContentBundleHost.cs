@@ -6,6 +6,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Assets;
 using MNVTEngine.Bundles;
+using MNVTEngine.IO.Packages;
 using MNVTEngine.Scenes;
 
 namespace MNVTEngine.Runtime;
@@ -17,10 +18,10 @@ namespace MNVTEngine.Runtime;
 /// </summary>
 internal sealed partial class ContentBundleHost(AssetDatabase assets, ComponentRegistry registry, ILogger logger) : IContentBundleHost
 {
-    public ContentBundle Load(string file, ContentBundleLoadOptions options)
+    public ContentBundle Load(string file, ContentBundleLoadOptions options, PackageEncryptionKey? key = null)
     {
         ArgumentNullException.ThrowIfNull(options);
-        var bundle = ContentBundleFile.Open(file, options.Policy);
+        var bundle = ContentBundleFile.Open(file, options.Policy, key);
         BundleMount mount;
         try
         {

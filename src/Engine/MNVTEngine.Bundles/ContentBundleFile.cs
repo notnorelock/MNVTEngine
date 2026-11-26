@@ -51,6 +51,9 @@ public sealed record ContentBundlePolicy
 
     /// <summary>The asset types the bundle may hold. Scripts are never allowed, whatever this says.</summary>
     public IReadOnlySet<string> AllowedAssetTypes { get; init; } = DataTypes;
+
+    /// <summary>Refuses bundles that are not encrypted (games whose server encrypts what it delivers).</summary>
+    public bool RequireEncrypted { get; init; }
 }
 
 /// <summary>
@@ -95,16 +98,18 @@ public sealed class ContentBundleFile : IDisposable
     public byte[] ReadAsset(Guid guid) => Read(Package, AssetsFolder + "/" + (Find(guid) ?? throw new KeyNotFoundException($"The bundle has no asset {guid}.")).Path);
 
     /// <summary>Opens and checks a bundle file.</summary>
-    /// <exception cref="ContentBundleException">Not a bundle the policy accepts (every problem is listed).</exception>
+    /// <param name="key">The key of an encrypted bundle (AES-256-GCM: a wrong key or changed data fails to open).</param>
+    /// <exception cref="ContentBundleException">Not a bundle the policy accepts, or the key does not open it (every problem is listed).</exception>
     /// <exception cref="IOException">The file cannot be read.</exception>
-    public static ContentBundleFile Open(string file, ContentBundlePolicy? policy = null)
+    public static ContentBundleFile Open(string file, ContentBundlePolicy? policy = null, PackageEncryptionKey? key = null)
     {
         ArgumentNullException.ThrowIfNull(file);
         policy ??= new ContentBundlePolicy();
         MnvtPackage package;
         try
         {
-            package = MnvtPackage.Open(file); // no keys: bundles are not encrypted; any signature is only informational
+            // any signature is only informational: games trust a bundle through the server that delivered it
+            package = MnvtPackage.Open(file, key is null ? null : new PackageOpenOptions(new PackageKeyRing(key)));
         }
         catch (PackageException ex)
         {
@@ -114,6 +119,11 @@ public sealed class ContentBundleFile : IDisposable
         try
         {
             var problems = new List<string>();
+            if (policy.RequireEncrypted && !package.Info.IsEncrypted)
+            {
+                problems.Add("the bundle is not encrypted");
+            }
+
             var (manifest, assets) = Check(package, policy, problems);
             if (problems.Count > 0)
             {
@@ -131,11 +141,13 @@ public sealed class ContentBundleFile : IDisposable
 
     /// <summary>Writes a bundle: the manifest, the index and each asset's bytes (callers check what goes in; <see cref="Open"/> checks it again).</summary>
     /// <param name="packageGuid">The package's identity; builders derive it from the content, so unchanged bundles are the same file.</param>
+    /// <param name="key">Encrypts the bundle (index and every chunk, AES-256-GCM); null writes a plain one.</param>
     public static void Write(string file, ContentBundleManifest manifest, IReadOnlyList<(ContentBundleAsset Asset, byte[] Data)> assets, Guid packageGuid, Guid buildId,
-        IReadOnlyDictionary<string, string>? packageProperties = null)
+        IReadOnlyDictionary<string, string>? packageProperties = null, PackageEncryptionKey? key = null)
     {
         ArgumentNullException.ThrowIfNull(assets);
-        var options = new PackageWriterOptions(packageGuid, buildId, Properties: packageProperties ?? new Dictionary<string, string> { ["kind"] = "bundle", ["bundleKind"] = manifest.Kind });
+        var options = new PackageWriterOptions(packageGuid, buildId, EncryptionKey: key,
+            Properties: packageProperties ?? new Dictionary<string, string> { ["kind"] = "bundle", ["bundleKind"] = manifest.Kind });
         using var writer = new PackageWriter(file, options);
         writer.Add(ManifestEntry, WriteManifest(manifest));
         writer.Add(IndexEntry, WriteIndex(assets.Select(a => a.Asset)));
