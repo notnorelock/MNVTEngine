@@ -93,4 +93,13 @@ both stdout and stderr go to pipes or files (a test runner or a script). Then th
   exception and the log, and the runtime's createdump variables still apply.
 - The handler adds a second, idle process (a few megabytes) for the game's lifetime. `Ctrl+C` goes to the game;
   the handler ignores it and returns the game's exit code.
-- Reports stay on the machine. There is no upload.
+- Reports stay on the machine. There is no upload of its own; a game that sends them reads them back (below).
+
+## Reading reports back
+
+`CrashReports.Pending(directory)` lists the report folders a program has not dealt with yet, newest first
+(`CrashReportEntry`: folder, time, the text of `report.txt` and `exception.txt`, each cut at 256 KB, and whether a dump
+is there). `CrashReports.MarkHandled(report)` writes a `.handled` marker so it is not listed again; the folder stays
+until pruned. `CrashReports.GameDirectory` is an exported game's reports folder. A game can use this on its next start
+to show what happened, or to send the text to its own backend once the player agrees; the dump holds the process's
+memory (tokens, chat) and is better kept on the machine.

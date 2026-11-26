@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-12.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -27,7 +27,7 @@ internal sealed class CrashReport(CrashReporterOptions options, string staging, 
         var hasDump = File.Exists(dumpSource) && new FileInfo(dumpSource).Length > 0;
         if (hasDump)
         {
-            Copy(dumpSource, Path.Combine(folder, "crash.dmp"), p => progress?.Report(p * 0.85));
+            Copy(dumpSource, Path.Combine(folder, CrashReports.DumpFileName), p => progress?.Report(p * 0.85));
         }
 
         progress?.Report(0.85);
@@ -35,7 +35,7 @@ internal sealed class CrashReport(CrashReporterOptions options, string staging, 
         var exception = File.Exists(exceptionSource) ? File.ReadAllText(exceptionSource) : null;
         if (exception is not null)
         {
-            File.WriteAllText(Path.Combine(folder, "exception.txt"), exception);
+            File.WriteAllText(Path.Combine(folder, CrashReports.ExceptionFileName), exception);
         }
 
         string[] logTail = [];
@@ -47,7 +47,7 @@ internal sealed class CrashReport(CrashReporterOptions options, string staging, 
         }
 
         progress?.Report(0.95);
-        File.WriteAllText(Path.Combine(folder, "report.txt"), Text(hasDump, exception, logTail));
+        File.WriteAllText(Path.Combine(folder, CrashReports.ReportFileName), Text(hasDump, exception, logTail));
         CrashHandler.TryDelete(staging);
         Prune();
         progress?.Report(1.0);

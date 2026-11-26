@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -38,7 +38,7 @@ internal static class Crashes
     public static int? Handle(string[] args) =>
         CrashReporting.CrashReporter.Run(args, new CrashReporting.CrashReporterOptions(
             typeof(Program).Assembly.GetName().Name!,
-            Path.Combine(AppContext.BaseDirectory, "Logs", "Crashes"),
+            CrashReporting.CrashReports.GameDirectory,
             Path.Combine(AppContext.BaseDirectory, "Logs", "game.log")));
 }
 
