@@ -1,17 +1,18 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using Microsoft.Extensions.Logging;
 using Silk.NET.OpenAL;
 
 namespace MNVTEngine.Audio.OpenAL;
 
-/// <summary>The OpenAL Soft backend: the engine's <see cref="MixingAudioDevice"/> playing through an <see cref="OpenALAudioOutput"/>.</summary>
+/// <summary>The OpenAL Soft backend: the engine's <see cref="MixingAudioDevice"/> playing through an <see cref="OpenALAudioOutput"/>, with its microphones (<see cref="OpenALCaptureSource"/>).</summary>
 public static class OpenALAudioDevice
 {
     /// <exception cref="InvalidOperationException">No output device, or OpenAL Soft could not be loaded.</exception>
-    public static IAudioDevice Create(ILogger logger) => new MixingAudioDevice(OpenALAudioOutput.Open(logger));
+    public static IAudioDevice Create(ILogger logger) =>
+        new MixingAudioDevice(OpenALAudioOutput.Open(logger)) { Capture = OpenALCaptureSource.TryCreate(logger) };
 }
 
 /// <summary>

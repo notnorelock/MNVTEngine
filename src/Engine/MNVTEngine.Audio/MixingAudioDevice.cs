@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using MNVTEngine.Mathematics;
 
@@ -51,6 +51,9 @@ public class MixingAudioDevice : IAudioDevice
     private bool _disposed;
 
     /// <param name="output">Null: nothing is heard and <see cref="Update"/> drives the rendering.</param>
+    /// <summary>The backend's microphones, set by the backend that creates the device; null without.</summary>
+    public IAudioCaptureSource? Capture { get; init; }
+
     public MixingAudioDevice(IAudioOutput? output, int sampleRate = 48000)
     {
         _output = output;

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using MNVTEngine.Mathematics;
 
@@ -154,6 +154,9 @@ public interface IAudioDevice : IDisposable
 
     /// <summary>Called once per frame (devices that need housekeeping or simulated time).</summary>
     void Update(float deltaTime);
+
+    /// <summary>The backend's microphones; null when it cannot record (the silent device, a backend without capture).</summary>
+    IAudioCaptureSource? Capture { get; }
 }
 
 /// <summary>
