@@ -41,6 +41,7 @@ Callbacks run only while the scene is running (`scene.Start()`). In edit mode th
   - An exception after an `await` in an `async void` callback is logged like a callback's.
   - `scene.Post(action)` queues work the same way from any thread.
   - Pending work moves with `DontDestroyOnLoad` objects into the next scene. Unloading drops it, so it never keeps hot-reloaded game code alive.
+  - Work posted later to the old scene's context goes to the scene that took over (and on, scene after scene), so code that captured it once (a `WebSocketConnection`, a timer on a persistent object) keeps reaching the game thread. A scene started again takes its own posts back.
   - Never block the game thread on a task (`.Result`, `.Wait()`) whose continuation needs the game thread: it deadlocks.
 - `Time.TimeScale` (per scene, default 1, reset by a new scene) scales `Time.DeltaTime` and the fixed steps from the next frame:
   - At 0 the game is paused: `Update` still runs with a zero delta; `FixedUpdate` and physics do not.

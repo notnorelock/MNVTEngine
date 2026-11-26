@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -198,6 +198,7 @@ public sealed partial class Scene
             throw new InvalidOperationException("The scene is already running.");
         }
 
+        Synchronization.Resume();
         var previous = SceneContext.Enter(this);
         try
         {

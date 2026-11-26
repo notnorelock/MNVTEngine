@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using MNVTEngine.Core.Timing;
 
@@ -142,6 +142,38 @@ public sealed class SceneSynchronizationTests
         second.Start();
         second.Update(Frame);
         Assert.Equal(["carried"], ran);
+    }
+
+    [Fact]
+    public void PostsToAHandedOverContext_ReachTheSceneThatTookOver()
+    {
+        // A persistent object captured the first scene's context (a socket raising its events through it): after the
+        // scene changes, what it posts must still run on the game thread, in whichever scene is running now.
+        var first = new Scene("Menu");
+        first.Start();
+        SynchronizationContext? captured = null;
+        first.CreateGameObject("Session").AddComponent<Probe>().OnStart = () => captured = SynchronizationContext.Current;
+        first.Update(Frame);
+        var second = new Scene("Club");
+        first.MovePersistentObjectsTo(second);
+        first.Unload();
+        second.Start();
+        var third = new Scene("Menu again");
+        second.MovePersistentObjectsTo(third);
+        second.Unload();
+        third.Start();
+
+        var ran = 0;
+        captured!.Post(_ => ran++, null);
+        third.Update(Frame);
+        Assert.Equal(1, ran);
+
+        first.Start(); // a scene running again takes its own posts back
+        captured.Post(_ => ran++, null);
+        third.Update(Frame);
+        Assert.Equal(1, ran);
+        first.Update(Frame);
+        Assert.Equal(2, ran);
     }
 
     private sealed class Probe : Component

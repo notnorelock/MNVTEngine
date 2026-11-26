@@ -27,7 +27,8 @@ public sealed class LiveFeed : Component
 ```
 
 - **Events** (`Opened`, `Message`, `Disconnected`) are raised on the synchronization context that was current at
-  `Start`: in a component, the game thread. None are raised after `Close`/`Dispose`.
+  `Start`: in a component, the game thread, also after the component's `DontDestroyOnLoad` object moved on to later
+  scenes. None are raised after `Close`/`Dispose`.
 - **Reconnects.** A lost connection or a failed attempt is retried after `ReconnectDelay`, doubling up to
   `MaxReconnectDelay`, with jitter so clients do not return in step. `Opened` fires again on every connection, which
   is the place to fetch what was missed. `Reconnect = false` stops at the first loss (`State` becomes `Closed`).
