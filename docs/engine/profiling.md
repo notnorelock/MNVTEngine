@@ -34,6 +34,13 @@ public override void Update()
 
 Each frame also records its total time, the bytes allocated on the main thread, and the gen0, gen1 and gen2 collections.
 
+## Frame times in shipped builds
+
+The profiler is off in normal game runs. To know how a game runs on players' machines, feed a `FrameTimeRecorder`
+each frame's `Time.UnscaledDeltaTime` (in ms) and take its `FrameTimeStats` now and then to log: frames, frames a
+second, mean, median, 95th and 99th percentile (the hitches players notice), the longest frame and the frames over
+its budget (default 33.3 ms). It keeps the newest 65536 frames and costs a store per frame; `Take` sorts once.
+
 ## Using it
 
 - **Editor:** open the **Profiler** panel, docked next to the Console.
