@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Text;
 using MNVTEngine.Graphics;
@@ -446,7 +446,7 @@ public sealed class TextImporter(string name, string assetType, params string[] 
 }
 
 /// <summary>
-/// WAV and Ogg Vorbis, validated by their signature. Setting <c>"loadType"</c>: <c>"auto"</c> (default: long clips stream),
+/// WAV, Ogg Vorbis and MP3, validated by their signature. Setting <c>"loadType"</c>: <c>"auto"</c> (default: long clips stream),
 /// <c>"decompressOnLoad"</c> (decoded into memory when first played) or <c>"streaming"</c> (decoded while playing).
 /// </summary>
 public sealed class AudioImporter : IAssetImporter
@@ -457,6 +457,7 @@ public sealed class AudioImporter : IAssetImporter
     {
         [".wav"] = d => d.Length >= 12 && Encoding.ASCII.GetString(d, 0, 4) == "RIFF" && Encoding.ASCII.GetString(d, 8, 4) == "WAVE" ? "wav" : null,
         [".ogg"] = d => d.Length >= 4 && Encoding.ASCII.GetString(d, 0, 4) == "OggS" ? "ogg" : null,
+        [".mp3"] = d => (d.Length >= 3 && Encoding.ASCII.GetString(d, 0, 3) == "ID3") || (d.Length >= 2 && d[0] == 0xFF && (d[1] & 0xE0) == 0xE0) ? "mp3" : null,
     });
 
     public string Name => "Audio";

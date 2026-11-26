@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Buffers.Binary;
 
@@ -28,7 +28,7 @@ public interface IAudioSampleSource : IDisposable
     void Seek(long frame);
 }
 
-/// <summary>Decodes WAV (PCM 8/16/24/32-bit, IEEE float) and Ogg Vorbis to 16-bit PCM, whole or streamed.</summary>
+/// <summary>Decodes WAV (PCM 8/16/24/32-bit, IEEE float), Ogg Vorbis and MP3 to 16-bit PCM, whole or streamed.</summary>
 public static class AudioDecoder
 {
     /// <summary>A whole clip decoded into memory.</summary>
@@ -75,6 +75,11 @@ public static class AudioDecoder
             {
                 return Guard(() => new OggSampleSource(stream), sourceName);
             }
+
+            if (IsMp3(magic[..read]))
+            {
+                return Guard(() => new Mp3SampleSource(stream), sourceName);
+            }
         }
         catch
         {
@@ -83,8 +88,12 @@ public static class AudioDecoder
         }
 
         stream.Dispose();
-        throw new InvalidDataException($"'{sourceName}' is not a WAV or Ogg Vorbis file.");
+        throw new InvalidDataException($"'{sourceName}' is not a WAV, Ogg Vorbis or MP3 file.");
     }
+
+    /// <summary>An MP3 starts with an ID3v2 tag or an MPEG audio frame (11 sync bits set).</summary>
+    public static bool IsMp3(ReadOnlySpan<byte> start) =>
+        (start.Length >= 3 && start[..3].SequenceEqual("ID3"u8)) || (start.Length >= 2 && start[0] == 0xFF && (start[1] & 0xE0) == 0xE0);
 
     /// <summary>Decoder errors (malformed headers, truncated Vorbis packets) as <see cref="InvalidDataException"/>.</summary>
     internal static T Guard<T>(Func<T> decode, string sourceName)
@@ -291,4 +300,59 @@ internal sealed class OggSampleSource : IAudioSampleSource
     public void Seek(long frame) => _reader.SeekTo(Math.Clamp(frame, 0, Frames ?? long.MaxValue));
 
     public void Dispose() => _reader.Dispose();
+}
+
+/// <summary>MP3 (MPEG-1/2 layer III, and layers I and II) through NLayer.</summary>
+internal sealed class Mp3SampleSource : IAudioSampleSource
+{
+    private readonly Stream _stream;
+    private readonly NLayer.MpegFile _file;
+    private float[] _float = [];
+
+    public Mp3SampleSource(Stream stream)
+    {
+        _stream = stream;
+        _file = new NLayer.MpegFile(stream);
+        try
+        {
+            _ = new AudioClipData([], _file.Channels, _file.SampleRate); // validates channels and rate
+        }
+        catch
+        {
+            _file.Dispose();
+            throw;
+        }
+    }
+
+    public int Channels => _file.Channels;
+
+    public int SampleRate => _file.SampleRate;
+
+    /// <summary>Unknown: NLayer estimates the length from the first frames, which variable bit rates make wrong.</summary>
+    public long? Frames => null;
+
+    public int Read(Span<short> interleaved)
+    {
+        var count = interleaved.Length / Channels * Channels;
+        if (_float.Length < count)
+        {
+            _float = new float[count];
+        }
+
+        var read = _file.ReadSamples(_float, 0, count);
+        for (var i = 0; i < read; i++)
+        {
+            interleaved[i] = AudioDecoder.ToShort(_float[i]);
+        }
+
+        return read / Channels;
+    }
+
+    public void Seek(long frame) => _file.Time = TimeSpan.FromSeconds(Math.Max(0, frame) / (double)SampleRate);
+
+    public void Dispose()
+    {
+        _file.Dispose();
+        _stream.Dispose();
+    }
 }

@@ -2,6 +2,7 @@
   <!-- Backend-free audio: device abstraction, WAV/OGG decoding, AudioSource/AudioListener components, per-scene AudioSystem. -->
   <ItemGroup>
     <PackageReference Include="NVorbis" />
+    <PackageReference Include="NLayer" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />

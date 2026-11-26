@@ -35,7 +35,7 @@ The engine is a set of **modules**. A project has a module or does not. Which on
 | `graphics` | 2D, 3D | always | core | | Graphics, Graphics.Vulkan, Silk.NET Vulkan, Vortice VMA, Stb image/font; `vma.dll`; the sprite shader. Not the shader compiler: games run on precompiled SPIR-V |
 | `assets` | 2D, 3D | always | core, graphics | | Assets, IO (database, virtual file system, packages, core importers) |
 | `runtime` | 2D, 3D | always | core, platform, graphics, assets | | Runtime, GameAssemblies, CrashReporting, logging |
-| `audio` | 2D, 3D | auto | core | | Audio, Audio.OpenAL, NVorbis; `soft_oal.dll` |
+| `audio` | 2D, 3D | auto | core | | Audio, Audio.OpenAL, NVorbis, NLayer; `soft_oal.dll` |
 | `scripting` | 2D, 3D | auto | core | | Scripting, Missions, Bindings |
 | `networking` | 2D, 3D | auto | core | | Galaxy (encrypted reliable-UDP client/server), Galaxy.Server (headless dedicated-server framework), Galaxy.Replication (scene state replication), Http (HTTP client for web APIs); see [Networking](../architecture/networking.md) and [HTTP client](http.md) |
 | `ui` | 2D, 3D | auto | core, graphics, runtime | | UI (screen-space, the same in both profiles) |
@@ -134,7 +134,7 @@ The game executable is built with the game's modules only. `ModuleBootstrap` (MN
 
 | Export (release) | Modules beyond core, platform, graphics, assets and runtime | Engine and third-party assemblies | Natives |
 |---|---|---|---|
-| Platformer | audio, scripting, ui, world.2d, physics.2d | + Audio(.OpenAL), NVorbis, Scripting(.Missions, .Bindings), UI, World2D(.Rendering), Physics2D, Box2D.NET | glfw3, soft_oal, vma |
+| Platformer | audio, scripting, ui, world.2d, physics.2d | + Audio(.OpenAL), NVorbis, NLayer, Scripting(.Missions, .Bindings), UI, World2D(.Rendering), Physics2D, Box2D.NET | glfw3, soft_oal, vma |
 | UIShowcase | scripting, ui, world.2d | + Scripting(.Missions, .Bindings), UI, World2D(.Rendering) | glfw3, vma |
 | Showcase3D | world.3d, physics.3d | + World3D(.Rendering), Physics3D, Bepu | glfw3, vma |
 | TerrainDemo | world.3d, physics.3d, terrain | + World3D(.Rendering), Physics3D, Bepu, Terrain(.Components), Clipper2 | glfw3, vma |

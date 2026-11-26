@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using System.Buffers.Binary;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -69,6 +69,16 @@ public class AudioTests
         Assert.Throws<InvalidDataException>(() => AudioDecoder.Decode("not audio at all"u8.ToArray(), "e.txt"));
         Assert.Throws<InvalidDataException>(() => AudioDecoder.Decode(Wav(6, 8000, 16, 1, [0, 0]), "surround.wav"));
         Assert.Throws<InvalidDataException>(() => AudioDecoder.Decode([.. "OggS"u8, .. new byte[40]], "broken.ogg"));
+    }
+
+    [Fact]
+    public void Mp3_IsRecognised_ByItsTagOrFrameSync()
+    {
+        Assert.True(AudioDecoder.IsMp3("ID3"u8));
+        Assert.True(AudioDecoder.IsMp3([0xFF, 0xFB, 0x90, 0x00])); // MPEG-1 layer III frame header
+        Assert.False(AudioDecoder.IsMp3("OggS"u8));
+        Assert.False(AudioDecoder.IsMp3([0xFF, 0x00]));
+        Assert.False(AudioDecoder.IsMp3([]));
     }
 
     private static (Scene Scene, NullAudioDevice Device, AudioSystem System, Func<int> Reads) NewScene()

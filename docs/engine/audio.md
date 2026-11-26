@@ -123,6 +123,8 @@ UI's **Mixer** panel (changes there last for the run). Meters are live in Play m
 
 - **WAV:** 8, 16, 24 and 32-bit PCM, 32-bit IEEE float, and `WAVE_FORMAT_EXTENSIBLE`.
 - **Ogg Vorbis:** through NVorbis.
+- **MP3:** through NLayer (MIT, fully managed): MPEG-1/2 layers I-III, recognised by an ID3v2 tag or a frame sync.
+  The length is unknown until decoded (variable bit rates), so a streamed MP3 reports no frame count.
 - **Channels:** mono and stereo only.
 - **Errors:** damaged or unsupported files raise `InvalidDataException` with the asset name.
 - **Streams:** `AudioDecoder.Open(stream, name)` gives an `IAudioSampleSource` (block reads, `Seek(frame)`); `AudioDecoder.Decode` drains one.

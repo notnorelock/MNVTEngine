@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-26.
 
 using Newtonsoft.Json.Linq;
 
@@ -19,6 +19,6 @@ public class AudioImporterTests
         var normalized = importer.NormalizeSettings(JObject.Parse("""{ "loadType": "sometimes", "volume": 2 }"""), problems);
         Assert.False(normalized.ContainsKey("loadType"));
         Assert.Equal(2, problems.Count);
-        Assert.Equal([".wav", ".ogg"], importer.Extensions);
+        Assert.Equal([".wav", ".ogg", ".mp3"], importer.Extensions);
     }
 }
