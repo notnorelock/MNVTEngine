@@ -9,6 +9,8 @@ using MNVTEngine.Bundles;
 using MNVTEngine.IO;
 using MNVTEngine.Runtime;
 using MNVTEngine.Serialization;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace MNVTEngine.Build;
 
@@ -70,7 +72,7 @@ public static class BundleBuilder
         }
 
         var records = new List<AssetRecord>();
-        foreach (var guid in assets.CollectDependencies([root]))
+        foreach (var guid in References(assets, root, provided, diagnostics))
         {
             if (assets.Get(guid) is not { } record)
             {
@@ -126,6 +128,48 @@ public static class BundleBuilder
         }
 
         return new BundleResult(file, records.Count, diagnostics);
+    }
+
+    private static readonly HashSet<string> Documents = new(StringComparer.Ordinal)
+    {
+        AssetTypes.Prefab, AssetTypes.Scene, AssetTypes.Animation, AssetTypes.Material, AssetTypes.AnimatorController, AssetTypes.ParticleSystem, AssetTypes.Json,
+    };
+
+    /// <summary>
+    /// The root and every asset it reaches. A read-only database does not import, so JSON documents (prefabs, clips,
+    /// materials) are scanned for <c>asset:</c> references here; assets in provided folders are not followed.
+    /// </summary>
+    private static HashSet<Guid> References(AssetDatabase assets, Guid root, IReadOnlyList<string> provided, List<BuildDiagnostic> diagnostics)
+    {
+        var result = new HashSet<Guid>();
+        var stack = new Stack<Guid>([root]);
+        while (stack.TryPop(out var guid))
+        {
+            if (!result.Add(guid) || assets.Get(guid) is not { } record || provided.Any(folder => VirtualPath.IsUnder(record.Path, folder)))
+            {
+                continue;
+            }
+
+            var references = new HashSet<Guid>(record.Dependencies);
+            if (Documents.Contains(record.Type))
+            {
+                try
+                {
+                    AssetImporters.CollectReferences(JToken.Parse(Encoding.UTF8.GetString(assets.ReadAllBytes(guid))), references);
+                }
+                catch (JsonException ex)
+                {
+                    diagnostics.Add(BuildDiagnostic.Error("MNVB123", $"Assets/{record.Path}: not valid JSON ({ex.Message}).", record.Path));
+                }
+            }
+
+            foreach (var reference in references.Where(r => r != guid))
+            {
+                stack.Push(reference);
+            }
+        }
+
+        return result;
     }
 
     private static string WithoutAssets(string path) =>

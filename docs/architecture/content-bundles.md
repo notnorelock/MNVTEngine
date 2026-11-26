@@ -7,7 +7,7 @@ carries no code, cannot replace anything the game ships, and its prefabs create 
 Code: `src/Engine/MNVTEngine.Bundles` (`ContentBundleFile`: format, policy, checks; no rendering or scenes, so servers
 and backends can check bundles), `MNVTEngine.IO.PrefixedFileSystemProvider`, `MNVTEngine.Assets.AssetDatabase.MountBundle`,
 `MNVTEngine.Scenes` (`ContentBundles`, `ContentBundle`, `ComponentRegistry.Where`), `MNVTEngine.Runtime.ContentBundleHost`,
-`MNVTEngine.Build.BundleBuilder`, `mnvt package bundle`, the editor's prefab menu. Tests: `MNVTEngine.Bundles.Tests`,
+`MNVTEngine.Build.BundleBuilder`, `mnvt package bundle`, the editor's prefab menu. Tests: `MNVTEngine.Bundles.Tests`, `Build.Tests` (`BundleBuilderTests`),
 `IO.Tests` (`PrefixedFileSystemProviderTests`), `Assets.Tests` (`AssetDatabaseBundleTests`), `Scenes.Tests`
 (`RestrictedRegistryTests`).
 
@@ -76,7 +76,9 @@ mnvt package bundle <project> --root Assets/Worlds/Lounge.prefab --kind borealis
 
 or, in the editor, **Build content bundle...** in a prefab's menu in the Project panel (built in the background; the
 result is logged). `BundleBuilder` packages the root prefab and everything it references, except assets in the
-`--provided` folders (relative to Assets, comma separated), which the game already ships. A referenced script or an
+`--provided` folders (relative to Assets, comma separated), which the game already ships. References are read from the
+assets themselves (`asset:` strings in prefabs, clips, materials and other JSON documents), so nothing has to be
+imported first. A referenced script or an
 asset type the policy refuses fails the build (`MNVB123`); a reference to an asset not in the project warns
 (`MNVB124`); a missing or non-prefab root, or a bad kind or name, is `MNVB122`. The file goes to `Builds/bundles/`
 (or `--output`), named after the bundle. Its package identity comes from the content, so rebuilding an unchanged
