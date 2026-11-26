@@ -28,7 +28,7 @@ context.Mount(() => V.Card(
 - **Factories** in `V`:
   - layout: `Column`, `Row`, `Stack`, `Box`, `Card`, `Spacer`, `Space`, `Divider`, `Scroll`;
   - text: `Text`, `Display`, `Title`, `Heading`, `Strong`, `Muted`, `Small`, `Caption`, `Label`, `Styled`, `Icon`, `Image`;
-  - controls: `Button`, `IconButton`, `TextField`, `PasswordField`, `Switch`, `Checkbox`, `Slider`, `Tabs`, `ListItem`, `Spinner`, `FormField`, `ErrorMessage`, `EmptyState`;
+  - controls: `Button`, `IconButton`, `TextField`, `PasswordField`, `Switch`, `Checkbox`, `Slider`, `Tabs`, `Dropdown`, `ListItem`, `Spinner`, `FormField`, `ErrorMessage`, `EmptyState`;
   - control flow: `Show`, `Keyed`, `For`, `Pages`.
 - **Fluent setters** (`ElementExtensions`) return the element with its own type:
   - layout: `Width`, `Height`, `Size`, `Fill`, `Grow`, `Padding`, `Margin`, `Gap`, `AlignItems`, `Justify`, `Center`, `Anchor`;
@@ -38,7 +38,7 @@ context.Mount(() => V.Card(
 - **Bindings.** Overloads that take a `Func<T>` or an `IReadable<T>` follow the signals they read. They stop when the
   element is disposed. `element.Bind(read, apply)` and `element.Effect(body)` do the same for anything else.
 - **Two-way controls.** Controls that take a `Signal<T>` show the signal and write edits back: `TextField`, `Switch`,
-  `Checkbox`, `Slider` and `Tabs`. `Switch(isOn, set)` and `Checkbox(isOn, set)` are controlled instead: they show
+  `Checkbox`, `Slider`, `Tabs` and `Dropdown` (an index into its options, -1 for none). `Switch(isOn, set)` and `Checkbox(isOn, set)` are controlled instead: they show
   what `isOn` returns (following the signals it reads) and hand each flip to `set`, for state that is not one signal
   (a settings object, membership in a list); a flip `set` refuses snaps back.
 - **Disposal.** `UIElement.Dispose()` detaches the element and disposes its subtree: bindings, effects,

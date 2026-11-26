@@ -191,6 +191,24 @@ public sealed class CompositionTests
     }
 
     [Fact]
+    public void Dropdown_IsTwoWayBound_ToAnIndex()
+    {
+        using var ui = new UIHarness();
+        var picked = Signal.Create(-1);
+        var dropdown = V.Dropdown(picked, ["Default", "Headset"], "Pick one");
+        ui.Context.Root.AddChild(V.Column(dropdown).Width(300));
+        ui.Frame();
+        Assert.Null(dropdown.SelectedOption);
+
+        picked.Value = 1;
+        Assert.Equal("Headset", dropdown.SelectedOption);
+
+        dropdown.SelectedIndex = 0;
+        ui.Frame();
+        Assert.Equal(0, picked.Value);
+    }
+
+    [Fact]
     public void ControlledSwitches_ShowOutsideState_AndHandFlipsToTheSetter()
     {
         using var ui = new UIHarness();

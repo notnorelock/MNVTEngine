@@ -162,6 +162,18 @@ public static class V
 
     public static Tabs Tabs(Signal<int> selected, params string[] labels) => new(selected, labels);
 
+    /// <summary>A <see cref="UI.Widgets.Dropdown"/> of <paramref name="options"/> bound to an index (-1: nothing picked, showing <paramref name="placeholder"/>).</summary>
+    public static Dropdown Dropdown(Signal<int> selected, IEnumerable<string> options, string placeholder = "Select...")
+    {
+        ArgumentNullException.ThrowIfNull(selected);
+        ArgumentNullException.ThrowIfNull(options);
+        var dropdown = new Dropdown { Placeholder = placeholder };
+        dropdown.Options.AddRange(options);
+        dropdown.Bind(() => selected.Value, (d, v) => d.SelectedIndex = v);
+        dropdown.SelectionChanged += v => selected.Value = v;
+        return dropdown;
+    }
+
     public static ListItem ListItem(string title, string? subtitle = null, Action? onClick = null)
     {
         var item = new ListItem(title, subtitle);
