@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using ImGuiNET;
 using Microsoft.Extensions.Logging;
@@ -545,7 +545,7 @@ internal sealed partial class InspectorPanel(EditorContext context) : IDisposabl
 
         var texture = context.Resources.GetTexture(tilemap.Texture);
         var id = context.ImGui.Register(texture);
-        var rows = Math.Max(1, texture.Height / tilemap.TileHeight);
+        var rows = tilemap.RowsIn(texture.Height);
         var count = Math.Min(rows * tilemap.Columns, 1024);
         var perLine = Math.Max(1, (int)(ImGui.GetContentRegionAvail().X / 40f));
         for (var tile = 0; tile < count; tile++)

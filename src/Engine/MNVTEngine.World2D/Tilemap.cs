@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-12.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using MNVTEngine.Mathematics;
 using MNVTEngine.Serialization;
@@ -12,7 +12,8 @@ public readonly record struct TileCell(int X, int Y, int Tile);
 
 /// <summary>
 /// A grid of tiles from one sprite sheet, laid out like animation clips: sheet index <c>n</c> is at column
-/// <c>n % Columns</c>, row <c>n / Columns</c> from the image's top-left. Cell (0, 0) has its bottom-left corner at the
+/// <c>n % Columns</c>, row <c>n / Columns</c> from the image's top-left, after <see cref="Margin"/> and with
+/// <see cref="Spacing"/> between tiles (sheets such as Kenney's leave a 1 texel gap). Cell (0, 0) has its bottom-left corner at the
 /// GameObject's position; +x is right, +y is up, in local units of <see cref="CellSize"/>. Cells are sparse: only
 /// painted cells are stored and rendered.
 /// </summary>
@@ -23,6 +24,8 @@ public sealed class Tilemap : Component
     private int _tileWidth = 16;
     private int _tileHeight = 16;
     private int _columns = 1;
+    private int _margin;
+    private int _spacing;
     private Vector2 _cellSize = Vector2.One;
 
     [SerializeField]
@@ -39,6 +42,14 @@ public sealed class Tilemap : Component
     /// <summary>Tiles per row in the sheet.</summary>
     [SerializeField]
     public int Columns { get => _columns; set => _columns = Math.Max(1, value); }
+
+    /// <summary>Texels between the sheet's top-left edge and its first tile.</summary>
+    [SerializeField]
+    public int Margin { get => _margin; set => _margin = Math.Max(0, value); }
+
+    /// <summary>Texels between neighbouring tiles in the sheet, across and down.</summary>
+    [SerializeField]
+    public int Spacing { get => _spacing; set => _spacing = Math.Max(0, value); }
 
     /// <summary>Cell size in local units.</summary>
     [SerializeField]
@@ -109,7 +120,11 @@ public sealed class Tilemap : Component
     }
 
     /// <summary>Texel rectangle of a sheet index.</summary>
-    public Rect SourceRect(int tile) => new(tile % _columns * _tileWidth, tile / _columns * _tileHeight, _tileWidth, _tileHeight);
+    public Rect SourceRect(int tile) =>
+        new(_margin + tile % _columns * (_tileWidth + _spacing), _margin + tile / _columns * (_tileHeight + _spacing), _tileWidth, _tileHeight);
+
+    /// <summary>Whole tile rows in a sheet <paramref name="textureHeight"/> texels high (at least one).</summary>
+    public int RowsIn(int textureHeight) => Math.Max(1, (textureHeight - _margin + _spacing) / (_tileHeight + _spacing));
 
     /// <summary>The cell containing a world point.</summary>
     public (int X, int Y) WorldToCell(Vector2 world)

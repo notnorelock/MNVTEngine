@@ -8,6 +8,7 @@ A sparse grid of tiles from one sprite sheet. Only painted cells are stored and 
 |---|---|
 | `Texture` | Sheet texture. Use the `point` filter for pixel art. |
 | `TileWidth`, `TileHeight`, `Columns` | The sheet grid. Sheet index `n` is at column `n % Columns`, row `n / Columns` from the image's top-left, the same convention as [animation clips](animation.md). |
+| `Margin`, `Spacing` | Texels before the first tile and between neighbouring tiles (default 0). Sheets with a 1 texel gap between tiles, such as Kenney's, set `Spacing` to 1. |
 | `CellSize` | Cell size in local units (default 1 × 1). |
 | `Color`, `SortingOrder` | Tint and draw order, on the same scale as `SpriteRenderer`. |
 | `Cells` | Painted cells as `{ "x", "y", "tile" }`, saved sorted by row then column for stable diffs. |
