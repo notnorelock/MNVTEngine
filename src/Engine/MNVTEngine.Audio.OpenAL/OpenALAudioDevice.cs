@@ -1,18 +1,22 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using Microsoft.Extensions.Logging;
 using Silk.NET.OpenAL;
 
 namespace MNVTEngine.Audio.OpenAL;
 
-/// <summary>The OpenAL Soft backend: the engine's <see cref="MixingAudioDevice"/> playing through an <see cref="OpenALAudioOutput"/>, with its microphones (<see cref="OpenALCaptureSource"/>).</summary>
+/// <summary>
+/// The OpenAL Soft backend: the engine's <see cref="MixingAudioDevice"/> playing through an <see cref="OpenALAudioOutput"/>
+/// (the system's default; <see cref="IAudioDevice.UseOutput"/> picks another of <see cref="OpenALOutputSource"/>), with
+/// its microphones (<see cref="OpenALCaptureSource"/>).
+/// </summary>
 public static class OpenALAudioDevice
 {
     /// <exception cref="InvalidOperationException">No output device, or OpenAL Soft could not be loaded.</exception>
     public static IAudioDevice Create(ILogger logger) =>
-        new MixingAudioDevice(OpenALAudioOutput.Open(logger)) { Capture = OpenALCaptureSource.TryCreate(logger) };
+        new MixingAudioDevice(OpenALAudioOutput.Open(logger)) { Capture = OpenALCaptureSource.TryCreate(logger), Outputs = new OpenALOutputSource(logger) };
 }
 
 /// <summary>
@@ -49,8 +53,10 @@ public sealed unsafe partial class OpenALAudioOutput : IAudioOutput
 
     public int SampleRate => 48000;
 
-    /// <exception cref="InvalidOperationException">No output device, or OpenAL Soft could not be loaded.</exception>
-    public static OpenALAudioOutput Open(ILogger logger)
+    /// <param name="logger">Where the output logs.</param>
+    /// <param name="device">A playback device's name (<see cref="OpenALOutputSource.Devices"/>); null or empty is the system's default.</param>
+    /// <exception cref="InvalidOperationException">No such output device, or OpenAL Soft could not be loaded.</exception>
+    public static OpenALAudioOutput Open(ILogger logger, string? device = null)
     {
         ArgumentNullException.ThrowIfNull(logger);
         ALContext alc;
@@ -65,20 +71,24 @@ public sealed unsafe partial class OpenALAudioOutput : IAudioOutput
             throw new InvalidOperationException($"OpenAL Soft (soft_oal.dll) could not be loaded: {ex.Message}", ex);
         }
 
-        var device = alc.OpenDevice("");
-        if (device == null)
+        var opened = alc.OpenDevice(device ?? "");
+        if (opened == null)
         {
-            throw new InvalidOperationException("No audio output device is available.");
+            al.Dispose();
+            alc.Dispose();
+            throw new InvalidOperationException(string.IsNullOrEmpty(device) ? "No audio output device is available." : $"The audio output '{device}' cannot be opened.");
         }
 
-        var context = alc.CreateContext(device, null);
+        var context = alc.CreateContext(opened, null);
         if (context == null || !alc.MakeContextCurrent(context))
         {
-            alc.CloseDevice(device);
+            alc.CloseDevice(opened);
+            al.Dispose();
+            alc.Dispose();
             throw new InvalidOperationException("Could not create an OpenAL context.");
         }
 
-        var output = new OpenALAudioOutput(alc, al, device, context, logger);
+        var output = new OpenALAudioOutput(alc, al, opened, context, logger);
         LogOpened(logger, output.Name);
         return output;
     }

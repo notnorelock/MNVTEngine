@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using MNVTEngine.Mathematics;
 
@@ -157,6 +157,17 @@ public interface IAudioDevice : IDisposable
 
     /// <summary>The backend's microphones; null when it cannot record (the silent device, a backend without capture).</summary>
     IAudioCaptureSource? Capture { get; }
+
+    /// <summary>The backend's speakers to choose from (<see cref="UseOutput"/>); null when the output cannot be chosen.</summary>
+    IAudioOutputSource? Outputs { get; }
+
+    /// <summary>
+    /// Plays through another of <see cref="Outputs"/>' devices (null or empty: the system's default); every voice
+    /// carries on. When that device cannot be opened the default plays instead, and the exception says why.
+    /// </summary>
+    /// <exception cref="NotSupportedException">The output cannot be chosen (<see cref="Outputs"/> is null).</exception>
+    /// <exception cref="InvalidOperationException">The device cannot be opened (the default plays instead).</exception>
+    void UseOutput(string? device);
 
     /// <summary>A mono copy of the output for echo cancellation; off until enabled.</summary>
     PlaybackTap Playback { get; }

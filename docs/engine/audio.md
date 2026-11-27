@@ -12,6 +12,11 @@ The host chooses the backend:
 - The game host, the Player, `mnvt run` and the editor's Play Mode pass `OpenALAudioDevice.Create`.
 - Runtime and Scenes never reference OpenAL. This is enforced by the architecture tests.
 - If no output device exists, the host logs a warning and the game runs silently on `NullAudioDevice`.
+- Sound starts on the system's default output. `IAudioDevice.Outputs` lists the backend's playback devices (OpenAL
+  Soft's `ALC_ENUMERATE_ALL_EXT`, `OpenALOutputSource`), and `UseOutput(name)` moves the mix to one of them while
+  everything keeps playing: the old output's thread stops, and the time until the new one starts is mixed silently.
+  A device that cannot be opened falls back to the default, and the call throws to say why. `null` means the
+  default; the silent device has no outputs (`NotSupportedException`).
 
 **The engine mixes the sound itself.** `MixingAudioDevice` mixes every voice into its mixer bus, runs each bus's
 insert effects, fader and meter, feeds the result to its parent bus and finally to Master. OpenAL only plays the
@@ -133,6 +138,7 @@ UI's **Mixer** panel (changes there last for the run). Meters are live in Play m
 
 - `NullAudioDevice` renders the mix in simulated time, so component behaviour (pause, finish, loops, one-shots, unload), bus levels, meters, panning and effects are tested deterministically (`MixerAndEffectTests`).
 - `OpenAL_PlaysAClipToTheEnd` plays a quiet beep on the real device, and skips on machines without audio output.
+- `OutputSwitchTests`: switching outputs stops the old one and starts the new one; a device that cannot be opened falls back to the default.
 - `AudioStreamingTests`: streamed decoding equals whole decoding, playback to the end without underruns, seamless looping, seeking (`Time`) in streamed and decoded clips, read errors stopping the voice, and the `loadType` / size rule.
 
 ## Limitations

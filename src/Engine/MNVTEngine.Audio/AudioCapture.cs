@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 namespace MNVTEngine.Audio;
 
@@ -18,6 +18,18 @@ public interface IAudioCaptureSource
     /// <param name="sampleRate">Samples per second, e.g. 48000.</param>
     /// <exception cref="InvalidOperationException">There is no such microphone, or it cannot be opened.</exception>
     IAudioCapture Open(string? device, int sampleRate);
+}
+
+/// <summary>Speakers of the audio backend (<see cref="IAudioDevice.Outputs"/>), for <see cref="IAudioDevice.UseOutput"/>.</summary>
+public interface IAudioOutputSource
+{
+    /// <summary>The names of the playback devices; empty when the backend cannot list them.</summary>
+    IReadOnlyList<string> Devices { get; }
+
+    /// <summary>Opens a playback device, not started.</summary>
+    /// <param name="device">One of <see cref="Devices"/>; null or empty is the system's default.</param>
+    /// <exception cref="InvalidOperationException">There is no such device, or it cannot be opened.</exception>
+    IAudioOutput Open(string? device);
 }
 
 /// <summary>An open microphone. Recorded samples wait in the backend's buffer (about a second) until read.</summary>

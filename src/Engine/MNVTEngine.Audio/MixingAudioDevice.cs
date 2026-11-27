@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using MNVTEngine.Mathematics;
 
@@ -39,7 +39,7 @@ public class MixingAudioDevice : IAudioDevice
     private const int BlockFrames = 256;
     private const int MeterBlocks = 10; // ~50 ms at 48 kHz
 
-    private readonly IAudioOutput? _output;
+    private volatile IAudioOutput? _output;
     private readonly Lock _lock = new();
     private readonly List<ClipVoice> _voices = [];
     private readonly List<StreamVoice> _streams = [];
@@ -54,6 +54,9 @@ public class MixingAudioDevice : IAudioDevice
     /// <summary>The backend's microphones, set by the backend that creates the device; null without.</summary>
     public IAudioCaptureSource? Capture { get; init; }
 
+    /// <summary>The backend's speakers; null (the default) when the output is fixed.</summary>
+    public IAudioOutputSource? Outputs { get; init; }
+
     public PlaybackTap Playback { get; }
 
     public MixingAudioDevice(IAudioOutput? output, int sampleRate = 48000)
@@ -66,6 +69,24 @@ public class MixingAudioDevice : IAudioDevice
     }
 
     public virtual string Name => _output?.Name ?? "Null (silent)";
+
+    /// <inheritdoc/>
+    public void UseOutput(string? device)
+    {
+        var outputs = Outputs ?? throw new NotSupportedException("This audio device's output cannot be chosen.");
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _output?.Dispose(); // stops its render thread; until the next one starts, Update mixes the time silently
+        _output = null;
+        try
+        {
+            Start(outputs.Open(device));
+        }
+        catch (InvalidOperationException) when (!string.IsNullOrEmpty(device))
+        {
+            Start(outputs.Open(null)); // the default plays instead (if it cannot either, the game runs silently)
+            throw;
+        }
+    }
 
     public int SampleRate { get; }
 
@@ -289,6 +310,18 @@ public class MixingAudioDevice : IAudioDevice
         var milliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         var audioMilliseconds = stereo.Length / 2 * 1000.0 / SampleRate;
         RenderLoad = (RenderLoad * 0.95) + (milliseconds / Math.Max(audioMilliseconds, 0.001) * 0.05);
+    }
+
+    private void Start(IAudioOutput output)
+    {
+        if (output.SampleRate != SampleRate)
+        {
+            output.Dispose();
+            throw new InvalidOperationException($"The output '{output.Name}' runs at {output.SampleRate} Hz; the mixer at {SampleRate} Hz.");
+        }
+
+        output.Start(Render);
+        _output = output;
     }
 
     public void Dispose()

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -70,22 +70,7 @@ public sealed unsafe partial class OpenALCaptureSource : IAudioCaptureSource
     {
         get
         {
-            // A list of names, each ending in a zero byte, ending in an empty name.
-            var list = _getString(0, CaptureDeviceSpecifier);
-            var names = new List<string>();
-            while (list != null && *list != 0)
-            {
-                var length = 0;
-                while (list[length] != 0)
-                {
-                    length++;
-                }
-
-                names.Add(Encoding.UTF8.GetString(list, length));
-                list += length + 1;
-            }
-
-            return names;
+            return OpenALOutputSource.ReadNames(_getString(0, CaptureDeviceSpecifier));
         }
     }
 
