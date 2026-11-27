@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using System.Text;
 using Microsoft.Extensions.Logging;
@@ -14,9 +14,9 @@ namespace MNVTEngine.Runtime;
 /// <summary>
 /// Loads content bundles for <see cref="ContentBundles"/>: checks the file against the game's policy, mounts it into the
 /// asset database (apart from the game's assets) and instantiates its root prefab with a registry limited to the
-/// components the game allows.
+/// components the game allows. Games get one from <see cref="GameRuntime"/>; the editor sets one while in Play Mode.
 /// </summary>
-internal sealed partial class ContentBundleHost(AssetDatabase assets, ComponentRegistry registry, ILogger logger) : IContentBundleHost
+public sealed partial class ContentBundleHost(AssetDatabase assets, ComponentRegistry registry, ILogger logger) : IContentBundleHost
 {
     public ContentBundle Load(string file, ContentBundleLoadOptions options, PackageEncryptionKey? key = null)
     {

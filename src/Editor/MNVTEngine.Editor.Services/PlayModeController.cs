@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Core.Timing;
@@ -79,6 +79,7 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         Input.ReleaseAll();
         Diagnostics = CreateDiagnostics?.Invoke();
         Diagnostics?.Install(); // before the scene starts, so Start() can already draw and register commands
+        ContentBundles.SetHost(new Runtime.ContentBundleHost(session.Assets, session.Registry, loggerFactory.CreateLogger("Bundles"))); // as a built game has
         Start(copy.Scene);
         State = PlayState.Playing;
         LogEntered(_logger, copy.Scene.Name);
@@ -92,8 +93,9 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         }
 
         Application.QuitRequested -= OnQuitRequested;
-        PlayScene?.Unload();
+        PlayScene?.Unload(); // its components dispose the bundles they loaded
         PlayScene = null;
+        ContentBundles.SetHost(null);
         Diagnostics?.Uninstall();
         Diagnostics = null;
         AdvancedThisFrame = false;
