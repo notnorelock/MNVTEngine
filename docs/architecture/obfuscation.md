@@ -38,6 +38,12 @@ The engine finds parts of a game by name, so those names are never renamed:
 - **`[ComponentId]` / `[ComponentAlias]`** — the scene id a component is saved under is an attribute string, which
   neither renaming nor string encryption touches, so those components need no remap.
 
+**Content bundles loaded at run time are not remapped.** A JIT export renames serialized members and remaps only the
+scenes and prefabs it ships. A [content bundle](content-bundles.md) built outside the game (an SDK, mods,
+user content) names component fields as the source code does, so any component such a bundle may create must keep
+its names: mark it `[Obfuscation(Exclude = true, Feature = "rename", ApplyToMembers = true)]` (types, not the assembly,
+when its sources are compiled into the game). Otherwise its fields silently keep their defaults in the obfuscated build.
+
 ## JIT vs. ahead-of-time
 
 | | JIT export | Ahead-of-time (NativeAOT) export |

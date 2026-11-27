@@ -79,6 +79,11 @@ foreach (var problem in instance.Problems) { Log.Warning(problem); }
   caches are told through `AssetsChanged`. Destroy its instances first.
 - Works in development (Player, editor play mode) and in exported games alike.
 
+**Obfuscated games.** A JIT export with `--obfuscate` renames the serialized fields of components and remaps only the
+scenes it ships. Components a bundle may create must keep their names
+(`[Obfuscation(Exclude = true, Feature = "rename", ApplyToMembers = true)]`), or their fields keep their defaults
+in that build; see [obfuscation](obfuscation.md).
+
 ## Building
 
 ```bash
