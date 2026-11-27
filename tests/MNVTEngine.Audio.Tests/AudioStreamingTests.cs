@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using MNVTEngine.Scenes;
 
@@ -105,6 +105,41 @@ public class AudioStreamingTests
         Assert.Equal(0f, voice.Time);
         Assert.Equal(0, device.StreamUnderruns);
         Assert.True(SpinWait.SpinUntil(() => device.ActiveStreams == 0, 2000));
+    }
+
+    [Fact]
+    public void AStreamedClipOfUnknownLength_StillSeeks()
+    {
+        using var device = new NullAudioDevice();
+        var wav = AudioTests.Sine(2f);
+        using var buffer = device.CreateStreamedBuffer(() => new UnknownLength(AudioDecoder.Open(new MemoryStream(wav), "sine.wav")));
+        Assert.Equal(0f, buffer.Duration);
+        using var voice = device.CreateVoice();
+        voice.Play(buffer);
+        voice.Time = 1.5f; // not clamped to the unknown length (0)
+        for (var i = 0; i < 10; i++)
+        {
+            Thread.Sleep(10);
+            device.Update(0.01f);
+        }
+
+        Assert.InRange(voice.Time, 1.5f, 1.8f);
+    }
+
+    /// <summary>A decoder that does not say how long it is (fragmented MP4, MP3).</summary>
+    private sealed class UnknownLength(IAudioSampleSource inner) : IAudioSampleSource
+    {
+        public int Channels => inner.Channels;
+
+        public int SampleRate => inner.SampleRate;
+
+        public long? Frames => null;
+
+        public int Read(Span<short> interleaved) => inner.Read(interleaved);
+
+        public void Seek(long frame) => inner.Seek(frame);
+
+        public void Dispose() => inner.Dispose();
     }
 
     [Fact]

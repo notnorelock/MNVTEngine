@@ -79,7 +79,8 @@ public interface IAudioVoice : IDisposable
 
     /// <summary>
     /// Seconds into the clip (looping wraps it); 0 when stopped. Setting it seeks, clamped to the clip: a streamed clip
-    /// restarts decoding there, so the seek is heard after the first block decodes.
+    /// restarts decoding there, so the seek is heard after the first block decodes. A streamed clip of unknown length
+    /// (<see cref="IAudioBuffer.Duration"/> 0) seeks anywhere; past its end it finishes.
     /// </summary>
     float Time { get; set; }
 

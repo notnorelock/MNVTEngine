@@ -801,7 +801,7 @@ public class MixingAudioDevice : IAudioDevice
                 }
 
                 // A streamed clip restarts decoding at the new frame, outside the lock like Play.
-                var prepared = device.PrepareStream(buffer, loop, (long)(Math.Clamp(value, 0f, buffer.Duration) * (double)buffer.SampleRate));
+                var prepared = device.PrepareStream(buffer, loop, (long)((buffer.Duration > 0 ? Math.Clamp(value, 0f, buffer.Duration) : Math.Max(0f, value)) * (double)buffer.SampleRate)); // an unknown length: the decoder stops at the end
                 lock (device._lock)
                 {
                     if (_stream?.Buffer == buffer)
