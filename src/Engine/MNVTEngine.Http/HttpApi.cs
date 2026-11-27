@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using System.Net;
 using System.Text;
@@ -141,7 +141,7 @@ public sealed class HttpApi : IDisposable
             var headers = answer.Headers.Concat(answer.Content.Headers).GroupBy(h => h.Key, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => string.Join(", ", g.SelectMany(h => h.Value)), StringComparer.OrdinalIgnoreCase);
             var limit = request.MaxResponseBytes ?? Options.MaxResponseBytes;
-            if (await ReadLimitedAsync(answer.Content, limit, timeout.Token).ConfigureAwait(false) is not { } bytes)
+            if (await ReadLimitedAsync(answer.Content, limit, request.Progress, timeout.Token).ConfigureAwait(false) is not { } bytes)
             {
                 return Fail(HttpErrorKind.TooLarge, $"The response is larger than {limit} bytes.", status: answer.StatusCode, headers: headers);
             }
@@ -197,12 +197,15 @@ public sealed class HttpApi : IDisposable
     }
 
     /// <summary>The body, or null when it exceeds <paramref name="limit"/> bytes (checked while reading, not only from Content-Length).</summary>
-    private static async Task<byte[]?> ReadLimitedAsync(HttpContent content, long limit, CancellationToken cancellationToken)
+    private static async Task<byte[]?> ReadLimitedAsync(HttpContent content, long limit, IProgress<HttpProgress>? progress, CancellationToken cancellationToken)
     {
-        if (content.Headers.ContentLength > limit)
+        var total = content.Headers.ContentLength;
+        if (total > limit)
         {
             return null;
         }
+
+        progress?.Report(new HttpProgress(0, total));
 
         using var stream = await content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var buffer = new MemoryStream();
@@ -216,6 +219,7 @@ public sealed class HttpApi : IDisposable
             }
 
             buffer.Write(chunk, 0, read);
+            progress?.Report(new HttpProgress(buffer.Length, total));
         }
 
         return buffer.ToArray();

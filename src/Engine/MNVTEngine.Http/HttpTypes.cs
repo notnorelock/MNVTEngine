@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using System.Net;
 using Newtonsoft.Json;
@@ -31,6 +31,13 @@ public sealed class HttpOptions
     };
 }
 
+/// <summary>How much of a response body arrived: bytes so far, and the total when the server said (Content-Length).</summary>
+public readonly record struct HttpProgress(long Received, long? Total)
+{
+    /// <summary>0 to 1; null without a total.</summary>
+    public float? Fraction => Total is > 0 and var total ? (float)Math.Min(1.0, (double)Received / total) : null;
+}
+
 /// <summary>One request. Interceptors may change it before it is sent.</summary>
 public sealed class HttpRequest(HttpMethod method, string url)
 {
@@ -52,6 +59,12 @@ public sealed class HttpRequest(HttpMethod method, string url)
 
     /// <summary>Overrides <see cref="HttpOptions.MaxResponseBytes"/> for this request (a download larger than the API's answers).</summary>
     public long? MaxResponseBytes { get; set; }
+
+    /// <summary>
+    /// Told how much of the response body arrived, after each chunk read (on the thread that reads it; a
+    /// <see cref="Progress{T}"/> posts to the caller's context). For download bars.
+    /// </summary>
+    public IProgress<HttpProgress>? Progress { get; set; }
 
     /// <summary>Sets the <c>Authorization: Bearer</c> header.</summary>
     public HttpRequest WithBearer(string token)

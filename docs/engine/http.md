@@ -52,6 +52,9 @@ public sealed class Leaderboard : Component
   enable type names: responses are untrusted input).
 - `T = string` returns the raw body, `T = byte[]` its bytes (a download; `Text` stays empty on success).
 - `MaxResponseBytes` on the request overrides the option for one call, for a download larger than the API's answers.
+- `Progress` on the request (`IProgress<HttpProgress>`) is told how much of the body arrived: at the start and after
+  each chunk, with the total when the server sent Content-Length (`Fraction` is then 0 to 1). It is called on the
+  reading thread; a `Progress<T>` posts to the caller's context, or poll a value it stores.
 
 ## Responses
 

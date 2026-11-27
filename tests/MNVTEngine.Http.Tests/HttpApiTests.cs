@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using System.Net;
 using System.Text;
@@ -14,6 +14,11 @@ public sealed class HttpApiTests
     private sealed record Problem(string Code, string Message);
 
     /// <summary>Answers every request with <paramref name="answer"/> and remembers what was sent.</summary>
+    private sealed class Recorder(List<HttpProgress> seen) : IProgress<HttpProgress>
+    {
+        public void Report(HttpProgress value) => seen.Add(value);
+    }
+
     private sealed class StubHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> answer) : HttpMessageHandler
     {
         public List<(HttpRequestMessage Request, string? Body)> Sent { get; } = [];
@@ -125,6 +130,25 @@ public sealed class HttpApiTests
         var response = await api.GetAsync<byte[]>("file", r => r.MaxResponseBytes = 4, Token);
         Assert.True(response.Ok);
         Assert.Equal(body, response.Data);
+    }
+
+    [Fact]
+    public async Task Progress_ReportsEachChunkAndTheTotal()
+    {
+        var body = new byte[200_000]; // more than one 80 KiB chunk
+        var handler = new StubHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(body) }));
+        using var api = Api(handler, o => o.MaxResponseBytes = body.Length);
+        var seen = new List<HttpProgress>();
+        var progress = new Recorder(seen);
+
+        var response = await api.GetAsync<byte[]>("file", r => r.Progress = progress, Token);
+
+        Assert.True(response.Ok);
+        Assert.Equal(new HttpProgress(0, body.Length), seen[0]);
+        Assert.True(seen.Count >= 3);
+        Assert.Equal(body.Length, seen[^1].Received);
+        Assert.Equal(1f, seen[^1].Fraction);
+        Assert.Null(new HttpProgress(5, null).Fraction);
     }
 
     [Fact]
