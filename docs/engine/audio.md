@@ -4,7 +4,7 @@ Two projects split the audio system the same way graphics is split:
 
 | Project | Owns | Dependencies |
 |---|---|---|
-| `MNVTEngine.Audio` | The software mixer `MixingAudioDevice` (voices, buses, insert effects, meters, panning and attenuation), `IAudioDevice`/`IAudioVoice`/`IAudioBuffer`, `IStreamingVoice` (PCM queued while it plays, e.g. [browser page audio](browser.md#audio)), the effects (`AudioEffects`), WAV, Ogg Vorbis, MP3 and WebM Opus decoding, `AudioSource`/`AudioListener`/`AudioMixer`, per-scene `AudioSystem`, silent `NullAudioDevice` | Scenes, NVorbis (MIT), NLayer (MIT), Concentus (BSD-3) |
+| `MNVTEngine.Audio` | The software mixer `MixingAudioDevice` (voices, buses, insert effects, meters, panning and attenuation), `IAudioDevice`/`IAudioVoice`/`IAudioBuffer`, `IStreamingVoice` (PCM queued while it plays, e.g. [browser page audio](browser.md#audio)), the effects (`AudioEffects`), WAV, Ogg Vorbis, MP3, WebM Opus and (Windows) MP4 AAC decoding, `AudioSource`/`AudioListener`/`AudioMixer`, per-scene `AudioSystem`, silent `NullAudioDevice` | Scenes, NVorbis (MIT), NLayer (MIT), Concentus (BSD-3) |
 | `MNVTEngine.Audio.OpenAL` | `OpenALAudioDevice.Create` (the mixer on an `OpenALAudioOutput`) | Audio, Silk.NET.OpenAL (MIT), OpenAL Soft native (`soft_oal.dll`, LGPL) |
 
 The host chooses the backend:
@@ -133,9 +133,13 @@ UI's **Mixer** panel (changes there last for the run). Meters are live in Play m
 - **Opus in WebM:** through Concentus (BSD-3, fully managed), the first Opus track, always 48 kHz: what YouTube
   serves as audio. The blocks are indexed when the file opens; a seek starts decoding 80 ms before the target so the
   decoder settles. The pre-skip is not heard. Laced blocks are refused.
+- **AAC in MP4** (also fragmented, as SoundCloud serves it): Windows only, through Media Foundation's source reader
+  (`mfreadwrite.dll`, part of Windows), at the file's own rate. It opens the file by path, so only a `FileStream`
+  works; from memory or a package the MP4 is refused. A fragmented MP4 does not give its length.
 - **Channels:** mono and stereo only.
 - **Errors:** damaged or unsupported files raise `InvalidDataException` with the asset name.
 - **Streams:** `AudioDecoder.Open(stream, name)` gives an `IAudioSampleSource` (block reads, `Seek(frame)`); `AudioDecoder.Decode` drains one.
+  A streamed clip of unknown length (`Duration` 0: MP3, fragmented MP4) still seeks with `IAudioVoice.Time`; past its end it finishes.
 
 ## Tests
 

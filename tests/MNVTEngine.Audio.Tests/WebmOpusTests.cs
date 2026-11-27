@@ -32,6 +32,10 @@ public sealed class WebmOpusTests
     public void AWebmWithoutOpus_IsRefused() =>
         Assert.Throws<InvalidDataException>(() => AudioDecoder.Open(new MemoryStream([0x1A, 0x45, 0xDF, 0xA3, 0x80]), "empty.webm"));
 
+    [Fact]
+    public void Mp4FromMemory_IsRefused_MediaFoundationReadsOnlyFiles() =>
+        Assert.Throws<InvalidDataException>(() => AudioDecoder.Open(new MemoryStream([0, 0, 0, 16, .. "ftypM4A "u8, 0, 0, 0, 0]), "track.m4a"));
+
     private static double Rms(ReadOnlySpan<short> samples)
     {
         double sum = 0;

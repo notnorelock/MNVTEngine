@@ -28,7 +28,7 @@ public interface IAudioSampleSource : IDisposable
     void Seek(long frame);
 }
 
-/// <summary>Decodes WAV (PCM 8/16/24/32-bit, IEEE float), Ogg Vorbis, MP3 and Opus in WebM to 16-bit PCM, whole or streamed.</summary>
+/// <summary>Decodes WAV (PCM 8/16/24/32-bit, IEEE float), Ogg Vorbis, MP3, Opus in WebM and (on Windows) AAC in MP4 to 16-bit PCM, whole or streamed.</summary>
 public static class AudioDecoder
 {
     /// <summary>A whole clip decoded into memory.</summary>
@@ -81,6 +81,18 @@ public static class AudioDecoder
                 return Guard(() => new WebmOpusSampleSource(stream), sourceName);
             }
 
+            if (read >= 8 && magic.Slice(4, 4).SequenceEqual("ftyp"u8))
+            {
+                if (!OperatingSystem.IsWindows() || stream is not FileStream file)
+                {
+                    throw new InvalidDataException($"'{sourceName}' is MP4 audio, which is decoded only from files on Windows (Media Foundation).");
+                }
+
+                var path = file.Name;
+                stream.Dispose(); // Media Foundation opens the file itself
+                return Guard(() => new Mp4SampleSource(path), sourceName);
+            }
+
             if (IsMp3(magic[..read]))
             {
                 return Guard(() => new Mp3SampleSource(stream), sourceName);
@@ -93,7 +105,7 @@ public static class AudioDecoder
         }
 
         stream.Dispose();
-        throw new InvalidDataException($"'{sourceName}' is not a WAV, Ogg Vorbis, MP3 or WebM Opus file.");
+        throw new InvalidDataException($"'{sourceName}' is not a WAV, Ogg Vorbis, MP3, WebM Opus or MP4 file.");
     }
 
     /// <summary>An MP3 starts with an ID3v2 tag or an MPEG audio frame (11 sync bits set).</summary>

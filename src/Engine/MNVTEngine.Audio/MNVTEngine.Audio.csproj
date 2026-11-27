@@ -1,4 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks> <!-- Media Foundation calls through COM vtables (Mp4SampleSource) -->
+  </PropertyGroup>
   <!-- Backend-free audio: device abstraction, WAV/OGG decoding, AudioSource/AudioListener components, per-scene AudioSystem. -->
   <ItemGroup>
     <PackageReference Include="NVorbis" />
