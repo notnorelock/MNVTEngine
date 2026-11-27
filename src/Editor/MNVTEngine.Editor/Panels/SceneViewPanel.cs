@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-12.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using ImGuiNET;
 using MNVTEngine.DebugUI.ImGuiBackend;
@@ -32,6 +32,7 @@ internal sealed class SceneViewPanel : IDisposable
     private Vector2? _lastPaint;
     private Vector2 _mouseWorld;
     private bool _hand;
+    private bool _showGizmos = true;
 
     public SceneViewPanel(EditorContext context)
     {
@@ -118,6 +119,11 @@ internal sealed class SceneViewPanel : IDisposable
                 .Select(p => (Vector2)camera.Transform.Position + Vector2.Rotate(p, camera.Transform.Rotation2D))], new Color(1f, 1f, 1f, 0.35f), upp);
         }
 
+        if (_showGizmos && _context.ExtensionGizmos is { } gizmos)
+        {
+            gizmos(new GizmoDrawer(batch, upp));
+        }
+
         if (PaintTarget() is { } tilemap)
         {
             var (x, y) = tilemap.WorldToCell(_mouseWorld);
@@ -197,6 +203,10 @@ internal sealed class SceneViewPanel : IDisposable
         if (is3D)
         {
             DrawToolbar3D();
+        }
+        else if (Gui.IconButton(_showGizmos ? Icons.Eye : Icons.EyeOff, "Gizmos: what the project's editor code draws over the scene", _showGizmos))
+        {
+            _showGizmos = !_showGizmos;
         }
 
         ImGui.SameLine(0f, 12f);
@@ -529,6 +539,18 @@ internal sealed class SceneViewPanel : IDisposable
         {
             batch.DrawLine(new Vector2(bounds.Min.X, y), new Vector2(bounds.Max.X, y), MathF.Abs(y) < spacing * 0.01f ? axisX : minor, thickness, depth: 100f);
         }
+    }
+
+    /// <summary>Extension gizmos over the 2D view: in front of the scene, behind the selection outline and handles.</summary>
+    private sealed class GizmoDrawer(SpriteBatch batch, float upp) : Extensions.ISceneGizmoDrawer
+    {
+        public float UnitsPerPixel => upp;
+
+        public void Line(Vector2 a, Vector2 b, Color color) => batch.DrawLine(a, b, color, 1.5f * upp, depth: -40f);
+
+        public void Rectangle(Rect rect, Color color) => batch.DrawRectangle(rect, color, 1.5f * upp, depth: -40f);
+
+        public void FillRectangle(Rect rect, Color color) => batch.FillRectangle(rect, color, depth: -39f);
     }
 
     private static void DrawQuad(SpriteBatch batch, Vector2[] corners, Color color, float upp)

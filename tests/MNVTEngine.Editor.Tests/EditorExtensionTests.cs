@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using Microsoft.Extensions.Logging.Abstractions;
 using MNVTEngine.Build;
 using MNVTEngine.Editor.Extensions;
 using MNVTEngine.Editor.Services;
+using MNVTEngine.Mathematics;
 using MNVTEngine.Runtime;
 using MNVTEngine.Scenes;
 
@@ -35,6 +36,11 @@ public sealed class SampleTransformInspector : ComponentInspector<Transform>
     protected override void OnInspectorGui(IEditorGui gui, Transform component) => gui.Text(component.GameObject.Name);
 }
 
+public sealed class SampleSceneGizmos : SceneGizmos
+{
+    public override void OnDrawGizmos(ISceneGizmoDrawer draw) => draw.Rectangle(new Rect(0f, 0f, 1f, 1f), Color.Red);
+}
+
 /// <summary>Editor extensions: discovery, their settings and secrets, and a project's editor code built and loaded with its scripts.</summary>
 public sealed class EditorExtensionTests : IDisposable
 {
@@ -56,7 +62,7 @@ public sealed class EditorExtensionTests : IDisposable
     }
 
     [Fact]
-    public void TheCatalog_FindsWindowsAndInspectors_AndReportsWhatItCannotUse()
+    public void TheCatalog_FindsWindowsInspectorsAndGizmos_AndReportsWhatItCannotUse()
     {
         var catalog = ExtensionCatalog.From(typeof(EditorExtensionTests).Assembly);
 
@@ -64,6 +70,8 @@ public sealed class EditorExtensionTests : IDisposable
         Assert.Contains((typeof(BadPathExtensionWindow), (string?)null), catalog.Windows); // kept, without a menu item
         Assert.DoesNotContain(catalog.Windows, w => w.Type == typeof(NoConstructorExtensionWindow));
         Assert.Contains(typeof(SampleTransformInspector), catalog.Inspectors);
+        Assert.Equal([typeof(SampleSceneGizmos)], catalog.Gizmos);
+        Assert.DoesNotContain(typeof(SampleSceneGizmos), catalog.Inspectors);
         Assert.Contains(catalog.Problems, p => p.Contains(nameof(NoConstructorExtensionWindow), StringComparison.Ordinal));
         Assert.Contains(catalog.Problems, p => p.Contains("Tests//Broken", StringComparison.Ordinal));
         Assert.Equal("MNVTEngine.Editor.Tests", catalog.Name);

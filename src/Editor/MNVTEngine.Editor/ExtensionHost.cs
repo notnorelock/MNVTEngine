@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using ImGuiNET;
 using Microsoft.Extensions.Logging;
@@ -27,6 +27,7 @@ internal sealed class ExtensionHost
     private Services _services;
     private Dictionary<string, (EditorWindow Window, string? Menu)> _windows = [];
     private List<ComponentInspector> _inspectors = [];
+    private List<SceneGizmos> _gizmos = [];
 
     public ExtensionHost(EditorContext context)
     {
@@ -68,6 +69,16 @@ internal sealed class ExtensionHost
             {
                 inspector.Attach(_services);
                 _inspectors.Add(inspector);
+            }
+        }
+
+        _gizmos = [];
+        foreach (var type in catalog.Gizmos)
+        {
+            if (Create<SceneGizmos>(type) is { } gizmos)
+            {
+                gizmos.Attach(_services);
+                _gizmos.Add(gizmos);
             }
         }
     }
@@ -120,6 +131,15 @@ internal sealed class ExtensionHost
             ImGui.Spacing();
             Run(inspector, "OnInspectorGui", () => inspector.OnInspectorGui(_gui, component));
             ImGui.PopID();
+        }
+    }
+
+    /// <summary>The extensions' gizmos over the 2D Scene view.</summary>
+    public void DrawGizmos(ISceneGizmoDrawer draw)
+    {
+        foreach (var gizmos in _gizmos.Where(g => !_failed.Contains(g)))
+        {
+            Run(gizmos, "OnDrawGizmos", () => gizmos.OnDrawGizmos(draw));
         }
     }
 

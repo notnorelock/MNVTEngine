@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using System.Reflection;
 using System.Security.Cryptography;
@@ -10,18 +10,19 @@ using Newtonsoft.Json;
 
 namespace MNVTEngine.Editor.Services;
 
-/// <summary>The extensions one generation of editor code brings: its windows (with their menu paths) and inspectors.</summary>
+/// <summary>The extensions one generation of editor code brings: its windows (with their menu paths), inspectors and scene gizmos.</summary>
 public sealed class ExtensionCatalog
 {
-    private ExtensionCatalog(string name, IReadOnlyList<(Type Type, string? MenuPath)> windows, IReadOnlyList<Type> inspectors, IReadOnlyList<string> problems)
+    private ExtensionCatalog(string name, IReadOnlyList<(Type Type, string? MenuPath)> windows, IReadOnlyList<Type> inspectors, IReadOnlyList<Type> gizmos, IReadOnlyList<string> problems)
     {
         Name = name;
         Windows = windows;
         Inspectors = inspectors;
+        Gizmos = gizmos;
         Problems = problems;
     }
 
-    public static ExtensionCatalog Empty { get; } = new("Editor", [], [], []);
+    public static ExtensionCatalog Empty { get; } = new("Editor", [], [], [], []);
 
     /// <summary>The editor code's assembly name: its settings and secrets are kept under it.</summary>
     public string Name { get; }
@@ -32,6 +33,9 @@ public sealed class ExtensionCatalog
     /// <summary>Concrete <see cref="ComponentInspector"/> types.</summary>
     public IReadOnlyList<Type> Inspectors { get; }
 
+    /// <summary>Concrete <see cref="SceneGizmos"/> types.</summary>
+    public IReadOnlyList<Type> Gizmos { get; }
+
     /// <summary>Types that look like extensions but cannot be created (no public parameterless constructor), and bad menu paths.</summary>
     public IReadOnlyList<string> Problems { get; }
 
@@ -39,11 +43,12 @@ public sealed class ExtensionCatalog
     public static ExtensionCatalog From(Assembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
-        var (windows, inspectors, problems) = (new List<(Type, string?)>(), new List<Type>(), new List<string>());
+        var (windows, inspectors, gizmos, problems) = (new List<(Type, string?)>(), new List<Type>(), new List<Type>(), new List<string>());
         foreach (var type in assembly.GetExportedTypes().Where(t => t is { IsClass: true, IsAbstract: false }).OrderBy(t => t.FullName, StringComparer.Ordinal))
         {
             var window = typeof(EditorWindow).IsAssignableFrom(type);
-            if (!window && !typeof(ComponentInspector).IsAssignableFrom(type))
+            var gizmo = typeof(SceneGizmos).IsAssignableFrom(type);
+            if (!window && !gizmo && !typeof(ComponentInspector).IsAssignableFrom(type))
             {
                 continue;
             }
@@ -56,7 +61,7 @@ public sealed class ExtensionCatalog
 
             if (!window)
             {
-                inspectors.Add(type);
+                (gizmo ? gizmos : inspectors).Add(type);
                 continue;
             }
 
@@ -70,7 +75,7 @@ public sealed class ExtensionCatalog
             windows.Add((type, path));
         }
 
-        return new ExtensionCatalog(assembly.GetName().Name ?? "Editor", windows, inspectors, problems);
+        return new ExtensionCatalog(assembly.GetName().Name ?? "Editor", windows, inspectors, gizmos, problems);
     }
 }
 

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using System.Diagnostics.CodeAnalysis;
 using ImGuiNET;
@@ -178,6 +178,7 @@ internal sealed partial class EditorApp(GameProject project, ComponentRegistry r
         _extensions = new ExtensionHost(_context);
         _packageImport = new PackageImportDialog(_context, _scripts);
         _context.ExtensionInspectors = _extensions.DrawInspectors;
+        _context.ExtensionGizmos = _extensions.DrawGizmos;
         _scripts.Reloaded += () => _extensions.Load(_scripts.Extensions, _scripts.Extensions.Name);
         _scriptEditor = new ScriptEditorPanel(_context, _scripts);
         _uiEditor = new UIEditorPanel(_context, gameUIServices);

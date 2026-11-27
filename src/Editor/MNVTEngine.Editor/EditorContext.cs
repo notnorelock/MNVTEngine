@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Core.Logging;
@@ -109,6 +109,9 @@ internal sealed class EditorContext
 
     /// <summary>Draws the project's extension sections for a component (<see cref="ExtensionHost.DrawInspectors"/>).</summary>
     public Action<Component>? ExtensionInspectors { get; set; }
+
+    /// <summary>Draws the project's extension gizmos over the 2D Scene view (<see cref="ExtensionHost.DrawGizmos"/>).</summary>
+    public Action<Extensions.ISceneGizmoDrawer>? ExtensionGizmos { get; set; }
 
     /// <summary>Dock node of the Game view (the central area); windows new to a saved layout dock there.</summary>
     public uint CenterDockId { get; set; }

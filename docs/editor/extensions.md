@@ -37,6 +37,7 @@ a `%` is shown). The API depends on the engine only (enforced by `Architecture.T
 | `EditorWindow` | A dockable window. `Title`, `OnGui(IEditorGui)` every frame while open, `OnOpen`, `OnClose`. `Editor` gives the services. |
 | `[EditorMenu("Group/Name")]` | On a window: an item in **Tools** that opens it; slashes make submenus. |
 | `ComponentInspector<T>` | A section below the inspector's fields for components of `T`: `OnInspectorGui(gui, component)`. |
+| `SceneGizmos` | Draws over the 2D Scene view in world units while its gizmos are on (the eye in the toolbar): `OnDrawGizmos(draw)` with `Line`, `Rectangle`, `FillRectangle`. For what the game's data means but nothing renders: collision cells, trigger areas, spawn points. |
 | `IEditorGui` | `Heading`, `Text`, `Muted`, `ErrorText`, `SuccessText`, `Paragraph`, `Button`, `TextField` (with `password`), `Checkbox`, `Selectable`, `Section`, `SameLine`, `Separator`, `Space`, `Progress`. |
 | `IEditorServices` | `ProjectDirectory`, `Scene`, `Selected`, `Settings`, `Secrets`, `Assets(type)`, `ReadPrefab(guid)`, `OpenWindow<T>()`, `BuildBundleAsync(request)`, `Log(level, message)`. |
 
