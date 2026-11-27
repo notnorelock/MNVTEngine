@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using System.Buffers.Binary;
 
@@ -28,7 +28,7 @@ public interface IAudioSampleSource : IDisposable
     void Seek(long frame);
 }
 
-/// <summary>Decodes WAV (PCM 8/16/24/32-bit, IEEE float), Ogg Vorbis and MP3 to 16-bit PCM, whole or streamed.</summary>
+/// <summary>Decodes WAV (PCM 8/16/24/32-bit, IEEE float), Ogg Vorbis, MP3 and Opus in WebM to 16-bit PCM, whole or streamed.</summary>
 public static class AudioDecoder
 {
     /// <summary>A whole clip decoded into memory.</summary>
@@ -76,6 +76,11 @@ public static class AudioDecoder
                 return Guard(() => new OggSampleSource(stream), sourceName);
             }
 
+            if (read >= 4 && BinaryPrimitives.ReadUInt32BigEndian(magic) == WebmOpusSampleSource.EbmlMagic)
+            {
+                return Guard(() => new WebmOpusSampleSource(stream), sourceName);
+            }
+
             if (IsMp3(magic[..read]))
             {
                 return Guard(() => new Mp3SampleSource(stream), sourceName);
@@ -88,7 +93,7 @@ public static class AudioDecoder
         }
 
         stream.Dispose();
-        throw new InvalidDataException($"'{sourceName}' is not a WAV, Ogg Vorbis or MP3 file.");
+        throw new InvalidDataException($"'{sourceName}' is not a WAV, Ogg Vorbis, MP3 or WebM Opus file.");
     }
 
     /// <summary>An MP3 starts with an ID3v2 tag or an MPEG audio frame (11 sync bits set).</summary>

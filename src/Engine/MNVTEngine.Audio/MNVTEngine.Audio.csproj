@@ -3,6 +3,7 @@
   <ItemGroup>
     <PackageReference Include="NVorbis" />
     <PackageReference Include="NLayer" />
+    <PackageReference Include="Concentus" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />

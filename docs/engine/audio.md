@@ -4,7 +4,7 @@ Two projects split the audio system the same way graphics is split:
 
 | Project | Owns | Dependencies |
 |---|---|---|
-| `MNVTEngine.Audio` | The software mixer `MixingAudioDevice` (voices, buses, insert effects, meters, panning and attenuation), `IAudioDevice`/`IAudioVoice`/`IAudioBuffer`, `IStreamingVoice` (PCM queued while it plays, e.g. [browser page audio](browser.md#audio)), the effects (`AudioEffects`), WAV and Ogg Vorbis decoding, `AudioSource`/`AudioListener`/`AudioMixer`, per-scene `AudioSystem`, silent `NullAudioDevice` | Scenes, NVorbis (MIT) |
+| `MNVTEngine.Audio` | The software mixer `MixingAudioDevice` (voices, buses, insert effects, meters, panning and attenuation), `IAudioDevice`/`IAudioVoice`/`IAudioBuffer`, `IStreamingVoice` (PCM queued while it plays, e.g. [browser page audio](browser.md#audio)), the effects (`AudioEffects`), WAV, Ogg Vorbis, MP3 and WebM Opus decoding, `AudioSource`/`AudioListener`/`AudioMixer`, per-scene `AudioSystem`, silent `NullAudioDevice` | Scenes, NVorbis (MIT), NLayer (MIT), Concentus (BSD-3) |
 | `MNVTEngine.Audio.OpenAL` | `OpenALAudioDevice.Create` (the mixer on an `OpenALAudioOutput`) | Audio, Silk.NET.OpenAL (MIT), OpenAL Soft native (`soft_oal.dll`, LGPL) |
 
 The host chooses the backend:
@@ -130,6 +130,9 @@ UI's **Mixer** panel (changes there last for the run). Meters are live in Play m
 - **Ogg Vorbis:** through NVorbis.
 - **MP3:** through NLayer (MIT, fully managed): MPEG-1/2 layers I-III, recognised by an ID3v2 tag or a frame sync.
   The length is unknown until decoded (variable bit rates), so a streamed MP3 reports no frame count.
+- **Opus in WebM:** through Concentus (BSD-3, fully managed), the first Opus track, always 48 kHz: what YouTube
+  serves as audio. The blocks are indexed when the file opens; a seek starts decoding 80 ms before the target so the
+  decoder settles. The pre-skip is not heard. Laced blocks are refused.
 - **Channels:** mono and stereo only.
 - **Errors:** damaged or unsupported files raise `InvalidDataException` with the asset name.
 - **Streams:** `AudioDecoder.Open(stream, name)` gives an `IAudioSampleSource` (block reads, `Seek(frame)`); `AudioDecoder.Decode` drains one.
@@ -139,6 +142,7 @@ UI's **Mixer** panel (changes there last for the run). Meters are live in Play m
 - `NullAudioDevice` renders the mix in simulated time, so component behaviour (pause, finish, loops, one-shots, unload), bus levels, meters, panning and effects are tested deterministically (`MixerAndEffectTests`).
 - `OpenAL_PlaysAClipToTheEnd` plays a quiet beep on the real device, and skips on machines without audio output.
 - `OutputSwitchTests`: switching outputs stops the old one and starts the new one; a device that cannot be opened falls back to the default.
+- `WebmOpusTests`: a WebM built in the test decodes to its length (without the pre-skip) and seeks.
 - `AudioStreamingTests`: streamed decoding equals whole decoding, playback to the end without underruns, seamless looping, seeking (`Time`) in streamed and decoded clips, read errors stopping the voice, and the `loadType` / size rule.
 
 ## Limitations
