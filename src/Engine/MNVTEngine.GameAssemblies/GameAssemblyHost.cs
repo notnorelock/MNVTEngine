@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-14.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using System.Reflection;
 using MNVTEngine.Scenes;
@@ -218,6 +218,13 @@ public sealed class GameAssemblyHost
             }
 
             return ex.Types.OfType<Type>().Where(t => t.IsPublic);
+        }
+        catch (TypeLoadException ex)
+        {
+            // GetExportedTypes throws this one alone when a public signature names a type its reference lacks (an
+            // engine assembly older than the one the game was compiled against): a failed load, not a crash
+            diagnostics.Add(new ScriptDiagnostic(ScriptDiagnosticSeverity.Error, "LOAD002", $"Type load failure in {assembly.GetName().Name}: {ex.Message}"));
+            return [];
         }
     }
 }
