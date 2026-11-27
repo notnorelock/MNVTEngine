@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using MNVTEngine.Mathematics;
+using Silk.NET.GLFW;
 using Silk.NET.Input;
+using ErrorCode = Silk.NET.GLFW.ErrorCode;
 using Key = MNVTEngine.Key;
 using MouseButton = MNVTEngine.MouseButton;
 using SilkKey = Silk.NET.Input.Key;
@@ -43,10 +45,26 @@ internal sealed class SilkInputBridge : IDisposable
     public static IEnumerable<Key> UnmappedKeys =>
         Enum.GetValues<Key>().Where(k => k != Key.Unknown && !KeyMap.ContainsValue(k));
 
-    /// <summary>System clipboard text through the first keyboard; null when there is none.</summary>
+    /// <summary>System clipboard text through the first keyboard; null when there is none, or the clipboard holds no text.</summary>
     public string? Clipboard
     {
-        get => _context.Keyboards.Count > 0 ? _context.Keyboards[0].ClipboardText : null;
+        get
+        {
+            if (_context.Keyboards.Count == 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                return _context.Keyboards[0].ClipboardText;
+            }
+            catch (GlfwException ex) when (ex.ErrorCode == ErrorCode.FormatUnavailable)
+            {
+                return null; // an image or files: GLFW reports it as an error, and Silk.NET throws it
+            }
+        }
+
         set
         {
             if (_context.Keyboards.Count > 0)
