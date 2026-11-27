@@ -30,6 +30,7 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
     private GameClock _clock = new();
     private FixedTimestep _fixed = new(session.Project.FixedTimestep);
     private string? _pendingScene;
+    private (string Name, Action<Scene> Build)? _pendingBuild;
     private bool _quitRequested;
     private bool _stepRequested;
 
@@ -73,7 +74,7 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
 
         _clock = new GameClock();
         _fixed = new FixedTimestep(session.Project.FixedTimestep);
-        _pendingScene = null;
+        (_pendingScene, _pendingBuild) = (null, null);
         _quitRequested = false;
         Application.QuitRequested += OnQuitRequested;
         Input.ReleaseAll();
@@ -95,6 +96,7 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
         Application.QuitRequested -= OnQuitRequested;
         PlayScene?.Unload(); // its components dispose the bundles they loaded
         PlayScene = null;
+        _pendingBuild = null; // holds game code: it must not outlive Play Mode (hot reload unloads that code)
         ContentBundles.SetHost(null);
         Diagnostics?.Uninstall();
         Diagnostics = null;
@@ -175,6 +177,11 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
             _pendingScene = null;
             LoadPlayScene(path);
         }
+        else if (_pendingBuild is { } build)
+        {
+            _pendingBuild = null;
+            BuildPlayScene(build.Name, build.Build);
+        }
     }
 
     /// <summary>Saves the running game before game code is swapped (null when not playing).</summary>
@@ -235,7 +242,27 @@ public sealed partial class PlayModeController(EditorSession session, ILoggerFac
     public void RequestLoad(string path)
     {
         session.Project.ResolveAsset(path);
-        _pendingScene = path;
+        (_pendingScene, _pendingBuild) = (path, null);
+    }
+
+    /// <summary>Services <see cref="SceneManager.LoadScene(string, Action{Scene})"/> inside Play Mode (the latest request wins).</summary>
+    public void RequestBuild(string name, Action<Scene> build) => (_pendingScene, _pendingBuild) = (null, (name, build));
+
+    private void BuildPlayScene(string name, Action<Scene> build)
+    {
+        var scene = new Scene(name);
+        try
+        {
+            build(scene);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            scene.Unload();
+            LogLoadFailed(_logger, ex, name);
+            return;
+        }
+
+        Start(scene, carryFrom: PlayScene);
     }
 
     public void RequestLoad(AssetRef scene) =>

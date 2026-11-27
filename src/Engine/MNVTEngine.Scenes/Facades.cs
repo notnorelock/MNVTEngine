@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using MNVTEngine.Core.Timing;
 using MNVTEngine.Mathematics;
@@ -119,6 +119,18 @@ public static class SceneManager
     /// <summary>Replaces the running scene at the end of the current frame.</summary>
     public static void LoadScene(AssetRef scene) => Loader.RequestLoad(scene);
 
+    /// <summary>
+    /// Replaces the running scene at the end of the current frame with a new, empty scene that <paramref name="build"/>
+    /// fills in code (cameras, objects, components) instead of a scene file. Its components wake when it starts, after
+    /// the runtime attached its services; DontDestroyOnLoad objects move in as with any other scene.
+    /// </summary>
+    public static void LoadScene(string name, Action<Scene> build)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(build);
+        Loader.RequestBuild(name, build);
+    }
+
     private static ISceneLoader Loader =>
         SceneContext.Current.Loader ?? throw new InvalidOperationException("This scene is not hosted by a runtime that can load scenes.");
 }
@@ -129,4 +141,9 @@ public interface ISceneLoader
     void RequestLoad(string path);
 
     void RequestLoad(AssetRef scene);
+
+    /// <summary>Services <see cref="SceneManager.LoadScene(string, Action{Scene})"/>: a scene built in code.</summary>
+    /// <exception cref="NotSupportedException">This host only loads scene files.</exception>
+    void RequestBuild(string name, Action<Scene> build) =>
+        throw new NotSupportedException("This host only loads scenes from files.");
 }

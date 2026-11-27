@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Assets;
@@ -90,6 +90,7 @@ public sealed partial class GameRuntime(
     private SceneSerializer _serializer = null!;
     private PrefabProvider _prefabs = null!;
     private string? _pendingScene;
+    private (string Name, Action<Scene> Build)? _pendingBuild;
     private int _frames;
     private bool _frameStarted;
 
@@ -221,6 +222,11 @@ public sealed partial class GameRuntime(
             _pendingScene = null;
             BeginLoad(path, startup: false);
         }
+        else if (_pendingBuild is { } build)
+        {
+            _pendingBuild = null;
+            Build(build.Name, build.Build);
+        }
     }
 
     public void Render(FrameTime time, float interpolation)
@@ -332,7 +338,32 @@ public sealed partial class GameRuntime(
     public void RequestLoad(string path)
     {
         project.ResolveAsset(path);
-        _pendingScene = path;
+        (_pendingScene, _pendingBuild) = (path, null);
+    }
+
+    /// <summary>Queues a switch to a scene built in code for the end of the current frame (the latest request wins).</summary>
+    public void RequestBuild(string name, Action<Scene> build) => (_pendingScene, _pendingBuild) = (null, (name, build));
+
+    /// <summary>Builds and starts a scene from code; a build that throws is logged and the running scene stays.</summary>
+    private void Build(string name, Action<Scene> build)
+    {
+        var scene = new Scene(name);
+        try
+        {
+            build(scene);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            scene.Unload();
+            LogSceneSwitchFailed(_logger, ex, name);
+            return;
+        }
+
+        _load?.Cancel(); // a file load requested earlier is replaced
+        _load?.Dispose();
+        _load = null;
+        SwitchTo(scene);
+        _unloadUnusedAt = _device.FrameNumber + UnusedFrames;
     }
 
     /// <exception cref="ArgumentException">The reference is not a scene asset of this project.</exception>

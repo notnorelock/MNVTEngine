@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-03.
+// Part of MNVTEngine. Last modified 2026-11-27.
 
 using Microsoft.Extensions.Logging;
 using MNVTEngine.Core.Logging;
@@ -257,6 +257,24 @@ public sealed class LifecycleTests : IDisposable
         Assert.Equal(["Scenes/Next.mnvt"], loader.Requests);
     }
 
+    [Fact]
+    public void SceneManager_HandsASceneBuiltInCodeToTheLoader()
+    {
+        var scene = NewScene();
+        var loader = new RecordingLoader();
+        scene.Loader = loader;
+        scene.CreateGameObject().AddComponent<Builder>();
+        scene.Start();
+        scene.Update(Frame);
+
+        var (name, build) = Assert.Single(loader.Builds);
+        Assert.Equal("Room", name);
+        var built = new Scene(name);
+        build(built);
+        Assert.Equal("Camera", Assert.Single(built.GameObjects).Name);
+        Assert.Throws<NotSupportedException>(() => ((ISceneLoader)new FileOnlyLoader()).RequestBuild("Room", _ => { }));
+    }
+
     private sealed class TimeProbe : Component
     {
         public float UpdateDelta;
@@ -272,6 +290,22 @@ public sealed class LifecycleTests : IDisposable
         public override void Update() => SceneManager.LoadScene("Scenes/Next.mnvt");
     }
 
+    private sealed class Builder : Component
+    {
+        public override void Update() => SceneManager.LoadScene("Room", scene => scene.CreateGameObject("Camera"));
+    }
+
+    private sealed class FileOnlyLoader : ISceneLoader
+    {
+        public void RequestLoad(string path)
+        {
+        }
+
+        public void RequestLoad(AssetRef scene)
+        {
+        }
+    }
+
     private sealed class RecordingLoader : ISceneLoader
     {
         public List<string> Requests { get; } = [];
@@ -279,6 +313,10 @@ public sealed class LifecycleTests : IDisposable
         public void RequestLoad(string path) => Requests.Add(path);
 
         public void RequestLoad(AssetRef scene) => Requests.Add(scene.ToString());
+
+        public List<(string Name, Action<Scene> Build)> Builds { get; } = [];
+
+        public void RequestBuild(string name, Action<Scene> build) => Builds.Add((name, build));
     }
 }
 

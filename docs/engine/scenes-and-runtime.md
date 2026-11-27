@@ -131,6 +131,11 @@ return GameApplication.Run(args,
 - **Options:** `--frames N` exits after N frames, `--screenshot file.png` saves the last frame, and `--gpu-validation` enables the Vulkan validation layer. Exit code 4 means no Vulkan 1.4 GPU or driver was found.
 - **Exit codes:** 0 ok, 1 GPU resource leak, 2 project or startup scene unreadable.
 - **Scene switching:** `SceneManager.LoadScene(path)` switches at the end of the frame. A broken target scene is logged and the current scene keeps running.
+- **Scenes built in code:** `SceneManager.LoadScene("Room", scene => { ... })` switches, at the end of the frame, to a
+  new empty scene the callback fills (cameras, objects, components) instead of a scene file: for scenes whose content
+  is decided at run time, such as a downloaded level. Its components wake when it starts, after the runtime attached
+  its services; DontDestroyOnLoad objects move in as usual. A callback that throws is logged and the current scene
+  keeps running. The latest request of either kind wins.
 - **DontDestroyOnLoad:** `gameObject.DontDestroyOnLoad()` (in a component: `DontDestroyOnLoad(GameObject)` or
   `DontDestroyOnLoad(this)`) keeps a root object and its children when a scene loads. The host moves them into the new
   scene before unloading the old one (`Scene.MovePersistentObjectsTo`).
