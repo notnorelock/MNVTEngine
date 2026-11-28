@@ -108,6 +108,11 @@ allocating, for animated gradients.
 - `Gradient.Lerp` blends two gradients, for animating between them.
 - Not supported: radial gradients, gradient borders, blur.
 
+## Color field
+
+`V.ColorField(signal)` edits a `Signal<Color>`: a swatch, a hex field (applied once it parses) and hue, saturation and
+brightness sliders. Alpha is kept. `V.ToHsv` and `V.FromHsv` convert between RGB and HSV.
+
 ## Loading and skeletons
 
 `V.Loading(state, skeleton, content, empty, failed)` shows content that loads asynchronously by its `LoadState`
