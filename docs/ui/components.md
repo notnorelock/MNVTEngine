@@ -100,6 +100,12 @@ panel.AnimateOpacity(1f, Motion.Tween(0.2f, Easing.CubicOut))
 restyles them. `WhenState` is a per-element `:hover`/`:pressed` selector: it layers over the element's own style while
 the state holds.
 
+## Marquee
+
+`V.Marquee(label)` (or `V.Marquee(() => text)`) holds one line that slides when it does not fit: it rests at the start,
+glides to the end at `Speed` logical pixels per second, rests and glides back. It moves the label with `Translate`, so
+sliding costs no layout; text that fits, and all text under `Design.ReducedMotion`, stays still.
+
 ## Frosted glass
 
 `.Frosted()` (`UIElement.Frosted`, `UIStyle.Backdrop`) draws what lies behind the element, blurred, under its

@@ -33,4 +33,14 @@ public sealed class FitAndScrollTests
 
         Assert.Equal(100f, offset); // snaps once it is close
     }
+
+    [Fact]
+    public void Marquee_RestsGlidesRestsAndReturns_AndStaysStillWhenItFits()
+    {
+        Assert.Equal(0f, Marquee.OffsetAt(1f, 64f, 32f)); // resting at the start
+        Assert.Equal(32f, Marquee.OffsetAt(Marquee.Pause + 1f, 64f, 32f), 3); // half way out
+        Assert.Equal(64f, Marquee.OffsetAt(Marquee.Pause + 2.5f, 64f, 32f), 3); // resting at the end
+        Assert.Equal(32f, Marquee.OffsetAt((2f * Marquee.Pause) + 3f, 64f, 32f), 3); // half way back
+        Assert.Equal(0f, Marquee.OffsetAt(99f, 0f, 32f)); // fits: never moves
+    }
 }
