@@ -117,6 +117,7 @@ public sealed class UIRenderingTests
             ui.Context.Root.AddChild(new Panel { Left = 20, Top = 20, Width = 200, Height = 100, CornerRadius = 16, BackgroundGradient = stops });
             var scroll = ui.Context.Root.AddChild(new ScrollView { Left = 240, Top = 20, Width = 60, Height = 50 });
             scroll.Content.AddChild(new Panel { Height = 100, BackgroundGradient = Gradient.Linear(Color.Red, Color.Blue, 90f) });
+            ui.Context.Root.AddChild(new BandBeside { Left = 120, Top = 140, Width = 40, Height = 40 });
 
             var pixels = Frame(device, renderer, ui);
             Assert.True(Pixel(pixels, 23, 70).R > 0.9f, "the start is the first stop");
@@ -126,8 +127,18 @@ public sealed class UIRenderingTests
             Assert.True(Pixel(pixels, 21, 21).R < 0.5f, "rounded corner is cut");
             Assert.InRange(Pixel(pixels, 270, 68).B, 0.35f, 0.6f); // just above the clip: half way down the 100-tall gradient
             Assert.True(Pixel(pixels, 270, 90).B < 0.01f, "clipped below the view");
+            Assert.True(Pixel(pixels, 100, 160).R < 0.01f && Pixel(pixels, 100, 160).G < 0.01f, "a stop beside the box paints nothing beside it");
+            Assert.True(Pixel(pixels, 121, 141).R < 0.5f, "the circle's corner stays round");
         });
     }
+}
+
+/// <summary>A circle filled through the span overload with a stop far left of it, as a skeleton's shimmer band beside it.</summary>
+internal sealed class BandBeside : UIElement
+{
+    private readonly GradientStop[] _stops = [new(-3f, Color.Green), new(0f, Color.Red), new(1f, Color.Red)];
+
+    protected internal override void Paint(UIPainter painter, in ResolvedStyle style) => painter.FillGradient(Bounds, _stops, 0f, 20f);
 }
 
 [CollectionDefinition(nameof(UIGpuGroup), DisableParallelization = true)]

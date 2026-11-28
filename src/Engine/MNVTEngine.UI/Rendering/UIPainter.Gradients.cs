@@ -100,10 +100,18 @@ public sealed partial class UIPainter
             }
         }
 
+        for (var i = breaks.Count - 1; i >= 0; i--)
+        {
+            if (breaks[i] < start || breaks[i] > end)
+            {
+                breaks.RemoveAt(i); // a stop off the box (a shimmer band beside it) must not widen it
+            }
+        }
+
         breaks.Sort();
         for (var i = breaks.Count - 1; i > 0; i--)
         {
-            if (breaks[i] - breaks[i - 1] < 0.01f || breaks[i] < start || breaks[i] > end)
+            if (breaks[i] - breaks[i - 1] < 0.01f)
             {
                 breaks.RemoveAt(i);
             }
