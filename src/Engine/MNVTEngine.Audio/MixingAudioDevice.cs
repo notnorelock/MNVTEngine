@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-27.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Mathematics;
 
@@ -37,6 +37,9 @@ public class MixingAudioDevice : IAudioDevice
 {
     public const string MasterBus = "Master";
     private const int BlockFrames = 256;
+
+    /// <summary>How many of its newest frames each bus keeps for <see cref="ReadBus"/>.</summary>
+    public const int RecentFrames = 4096;
     private const int MeterBlocks = 10; // ~50 ms at 48 kHz
 
     private volatile IAudioOutput? _output;
@@ -261,6 +264,14 @@ public class MixingAudioDevice : IAudioDevice
 
             meter = found.Meter();
             return true;
+        }
+    }
+
+    public int ReadBus(string bus, Span<float> mono)
+    {
+        lock (_lock)
+        {
+            return _buses.GetValueOrDefault(string.IsNullOrEmpty(bus) ? MasterBus : bus) is { } found ? found.ReadRecent(mono) : 0;
         }
     }
 
@@ -568,6 +579,8 @@ public class MixingAudioDevice : IAudioDevice
     {
         private readonly float[] _peakL = new float[MeterBlocks], _peakR = new float[MeterBlocks], _squareL = new float[MeterBlocks], _squareR = new float[MeterBlocks];
         private readonly int[] _frames = new int[MeterBlocks];
+        private readonly float[] _recent = new float[RecentFrames]; // mono, for spectra (AudioSpectrum)
+        private int _recentAt;
         private List<(AudioEffectSettings Settings, AudioEffectDefinition Definition, AudioEffect Effect)> _effects = [];
         private int _meterIndex;
         private float _gain = 1f, _lastGain = 1f;
@@ -632,6 +645,8 @@ public class MixingAudioDevice : IAudioDevice
                 var gain = _lastGain + ((target - _lastGain) * (i + 1) / frames);
                 var (l, r) = (samples[i * 2] * gain, samples[(i * 2) + 1] * gain);
                 (samples[i * 2], samples[(i * 2) + 1]) = (l, r);
+                _recent[_recentAt] = (l + r) * 0.5f;
+                _recentAt = (_recentAt + 1) % RecentFrames;
                 (peakL, peakR) = (Math.Max(peakL, Math.Abs(l)), Math.Max(peakR, Math.Abs(r)));
                 squareL += l * l;
                 squareR += r * r;
@@ -642,6 +657,18 @@ public class MixingAudioDevice : IAudioDevice
             _meterIndex = (_meterIndex + 1) % MeterBlocks;
             HoldPeak = Math.Max(HoldPeak, Math.Max(peakL, peakR));
             Clipped |= peakL >= 1f || peakR >= 1f;
+        }
+
+        /// <summary>The newest frames, oldest first, up to <see cref="RecentFrames"/>.</summary>
+        public int ReadRecent(Span<float> mono)
+        {
+            var count = Math.Min(mono.Length, RecentFrames);
+            for (var i = 0; i < count; i++)
+            {
+                mono[i] = _recent[(_recentAt - count + i + RecentFrames) % RecentFrames];
+            }
+
+            return count;
         }
 
         public AudioMeter Meter()

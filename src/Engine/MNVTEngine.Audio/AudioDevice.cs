@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-27.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Mathematics;
 
@@ -149,6 +149,13 @@ public interface IAudioDevice : IDisposable
 
     /// <summary>A bus's level after its fader; false for a bus that does not exist.</summary>
     bool TryGetMeter(string bus, out AudioMeter meter);
+
+    /// <summary>
+    /// The newest samples a bus played (after its fader, mixed to mono), oldest first, into <paramref name="mono"/>: up
+    /// to <see cref="MixingAudioDevice.RecentFrames"/>, for spectra (<see cref="AudioSpectrum"/>). Returns how many; 0
+    /// for a bus that does not exist.
+    /// </summary>
+    int ReadBus(string bus, Span<float> mono);
 
     /// <summary>Clears a bus's peak hold and clip indicator.</summary>
     void ResetMeter(string bus);

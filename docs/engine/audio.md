@@ -100,6 +100,12 @@ Every bus is metered after its fader: peak and RMS per channel over the last ~50
 reset, and whether it clipped (went over 0 dBFS). `IAudioDevice.TryGetMeter("Music", out var meter)`,
 `ResetMeter("Music")`.
 
+Every bus also keeps its newest 4096 samples (`MixingAudioDevice.RecentFrames`, after the fader, mixed to mono) for
+frequency analysis: `IAudioDevice.ReadBus("Music", samples)` copies them out, and `AudioSpectrum` (a Hann-windowed
+`Fft`, 2048 samples by default: 43 ms, 23 Hz per bin at 48 kHz) turns them into per-bin amplitudes, with
+`Band(lowHz, highHz)` summing a range. Read once a frame, the bass band's rises find kick drums (Borealise's dancers hop
+on them). `Fft` is a plain radix-2 complex FFT for any power-of-two size.
+
 The console (`AudioMixerView`, in the style of a DAW's mixer) shows one strip per group and Master: name and parent,
 insert effects (checkbox to bypass, click to edit parameters, move up, remove, "+ FX" to add), the channel on/mute
 button, the fader in dB (double-click for 0 dB), the peak-hold readout (red after clipping, click to reset) and a
