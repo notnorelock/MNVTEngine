@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-05.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Graphics.Text;
 using MNVTEngine.Mathematics;
@@ -273,11 +273,11 @@ public abstract class TextInputBase : UIElement
         var offset = ScrollOffset;
         if (!Wrap)
         {
-            offset.X = Math.Clamp(offset.X, caret.X - content.Width + 2f, caret.X);
+            offset.X = Math.Min(Math.Max(offset.X, caret.X - content.Width + 2f), caret.X); // not Clamp: a box narrower than the caret keeps its left
             offset.X = Math.Max(0f, Math.Min(offset.X, Math.Max(0f, (layout.Size.X / scale) - content.Width + 2f)));
         }
 
-        offset.Y = Math.Clamp(offset.Y, caret.Y + (height / scale) - content.Height, caret.Y);
+        offset.Y = Math.Min(Math.Max(offset.Y, caret.Y + (height / scale) - content.Height), caret.Y); // a box shorter than a line keeps the caret's top
         offset.Y = Math.Max(0f, Math.Min(offset.Y, Math.Max(0f, (layout.Size.Y / scale) - content.Height)));
         ScrollOffset = offset;
     }

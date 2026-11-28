@@ -34,7 +34,7 @@ public sealed partial class UIPainter
             return;
         }
 
-        var radius = (int)MathF.Max(0f, MathF.Min(MathF.Round(cornerRadius * PixelScale), MathF.Floor(MathF.Min(r.Width, r.Height) / 2f)));
+        var radius = CornerPixels(r, cornerRadius);
         var (sin, cos) = MathF.SinCos(angle * MathF.PI / 180f);
         var (right, bottom) = (r.X + r.Width, r.Y + r.Height);
         var center = new Vector2(r.X + (r.Width / 2f), r.Y + (r.Height / 2f));

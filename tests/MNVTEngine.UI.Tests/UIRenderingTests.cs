@@ -94,6 +94,20 @@ public sealed class UIRenderingTests
     }
 
     [Fact]
+    public void HugePills_AndFieldsShorterThanALine_Paint()
+    {
+        Run((device, renderer) =>
+        {
+            using var ui = new UIHarness(W, H);
+            ui.Context.Root.AddChild(new Panel { Left = 0, Top = 0, Width = 1200, Height = 1100, CornerRadius = 999, BackgroundColor = Color.Red }); // corners past an atlas page
+            var field = ui.Context.Root.AddChild(new TextField { Left = 10, Top = 10, Width = 80, Height = 4, Text = "caret" });
+            field.Focus();
+            var pixels = Frame(device, renderer, ui); // threw before: corner disc too big, caret clamp min > max
+            Assert.True(Pixel(pixels, 160, 100).R > 0.9f);
+        });
+    }
+
+    [Fact]
     public void ScrollView_ClipsItsContent()
     {
         Run((device, renderer) =>

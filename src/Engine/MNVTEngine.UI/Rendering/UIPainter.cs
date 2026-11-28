@@ -108,7 +108,7 @@ public sealed partial class UIPainter
     public void FillRect(Rect logical, Color color, float cornerRadius = 0f)
     {
         var r = Snap(Scale(logical));
-        var radius = (int)MathF.Min(MathF.Round(cornerRadius * PixelScale), MathF.Floor(MathF.Min(r.Width, r.Height) / 2f));
+        var radius = CornerPixels(r, cornerRadius);
         if (radius <= 0)
         {
             Solid(r, color);
@@ -126,7 +126,7 @@ public sealed partial class UIPainter
     {
         var r = Snap(Scale(logical));
         var t = Math.Max(1, (int)MathF.Round(width * PixelScale));
-        var radius = (int)MathF.Min(MathF.Round(cornerRadius * PixelScale), MathF.Floor(MathF.Min(r.Width, r.Height) / 2f));
+        var radius = CornerPixels(r, cornerRadius);
         if (radius < t)
         {
             Solid(new Rect(r.X, r.Y, r.Width, t), color);
@@ -217,6 +217,13 @@ public sealed partial class UIPainter
         Quad(circle.Page, new Rect(r.X, r.Y + r.Height - radius, radius, radius), new Rect(s.X, s.Y + radius, radius, radius), color);
         Quad(circle.Page, new Rect(r.X + r.Width - radius, r.Y + r.Height - radius, radius, radius), new Rect(s.X + radius, s.Y + radius, radius, radius), color);
     }
+
+    /// <summary>Largest corner in pixels: its disc must fit an atlas page (a pill 1000 pixels tall gets 256-pixel corners).</summary>
+    private const int MaxCornerPixels = 256;
+
+    /// <summary>A corner radius in pixels: at most half the rectangle's shorter side and <see cref="MaxCornerPixels"/>.</summary>
+    private int CornerPixels(Rect r, float cornerRadius) =>
+        (int)MathF.Max(0f, MathF.Min(MathF.Min(MathF.Round(cornerRadius * PixelScale), MathF.Floor(MathF.Min(r.Width, r.Height) / 2f)), MaxCornerPixels));
 
     /// <summary>An anti-aliased disc (thickness 0) or ring of a pixel radius, generated once into the atlas.</summary>
     private AtlasRegion Circle(int radius, int thickness) =>
