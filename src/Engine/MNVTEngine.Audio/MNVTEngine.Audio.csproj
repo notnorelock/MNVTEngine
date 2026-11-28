@@ -7,6 +7,7 @@
     <PackageReference Include="NVorbis" />
     <PackageReference Include="NLayer" />
     <PackageReference Include="Concentus" />
+    <PackageReference Include="SharpJaad.AAC" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MNVTEngine.Scenes\MNVTEngine.Scenes.csproj" />

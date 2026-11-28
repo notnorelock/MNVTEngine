@@ -2,4 +2,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Engine\MNVTEngine.Audio.OpenAL\MNVTEngine.Audio.OpenAL.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- a 1 s 440/660 Hz tone, AAC-LC from Windows' encoder, in two fragments -->
+    <None Include="..\TestAssets\Audio\*" LinkBase="Audio" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

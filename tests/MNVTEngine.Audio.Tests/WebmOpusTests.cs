@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-27.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using Concentus;
 using Concentus.Enums;
@@ -33,10 +33,10 @@ public sealed class WebmOpusTests
         Assert.Throws<InvalidDataException>(() => AudioDecoder.Open(new MemoryStream([0x1A, 0x45, 0xDF, 0xA3, 0x80]), "empty.webm"));
 
     [Fact]
-    public void Mp4FromMemory_IsRefused_MediaFoundationReadsOnlyFiles() =>
+    public void AnMp4WithoutAMovieHeader_IsRefused() =>
         Assert.Throws<InvalidDataException>(() => AudioDecoder.Open(new MemoryStream([0, 0, 0, 16, .. "ftypM4A "u8, 0, 0, 0, 0]), "track.m4a"));
 
-    private static double Rms(ReadOnlySpan<short> samples)
+    internal static double Rms(ReadOnlySpan<short> samples)
     {
         double sum = 0;
         foreach (var s in samples)
@@ -48,7 +48,7 @@ public sealed class WebmOpusTests
     }
 
     /// <summary>A minimal WebM: one stereo Opus track of a 440 Hz tone, one cluster of simple blocks.</summary>
-    private static byte[] Webm(int seconds)
+    internal static byte[] Webm(int seconds)
     {
         var encoder = OpusCodecFactory.CreateEncoder(Rate, 2, OpusApplication.OPUS_APPLICATION_AUDIO);
         var blocks = new List<byte>();

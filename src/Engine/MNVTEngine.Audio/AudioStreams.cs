@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-27.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using System.Buffers.Binary;
 
@@ -28,7 +28,7 @@ public interface IAudioSampleSource : IDisposable
     void Seek(long frame);
 }
 
-/// <summary>Decodes WAV (PCM 8/16/24/32-bit, IEEE float), Ogg Vorbis, MP3, Opus in WebM and (on Windows) AAC in MP4 to 16-bit PCM, whole or streamed.</summary>
+/// <summary>Decodes WAV (PCM 8/16/24/32-bit, IEEE float), Ogg Vorbis, MP3, Opus in WebM and AAC in MP4 (fragmented anywhere, otherwise Windows only) to 16-bit PCM, whole or streamed.</summary>
 public static class AudioDecoder
 {
     /// <summary>A whole clip decoded into memory.</summary>
@@ -83,14 +83,21 @@ public static class AudioDecoder
 
             if (read >= 8 && magic.Slice(4, 4).SequenceEqual("ftyp"u8))
             {
-                if (!OperatingSystem.IsWindows() || stream is not FileStream file)
+                try
                 {
-                    throw new InvalidDataException($"'{sourceName}' is MP4 audio, which is decoded only from files on Windows (Media Foundation).");
+                    return Guard(() => new FragmentedMp4SampleSource(stream), sourceName);
                 }
+                catch (NotSupportedException ex)
+                {
+                    if (!OperatingSystem.IsWindows() || stream is not FileStream file)
+                    {
+                        throw new InvalidDataException($"'{sourceName}' is MP4 audio without fragments, which is decoded only from files on Windows (Media Foundation).", ex);
+                    }
 
-                var path = file.Name;
-                stream.Dispose(); // Media Foundation opens the file itself
-                return Guard(() => new Mp4SampleSource(path), sourceName);
+                    var path = file.Name;
+                    stream.Dispose(); // Media Foundation opens the file itself
+                    return Guard(() => new Mp4SampleSource(path), sourceName);
+                }
             }
 
             if (IsMp3(magic[..read]))
@@ -123,6 +130,21 @@ public static class AudioDecoder
         {
             throw new InvalidDataException($"'{sourceName}' is damaged: {ex.Message}", ex);
         }
+    }
+
+    /// <summary>The stream itself when it can seek, otherwise a copy in memory (the decoder then owns that).</summary>
+    internal static Stream Seekable(Stream stream)
+    {
+        if (stream.CanSeek)
+        {
+            return stream;
+        }
+
+        var copy = new MemoryStream();
+        stream.CopyTo(copy);
+        stream.Dispose();
+        copy.Position = 0;
+        return copy;
     }
 
     internal static short ToShort(float sample) => (short)(Math.Clamp(sample, -1f, 1f) * short.MaxValue);

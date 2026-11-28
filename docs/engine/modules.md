@@ -35,7 +35,7 @@ The engine is a set of **modules**. A project has a module or does not. Which on
 | `graphics` | 2D, 3D | always | core | | Graphics, Graphics.Vulkan, Silk.NET Vulkan, Vortice VMA, Stb image/font; `vma.dll`; the sprite shader. Not the shader compiler: games run on precompiled SPIR-V |
 | `assets` | 2D, 3D | always | core, graphics | | Assets (database, core importers) |
 | `runtime` | 2D, 3D | always | core, platform, graphics, assets | | Runtime, GameAssemblies, CrashReporting, logging |
-| `audio` | 2D, 3D | auto | core | | Audio, Audio.OpenAL (output and microphones), Audio.Voice ([voice](voice.md): Opus via Concentus), NVorbis, NLayer; `soft_oal.dll` |
+| `audio` | 2D, 3D | auto | core | | Audio, Audio.OpenAL (output and microphones), Audio.Voice ([voice](voice.md): Opus via Concentus), NVorbis, NLayer, SharpJaad.AAC; `soft_oal.dll` |
 | `scripting` | 2D, 3D | auto | core | | Scripting, Missions, Bindings |
 | `networking` | 2D, 3D | auto | core | | Galaxy (encrypted reliable-UDP client/server), Galaxy.Server (headless dedicated-server framework), Galaxy.Replication (scene state replication), Http (HTTP client for web APIs); see [Networking](../architecture/networking.md) and [HTTP client](http.md) |
 | `ui` | 2D, 3D | auto | core, graphics, runtime | | UI (screen-space, the same in both profiles) |

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 namespace MNVTEngine.Modules;
 
@@ -70,7 +70,7 @@ public static class BuiltinModules
     public static ModuleDefinition Audio { get; } = new("audio", "Audio", "Audio sources, listener and mixer (OpenAL Soft, Ogg Vorbis); microphones and voice chat building blocks (Opus).")
     {
         Requires = ["core"],
-        RuntimeAssemblies = ["MNVTEngine.Audio", "MNVTEngine.Audio.OpenAL", "Silk.NET.OpenAL", "NVorbis", "MNVTEngine.Audio.Voice", "Concentus"],
+        RuntimeAssemblies = ["MNVTEngine.Audio", "MNVTEngine.Audio.OpenAL", "Silk.NET.OpenAL", "NVorbis", "MNVTEngine.Audio.Voice", "Concentus", "SharpJaad.AAC"],
         NativeLibraries = ["soft_oal.dll"],
         AssetTypes = ["Audio"],
         Components = ["MNVTEngine.AudioSource", "MNVTEngine.AudioListener", "MNVTEngine.AudioMixer"],

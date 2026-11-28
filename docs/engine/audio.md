@@ -4,7 +4,7 @@ Two projects split the audio system the same way graphics is split:
 
 | Project | Owns | Dependencies |
 |---|---|---|
-| `MNVTEngine.Audio` | The software mixer `MixingAudioDevice` (voices, buses, insert effects, meters, panning and attenuation), `IAudioDevice`/`IAudioVoice`/`IAudioBuffer`, `IStreamingVoice` (PCM queued while it plays, e.g. [browser page audio](browser.md#audio)), the effects (`AudioEffects`), WAV, Ogg Vorbis, MP3, WebM Opus and (Windows) MP4 AAC decoding, `AudioSource`/`AudioListener`/`AudioMixer`, per-scene `AudioSystem`, silent `NullAudioDevice` | Scenes, NVorbis (MIT), NLayer (MIT), Concentus (BSD-3) |
+| `MNVTEngine.Audio` | The software mixer `MixingAudioDevice` (voices, buses, insert effects, meters, panning and attenuation), `IAudioDevice`/`IAudioVoice`/`IAudioBuffer`, `IStreamingVoice` (PCM queued while it plays, e.g. [browser page audio](browser.md#audio)), the effects (`AudioEffects`), WAV, Ogg Vorbis, MP3, WebM Opus and MP4 AAC decoding, `AudioSource`/`AudioListener`/`AudioMixer`, per-scene `AudioSystem`, silent `NullAudioDevice` | Scenes, NVorbis (MIT), NLayer (MIT), Concentus (BSD-3), SharpJaad.AAC (MIT) |
 | `MNVTEngine.Audio.OpenAL` | `OpenALAudioDevice.Create` (the mixer on an `OpenALAudioOutput`) | Audio, Silk.NET.OpenAL (MIT), OpenAL Soft native (`soft_oal.dll`, LGPL) |
 
 The host chooses the backend:
@@ -131,11 +131,20 @@ UI's **Mixer** panel (changes there last for the run). Meters are live in Play m
 - **MP3:** through NLayer (MIT, fully managed): MPEG-1/2 layers I-III, recognised by an ID3v2 tag or a frame sync.
   The length is unknown until decoded (variable bit rates), so a streamed MP3 reports no frame count.
 - **Opus in WebM:** through Concentus (BSD-3, fully managed), the first Opus track, always 48 kHz: what YouTube
-  serves as audio. The blocks are indexed when the file opens; a seek starts decoding 80 ms before the target so the
-  decoder settles. The pre-skip is not heard. Laced blocks are refused.
-- **AAC in MP4** (also fragmented, as SoundCloud serves it): Windows only, through Media Foundation's source reader
-  (`mfreadwrite.dll`, part of Windows), at the file's own rate. It opens the file by path, so only a `FileStream`
-  works; from memory or a package the MP4 is refused. A fragmented MP4 does not give its length.
+  serves as audio. The file is read front to back, its blocks indexed a cluster at a time as playback reaches them;
+  a seek indexes on to the target and starts decoding 80 ms before it so the decoder settles. The pre-skip is not
+  heard. Laced blocks are refused.
+- **AAC in fragmented MP4** (what HLS and DASH serve, SoundCloud among them): split by the engine and decoded with
+  SharpJaad.AAC (MIT, fully managed; AAC-LC and HE-AAC), on any platform, front to back a fragment at a time. A seek
+  walks the fragments to the target and decodes one frame ahead. It does not give its length. The edit list is
+  ignored, so the encoder's priming (about 50 ms) is heard as silence.
+- **AAC in MP4 without fragments:** Windows only, through Media Foundation's source reader (`mfreadwrite.dll`, part
+  of Windows), at the file's own rate. It opens the file by path, so only a `FileStream` works; from memory or a
+  package such an MP4 is refused.
+- **Files still being written** (a download): WebM Opus and fragmented MP4 need no length and read in order, so a
+  stream whose reads wait for the next bytes (and return 0 once the download ends) plays while it arrives; a read
+  cut off mid-frame is the end of the audio. The mixer's streamed buffers read on the streaming thread and decode
+  the first block on the caller's, so for a download decode on your own thread into an `IStreamingVoice`.
 - **Channels:** mono and stereo only.
 - **Errors:** damaged or unsupported files raise `InvalidDataException` with the asset name.
 - **Streams:** `AudioDecoder.Open(stream, name)` gives an `IAudioSampleSource` (block reads, `Seek(frame)`); `AudioDecoder.Decode` drains one.
@@ -147,6 +156,8 @@ UI's **Mixer** panel (changes there last for the run). Meters are live in Play m
 - `OpenAL_PlaysAClipToTheEnd` plays a quiet beep on the real device, and skips on machines without audio output.
 - `OutputSwitchTests`: switching outputs stops the old one and starts the new one; a device that cannot be opened falls back to the default.
 - `WebmOpusTests`: a WebM built in the test decodes to its length (without the pre-skip) and seeks.
+- `StreamedDecodingTests`: a fragmented MP4 tone (`tests/TestAssets/Audio`, AAC from Windows' encoder) decodes and
+  seeks to the frame; WebM and MP4 decode from a stream that gives 64 bytes per read and no length, as a download does.
 - `AudioStreamingTests`: streamed decoding equals whole decoding, playback to the end without underruns, seamless looping, seeking (`Time`) in streamed and decoded clips, read errors stopping the voice, and the `loadType` / size rule.
 
 ## Limitations
