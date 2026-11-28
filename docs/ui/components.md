@@ -93,6 +93,13 @@ panel.AnimateOpacity(1f, Motion.Tween(0.2f, Easing.CubicOut))
   - with `Loading = true`, show pulsing dots and refuse clicks;
   - `Glyph` draws an icon-font glyph before the text.
 
+## Token-bound looks
+
+`.Border(t => t.Line)`, `.Shadow(t => color, offset)` and `.WhenState(UIState.Hover, t => new UIStyle { ... })`
+(or `.HoverBackground(t => t.SurfaceHover)`) follow the design tokens like `.Background(t => ...)`, so a theme switch
+restyles them. `WhenState` is a per-element `:hover`/`:pressed` selector: it layers over the element's own style while
+the state holds.
+
 ## Gradients
 
 `Gradient` is a linear gradient: two or more `GradientStop(offset, color)` and an angle in degrees clockwise from

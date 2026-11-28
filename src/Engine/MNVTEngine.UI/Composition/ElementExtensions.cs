@@ -14,7 +14,7 @@ namespace MNVTEngine.UI;
 /// its own type. Overloads taking a <see cref="Func{TResult}"/> or an <see cref="IReadable{T}"/> are bindings: they
 /// follow the reactive values they read until the element is disposed.
 /// </summary>
-public static class ElementExtensions
+public static partial class ElementExtensions
 {
     // Tree.
 
