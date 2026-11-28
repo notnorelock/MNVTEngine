@@ -26,6 +26,7 @@ public sealed partial class UIContext : IDisposable
     private readonly UIInputRouter _input;
     private UITheme _theme = UITheme.Dark;
     private float _scale = 1f;
+    private readonly List<UIElement> _ticking = [];
     private bool _layoutDirty = true;
     private ReactiveScope? _mountScope;
     private UIElement? _mounted;
@@ -166,12 +167,27 @@ public sealed partial class UIContext : IDisposable
             LayoutIfDirty(); // input may have changed the tree (opened a dropdown, typed text)
         }
 
-        foreach (var element in Root.Descendants().Concat(Overlay.Descendants()).ToList()) // animations and ticks may change the tree
+        _ticking.Clear(); // one list kept across frames: animations and ticks may change the tree while it runs
+        Collect(Root, _ticking);
+        Collect(Overlay, _ticking);
+        foreach (var element in _ticking)
         {
             if (element.Tick(deltaSeconds) | element.StepAnimations(deltaSeconds))
             {
                 MarkVisualDirty();
             }
+        }
+
+        _ticking.Clear(); // let removed elements go
+    }
+
+    /// <summary>The element and everything under it, like <see cref="UIElement.Descendants"/> without its iterators.</summary>
+    private static void Collect(UIElement element, List<UIElement> into)
+    {
+        into.Add(element);
+        foreach (var child in element.Children)
+        {
+            Collect(child, into);
         }
     }
 
