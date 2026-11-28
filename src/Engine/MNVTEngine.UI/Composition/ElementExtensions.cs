@@ -210,7 +210,10 @@ public static partial class ElementExtensions
 
     // Events.
 
-    /// <summary>Runs <paramref name="onClick"/> when the element is clicked (buttons: also Enter or Space).</summary>
+    /// <summary>
+    /// Runs <paramref name="onClick"/> when the element is clicked (buttons: also Enter or Space). The element takes the
+    /// pointer even without a background, unless <see cref="UIElement.HitTestVisible"/> was set.
+    /// </summary>
     public static T OnClick<T>(this T e, Action onClick)
         where T : UIElement
     {
@@ -222,6 +225,7 @@ public static partial class ElementExtensions
         }
         else
         {
+            e.HitTestVisible ??= true; // a transparent row with a click handler must still be clickable
             e.PointerClicked += (_, args) =>
             {
                 onClick();

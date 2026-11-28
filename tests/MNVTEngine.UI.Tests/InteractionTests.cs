@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-05.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Mathematics;
 using MNVTEngine.UI.Widgets;
@@ -45,6 +45,21 @@ public sealed class InteractionTests
         ui.Click(button);
         Assert.Equal(1, clicks);
         Assert.Equal(UIState.Disabled, button.State & UIState.Disabled);
+    }
+
+    [Fact]
+    public void OnClick_OnATransparentRow_StillClicks_UnlessHitTestingIsOff()
+    {
+        using var ui = new UIHarness();
+        var clicks = 0;
+        var row = ui.Context.Root.AddChild(V.Row(V.Text("Rooms")).Size(200, 30).OnClick(() => clicks++));
+        var off = ui.Context.Root.AddChild(V.Row().Size(200, 30).HitTest(false).OnClick(() => clicks += 10));
+        off.Top = 40;
+        ui.Frame();
+
+        ui.Click(row);
+        ui.Click(off);
+        Assert.Equal(1, clicks);
     }
 
     [Fact]

@@ -25,11 +25,20 @@ public static partial class ElementExtensions
     /// over its own style while the state holds, like a <c>Button:hover</c> selector for this element alone.
     /// </summary>
     public static T WhenState<T>(this T e, UIState state, Func<DesignTokens, UIStyle> style)
-        where T : UIElement => e.Bind(() => style(Design.Tokens), (x, v) =>
+        where T : UIElement
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        if (state is UIState.Hover or UIState.Pressed)
+        {
+            e.HitTestVisible ??= true; // hover and press need the pointer, also over a clear background
+        }
+
+        return e.Bind(() => style(Design.Tokens), (x, v) =>
         {
             x.StateStyles[state] = v;
             x.InvalidateVisual();
         });
+    }
 
     /// <summary>
     /// Frosted glass: what is behind the element (the world, lower UI layers), blurred, under its background. Give it a
