@@ -131,6 +131,33 @@ public sealed class UIRenderingTests
             Assert.True(Pixel(pixels, 121, 141).R < 0.5f, "the circle's corner stays round");
         });
     }
+
+    [Fact]
+    public void Frosted_ShowsWhatEarlierLayersDrew_Blurred_InsideTheBox()
+    {
+        Run((device, renderer) =>
+        {
+            using var below = new UIHarness(W, H);
+            below.Context.Root.AddChild(new Panel { Left = 0, Top = 0, Width = 160, Height = H, BackgroundColor = Color.Red });
+            using var glass = new UIHarness(W, H);
+            glass.Context.Root.AddChild(new Panel { Left = 100, Top = 40, Width = 120, Height = 80, CornerRadius = 12, Frosted = true });
+
+            below.Frame();
+            glass.Frame();
+            device.SetRenderTarget(null);
+            device.Clear(Color.Black);
+            renderer.Render(below.Context, W, H);
+            renderer.Render(glass.Context, W, H);
+            var pixels = new byte[W * H * 4];
+            device.ReadPixels(pixels);
+            device.Present();
+
+            Assert.True(Pixel(pixels, 110, 80).R > 0.8f, "red from the layer below shows through");
+            Assert.True(Pixel(pixels, 210, 80).R < 0.2f, "black stays black far from the edge");
+            Assert.InRange(Pixel(pixels, 162, 80).R, 0.15f, 0.85f); // the hard edge at x = 160 is blurred
+            Assert.True(Pixel(pixels, 180, 30).R < 0.01f, "nothing outside the box");
+        });
+    }
 }
 
 /// <summary>A circle filled through the span overload with a stop far left of it, as a skeleton's shimmer band beside it.</summary>

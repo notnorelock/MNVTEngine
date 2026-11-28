@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
@@ -439,7 +439,7 @@ public sealed unsafe partial class VulkanGraphicsDevice : IGraphicsDevice
         ThrowIfDisposed();
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-        var image = CreateImage(width, height, 1, ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit, AllocationKind.RenderTarget, debugName);
+        var image = CreateImage(width, height, 1, ImageUsageFlags.ColorAttachmentBit | ImageUsageFlags.SampledBit | ImageUsageFlags.TransferSrcBit | ImageUsageFlags.TransferDstBit, AllocationKind.RenderTarget, debugName);
         VulkanImage? depthImage = null;
         try
         {

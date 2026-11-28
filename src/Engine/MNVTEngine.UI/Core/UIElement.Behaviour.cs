@@ -195,7 +195,8 @@ public sealed partial class UITheme
             Math.Clamp(style.Opacity ?? 1f, 0f, 1f),
             style.Shadow ?? Color.Clear,
             style.ShadowOffset ?? new Vector2(0f, 2f),
-            style.BackgroundGradient);
+            style.BackgroundGradient,
+            style.Backdrop ?? false);
     }
 
     private void Layer(UIStyle style, string selector, UIState state)

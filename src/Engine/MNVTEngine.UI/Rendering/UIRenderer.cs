@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using System.Runtime.CompilerServices;
 using MNVTEngine.Graphics;
@@ -23,6 +23,7 @@ public sealed class UIRenderer : IDisposable
     private readonly VertexBuffer _vertices;
     private readonly IndexBuffer _indices;
     private readonly ConditionalWeakTable<UIContext, Mesh> _meshes = [];
+    private readonly UIBackdrop _backdrop = new();
 
     public UIRenderer(IGraphicsDevice device, Material material)
     {
@@ -56,9 +57,20 @@ public sealed class UIRenderer : IDisposable
         context.LayoutIfDirty();
         var mesh = _meshes.GetOrCreateValue(context);
         var pixelScale = context.Scale * context.FramebufferScale;
-        if (context.VisualDirty || mesh.Generation != Atlas.Generation || mesh.PixelScale != pixelScale)
+        if (_device.CanCopyColor)
         {
-            Rebuild(context, mesh, pixelScale);
+            _backdrop.Resize(_device, framebufferWidth, framebufferHeight);
+        }
+
+        var backdrop = _device.CanCopyColor ? _backdrop.Result : null;
+        if (context.VisualDirty || mesh.Generation != Atlas.Generation || mesh.PixelScale != pixelScale || !ReferenceEquals(mesh.Backdrop, backdrop))
+        {
+            Rebuild(context, mesh, pixelScale, backdrop);
+        }
+
+        if (mesh.UsesBackdrop && backdrop is not null)
+        {
+            _backdrop.Capture(_device); // what lies under this context now: the world and the contexts drawn before it
         }
 
         Atlas.Flush();
@@ -98,23 +110,28 @@ public sealed class UIRenderer : IDisposable
     {
         _vertices.Dispose();
         _indices.Dispose();
+        _backdrop.Dispose();
         Atlas.Dispose();
     }
 
-    private void Rebuild(UIContext context, Mesh mesh, float pixelScale)
+    private void Rebuild(UIContext context, Mesh mesh, float pixelScale, Texture2D? backdrop)
     {
         for (var attempt = 0; attempt < 2; attempt++)
         {
             mesh.Vertices.Clear();
             mesh.Runs.Clear();
             var generation = Atlas.Generation;
-            var painter = new UIPainter(Atlas, pixelScale, mesh.Vertices, mesh.Runs, new Rect(0, 0, context.Size.X, context.Size.Y));
+            var painter = new UIPainter(Atlas, pixelScale, mesh.Vertices, mesh.Runs, new Rect(0, 0, context.Size.X, context.Size.Y))
+            {
+                Backdrop = backdrop,
+                BackdropScale = _backdrop.Scale,
+            };
             var visible = 0;
             Paint(context.Root, painter, ref visible);
             Paint(context.Overlay, painter, ref visible);
             if (Atlas.Generation == generation)
             {
-                (mesh.Generation, mesh.PixelScale) = (generation, pixelScale);
+                (mesh.Generation, mesh.PixelScale, mesh.Backdrop, mesh.UsesBackdrop) = (generation, pixelScale, backdrop, painter.UsedBackdrop);
                 context.Statistics.VisibleElements = visible;
                 break; // otherwise the atlas was cleared while painting: quads point at old pages, paint again
             }
@@ -172,6 +189,10 @@ public sealed class UIRenderer : IDisposable
         public int Generation { get; set; } = -1;
 
         public float PixelScale { get; set; }
+
+        public Texture2D? Backdrop { get; set; }
+
+        public bool UsesBackdrop { get; set; }
 
         public int Quads => Vertices.Count / 4;
     }

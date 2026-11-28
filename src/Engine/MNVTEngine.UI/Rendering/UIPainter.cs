@@ -85,6 +85,11 @@ public sealed partial class UIPainter
             FillRect(new Rect(bounds.X + style.ShadowOffset.X, bounds.Y + style.ShadowOffset.Y, bounds.Width, bounds.Height), style.Shadow, style.CornerRadius);
         }
 
+        if (style.Backdrop)
+        {
+            FillBackdrop(bounds, style.CornerRadius);
+        }
+
         if (style.BackgroundGradient is { } gradient)
         {
             FillGradient(bounds, gradient, style.CornerRadius);

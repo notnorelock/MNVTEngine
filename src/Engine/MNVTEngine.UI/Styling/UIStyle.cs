@@ -32,6 +32,9 @@ public sealed class UIStyle
     /// <summary>A gradient painted instead of <see cref="Background"/>; null for the plain color.</summary>
     public Gradient? BackgroundGradient { get; set; }
 
+    /// <summary>Frosted glass: what is behind the box, blurred, under its background (which should be translucent).</summary>
+    public bool? Backdrop { get; set; }
+
     public Color? Foreground { get; set; }
 
     public Color? BorderColor { get; set; }
@@ -67,6 +70,7 @@ public sealed class UIStyle
 
         Background = other.Background ?? Background;
         BackgroundGradient = other.BackgroundGradient ?? BackgroundGradient;
+        Backdrop = other.Backdrop ?? Backdrop;
         Foreground = other.Foreground ?? Foreground;
         BorderColor = other.BorderColor ?? BorderColor;
         BorderWidth = other.BorderWidth ?? BorderWidth;
@@ -98,7 +102,8 @@ public readonly record struct ResolvedStyle(
     float Opacity,
     Color Shadow,
     Vector2 ShadowOffset,
-    Gradient? BackgroundGradient = null);
+    Gradient? BackgroundGradient = null,
+    bool Backdrop = false);
 
 /// <summary>
 /// Named styles, the CSS idea in small: selectors are a widget type (<c>"Button"</c>), a style class (<c>".primary"</c>),

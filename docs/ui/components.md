@@ -100,6 +100,19 @@ panel.AnimateOpacity(1f, Motion.Tween(0.2f, Easing.CubicOut))
 restyles them. `WhenState` is a per-element `:hover`/`:pressed` selector: it layers over the element's own style while
 the state holds.
 
+## Frosted glass
+
+`.Frosted()` (`UIElement.Frosted`, `UIStyle.Backdrop`) draws what lies behind the element, blurred, under its
+background: give it a translucent background to tint it. Before drawing a context that uses it, `UIRenderer` copies
+the target as it is so far (the world and the contexts drawn before) down a chain of halving targets with
+`IGraphicsDevice.CopyColor` (a linear blit; four steps, a sixteenth of the size), and the element samples the last one.
+
+- No shader: it needs only `CopyColor`. Where the backend or surface cannot copy (`CanCopyColor` false) the element
+  shows just its background.
+- Elements in the same context are not in its backdrop: put a layer that should be frosted over in a lower context.
+- The corners are cut in 2-pixel strips without anti-aliasing; the background drawn over it gives the smooth edge.
+- While an element animates `Translate`, the blur stays where its layout is.
+
 ## Gradients
 
 `Gradient` is a linear gradient: two or more `GradientStop(offset, color)` and an angle in degrees clockwise from

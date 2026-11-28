@@ -135,6 +135,9 @@ public partial class UIElement
     /// <summary>Painted instead of <see cref="BackgroundColor"/> when set (<see cref="UIStyle.BackgroundGradient"/>).</summary>
     public Gradient? BackgroundGradient { get => Style.BackgroundGradient; set { Style.BackgroundGradient = value; InvalidateVisual(); } }
 
+    /// <summary>Frosted glass behind the background (<see cref="UIStyle.Backdrop"/>).</summary>
+    public bool Frosted { get => Style.Backdrop ?? false; set { Style.Backdrop = value; InvalidateVisual(); } }
+
     public Color? TextColor { get => Style.Foreground; set { Style.Foreground = value; InvalidateVisual(); } }
 
     public Color? BorderColor { get => Style.BorderColor; set { Style.BorderColor = value; InvalidateVisual(); } }

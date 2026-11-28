@@ -31,6 +31,13 @@ public static partial class ElementExtensions
             x.InvalidateVisual();
         });
 
+    /// <summary>
+    /// Frosted glass: what is behind the element (the world, lower UI layers), blurred, under its background. Give it a
+    /// translucent background to tint it. Without backend support it is just the background.
+    /// </summary>
+    public static T Frosted<T>(this T e, bool frosted = true)
+        where T : UIElement => Set(e, x => x.Frosted = frosted);
+
     /// <summary>A background while hovered (<see cref="WhenState{T}"/>).</summary>
     public static T HoverBackground<T>(this T e, Func<DesignTokens, Color> color)
         where T : UIElement => e.WhenState(UIState.Hover, t => new UIStyle { Background = color(t) });

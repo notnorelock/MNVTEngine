@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-13.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Mathematics;
 
@@ -147,6 +147,17 @@ public interface IGraphicsDevice : IDisposable
 
     /// <summary>Reads the whole current target as RGBA8, row 0 = top of the image.</summary>
     void ReadPixels(Span<byte> destination);
+
+    /// <summary>Whether <see cref="CopyColor"/> works for the current target (a back buffer may not allow copies).</summary>
+    bool CanCopyColor => false;
+
+    /// <summary>
+    /// Copies what <paramref name="source"/> shows (null: the current target, so far this frame) into
+    /// <paramref name="destination"/>, scaled to its size with linear filtering. Chained into smaller targets it blurs:
+    /// the UI's frosted glass samples the result.
+    /// </summary>
+    void CopyColor(RenderTarget2D? source, RenderTarget2D destination) =>
+        throw new NotSupportedException("This graphics backend cannot copy between targets.");
 
     /// <summary>
     /// Ends the frame: submits the recorded work and shows the back buffer. Hosts call it once at the end of each rendered
