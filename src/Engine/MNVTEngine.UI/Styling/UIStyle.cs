@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Graphics.Text;
 using MNVTEngine.Mathematics;
@@ -28,6 +28,9 @@ public enum UIState
 public sealed class UIStyle
 {
     public Color? Background { get; set; }
+
+    /// <summary>A gradient painted instead of <see cref="Background"/>; null for the plain color.</summary>
+    public Gradient? BackgroundGradient { get; set; }
 
     public Color? Foreground { get; set; }
 
@@ -63,6 +66,7 @@ public sealed class UIStyle
         }
 
         Background = other.Background ?? Background;
+        BackgroundGradient = other.BackgroundGradient ?? BackgroundGradient;
         Foreground = other.Foreground ?? Foreground;
         BorderColor = other.BorderColor ?? BorderColor;
         BorderWidth = other.BorderWidth ?? BorderWidth;
@@ -93,7 +97,8 @@ public readonly record struct ResolvedStyle(
     Thickness Padding,
     float Opacity,
     Color Shadow,
-    Vector2 ShadowOffset);
+    Vector2 ShadowOffset,
+    Gradient? BackgroundGradient = null);
 
 /// <summary>
 /// Named styles, the CSS idea in small: selectors are a widget type (<c>"Button"</c>), a style class (<c>".primary"</c>),

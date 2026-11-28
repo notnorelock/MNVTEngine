@@ -72,6 +72,8 @@ panel.AnimateOpacity(1f, Motion.Tween(0.2f, Easing.CubicOut))
   - `RenderScale`, around the element centre;
   - `Translate`, an offset in logical pixels;
   - background color.
+- **Reduced motion.** With `Design.ReducedMotion` (an accessibility setting) translate and scale animations jump to
+  their end, so `Appear` only fades, and skeletons stand still. Opacity and color changes still play.
 - A new animation of the same property replaces the running one.
 - `After(seconds, action)` runs on UI time and is cancelled when the element is disposed. Like events, the action runs
   in the scene's context (`SceneManager.LoadScene` after a fade works), and a throwing action is logged, not fatal.
@@ -90,6 +92,41 @@ panel.AnimateOpacity(1f, Motion.Tween(0.2f, Easing.CubicOut))
   - draw a ripple from the point pressed;
   - with `Loading = true`, show pulsing dots and refuse clicks;
   - `Glyph` draws an icon-font glyph before the text.
+
+## Gradients
+
+`Gradient` is a linear gradient: two or more `GradientStop(offset, color)` and an angle in degrees clockwise from
+left-to-right (90 runs top to bottom). Set one as a background with `element.Background(gradient)` (or
+`.Background(t => t.AccentGradient)` to follow the tokens), `BackgroundGradient`, or a style's `BackgroundGradient`
+(so `Tab:checked` can have one). Draw one with `UIPainter.FillGradient`; the span overload takes stops without
+allocating, for animated gradients.
+
+- No shader: the box is cut into quads at its corner bands and, along the gradient's axis, at every stop, and the
+  colors blend across each quad. Horizontal and vertical gradients are exact; diagonal ones with more than two stops
+  are cut into eighths, which can show faint banding.
+- Rounded corners and clipping work as for plain boxes; the blend is trimmed with the quad.
+- `Gradient.Lerp` blends two gradients, for animating between them.
+- Not supported: radial gradients, gradient borders, blur.
+
+## Loading and skeletons
+
+`V.Loading(state, skeleton, content, empty, failed)` shows content that loads asynchronously by its `LoadState`
+(`Initial`, `Loading`, `PartiallyLoaded`, `Loaded`, `Empty`, `Failed`). The owner (a page) loads the data and sets the
+state; the region only shows it.
+
+- A load finishing within `ShowAfterSeconds` (0.12 s) never shows its skeleton, so fast data does not flash one.
+- A skeleton that showed stays `MinimumSeconds` (0.35 s), then the content fades in over `FadeSeconds`.
+- A reload over shown content keeps the content. `Failed` and `Empty` show their builders, or plain defaults.
+
+Skeletons are placeholders in the shape of what is coming:
+
+- `V.Skeleton(width, height)` is a box, `V.SkeletonCircle(size)` an avatar, `V.SkeletonText(percent)` a text line.
+- `V.SkeletonRow(avatar, lines)` and `V.SkeletonList(count)` are list items. Compose cards from these.
+- The base color (`DesignTokens.Skeleton`) breathes toward `SkeletonHighlight` by `SkeletonPulse`. A highlight band
+  sweeps across in `ShimmerSeconds`.
+- The sweep runs on `UIContext.Time` in screen space, so every skeleton on screen shows one band passing over them
+  together. It starts and ends off screen, so the loop has no jump.
+- A theme change restyles visible skeletons on the next frame. A hidden skeleton does not repaint.
 
 ## Components
 
@@ -149,7 +186,9 @@ data.Set("score", () => coins.Value * 10)        // computed, one-way
 - text roles: font role, size and letter spacing;
 - control heights and icon size;
 - radii, border width and spacing scale (`Space1`..`Space8`);
-- motion presets (`Fade`, `Hover`, `Slide`, `Open`, `Close`, `Press`) and the hover and press scales.
+- motion presets (`Fade`, `Hover`, `Slide`, `Open`, `Close`, `Press`) and the hover and press scales;
+- `AccentGradient` for highlighted fills, and the skeleton colors and timing (`Skeleton`, `SkeletonHighlight`,
+  `ShimmerSeconds`, `SkeletonPulse`).
 
 The defaults are `DesignTokens.Midnight()`, a dark violet-blue theme, and `MidnightHighContrast()`.
 

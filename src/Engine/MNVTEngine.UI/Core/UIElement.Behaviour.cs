@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Mathematics;
 
@@ -194,7 +194,8 @@ public sealed partial class UITheme
             style.Padding ?? Thickness.Zero,
             Math.Clamp(style.Opacity ?? 1f, 0f, 1f),
             style.Shadow ?? Color.Clear,
-            style.ShadowOffset ?? new Vector2(0f, 2f));
+            style.ShadowOffset ?? new Vector2(0f, 2f),
+            style.BackgroundGradient);
     }
 
     private void Layer(UIStyle style, string selector, UIState state)

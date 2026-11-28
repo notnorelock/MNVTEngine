@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Graphics.Text;
 using MNVTEngine.Mathematics;
@@ -29,6 +29,8 @@ public readonly record struct TextRole(FontRole Font, float Size, float LetterSp
 /// </summary>
 public sealed record DesignTokens
 {
+    private Gradient? _accentGradient;
+
     public string Name { get; init; } = "Midnight";
 
     // Surfaces, darkest to lightest. No pure black: it smears on OLED screens and looks flat.
@@ -113,6 +115,23 @@ public sealed record DesignTokens
 
     public TextRole ButtonText { get; init; } = new(FontRole.BodyStrong, 14f);
 
+    /// <summary>A highlight across important fills: selected tabs, primary buttons, progress (null: from the accent).</summary>
+    public Gradient AccentGradient
+    {
+        get => _accentGradient ?? Gradient.Linear(AccentHover, AccentPressed, 135f);
+        init => _accentGradient = value;
+    }
+
+    // Skeletons (loading placeholders): a base a little above the surface, and the shimmer passing over it.
+    public Color Skeleton { get; init; } = Hex(0x1C2333);
+    public Color SkeletonHighlight { get; init; } = Hex(0x2B3550);
+
+    /// <summary>Seconds for the shimmer to cross a skeleton; 0 stops it.</summary>
+    public float ShimmerSeconds { get; init; } = 1.6f;
+
+    /// <summary>How far the base breathes toward the highlight, 0 to 1; 0 stops it.</summary>
+    public float SkeletonPulse { get; init; } = 0.25f;
+
     // Motion: soft and quick; nothing makes anyone wait.
     public Motion Fade { get; init; } = Motion.Tween(0.14f);
     public Motion Hover { get; init; } = Motion.Tween(0.12f);
@@ -171,4 +190,11 @@ public static class Design
 
     /// <summary>The tokens read reactively (inside bindings): shorthand for <c>Current.Value</c>.</summary>
     public static DesignTokens Tokens => Current.Value;
+
+    /// <summary>
+    /// Reduced motion (an accessibility setting): moves and scales jump to their end instead of animating, entrances only
+    /// fade, and decorative loops (skeleton shimmer and pulse) stand still. Fades and color changes still play.
+    /// </summary>
+    [field: ThreadStatic]
+    public static bool ReducedMotion { get; set; }
 }

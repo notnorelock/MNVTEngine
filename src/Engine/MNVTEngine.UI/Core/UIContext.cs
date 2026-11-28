@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Graphics.Text;
 using MNVTEngine.Graphics;
@@ -139,10 +139,14 @@ public sealed partial class UIContext : IDisposable
     public void Update(InputView input, Vector2 windowSize, float framebufferScale, float deltaSeconds) =>
         Update(input, windowSize, framebufferScale, deltaSeconds, pointerBlocked: false);
 
+    /// <summary>Seconds of UI time since the context was made: one clock for effects that must stay in step (skeleton shimmer).</summary>
+    public double Time { get; private set; }
+
     /// <param name="pointerBlocked">A context above already took the pointer: hover and clicks are off for this one.</param>
     internal void Update(InputView input, Vector2 windowSize, float framebufferScale, float deltaSeconds, bool pointerBlocked)
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
+        Time += Math.Max(0f, deltaSeconds);
         Dispatcher.Drain();
         var size = windowSize / _scale;
         if (size != Size || framebufferScale != FramebufferScale)

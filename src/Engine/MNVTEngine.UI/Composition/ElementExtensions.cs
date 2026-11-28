@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Graphics.Text;
 using MNVTEngine.Mathematics;
@@ -172,6 +172,14 @@ public static class ElementExtensions
     /// <summary>A background from the design tokens, following token changes.</summary>
     public static T Background<T>(this T e, Func<DesignTokens, Color> color)
         where T : UIElement => e.Bind(() => color(Design.Tokens), (x, v) => x.BackgroundColor = v);
+
+    /// <summary>A gradient background; null goes back to the plain one.</summary>
+    public static T Background<T>(this T e, Gradient? gradient)
+        where T : UIElement => Set(e, x => x.BackgroundGradient = gradient);
+
+    /// <summary>A gradient background from the design tokens, following token changes.</summary>
+    public static T Background<T>(this T e, Func<DesignTokens, Gradient?> gradient)
+        where T : UIElement => e.Bind(() => gradient(Design.Tokens), (x, v) => x.BackgroundGradient = v);
 
     public static T Border<T>(this T e, Color color, float width = 1f)
         where T : UIElement => Set(e, x => (x.BorderColor, x.BorderWidth) = (color, width));

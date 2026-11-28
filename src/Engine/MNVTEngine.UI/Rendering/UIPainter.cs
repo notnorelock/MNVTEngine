@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Text;
@@ -14,7 +14,7 @@ namespace MNVTEngine.UI;
 /// corner pieces and glyphs all come from the <see cref="GlyphAtlas"/>, so a typical UI is one texture and one draw.
 /// Elements receive logical coordinates; the painter scales them by <see cref="PixelScale"/>.
 /// </summary>
-public sealed class UIPainter
+public sealed partial class UIPainter
 {
     private readonly GlyphAtlas _atlas;
     private readonly List<SpriteVertex> _vertices;
@@ -85,7 +85,11 @@ public sealed class UIPainter
             FillRect(new Rect(bounds.X + style.ShadowOffset.X, bounds.Y + style.ShadowOffset.Y, bounds.Width, bounds.Height), style.Shadow, style.CornerRadius);
         }
 
-        if (style.Background.A > 0f)
+        if (style.BackgroundGradient is { } gradient)
+        {
+            FillGradient(bounds, gradient, style.CornerRadius);
+        }
+        else if (style.Background.A > 0f)
         {
             FillRect(bounds, style.Background, style.CornerRadius);
         }
@@ -238,7 +242,10 @@ public sealed class UIPainter
         ? r
         : new Rect((r.X * _scale) + _offset.X, (r.Y * _scale) + _offset.Y, r.Width * _scale, r.Height * _scale);
 
-    private void Quad(Texture2D texture, Rect dest, Rect src, Color color)
+    private void Quad(Texture2D texture, Rect dest, Rect src, Color color) => Quad(texture, dest, src, color, color, color, color);
+
+    /// <summary>A quad with a color per corner (top-left, top-right, bottom-right, bottom-left), blended across it.</summary>
+    private void Quad(Texture2D texture, Rect dest, Rect src, Color tl, Color tr, Color br, Color bl)
     {
         dest = Transform(dest);
         var x0 = MathF.Max(dest.X, _clip.X);
@@ -252,11 +259,23 @@ public sealed class UIPainter
 
         float U(float x) => (src.X + ((x - dest.X) / dest.Width * src.Width)) / texture.Width;
         float V(float y) => (src.Y + ((y - dest.Y) / dest.Height * src.Height)) / texture.Height;
-        var packed = new Color(color.R, color.G, color.B, color.A * _alpha).ToRgba32();
-        _vertices.Add(new SpriteVertex(new Vector2(x0, y0), new Vector2(U(x0), V(y0)), packed));
-        _vertices.Add(new SpriteVertex(new Vector2(x1, y0), new Vector2(U(x1), V(y0)), packed));
-        _vertices.Add(new SpriteVertex(new Vector2(x1, y1), new Vector2(U(x1), V(y1)), packed));
-        _vertices.Add(new SpriteVertex(new Vector2(x0, y1), new Vector2(U(x0), V(y1)), packed));
+        var solid = tl == tr && tl == br && tl == bl ? new Color(tl.R, tl.G, tl.B, tl.A * _alpha).ToRgba32() : 0u; // glyphs and boxes skip the blend
+        uint At(float x, float y)
+        {
+            if (solid != 0u)
+            {
+                return solid;
+            }
+
+            var (fx, fy) = ((x - dest.X) / dest.Width, (y - dest.Y) / dest.Height); // clipping trims the blend too
+            var c = Color.Lerp(Color.Lerp(tl, tr, fx), Color.Lerp(bl, br, fx), fy);
+            return new Color(c.R, c.G, c.B, c.A * _alpha).ToRgba32();
+        }
+
+        _vertices.Add(new SpriteVertex(new Vector2(x0, y0), new Vector2(U(x0), V(y0)), At(x0, y0)));
+        _vertices.Add(new SpriteVertex(new Vector2(x1, y0), new Vector2(U(x1), V(y0)), At(x1, y0)));
+        _vertices.Add(new SpriteVertex(new Vector2(x1, y1), new Vector2(U(x1), V(y1)), At(x1, y1)));
+        _vertices.Add(new SpriteVertex(new Vector2(x0, y1), new Vector2(U(x0), V(y1)), At(x0, y1)));
         if (_runs.Count > 0 && ReferenceEquals(_runs[^1].Texture, texture))
         {
             _runs[^1] = _runs[^1] with { Quads = _runs[^1].Quads + 1 };

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Mathematics;
 
@@ -241,7 +241,7 @@ public static class UIAnimations
         where T : UIElement
     {
         ArgumentNullException.ThrowIfNull(element);
-        if (motion.IsInstant || element.Context is null)
+        if (motion.IsInstant || element.Context is null || (Design.ReducedMotion && property is "translate" or "scale"))
         {
             element.StopAnimations(property);
             apply(to);

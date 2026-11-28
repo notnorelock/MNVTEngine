@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Reactivity;
 using MNVTEngine.UI.Widgets;
@@ -25,7 +25,7 @@ public enum ButtonVariant
 /// </code>
 /// Controls taking a <see cref="Signal{T}"/> are two-way bound: the control shows the signal and writes edits back.
 /// </summary>
-public static class V
+public static partial class V
 {
     // Layout.
 

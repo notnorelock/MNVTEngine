@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-12.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using Microsoft.Extensions.Logging.Abstractions;
 using MNVTEngine.Graphics;
@@ -104,6 +104,28 @@ public sealed class UIRenderingTests
             var pixels = Frame(device, renderer, ui);
             Assert.True(Pixel(pixels, 40, 25).R > 0.9f);
             Assert.True(Pixel(pixels, 40, 120).R < 0.01f, "content below the view is clipped");
+        });
+    }
+
+    [Fact]
+    public void Gradients_BlendBetweenStops_InsideRoundedCorners_AndThroughClips()
+    {
+        Run((device, renderer) =>
+        {
+            using var ui = new UIHarness(W, H);
+            var stops = new Gradient([new(0f, Color.Red), new(0.5f, Color.Green), new(1f, Color.Blue)]);
+            ui.Context.Root.AddChild(new Panel { Left = 20, Top = 20, Width = 200, Height = 100, CornerRadius = 16, BackgroundGradient = stops });
+            var scroll = ui.Context.Root.AddChild(new ScrollView { Left = 240, Top = 20, Width = 60, Height = 50 });
+            scroll.Content.AddChild(new Panel { Height = 100, BackgroundGradient = Gradient.Linear(Color.Red, Color.Blue, 90f) });
+
+            var pixels = Frame(device, renderer, ui);
+            Assert.True(Pixel(pixels, 23, 70).R > 0.9f, "the start is the first stop");
+            Assert.True(Pixel(pixels, 120, 70).G > 0.9f, "the middle stop is exact (the quads split there)");
+            Assert.True(Pixel(pixels, 217, 70).B > 0.9f, "the end is the last stop");
+            Assert.InRange(Pixel(pixels, 70, 70).R, 0.4f, 0.6f); // halfway between red and green
+            Assert.True(Pixel(pixels, 21, 21).R < 0.5f, "rounded corner is cut");
+            Assert.InRange(Pixel(pixels, 270, 68).B, 0.35f, 0.6f); // just above the clip: half way down the 100-tall gradient
+            Assert.True(Pixel(pixels, 270, 90).B < 0.01f, "clipped below the view");
         });
     }
 }

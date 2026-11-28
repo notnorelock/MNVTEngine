@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Graphics.Text;
 using MNVTEngine.Mathematics;
@@ -132,6 +132,9 @@ public partial class UIElement
 
     public Color? BackgroundColor { get => Style.Background; set { Style.Background = value; InvalidateVisual(); } }
 
+    /// <summary>Painted instead of <see cref="BackgroundColor"/> when set (<see cref="UIStyle.BackgroundGradient"/>).</summary>
+    public Gradient? BackgroundGradient { get => Style.BackgroundGradient; set { Style.BackgroundGradient = value; InvalidateVisual(); } }
+
     public Color? TextColor { get => Style.Foreground; set { Style.Foreground = value; InvalidateVisual(); } }
 
     public Color? BorderColor { get => Style.BorderColor; set { Style.BorderColor = value; InvalidateVisual(); } }
@@ -207,7 +210,7 @@ public partial class UIElement
     protected virtual string StyleType => GetType().Name;
 
     /// <summary>Default for <see cref="HitTestVisible"/>: interactive widgets and elements with a background.</summary>
-    protected virtual bool DefaultHitTestVisible => Focusable || (Style.Background is { A: > 0f });
+    protected virtual bool DefaultHitTestVisible => Focusable || (Style.Background is { A: > 0f }) || Style.BackgroundGradient is not null;
 
     /// <summary>True while focused text input should take the keyboard from gameplay.</summary>
     public virtual bool WantsKeyboard => false;
