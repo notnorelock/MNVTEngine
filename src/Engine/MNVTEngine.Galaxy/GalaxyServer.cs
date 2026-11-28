@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using System.Diagnostics;
 using System.Net;
@@ -37,6 +37,8 @@ public sealed partial class GalaxyServer : IDisposable
     private readonly Dictionary<IPAddress, int> _perAddress = [];
     private readonly Dictionary<uint, (long SecondStartMs, int Count)> _inboundBudget = [];
     private readonly List<uint> _scratchIds = [];
+    private readonly byte[] _probeAnswer = new byte[GalaxyProbe.Size];
+    private (long SecondStartMs, int Count) _probeBudget;
     private readonly byte[] _cookieSecret = RandomNumberGenerator.GetBytes(32);
 
     private ITransport? _transport;
@@ -172,10 +174,33 @@ public sealed partial class GalaxyServer : IDisposable
                     HandlePayload(datagram, remote, now);
                     break;
 
+                case PacketType.Probe:
+                    AnswerProbe(datagram, remote, now);
+                    break;
+
                 default:
                     break;
             }
         }
+    }
+
+    /// <summary>Echoes a <see cref="GalaxyProbe"/> probe, within <see cref="GalaxyConstants.MaxProbesPerSecond"/>.</summary>
+    private void AnswerProbe(ReadOnlySpan<byte> datagram, IPEndPoint remote, long now)
+    {
+        var (secondStart, count) = _probeBudget;
+        if (now - secondStart >= 1000)
+        {
+            (secondStart, count) = (now, 0);
+        }
+
+        if (count >= GalaxyConstants.MaxProbesPerSecond || !GalaxyProbe.TryAnswer(datagram, _probeAnswer))
+        {
+            _probeBudget = (secondStart, count);
+            return;
+        }
+
+        _probeBudget = (secondStart, count + 1);
+        _transport!.Send(_probeAnswer, remote);
     }
 
     private void HandleConnectRequest(ReadOnlySpan<byte> datagram, IPEndPoint remote, long now)

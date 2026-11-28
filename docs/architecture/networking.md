@@ -120,6 +120,13 @@ the server's Unix milliseconds compares them with `ServerUnixTimeMs` (interpolat
 clock is the wall clock: if it is changed while connected the estimate is off until the next pings. A pong that does
 not echo one of this side's recent pings is ignored.
 
+**Probing before connecting.** `GalaxyProbe.PingAsync(endpoint, timeout)` measures the round trip to a server without
+a handshake, so a game can pick the nearest of several servers (regions) first. The probe is 13 bytes (type 6, the
+protocol version, an 8-byte nonce); the server echoes it as type 7 at once, keeps no state for it and answers at most
+`GalaxyConstants.MaxProbesPerSecond` (256) a second from everyone together. The answer is no larger than the probe,
+so a forged source address amplifies nothing. `null` means no answer in time: no server, another protocol version or
+a lost datagram (try again).
+
 ## Efficiency on the wire
 
 - **Coalescing.** A connection does not seal a separate datagram per message. It queues its frames and flushes them

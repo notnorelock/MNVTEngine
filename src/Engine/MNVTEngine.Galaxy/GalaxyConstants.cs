@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 namespace MNVTEngine.Galaxy;
 
@@ -21,6 +21,9 @@ public static class GalaxyConstants
 
     /// <summary>Most simultaneous connections accepted from one IP address; a basic per-source flood limit.</summary>
     public const int MaxConnectionsPerAddress = 16;
+
+    /// <summary>Most <see cref="GalaxyProbe"/> probes a server answers in a second, from everyone together.</summary>
+    public const int MaxProbesPerSecond = 256;
 
     /// <summary>Largest UDP payload the protocol will send or accept, chosen to stay under a typical path MTU so a
     /// datagram is not fragmented by IP. Anything larger is dropped as malformed.</summary>

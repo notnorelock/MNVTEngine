@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 namespace MNVTEngine.Galaxy;
 
@@ -26,6 +26,12 @@ internal enum PacketType : byte
     ConnectReject = 3,
     Payload = 4,
     ConnectChallenge = 5,
+
+    /// <summary>A round-trip probe from a client that is not connected (<see cref="GalaxyProbe"/>).</summary>
+    Probe = 6,
+
+    /// <summary>The server's echo of a <see cref="Probe"/>.</summary>
+    ProbeAnswer = 7,
 }
 
 /// <summary>Why a connection attempt was refused, carried in a <see cref="PacketType.ConnectReject"/>.</summary>
