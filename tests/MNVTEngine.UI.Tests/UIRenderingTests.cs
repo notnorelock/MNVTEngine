@@ -108,6 +108,22 @@ public sealed class UIRenderingTests
     }
 
     [Fact]
+    public void AMovedChild_IsClippedWhereItsParentIs_NotWhereItMovedFrom()
+    {
+        Run((device, renderer) =>
+        {
+            using var ui = new UIHarness(W, H);
+            var view = ui.Context.Root.AddChild(new UIElement { Left = 0, Top = 0, Width = 100, Height = 40, Overflow = Overflow.Clip });
+            var strip = view.AddChild(new Panel { Width = 200, Height = 40, BackgroundColor = Color.Red });
+            ui.Frame();
+            strip.Translate = new Vector2(-50f, 0f); // a marquee half way along
+            var pixels = Frame(device, renderer, ui);
+            Assert.True(Pixel(pixels, 90, 20).R > 0.9f, "what slid in shows up to the view's right edge");
+            Assert.True(Pixel(pixels, 120, 20).R < 0.01f, "nothing past the view");
+        });
+    }
+
+    [Fact]
     public void ScrollView_ClipsItsContent()
     {
         Run((device, renderer) =>

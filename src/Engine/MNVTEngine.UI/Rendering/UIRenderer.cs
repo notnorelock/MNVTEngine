@@ -160,17 +160,19 @@ public sealed class UIRenderer : IDisposable
             painter.PushTransform(element.Translate, element.RenderScale, element.Bounds.Center);
         }
 
-        painter.PushClip(element.PaintClip);
+        // Its own clip was pushed before the transform when moved: pushing it again here would move it along and cut
+        // off what slides in (a marquee's tail). Children's clips move with it.
+        PushOwnClip(element, painter, transformed);
         element.Paint(painter, style);
-        painter.PopClip();
+        PopOwnClip(painter, transformed);
         foreach (var child in element.ChildrenInDrawOrder())
         {
             Paint(child, painter, ref visible);
         }
 
-        painter.PushClip(element.PaintClip);
+        PushOwnClip(element, painter, transformed);
         element.PaintOver(painter, style);
-        painter.PopClip();
+        PopOwnClip(painter, transformed);
         if (transformed)
         {
             painter.PopTransform();
@@ -178,6 +180,22 @@ public sealed class UIRenderer : IDisposable
         }
 
         painter.PopOpacity();
+    }
+
+    private static void PushOwnClip(UIElement element, UIPainter painter, bool transformed)
+    {
+        if (!transformed)
+        {
+            painter.PushClip(element.PaintClip);
+        }
+    }
+
+    private static void PopOwnClip(UIPainter painter, bool transformed)
+    {
+        if (!transformed)
+        {
+            painter.PopClip();
+        }
     }
 
     private sealed class Mesh

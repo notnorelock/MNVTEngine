@@ -43,4 +43,23 @@ public sealed class FitAndScrollTests
         Assert.Equal(32f, Marquee.OffsetAt((2f * Marquee.Pause) + 3f, 64f, 32f), 3); // half way back
         Assert.Equal(0f, Marquee.OffsetAt(99f, 0f, 32f)); // fits: never moves
     }
+
+    [Fact]
+    public void Marquee_InARowThatShrinksIt_SlidesTheWholeLine_EvenWhenItsTextComesLater()
+    {
+        using var ui = new UIHarness(400, 200);
+        var text = new Label { Text = "" };
+        var marquee = new Marquee(text) { FlexGrow = 1f, MinWidth = 0f };
+        var row = ui.Context.Root.AddChild(new UIElement { Layout = LayoutMode.Row, Width = 120, Height = 30 });
+        row.AddChild(marquee);
+        row.AddChild(new UIElement { Width = 20, Height = 20 });
+        ui.Frame();
+        text.Text = "xor - REN (Official Music Video) (George Ezra cover, live at somewhere)";
+        ui.Frame();
+
+        var natural = LayoutEngine.Size(text, float.PositiveInfinity, 30f, false, false).X;
+        Assert.Equal(100f, marquee.Bounds.Width, 1);
+        Assert.Equal(natural - marquee.ContentBounds.Width, marquee.Excess, 1); // all of what is hidden
+        Assert.True(text.Bounds.Width >= natural - 0.5f, "the label keeps its whole width inside the clip");
+    }
 }
