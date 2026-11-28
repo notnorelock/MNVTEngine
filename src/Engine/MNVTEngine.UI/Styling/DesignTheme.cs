@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Mathematics;
 
@@ -97,7 +97,11 @@ internal static class DesignTheme
         {
             theme[control] = new UIStyle { Background = Color.Clear, BorderColor = t.LineStrong, CornerRadius = t.RadiusSmall, Padding = Thickness.Zero };
             theme[control + ":hover"] = new UIStyle { BorderColor = t.TextFaint };
-            theme[control + ":focused"] = new UIStyle { BorderColor = t.Accent };
+            if (control != "Toggle") // a switch shows focus with a ring when tabbed to, not by recoloring its track
+            {
+                theme[control + ":focused"] = new UIStyle { BorderColor = t.Accent };
+            }
+
             theme[control + ":disabled"] = new UIStyle { Foreground = t.TextDisabled, Opacity = 0.6f };
         }
 
@@ -131,6 +135,7 @@ internal static class DesignTheme
         };
         theme["DropdownItem"] = new UIStyle { Background = Color.Clear, CornerRadius = t.RadiusSmall, Padding = Thickness.Symmetric(t.Space3, t.Space2) };
         theme["DropdownItem:hover"] = new UIStyle { Background = t.SurfaceHover };
+        theme[".dropdown-selected"] = new UIStyle { Background = t.AccentSoft, Foreground = t.Text };
         theme["Slider"] = new UIStyle { Background = t.LineStrong, CornerRadius = 3f };
         theme["Slider:hover"] = new UIStyle { Background = t.TextDisabled };
         theme["ProgressBar"] = new UIStyle { Background = t.Line, CornerRadius = t.RadiusSmall, FontSize = t.Small.Size };

@@ -210,6 +210,12 @@ public sealed partial class UIContext : IDisposable
         VisualDirty = true;
     }
 
+    /// <summary>
+    /// Whether focus came from the keyboard (Tab) rather than a click: focus rings show only then, so clicking a switch
+    /// does not leave it outlined.
+    /// </summary>
+    public bool FocusVisible { get; internal set; }
+
     /// <summary>Moves keyboard focus; null clears it.</summary>
     public void SetFocus(UIElement? element)
     {

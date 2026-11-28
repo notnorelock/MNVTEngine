@@ -263,12 +263,17 @@ public class ScrollView : UIElement
     }
 }
 
-/// <summary>Picks one of <see cref="Options"/> from a list that opens below it (in the context's overlay).</summary>
+/// <summary>
+/// Picks one of <see cref="Options"/> from a list in the context's overlay: below it, or above when there is more room
+/// there; at most <see cref="MaxListHeight"/> tall (it scrolls), wide enough for long options (up to
+/// <see cref="MaxListWidth"/>), the selected one checked. It fades and slides in; Up/Down move the selection.
+/// </summary>
 public class Dropdown : UIElement
 {
     private readonly TextBlock _block = new();
     private int _selected = -1;
     private Panel? _backdrop;
+    private ScrollView? _scroll;
 
     public Dropdown() => Focusable = true;
 
@@ -301,6 +306,27 @@ public class Dropdown : UIElement
 
     public event Action<int>? SelectionChanged;
 
+    /// <summary>The open list's height limit; longer lists scroll.</summary>
+    public float MaxListHeight { get; set; } = 280f;
+
+    /// <summary>How wide the list may grow past the box to show long options whole.</summary>
+    public float MaxListWidth { get; set; } = 460f;
+
+    /// <summary>Where the list goes: its box and whether it opens upward (context coordinates).</summary>
+    public static (Rect List, bool Up) Place(Rect box, Vector2 screen, float contentHeight, float contentWidth, float maxHeight, float maxWidth)
+    {
+        const float Gap = 4f, Margin = 8f;
+        var below = screen.Y - (box.Y + box.Height) - Gap - Margin;
+        var above = box.Y - Gap - Margin;
+        var wanted = MathF.Min(contentHeight, maxHeight);
+        var up = below < wanted && above > below;
+        var height = MathF.Max(0f, MathF.Min(wanted, up ? above : below));
+        var width = MathF.Min(MathF.Max(box.Width, contentWidth), MathF.Max(box.Width, maxWidth));
+        var x = MathF.Max(Margin, MathF.Min(box.X, screen.X - width - Margin));
+        var y = up ? box.Y - Gap - height : box.Y + box.Height + Gap;
+        return (new Rect(x, y, width, height), up);
+    }
+
     public void Open()
     {
         if (IsOpen || Context is not { } context)
@@ -317,11 +343,14 @@ public class Dropdown : UIElement
                 Close();
             }
         };
-        var list = _backdrop.AddChild(new DropdownList { Left = Bounds.X, Top = Bounds.Y + Bounds.Height + 2f, Width = Bounds.Width, Layout = LayoutMode.Column });
+
+        var list = new DropdownList { Layout = LayoutMode.Column };
+        var scroll = _scroll = list.AddChild(new ScrollView { Width = UIUnit.Percent(100), Height = UIUnit.Percent(100) });
+        scroll.Content.Layout = LayoutMode.Column;
         for (var i = 0; i < Options.Count; i++)
         {
             var index = i;
-            var item = list.AddChild(new DropdownItem { Text = Options[i], Width = UIUnit.Percent(100) });
+            var item = scroll.Content.AddChild(new DropdownItem(Options[i], i == _selected) { Width = UIUnit.Percent(100) });
             item.PointerClicked += (_, _) =>
             {
                 SelectedIndex = index;
@@ -329,12 +358,29 @@ public class Dropdown : UIElement
                 Focus();
             };
         }
+
+        // Measure the items as laid out (in the context: padding, font), then place the list where it fits.
+        _backdrop.AddChild(list);
+        var listStyle = list.ResolveStyle();
+        var chrome = listStyle.Padding.Vertical + (2 * listStyle.BorderWidth);
+        var itemSizes = scroll.Content.Children.Select(c => LayoutEngine.Size(c, float.PositiveInfinity, float.PositiveInfinity, false, false)).ToList();
+        var contentHeight = itemSizes.Sum(s => s.Y) + chrome;
+        var contentWidth = (itemSizes.Count == 0 ? 0f : itemSizes.Max(s => s.X)) + listStyle.Padding.Horizontal + (2 * listStyle.BorderWidth) + 12f; // room for the scrollbar
+        var (box, up) = Place(Bounds, context.Size, contentHeight, contentWidth, MaxListHeight, MaxListWidth);
+        (list.Left, list.Top, list.Width, list.Height) = (box.X, box.Y, box.Width, box.Height);
+        list.Appear(new Vector2(0f, up ? 6f : -6f), 0f, 0.16f);
+        if (_selected >= 0)
+        {
+            // Open on the selection: scroll it into the middle once laid out.
+            var before = itemSizes.Take(_selected).Sum(s => s.Y);
+            scroll.ScrollOffset = MathF.Max(0f, before - ((box.Height - chrome) / 2f) + (itemSizes[_selected].Y / 2f));
+        }
     }
 
     public void Close()
     {
         _backdrop?.RemoveFromParent();
-        _backdrop = null;
+        (_backdrop, _scroll) = (null, null);
     }
 
     protected internal override void OnClick(PointerEventArgs e)
@@ -358,17 +404,46 @@ public class Dropdown : UIElement
         switch (e.Key)
         {
             case Key.Up:
-                SelectedIndex = Math.Max(0, SelectedIndex - 1);
+                Move(Math.Max(0, SelectedIndex - 1));
                 e.Handled = true;
                 break;
             case Key.Down:
-                SelectedIndex = Math.Min(Options.Count - 1, SelectedIndex + 1);
+                Move(Math.Min(Options.Count - 1, SelectedIndex + 1));
+                e.Handled = true;
+                break;
+            case Key.Enter or Key.Space when !IsOpen:
+                Open();
+                e.Handled = true;
+                break;
+            case Key.Enter when IsOpen:
+                Close();
                 e.Handled = true;
                 break;
             case Key.Escape when IsOpen:
                 Close();
                 e.Handled = true;
                 break;
+        }
+    }
+
+    /// <summary>Selects <paramref name="index"/>; with the list open, its check follows and stays in view.</summary>
+    private void Move(int index)
+    {
+        SelectedIndex = index;
+        if (_scroll is null)
+        {
+            return;
+        }
+
+        var items = _scroll.Content.Children.OfType<DropdownItem>().ToList();
+        for (var i = 0; i < items.Count; i++)
+        {
+            items[i].Selected = i == _selected;
+        }
+
+        if (_selected >= 0 && _selected < items.Count)
+        {
+            _scroll.ScrollIntoView(items[_selected].Bounds);
         }
     }
 
@@ -398,9 +473,11 @@ public class Dropdown : UIElement
         base.Paint(painter, style);
         var content = ContentBounds;
         var layout = _block.Get(this, SelectedOption ?? Placeholder, style, float.PositiveInfinity);
-        painter.PushClip(Bounds); // the parent's clip is already pushed (and stays put when this one moves)
-        painter.DrawText(layout, new Vector2(content.X, content.Y + ((content.Height - _block.Size.Y) / 2f)), SelectedOption is null ? style.Foreground with { A = style.Foreground.A * 0.55f } : style.Foreground);
         var arrow = style.FontSize * 0.35f;
+        painter.PushClip(new Rect(Bounds.X, Bounds.Y, MathF.Max(0f, content.X + content.Width - (2.5f * arrow) - Bounds.X), Bounds.Height)); // the text stops before the arrow
+        painter.DrawText(layout, new Vector2(content.X, content.Y + ((content.Height - _block.Size.Y) / 2f)), SelectedOption is null ? style.Foreground with { A = style.Foreground.A * 0.55f } : style.Foreground);
+        painter.PopClip();
+        painter.PushClip(Bounds); // the parent's clip is already pushed (and stays put when this one moves)
         var cx = content.X + content.Width - arrow;
         var cy = content.Y + (content.Height / 2f);
         for (var i = 0; i < (int)arrow; i++)
@@ -415,11 +492,26 @@ public class Dropdown : UIElement
 
     private sealed class DropdownList : Panel;
 
-    private sealed class DropdownItem : Label
+    /// <summary>An option: its text on one line (clipped), and a check when selected.</summary>
+    private sealed class DropdownItem : UIElement
     {
-        public DropdownItem()
+        private readonly Icon _check;
+
+        public DropdownItem(string text, bool selected)
         {
-            HitTestVisible = true;
+            (HitTestVisible, Layout, AlignItems, Gap, Overflow) = (true, LayoutMode.Row, Align.Center, 8f, Overflow.Clip);
+            AddChild(new Label { Text = text, FlexGrow = 1f, MinWidth = 0f, HitTestVisible = false });
+            _check = AddChild(new Icon { Text = Icons.Check });
+            Selected = selected;
+        }
+
+        public bool Selected
+        {
+            set
+            {
+                _check.Visible = value;
+                StyleClass = value ? "dropdown-selected" : "";
+            }
         }
     }
 }

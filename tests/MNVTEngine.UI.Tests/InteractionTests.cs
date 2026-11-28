@@ -309,6 +309,29 @@ public sealed class InteractionTests
     }
 
     [Fact]
+    public void DropdownList_ScrollsPastItsLimit_OpensUpNearTheBottom_AndWidensForLongOptions()
+    {
+        var screen = new Vector2(800, 600);
+        var (low, up) = Dropdown.Place(new Rect(100, 500, 200, 30), screen, 900f, 150f, 280f, 460f);
+        Assert.True(up); // 70 px below, 490 above
+        Assert.Equal((280f, 500f - 4f - 280f), (low.Height, low.Y));
+        Assert.Equal(200f, low.Width); // never narrower than the box
+
+        var (high, down) = Dropdown.Place(new Rect(700, 40, 80, 30), screen, 100f, 600f, 280f, 460f);
+        Assert.False(down);
+        Assert.Equal((100f, 460f), (high.Height, high.Width)); // short lists fit; long options widen it up to the limit
+        Assert.True(high.X + high.Width <= screen.X - 8f, "kept on screen");
+    }
+
+    [Fact]
+    public void Toggle_SlidesItsKnob_OverTheSlideTime()
+    {
+        Assert.Equal(0.5f, Toggle.Step(0f, 1f, Toggle.SlideSeconds / 2f), 3);
+        Assert.Equal(1f, Toggle.Step(0.9f, 1f, Toggle.SlideSeconds)); // never past the end
+        Assert.Equal(0f, Toggle.Step(0.1f, 0f, Toggle.SlideSeconds));
+    }
+
+    [Fact]
     public void ScrollView_ScrollsWithTheWheel_WithinItsContent()
     {
         using var ui = new UIHarness();

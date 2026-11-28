@@ -41,6 +41,11 @@ context.Mount(() => V.Card(
   `Checkbox`, `Slider`, `Tabs` and `Dropdown` (an index into its options, -1 for none). `Switch(isOn, set)` and `Checkbox(isOn, set)` are controlled instead: they show
   what `isOn` returns (following the signals it reads) and hand each flip to `set`, for state that is not one signal
   (a settings object, membership in a list); a flip `set` refuses snaps back.
+- **Dropdown and switch.** A dropdown's list opens below it, or above when there is more room there, at most
+  `MaxListHeight` (280) tall and scrolling past it, as wide as its longest option up to `MaxListWidth` (460); it fades
+  and slides in, opens on the selection (checked), and Up/Down move the selection with it. A switch's knob glides
+  over `Toggle.SlideSeconds` and its track fades to the accent. Focus rings on switches show only when focus came
+  from the keyboard (`UIContext.FocusVisible`, set by Tab, cleared by a click).
 - **Disposal.** `UIElement.Dispose()` detaches the element and disposes its subtree: bindings, effects,
   `OnCleanup` callbacks and running animations. A disposed element is never reused.
 - **Errors.** A binding that throws is logged by the scene's `UISystem` ("A UI binding or effect failed.") and the

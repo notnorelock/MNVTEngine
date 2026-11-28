@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Mathematics;
 using MNVTEngine.UI.Widgets;
@@ -93,6 +93,7 @@ internal sealed class UIInputRouter(UIContext context)
             var target = hit is not null && hit.IsEnabledInHierarchy ? hit : null;
             context.Pressed = target;
             context.SetFocus(FocusableAncestor(target));
+            context.FocusVisible = false;
             if (target is not null)
             {
                 Route(target, Pointer(pointer, MouseButton.Left), (e, a) => e.OnPointerDown(a));
@@ -210,6 +211,7 @@ internal sealed class UIInputRouter(UIContext context)
         var current = context.Focused is { } f ? order.IndexOf(f) : -1;
         var next = current < 0 ? (direction > 0 ? 0 : order.Count - 1) : (current + direction + order.Count) % order.Count;
         context.SetFocus(order[next]);
+        context.FocusVisible = true;
     }
 
     private void UpdateTooltip(Vector2 pointer, float dt)

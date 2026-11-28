@@ -311,19 +311,49 @@ public class Checkbox : UIElement
     }
 }
 
-/// <summary>A sliding on/off switch.</summary>
+/// <summary>A sliding on/off switch: the knob glides across and the track fades to the accent.</summary>
 public class Toggle : Checkbox
 {
+    /// <summary>Seconds the knob takes to cross.</summary>
+    public const float SlideSeconds = 0.16f;
+
+    private float _on = -1f; // 0 off .. 1 on; -1 until first painted, so a switch does not slide in when it appears
+
+    /// <summary>Moves <paramref name="at"/> toward <paramref name="target"/> by one frame of a <see cref="SlideSeconds"/> slide.</summary>
+    public static float Step(float at, float target, float deltaSeconds) =>
+        at < target ? MathF.Min(target, at + (deltaSeconds / SlideSeconds)) : MathF.Max(target, at - (deltaSeconds / SlideSeconds));
+
+    protected internal override bool Tick(float deltaSeconds)
+    {
+        var target = Checked ? 1f : 0f;
+        if (_on < 0f || Design.ReducedMotion)
+        {
+            var changed = _on != target;
+            _on = target;
+            return changed;
+        }
+
+        if (_on == target)
+        {
+            return false;
+        }
+
+        _on = Step(_on, target, deltaSeconds);
+        return true;
+    }
+
     protected override void PaintMark(UIPainter painter, in ResolvedStyle style, Rect box)
     {
+        var on = _on < 0f ? (Checked ? 1f : 0f) : _on;
+        var eased = on * on * (3f - (2f * on));
         var track = new Rect(box.X, box.Y + (box.Height * 0.1f), box.Width * 1.9f, box.Height * 0.8f);
-        painter.FillRect(track, Checked ? style.Accent : style.BorderColor, track.Height / 2f);
+        painter.FillRect(track, Color.Lerp(style.BorderColor, style.Accent, eased), track.Height / 2f);
         var knob = track.Height - 4f;
-        var x = Checked ? track.X + track.Width - knob - 2f : track.X + 2f;
+        var x = track.X + 2f + ((track.Width - knob - 4f) * eased);
         painter.FillRect(new Rect(x, track.Y + 2f, knob, knob), Color.White, knob / 2f);
-        if ((State & UIState.Focused) != 0)
+        if ((State & UIState.Focused) != 0 && Context is { FocusVisible: true })
         {
-            painter.StrokeRect(track, style.Accent, 1f, track.Height / 2f);
+            painter.StrokeRect(new Rect(track.X - 2f, track.Y - 2f, track.Width + 4f, track.Height + 4f), style.Accent, 1.5f, (track.Height / 2f) + 2f);
         }
     }
 
