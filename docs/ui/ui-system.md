@@ -89,6 +89,10 @@ ui.OnAction("play", _ => SceneManager.LoadScene("Scenes/Level1.mnvt"));
 - **`UIContext`.**
   - `Root` holds the tree; `Overlay` holds dropdown lists and tooltips.
   - Coordinates are logical pixels: window pixels divided by `Scale`. High-DPI framebuffers are handled through `FramebufferScale`.
+  - Fit to the window: set `ReferenceWidth` (the width the interface was designed at) and `Scale` becomes the set
+    zoom times `clamp(windowWidth / ReferenceWidth, MinFit, MaxFit)`. Defaults: `MinFit` 1 / 2.2 (never smaller),
+    `MaxFit` 1 (never larger than designed), so a narrower window shows the same layout, smaller. Reads of `Scale`
+    give the effective value, so input, text and screen-to-UI conversions follow it.
   - The context tracks focus (Tab and Shift+Tab), hover and pressed state.
   - Pointer events carry the keyboard modifiers (`Shift`, `Control`, `Alt`): Shift-click extends a text field's selection.
   - Text fields undo and redo (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z). Typing and deleting merge into one step per word, at most 100 steps are kept, and setting `Text` from code clears the history (`TextEditor.Undo`, `Redo`, `CanUndo`, `CanRedo`).
@@ -103,7 +107,9 @@ ui.OnAction("play", _ => SceneManager.LoadScene("Scenes/Level1.mnvt"));
 - **Widgets.**
   - Display: `Panel`, `Label`, `Image`, `Separator`, `Tooltip`, `ProgressBar` (determinate or indeterminate).
   - Toggles: `Button`, `Checkbox`, `Toggle`, `RadioButton` (grouped).
-  - Selection: `Slider`, `ScrollView` (wheel, drag, scrollbar), `Dropdown`.
+  - Selection: `Slider`, `ScrollView` (wheel, drag, scrollbar), `Dropdown`. The wheel glides: each notch moves
+    `TargetOffset` and the view eases toward it (`Smoothing` per second, 0 or `Design.ReducedMotion` jumps);
+    `ScrollOffset` and the bar move at once.
   - Text: `TextField` and `TextArea` with a caret, selection, clipboard, max length, validation, placeholder and password.
 - **Styling.**
   - Precedence: an element's own `Style`, then `StateStyles` (hover, pressed, focused, disabled, checked), then the context's `UITheme`.

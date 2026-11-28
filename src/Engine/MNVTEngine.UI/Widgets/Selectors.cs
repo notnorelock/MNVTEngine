@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-04.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Graphics.Text;
 using MNVTEngine.Mathematics;
@@ -103,11 +103,12 @@ public class Slider : UIElement
 
 /// <summary>
 /// Shows <see cref="Content"/> through a clipped window that scrolls vertically with the wheel or by dragging the
-/// scroll bar. The content is laid out at the view's width and its natural height.
+/// scroll bar. The content is laid out at the view's width and its natural height. The wheel glides: each notch moves
+/// a target and the view eases toward it (<see cref="Smoothing"/>; instant under <see cref="Design.ReducedMotion"/>).
 /// </summary>
 public class ScrollView : UIElement
 {
-    private float _offset;
+    private float _offset, _target;
     private bool _draggingBar;
     private float _dragStart, _dragOffset;
 
@@ -128,6 +129,7 @@ public class ScrollView : UIElement
         set
         {
             var v = Math.Clamp(value, 0f, MaxOffset);
+            _target = v;
             if (v != _offset)
             {
                 _offset = v;
@@ -142,6 +144,19 @@ public class ScrollView : UIElement
 
     /// <summary>Logical pixels per wheel notch.</summary>
     public float WheelStep { get; set; } = 48f;
+
+    /// <summary>How fast a wheel scroll catches up with its target, per second (0: jumps at once).</summary>
+    public float Smoothing { get; set; } = 16f;
+
+    /// <summary>Where the wheel is taking the view; equals <see cref="ScrollOffset"/> once it settles.</summary>
+    public float TargetOffset => _target;
+
+    /// <summary>Moves toward <see cref="TargetOffset"/>: a smooth stop, no overshoot.</summary>
+    public static float Ease(float offset, float target, float smoothing, float deltaSeconds)
+    {
+        var next = offset + ((target - offset) * (1f - MathF.Exp(-smoothing * deltaSeconds)));
+        return MathF.Abs(target - next) < 0.25f ? target : next;
+    }
 
     /// <summary>Scrolls just enough to show <paramref name="rect"/> (context coordinates).</summary>
     public void ScrollIntoView(Rect rect)
@@ -166,6 +181,7 @@ public class ScrollView : UIElement
         var size = LayoutEngine.Size(Content, view.Width - 10f, float.PositiveInfinity, true, false);
         ContentHeight = size.Y;
         _offset = Math.Clamp(_offset, 0f, MaxOffset);
+        _target = Math.Clamp(_target, 0f, MaxOffset);
         LayoutEngine.Arrange(Content, new Rect(view.X, view.Y - _offset, size.X, size.Y), ChildClip);
     }
 
@@ -173,9 +189,30 @@ public class ScrollView : UIElement
     {
         if (MaxOffset > 0f)
         {
-            ScrollOffset -= e.Scroll.Y * WheelStep;
+            var target = Math.Clamp(_target - (e.Scroll.Y * WheelStep), 0f, MaxOffset);
+            if (Smoothing <= 0f || Design.ReducedMotion)
+            {
+                ScrollOffset = target;
+            }
+            else
+            {
+                _target = target;
+            }
+
             e.Handled = true;
         }
+    }
+
+    protected internal override bool Tick(float deltaSeconds)
+    {
+        if (_target == _offset)
+        {
+            return false;
+        }
+
+        _offset = Ease(_offset, _target, Smoothing, deltaSeconds);
+        InvalidateLayout();
+        return true;
     }
 
     protected internal override void OnPointerDown(PointerEventArgs e)
@@ -207,7 +244,7 @@ public class ScrollView : UIElement
     {
         if (Bar() is { } bar)
         {
-            painter.FillRect(bar, style.Accent, 3f);
+            painter.FillRect(bar, style.Accent with { A = style.Accent.A * 0.55f }, 2f);
         }
     }
 
@@ -222,7 +259,7 @@ public class ScrollView : UIElement
 
         var height = Math.Max(20f, view.Height * view.Height / ContentHeight);
         var y = view.Y + ((view.Height - height) * (_offset / MaxOffset));
-        return new Rect(view.X + view.Width - 6f, y, 6f, height);
+        return new Rect(view.X + view.Width - 5f, y, 4f, height);
     }
 }
 

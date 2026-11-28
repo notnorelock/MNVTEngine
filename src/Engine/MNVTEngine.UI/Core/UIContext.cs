@@ -69,10 +69,13 @@ public sealed partial class UIContext : IDisposable
         }
     }
 
-    /// <summary>Window pixels per logical pixel (UI zoom). 2 makes everything twice as large.</summary>
+    /// <summary>
+    /// Window pixels per logical pixel: the zoom set here times the fit to the window's width (<see cref="ReferenceWidth"/>).
+    /// 2 makes everything twice as large. Reads give the effective scale.
+    /// </summary>
     public float Scale
     {
-        get => _scale;
+        get => _scale * _fit;
         set
         {
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
@@ -148,7 +151,8 @@ public sealed partial class UIContext : IDisposable
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         Time += Math.Max(0f, deltaSeconds);
         Dispatcher.Drain();
-        var size = windowSize / _scale;
+        _fit = FitScale(windowSize.X, ReferenceWidth, MinFit, MaxFit);
+        var size = windowSize / Scale;
         if (size != Size || framebufferScale != FramebufferScale)
         {
             (Size, FramebufferScale) = (size, framebufferScale);
