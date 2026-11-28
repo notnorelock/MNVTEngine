@@ -202,7 +202,7 @@ public abstract class TextInputBase : UIElement
         KeepCaretVisible(layout, content);
         var origin = new Vector2(content.X - ScrollOffset.X, content.Y - ScrollOffset.Y);
         var scale = Block.PixelScale;
-        painter.PushClip(LayoutEngine.Intersect(ClipBounds, Inflate(content, 1f)));
+        painter.PushClip(LayoutEngine.Intersect(Bounds, Inflate(content, 1f)));
         if (Editor.Text.Length == 0 && Placeholder.Length > 0)
         {
             var hint = new TextBlock().Get(this, Placeholder, style, Wrap ? content.Width : float.PositiveInfinity, TextAlign.Left, Wrap);

@@ -398,7 +398,7 @@ public class Dropdown : UIElement
         base.Paint(painter, style);
         var content = ContentBounds;
         var layout = _block.Get(this, SelectedOption ?? Placeholder, style, float.PositiveInfinity);
-        painter.PushClip(ClipBounds);
+        painter.PushClip(Bounds); // the parent's clip is already pushed (and stays put when this one moves)
         painter.DrawText(layout, new Vector2(content.X, content.Y + ((content.Height - _block.Size.Y) / 2f)), SelectedOption is null ? style.Foreground with { A = style.Foreground.A * 0.55f } : style.Foreground);
         var arrow = style.FontSize * 0.35f;
         var cx = content.X + content.Width - arrow;

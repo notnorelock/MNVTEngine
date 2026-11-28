@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-25.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Text;
@@ -161,7 +161,7 @@ public class Button : UIElement
             base.Paint(painter, style);
         }
 
-        painter.PushClip(ClipBounds);
+        painter.PushClip(Bounds); // the parent's clip is already pushed (and stays put when this one moves)
         foreach (var (center, age) in _ripples)
         {
             var t = age / RippleSeconds;

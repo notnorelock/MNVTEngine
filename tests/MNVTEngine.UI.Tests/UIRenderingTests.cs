@@ -124,6 +124,22 @@ public sealed class UIRenderingTests
     }
 
     [Fact]
+    public void AMarquee_DrawsTheTextThatSlidesIn()
+    {
+        Run((device, renderer) =>
+        {
+            using var ui = new UIHarness(W, H);
+            var line = new string('M', 40);
+            var marquee = ui.Context.Root.AddChild(new Marquee(new Label { Text = line }) { Left = 0, Top = 0, Width = 100, Height = 30 });
+            ui.Frame();
+            marquee.Label.Translate = new Vector2(-marquee.Excess, 0f); // slid to its end
+            var pixels = Frame(device, renderer, ui);
+            var lit = Enumerable.Range(60, 40).Count(x => Pixel(pixels, x, 12).G > 0.3f);
+            Assert.True(lit > 5, "the end of the line is drawn in the view's right half");
+        });
+    }
+
+    [Fact]
     public void ScrollView_ClipsItsContent()
     {
         Run((device, renderer) =>

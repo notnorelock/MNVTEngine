@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Norbert Podbiegły (Norelock) <https://github.com/notnorelock>
 // SPDX-License-Identifier: MIT
-// Part of MNVTEngine. Last modified 2026-11-26.
+// Part of MNVTEngine. Last modified 2026-11-28.
 
 using MNVTEngine.Graphics;
 using MNVTEngine.Graphics.Text;
@@ -59,7 +59,7 @@ public class Label : UIElement
             Align.End => content.Y + content.Height - height,
             _ => content.Y,
         };
-        painter.PushClip(ClipBounds);
+        painter.PushClip(Bounds); // the parent's clip is already pushed (and stays put when this one moves)
         painter.DrawText(layout, new Vector2(content.X, y), style.Foreground);
         painter.PopClip();
     }
@@ -125,7 +125,7 @@ public class Image : UIElement
             rect = new Rect(box.X + ((box.Width - size.X) / 2f), box.Y + ((box.Height - size.Y) / 2f), size.X, size.Y);
         }
 
-        painter.PushClip(ClipBounds);
+        painter.PushClip(Bounds); // the parent's clip is already pushed (and stays put when this one moves)
         painter.DrawImage(texture, rect, Tint, _sourceRect);
         painter.PopClip();
     }
@@ -184,7 +184,7 @@ public class ProgressBar : UIElement
     {
         base.Paint(painter, style);
         var box = Bounds;
-        painter.PushClip(ClipBounds);
+        painter.PushClip(Bounds); // the parent's clip is already pushed (and stays put when this one moves)
         if (Indeterminate)
         {
             var width = box.Width * 0.3f;
